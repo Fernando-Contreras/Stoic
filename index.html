@@ -1,0 +1,1236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Stoic</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+/* ── #9: zoom — max-width tighter + bigger base font ── */
+:root{
+  --bg:#09090f;--sur:#111118;--sur2:#17171f;--sur3:#1d1d26;
+  --b1:#22222e;--b2:#2c2c3a;--b3:#3a3a4a;
+  --t1:#f2f2f8;--t2:#b0b0cc;--t3:#707090;
+  /* #10: warmer accent — soft amber-gold instead of cold teal */
+  --ac:#f5a623;--ac2:#e09518;--acd:rgba(245,166,35,.13);--acb:rgba(245,166,35,.30);
+  /* negative = red */
+  --ng:#ff5566;--ngd:rgba(255,85,102,.13);--ngb:rgba(255,85,102,.30);
+  /* status */
+  --cr:#ff5566;--cy:#f5c842;--cg:#34d399;--cp:#a78bfa;
+  --rd:rgba(255,85,102,.13);--yd:rgba(245,200,66,.13);--gd:rgba(52,211,153,.13);--pd:rgba(167,139,250,.13);
+  --rb:rgba(255,85,102,.30);--yb:rgba(245,200,66,.30);--gb:rgba(52,211,153,.30);--pb:rgba(167,139,250,.30);
+  --ff:'Outfit',sans-serif;--mo:'JetBrains Mono',monospace;
+}
+/* #9: base font 17px, max-width 1100px = natural 125–150% feel */
+html,body{background:var(--bg);color:var(--t1);font-family:var(--ff);font-size:20px;min-height:100vh;-webkit-font-smoothing:antialiased;line-height:1.55}
+#root{max-width:1280px;margin:0 auto;padding:18px 24px 60px}
+
+/* ── TYPOGRAPHY ── */
+.mo{font-family:var(--mo)}
+.xs{font-size:12px}.sm{font-size:14px}.md{font-size:16px}.lg{font-size:18px}.xl{font-size:23px}.xxl{font-size:30px}.xxxl{font-size:44px}
+.w3{font-weight:300}.w4{font-weight:400}.w5{font-weight:500}.w6{font-weight:600}.w7{font-weight:700}.w8{font-weight:800}
+.dim{color:var(--t2)}.dimmer{color:var(--t3)}
+.ac{color:var(--ac)}.ng{color:var(--ng)}
+.cr{color:var(--cr)}.cy{color:var(--cy)}.cg{color:var(--cg)}.cp{color:var(--cp)}
+.up{text-transform:uppercase}.ls{letter-spacing:.07em}
+.ctr{text-align:center}
+
+/* ── LAYOUT ── */
+.g4{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.row{display:flex;align-items:center}
+.rowb{display:flex;align-items:center;justify-content:space-between}
+.col{display:flex;flex-direction:column}
+.gap4{gap:4px}.gap6{gap:6px}.gap8{gap:8px}.gap10{gap:10px}.gap12{gap:12px}.gap16{gap:16px}
+.f1{flex:1}.w100{width:100%}
+.mt4{margin-top:4px}.mt6{margin-top:6px}.mt8{margin-top:8px}.mt10{margin-top:10px}.mt12{margin-top:12px}.mt16{margin-top:16px}.mt20{margin-top:20px}
+.mb4{margin-bottom:4px}.mb6{margin-bottom:6px}.mb8{margin-bottom:8px}.mb10{margin-bottom:10px}.mb12{margin-bottom:12px}.mb16{margin-bottom:16px}
+.s4{display:flex;flex-direction:column;gap:4px}
+.s6{display:flex;flex-direction:column;gap:6px}
+.s8{display:flex;flex-direction:column;gap:8px}
+.s10{display:flex;flex-direction:column;gap:10px}
+.s12{display:flex;flex-direction:column;gap:12px}
+
+/* ── CARD ── */
+.card{background:var(--sur);border:1px solid var(--b1);border-radius:16px;padding:22px}
+.card2{background:var(--sur2);border:1px solid var(--b1);border-radius:12px;padding:14px}
+.card3{background:var(--sur3);border:1px solid var(--b1);border-radius:8px;padding:10px}
+.ctit{font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--t3);margin-bottom:14px}
+hr.dv{border:none;border-top:1px solid var(--b1);margin:12px 0}
+
+/* ── STATUS ── */
+.s-red{background:var(--rd);border-color:var(--rb);color:var(--cr)}
+.s-yellow{background:var(--yd);border-color:var(--yb);color:var(--cy)}
+.s-green{background:var(--gd);border-color:var(--gb);color:var(--cg)}
+.s-purple{background:var(--pd);border-color:var(--pb);color:var(--cp)}
+.s-ac{background:var(--acd);border-color:var(--acb);color:var(--ac)}
+
+/* ── BADGE ── */
+.badge{display:inline-flex;align-items:center;padding:2px 9px;border-radius:99px;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;border:1px solid}
+
+/* ── INPUTS ── */
+input[type=text],input[type=number],input[type=email],input[type=password],select{
+  background:var(--sur2);border:1px solid var(--b2);border-radius:8px;
+  color:var(--t1);font-family:var(--ff);font-size:16px;padding:10px 14px;
+  outline:none;transition:border-color .15s,box-shadow .15s;width:100%
+}
+input:focus,select:focus{border-color:var(--ac);box-shadow:0 0 0 3px var(--acd)}
+input[type=checkbox]{accent-color:var(--ac);width:16px;height:16px;cursor:pointer;flex-shrink:0}
+input[type=number]::-webkit-inner-spin-button{opacity:.3}
+
+/* ── BUTTONS ── */
+button{cursor:pointer;font-family:var(--ff);font-size:15px;font-weight:600;border-radius:9px;border:none;padding:10px 18px;transition:all .15s;line-height:1.3}
+.btn-ac{background:var(--ac);color:#1a0e00;font-weight:800}
+.btn-ac:hover{background:var(--ac2);transform:translateY(-1px)}
+.btn-ghost{background:var(--sur2);color:var(--t2);border:1px solid var(--b2)}
+.btn-ghost:hover{color:var(--t1);border-color:var(--b3)}
+.btn-ng{background:var(--ngd);color:var(--ng);border:1px solid var(--ngb)}
+.btn-ng:hover{background:rgba(255,85,102,.22)}
+.btn-icon{background:none;padding:4px 7px;color:var(--t3);border:none;border-radius:6px}
+.btn-icon:hover{color:var(--t1);background:var(--sur3)}
+.btn-sm{padding:6px 12px;font-size:13px}
+.btn-xs{padding:3px 8px;font-size:12px;border-radius:5px}
+
+/* ── TOGGLE ── */
+.tog{display:flex;align-items:center;gap:12px;cursor:pointer;padding:13px 16px;border-radius:12px;border:1px solid var(--b1);background:var(--sur2);transition:all .15s;user-select:none}
+.tog:hover{border-color:var(--b2)}
+.tog.on{border-color:var(--ac);background:var(--acd)}
+.tog.on .tt{color:var(--ac);font-weight:600}
+.tt{font-size:16px;color:var(--t2)}
+.ts{font-size:12px;color:var(--t3);margin-top:2px}
+
+/* ── PROGRESS ── */
+.prog{height:6px;border-radius:3px;background:var(--sur2);overflow:hidden}
+.prog-f{height:100%;border-radius:3px;transition:width .3s}
+
+/* ── STREAKS ── */
+.sk-g{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.skc{border-radius:12px;padding:16px 12px;text-align:center;border:1px solid}
+.skc.pos{background:var(--acd);border-color:var(--acb)}
+.skc.neg{background:var(--ngd);border-color:var(--ngb)}
+.skn{font-size:34px;font-weight:700;line-height:1;font-family:var(--mo)}
+.skl{font-size:10px;color:var(--t3);margin-top:4px;text-transform:uppercase;letter-spacing:.06em}
+
+/* ── CALENDAR ── */
+.cal-g{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}
+.cal-c{aspect-ratio:.9;border-radius:6px;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;border:1px solid transparent;transition:all .12s;position:relative;overflow:hidden}
+.cal-c:hover{filter:brightness(1.2)}
+.cal-c.today{border-color:var(--ac)!important;box-shadow:0 0 0 1px var(--ac)}
+.cal-c.sel{border-color:#fff!important}
+.cal-num{font-size:14px;font-weight:800;position:relative;z-index:1}
+.cal-pts{font-size:10px;font-weight:600;opacity:.95;margin-top:1px;font-family:var(--mo);position:relative;z-index:1}
+/* #8: flag glow overlay */
+.cal-flag-ring{position:absolute;inset:0;border-radius:6px;border:2px solid gold;box-shadow:inset 0 0 8px rgba(255,200,0,.3),0 0 8px rgba(255,200,0,.4);pointer-events:none;z-index:2}
+.cal-flag-ico{position:absolute;top:1px;right:2px;font-size:14px;z-index:3;line-height:1}
+.cal-hd{text-align:center;font-size:9px;color:var(--t3);padding:3px 0;text-transform:uppercase;letter-spacing:.05em}
+
+/* ── PENALTY ITEM ── */
+.pen-it{background:var(--sur2);border:1px solid var(--ngb);border-radius:8px;padding:9px 12px;display:flex;align-items:center;justify-content:space-between;gap:8px}
+
+/* ── HISTORY ROW ── */
+.hr-row{padding:9px 12px;border-radius:8px;border:1px solid var(--b1);background:var(--sur2);cursor:pointer;transition:border-color .15s}
+.hr-row:hover{border-color:var(--b2)}
+.hr-row.ed{border-color:var(--ac);background:var(--acd)}
+
+/* ── SECTION TOGGLE ── */
+.sec-t{width:100%;display:flex;align-items:center;justify-content:space-between;background:none;border:none;padding:0 0 14px;color:var(--t3);cursor:pointer;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase}
+.sec-t:hover{color:var(--t2)}
+
+/* ── MISC ── */
+.circ{transform:rotate(-90deg)}
+.sdot{width:7px;height:7px;border-radius:50%;background:var(--cg);display:inline-block;animation:pulse 2s ease infinite}
+@keyframes pulse{0%,100%{opacity:.4}50%{opacity:1}}
+@keyframes fi{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+.fi{animation:fi .18s ease}
+.login-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:var(--bg)}
+::-webkit-scrollbar-thumb{background:var(--b2);border-radius:3px}
+
+@media(max-width:900px){.g4{grid-template-columns:repeat(2,1fr)}.sk-g{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:580px){.g4{grid-template-columns:1fr}.g2{grid-template-columns:1fr}.xxxl{font-size:30px}.xxl{font-size:24px}}
+
+/* ── LIGHT MODE ── */
+body.light{--bg:#f4f4f0;--sur:#ffffff;--sur2:#efefeb;--sur3:#e5e5e0;--b1:#ddddd8;--b2:#cacac4;--b3:#b0b0aa;--t1:#1a1a1a;--t2:#555550;--t3:#888880}
+body.light .cal-c:hover{filter:brightness(.95)}
+/* ── DIARY ── */
+.diary-area{width:100%;min-height:90px;resize:vertical;background:var(--sur2);border:1px solid var(--b2);border-radius:8px;color:var(--t1);font-family:var(--ff);font-size:15px;padding:10px 14px;outline:none;transition:border-color .15s;line-height:1.6}
+.diary-area:focus{border-color:var(--ac);box-shadow:0 0 0 3px var(--acd)}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+window._SUPABASE_URL = 'https://qupukwwpebnawbtdbibs.supabase.co';
+window._SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF1cHVrd3dwZWJuYXdidGRiaWJzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODExNDQ0MDgsImV4cCI6MjA5NjcyMDQwOH0.IuQgej-fGMIDVuXOR0jjH_YgrTJJtRZKsKRPfZScCZY';
+</script>
+<script>
+/* ═══ STOIC by JuanFer — single file, vanilla JS, no frameworks ═══
+   Single source of truth: CALC object.
+   Auto-midnight reset. Auto-save on every change.
+   ════════════════════════════════════════════════════════════════ */
+
+const S={
+  get(k,fb=null){try{const v=localStorage.getItem(k);return v?JSON.parse(v):fb}catch{return fb}},
+  set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch{}}
+};
+const K={TODAY:'st_today',HIST:'st_hist',AUTH:'st_auth',DIARY:'st_diary',THEME:'st_theme',STREAK_OVR:'st_streak_ovr'};
+
+/* ── SUPABASE SYNC ──────────────────────────────────────────────────
+   Uses window._SUPABASE_URL and window._SUPABASE_KEY if set.
+   Table: stoic_data (user_id uuid PK, history jsonb, today jsonb)
+   Falls back to localStorage silently if not configured.
+   ────────────────────────────────────────────────────────────────── */
+const SB={
+  url: null, key: null, token: null,
+  init(){
+    // Accept URL with or without trailing /rest/v1/
+    const raw = window._SUPABASE_URL||'';
+    this.url = raw.replace(/\/rest\/v1\/?$/,'').replace(/\/+$/,'');
+    this.key = window._SUPABASE_KEY||'';
+    this.token = localStorage.getItem('AUTH_TOKEN')||'';
+    return !!(this.url && this.key && this.token);
+  },
+  headers(){
+    return {'Content-Type':'application/json','apikey':this.key,'Authorization':`Bearer ${this.token}`};
+  },
+  async push(history, today){
+    if(!this.init()) return;
+    try{
+      await fetch(`${this.url}/rest/v1/stoic_data`, {
+        method:'POST',
+        headers:{...this.headers(),'Prefer':'resolution=merge-duplicates,return=minimal'},
+        body:JSON.stringify({user_id:'placeholder', history, today})
+      });
+      // user_id is set server-side via RLS auth.uid() — placeholder is overwritten
+    }catch(e){console.warn('Supabase push failed',e);}
+  },
+  async pull(){
+    if(!this.init()) return null;
+    try{
+      const r=await fetch(`${this.url}/rest/v1/stoic_data?select=history,today&limit=1`,{headers:this.headers()});
+      if(!r.ok) return null;
+      const rows=await r.json();
+      return rows&&rows.length?rows[0]:null;
+    }catch(e){console.warn('Supabase pull failed',e);return null;}
+  },
+  async login(email,password){
+    this.url=(window._SUPABASE_URL||'').replace(/\/rest\/v1\/?$/,'').replace(/\/+$/,'');
+    this.key=window._SUPABASE_KEY||'';
+    if(!this.url||!this.key) return{error:'Supabase not configured'};
+    try{
+      const r=await fetch(`${this.url}/auth/v1/token?grant_type=password`,{
+        method:'POST',
+        headers:{'Content-Type':'application/json','apikey':this.key,'Authorization':`Bearer ${this.key}`},
+        body:JSON.stringify({email,password})
+      });
+      const d=await r.json();
+      if(d.access_token){
+        this.token=d.access_token;
+        localStorage.setItem('AUTH_TOKEN',d.access_token);
+        return{ok:true};
+      }
+      return{error:d.error_description||d.msg||'Login failed'};
+    }catch(e){return{error:'Network error'};}
+  }
+};
+function uid(){return Math.random().toString(36).slice(2)+Date.now().toString(36)}
+
+function parseDur(s){
+  if(!s||!s.trim())return{v:0};s=s.trim();let m;
+  if(m=s.match(/^(\d+)h(\d+)m$/))return{v:+m[1]*60+ +m[2]};
+  if(m=s.match(/^(\d+(?:\.\d+)?)h$/))return{v:Math.round(parseFloat(m[1])*60)};
+  if(m=s.match(/^(\d+)m$/))return{v:+m[1]};
+  const n=parseInt(s);if(!isNaN(n)&&n>=0)return{v:n};
+  return{v:null,err:'Use: 5h, 300m, 2h30m or number (minutes)'};
+}
+function fmtDur(min){
+  if(!min)return'0m';const h=Math.floor(min/60),m=min%60;
+  if(!h)return m+'m';if(!m)return h+'h';return h+'h'+m+'m';
+}
+function todayKey(){return new Date().toISOString().split('T')[0]}
+
+/* ═══ CALC — SINGLE SOURCE OF TRUTH ═══ */
+const CALC={
+  status(pct,flag){
+    let s=pct>=100?'purple':pct>=85?'green':pct>=50?'yellow':'red';
+    if(flag){const u={red:'yellow',yellow:'green',green:'purple',purple:'purple'};s=u[s];}
+    return s;
+  },
+  colorBonus(s){return{purple:30,green:20,yellow:10,red:0}[s]||0},
+  penBase(p){
+    if(p.type==='drugs')return -25*(p.details?.substances||1);
+    if(p.type==='internet')return -1*(p.details?.minutes||0);
+    if(p.type==='macanazo')return p.details?.isPositive?100:-100;
+    return 0;
+  },
+  streaks(history,today){
+    const tk=todayKey();
+    // #1 FIX: exclude today from history scan entirely
+    const hist=[...history].filter(d=>d.date!==tk).sort((a,b)=>new Date(a.date)-new Date(b.date));
+    const hasPen=(d,t)=>d.penalties?.some(p=>p.type===t)||false;
+    const hasSt=(d,t)=>d.streaks?.some(s=>s.type===t&&s.active)||false;
+    function pStrk(type,resetOn){let c=0;for(let i=hist.length-1;i>=0;i--){if(!hasPen(hist[i],type))break;if(resetOn.includes(hist[i].status))break;c++;}return c;}
+    function aStrk(type){let c=0;for(let i=hist.length-1;i>=0;i--){if(hasPen(hist[i],type))break;c++;}return c;}
+    function sStrk(type){let c=0;for(let i=hist.length-1;i>=0;i--){if(!hasSt(hist[i],type))break;c++;}return c;}
+    function wStrk(){let c=0;for(let i=hist.length-1;i>=0;i--){if(hist[i].status==='red')break;c++;}return c;}
+    function eStrk(){let c=0;for(let i=hist.length-1;i>=0;i--){if(!hist[i].sleptEarly)break;c++;}return c;}
+    const tD=today.penalties.some(p=>p.type==='drugs');
+    const tN=today.penalties.some(p=>p.type==='internet');
+    const tM=today.penalties.some(p=>p.type==='macanazo');
+    return{
+      substancesPenaltyStreak:pStrk('drugs',['yellow','green','purple'])+(tD?1:0),
+      procrastinationPenaltyStreak:pStrk('internet',['green','purple'])+(tN?1:0),
+      macanazoPenaltyStreak:pStrk('macanazo',['purple'])+(tM?1:0),
+      substancesStreak:tD?0:aStrk('drugs'),
+      procrastinationStreak:tN?0:aStrk('internet'),
+      macanazoStreak:tM?0:aStrk('macanazo'),
+      morningStreak:sStrk('morning')+(today.morningCompleted?1:0),
+      flagStreak:sStrk('flags')+(today.flagCompleted?1:0),
+      workStreak:wStrk()+(today.work?.workDuration>0?1:0),
+      earlyBedStreak:eStrk()+(today.sleep?.sleptEarly?1:0),
+    };
+  },
+  score(day,sk){
+    const{completed=0,target=0,morningCompleted=false,flagCompleted=false,pomodoros=0,penalties=[],sleep={},work={}}=day;
+    const s=sk||{morningStreak:0,flagStreak:0,substancesPenaltyStreak:1,procrastinationPenaltyStreak:1,macanazoPenaltyStreak:1};
+    const base=completed;
+    const mB=morningCompleted&&completed>=13?25*Math.max(1,s.morningStreak):0;
+    const fB=flagCompleted?100*Math.max(1,s.flagStreak):0;
+    const pom=pomodoros*25;
+    const wrk=work.workDuration||0;
+    const slp=(sleep.sleepDuration||0)+(sleep.napDuration||0)+(sleep.sleptEarly?(sleep.sleepDuration||0)*(sleep.earlyBedStreak||1):0);
+    const procMins=penalties.filter(p=>p.type==='internet').reduce((a,p)=>a+(p.details?.minutes||0),0);
+    const procActive=procMins>=30;
+    const pen=penalties.reduce((sum,p)=>{
+      const b=this.penBase(p);let mult=1;
+      if(p.type==='drugs')mult=Math.max(1,s.substancesPenaltyStreak);
+      else if(p.type==='internet')mult=procActive?Math.max(1,s.procrastinationPenaltyStreak):0;
+      else if(p.type==='macanazo')mult=Math.max(1,s.macanazoPenaltyStreak);
+      return sum+b*mult;
+    },0);
+    const pct=target>0?Math.round(completed/target*100):0;
+    const status=this.status(pct,flagCompleted);
+    const col=this.colorBonus(status);
+    const total=base+mB+fB+pom+wrk+slp+pen+col;
+    return{total,status,pct,mB,fB,pom,wrk,slp,pen,col};
+  },
+  // #2 FIX: histTotal must exclude today to avoid double-count
+  histTotal(history){
+    const tk=todayKey();
+    return history.filter(h=>h.date!==tk).reduce((s,d)=>s+(d.todayPoints||0),0);
+  },
+  buildEntry(today,streaks,date){
+    const sc=this.score(today,streaks);
+    return{date,todayPoints:sc.total,status:sc.status,
+      completedTasks:today.completed,totalTasks:today.target,pomodoros:today.pomodoros,
+      penalties:today.penalties.map(p=>({type:p.type,count:p.count,points:this.penBase(p),streak:1})),
+      streaks:[{type:'morning',count:today.morningCompleted?1:0,active:today.morningCompleted},{type:'flags',count:today.flagCompleted?1:0,active:today.flagCompleted}],
+      sleepDuration:today.sleep?.sleepDuration||0,napDuration:today.sleep?.napDuration||0,
+      sleptEarly:today.sleep?.sleptEarly||false,workDuration:today.work?.workDuration||0,
+      streaksUsed:{...streaks}};
+  },
+  /* #6: fill missing days between first and last history entry as red -1000 */
+  fillGaps(history){
+    if(history.length<2)return history;
+    const map=new Map(history.map(d=>[d.date,d]));
+    const dates=history.map(d=>d.date).sort();
+    const start=new Date(dates[0]),end=new Date(dates[dates.length-1]);
+    const result=[];
+    for(let d=new Date(start);d<=end;d.setDate(d.getDate()+1)){
+      const k=d.toISOString().split('T')[0];
+      result.push(map.get(k)||{date:k,todayPoints:-1000,status:'red',completedTasks:0,totalTasks:0,pomodoros:0,penalties:[],streaks:[],workDuration:0,sleepDuration:0,napDuration:0,sleptEarly:false,_gap:true});
+    }
+    return result;
+  }
+};
+
+/* ═══ STATE ═══ */
+let STATE={
+  diary:S.get(K.DIARY,{}),
+  theme:S.get(K.THEME,'dark'),
+  streakOverrides:S.get(K.STREAK_OVR,{}),
+  authed:true,
+  history:S.get(K.HIST,[]),
+  today:{completed:0,target:0,morningCompleted:false,flagCompleted:false,
+    pomodoros:0,penalties:[],
+    sleep:{sleepDuration:0,napDuration:0,sleptEarly:false,earlyBedStreak:0},
+    work:{workDuration:0}},
+  showReset:false,
+  showStreakPanel:false,
+  showSyncPanel:false,
+  penType:'drugs', // #3: persist penalty type selection
+};
+
+/* ═══ #1 FIX: loadToday checks for missed days, fills all gaps ═══ */
+function loadToday(){
+  const t=S.get(K.TODAY,null);
+  if(t){STATE.today={...STATE.today,...t};if(t._penType)STATE.penType=t._penType;}
+  const tk=todayKey();
+  const saved=STATE.today._date||'';
+  if(saved&&saved!==tk){
+    // might have missed multiple days — fill each missing day as -1000 gap
+    const savedDate=new Date(saved);
+    const nowDate=new Date(tk);
+    const daysDiff=Math.round((nowDate-savedDate)/(1000*60*60*24));
+    // save the actual last-used day
+    const sk=CALC.streaks(STATE.history,STATE.today);
+    upsertHist(CALC.buildEntry(STATE.today,sk,saved),saved);
+    // fill any days between saved and today as gap days
+    for(let i=1;i<daysDiff;i++){
+      const gapDate=new Date(savedDate);gapDate.setDate(gapDate.getDate()+i);
+      const gk=gapDate.toISOString().split('T')[0];
+      if(!STATE.history.find(h=>h.date===gk)){
+        upsertHist({date:gk,todayPoints:-1000,status:'red',completedTasks:0,totalTasks:0,pomodoros:0,penalties:[],streaks:[],workDuration:0,sleepDuration:0,napDuration:0,sleptEarly:false,_gap:true},gk);
+      }
+    }
+    // reset today
+    STATE.today={completed:0,target:0,morningCompleted:false,flagCompleted:false,
+      pomodoros:0,penalties:[],
+      sleep:{sleepDuration:0,napDuration:0,sleptEarly:false,earlyBedStreak:STATE.today.sleep?.earlyBedStreak||0},
+      work:{workDuration:0},_date:tk};
+  }
+  if(!STATE.today._date)STATE.today._date=tk;
+}
+
+function upsertHist(entry,dk){
+  const idx=STATE.history.findIndex(h=>h.date===dk);
+  if(idx>=0)STATE.history[idx]={...STATE.history[idx],...entry};
+  else STATE.history.unshift(entry);
+  STATE.history=STATE.history.slice(0,200);
+}
+
+/* save: local + push to Supabase if logged in */
+function save(){
+  const tk=todayKey();STATE.today._date=tk;STATE.today._penType=STATE.penType;
+  const sk=CALC.streaks(STATE.history,STATE.today);
+  upsertHist(CALC.buildEntry(STATE.today,sk,tk),tk);
+  S.set(K.TODAY,STATE.today);S.set(K.HIST,STATE.history);S.set(K.DIARY,STATE.diary);S.set(K.THEME,STATE.theme);S.set(K.STREAK_OVR,STATE.streakOverrides);
+  // async push — don't await, fire and forget
+  SB.push(STATE.history,STATE.today).catch(()=>{});
+}
+
+
+function applyTheme(){
+  document.body.className=STATE.theme==='light'?'light':'';
+}
+function toggleTheme(){
+  STATE.theme=STATE.theme==='light'?'dark':'light';
+  S.set(K.THEME,STATE.theme);
+  applyTheme();
+  // re-render header only (refresh full would flicker)
+  refresh();
+}
+/* ═══ DOM HELPERS ═══ */
+function el(t,c,h){const e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e}
+function dv(c,h){return el('div',c,h)}
+function bt(c,t,f){const b=el('button',c,t);b.onclick=f;return b}
+function ip(t,c,v,p){const i=document.createElement('input');i.type=t;i.className=c;i.value=v??'';if(p)i.placeholder=p;return i}
+function sk(c,opts,v){const s=document.createElement('select');s.className=c;opts.forEach(([ov,l])=>{const o=document.createElement('option');o.value=ov;o.textContent=l;if(ov===v)o.selected=true;s.appendChild(o);});return s}
+function sp(c,t){const s=el('span',c);if(t!==undefined)s.textContent=t;return s}
+function hr(){const h=document.createElement('hr');h.className='dv';return h}
+function sbadge(status){const lb={red:'Red',yellow:'Yellow',green:'Green',purple:'Purple'};return sp(`badge s-${status}`,lb[status]||status)}
+
+/* ═══ RENDER ═══ */
+function render(){
+  const root=document.getElementById('root');root.innerHTML='';
+  if(!STATE.authed){root.appendChild(renderLogin());return;}
+  root.appendChild(renderApp());
+}
+function refresh(){save();render();}
+
+/* ═══ LOGIN / SIGNUP ═══ */
+function renderLogin(){
+  const wrap=dv('login-wrap');
+  const card=dv('card fi s12');card.style.cssText='max-width:400px;width:100%';
+  card.innerHTML=`<div class="xxxl w8 ac ctr" style="letter-spacing:-.02em">Stoic</div>
+    <div class="sm dim ctr mt4">daily habit tracker · by JuanFer</div>`;
+
+  const sbConfigured=!!(window._SUPABASE_URL&&window._SUPABASE_KEY);
+  const info=dv('card2 mt12 sm');
+  if(sbConfigured){
+    info.style.cssText='background:var(--acd);border:1px solid var(--acb);padding:10px 12px';
+    info.innerHTML='<span class="ac">☁️ Cloud sync active — data syncs across devices.</span>';
+  } else {
+    info.style.cssText='background:var(--sur2);border:1px solid var(--b2);padding:10px 12px';
+    info.innerHTML='<span class="dim">Guest mode only — no Supabase credentials found.</span>';
+  }
+  card.appendChild(info);
+
+  // tabs
+  let mode='login';
+  const modeRow=dv('row gap6');modeRow.style.marginTop='16px';
+  const loginTab=bt('btn-ac btn-sm f1','Log In',()=>{mode='login';syncTabs();});
+  const signupTab=bt('btn-ghost btn-sm f1','Sign Up',()=>{mode='signup';syncTabs();});
+  modeRow.appendChild(loginTab);modeRow.appendChild(signupTab);
+  card.appendChild(modeRow);
+
+  // fields
+  const ew=dv('s4');ew.style.marginTop='12px';ew.innerHTML='<div class="xs dimmer up ls">Email</div>';
+  const ei=ip('email','','','you@email.com');ew.appendChild(ei);card.appendChild(ew);
+  const pw=dv('s4');pw.style.marginTop='8px';pw.innerHTML='<div class="xs dimmer up ls">Password</div>';
+  const pi=ip('password','','','min. 6 characters');pw.appendChild(pi);card.appendChild(pw);
+
+  // feedback
+  const err=dv('xs ng');err.style.marginTop='8px';card.appendChild(err);
+  const succ=dv('xs cg');succ.style.marginTop='8px';card.appendChild(succ);
+
+  // main button — declared before doAction so hoisting isn't an issue
+  const actionBtn=bt('btn-ac','Log In',()=>doAction());
+  actionBtn.style.cssText='width:100%;margin-top:12px';
+  card.appendChild(actionBtn);
+
+  function syncTabs(){
+    err.textContent='';succ.textContent='';
+    if(mode==='login'){
+      loginTab.className='btn-ac btn-sm f1';
+      signupTab.className='btn-ghost btn-sm f1';
+      actionBtn.textContent='Log In';
+    } else {
+      loginTab.className='btn-ghost btn-sm f1';
+      signupTab.className='btn-ac btn-sm f1';
+      actionBtn.textContent='Create Account';
+    }
+  }
+
+  async function doAction(){
+    err.textContent='';succ.textContent='';
+    const email=ei.value.trim();
+    const pass=pi.value;
+    if(!email||!pass){err.textContent='Enter email and password';return;}
+    if(pass.length<6){err.textContent='Password must be at least 6 characters';return;}
+    if(!sbConfigured){err.textContent='Supabase not configured — use Guest Mode below';return;}
+
+    actionBtn.disabled=true;
+    actionBtn.textContent=mode==='login'?'Signing in...':'Creating account...';
+
+    try{
+      if(mode==='signup'){
+        const sbUrl=(window._SUPABASE_URL||'').replace(/\/rest\/v1\/?$/,'').replace(/\/+$/,'');
+        const sbKey=window._SUPABASE_KEY||'';
+        const r=await fetch(`${sbUrl}/auth/v1/signup`,{
+          method:'POST',
+          headers:{'Content-Type':'application/json','apikey':sbKey,'Authorization':`Bearer ${sbKey}`},
+          body:JSON.stringify({email,password:pass})
+        });
+        const d=await r.json();
+        // Supabase returns user object on success
+        if(d.id||d.user?.id||d.access_token){
+          if(d.access_token){
+            // email confirm disabled — logged in immediately
+            SB.token=d.access_token;
+            localStorage.setItem('AUTH_TOKEN',d.access_token);
+            await afterLogin();
+          } else {
+            succ.textContent='✅ Account created! Check your email to confirm, then log in.';
+            mode='login';syncTabs();
+          }
+        } else {
+          err.textContent=d.msg||d.error_description||d.message||JSON.stringify(d);
+        }
+      } else {
+        const res=await SB.login(email,pass);
+        if(res.ok){
+          await afterLogin();
+        } else {
+          err.textContent=res.error||'Login failed';
+        }
+      }
+    } catch(e){
+      err.textContent='Network error: '+e.message;
+    }
+    actionBtn.disabled=false;
+    syncTabs();
+  }
+
+  async function afterLogin(){
+    actionBtn.textContent='Syncing...';
+    const remote=await SB.pull();
+    if(remote){
+      const merged=new Map();
+      [...(STATE.history||[]),...(remote.history||[])].forEach(d=>merged.set(d.date,d));
+      STATE.history=[...merged.values()].sort((a,b)=>b.date.localeCompare(a.date));
+      if(remote.today&&Object.keys(remote.today).length>Object.keys(STATE.today||{}).length){
+        STATE.today=remote.today;
+      }
+      S.set(K.HIST,STATE.history);S.set(K.TODAY,STATE.today);
+    }
+    S.set(K.AUTH,true);STATE.authed=true;render();
+  }
+
+  pi.onkeydown=e=>{if(e.key==='Enter')doAction();};
+  card.appendChild(hr());
+  const gb=bt('btn-ghost','Continue as Guest (offline)',()=>{S.set(K.AUTH,true);STATE.authed=true;render();});
+  gb.style.width='100%';card.appendChild(gb);
+  card.appendChild(dv('xs dimmer ctr mt8','Guest mode: data stored locally in this browser only'));
+  wrap.appendChild(card);return wrap;
+}
+
+/* ═══ MAIN APP ═══ */
+function renderApp(){
+  /* loadToday already called at boot and after save */
+  const tk=todayKey();
+  const sk_raw=CALC.streaks(STATE.history,STATE.today);
+  // Apply manual overrides from streak panel
+  const ovr=STATE.streakOverrides||{};
+  const sk_={...sk_raw,...Object.fromEntries(Object.entries(ovr).filter(([k,v])=>v!==undefined&&v!==null))};
+  STATE.today.sleep.earlyBedStreak=sk_.earlyBedStreak||1;
+  const sc=CALC.score(STATE.today,sk_);
+  // #2: histTotal excludes today, score.total is today — no double count
+  const total=CALC.histTotal(STATE.history)+sc.total;
+
+  const wrap=dv('');
+  // HEADER
+  const hdr=dv('ctr');hdr.style.padding='20px 0 16px';
+  const now=new Date();
+  hdr.innerHTML=`<div class="xxxl w8 ac" style="letter-spacing:-.02em">Stoic</div>
+    <div class="sm dim mt4">${now.toLocaleDateString('en-US',{weekday:'long',year:'numeric',month:'long',day:'numeric'})}</div>
+    <div class="xs dimmer mt2 mo" id="clk">${now.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',second:'2-digit'})}</div>`;
+
+  // clock update: interval is started once at boot level
+  const acts=dv('row gap8 mt12');acts.style.justifyContent='center';
+  const sind=dv('row gap6 xs dim');sind.innerHTML=`<span class="sdot"></span><span>auto-saved</span>`;
+  acts.appendChild(sind);
+  const themeBtn=bt('btn-ghost btn-sm',STATE.theme==='light'?'🌙 Dark':'☀️ Light',toggleTheme);
+  acts.appendChild(themeBtn);
+  acts.appendChild(bt('btn-ghost btn-sm','⚡ Set Streaks',()=>{STATE.showStreakPanel=!STATE.showStreakPanel;refresh()}));
+  acts.appendChild(bt('btn-ng btn-sm','Reset All',()=>{STATE.showReset=!STATE.showReset;refresh()}));
+  acts.appendChild(bt('btn-ghost btn-sm','Logout',()=>{S.set(K.AUTH,false);STATE.authed=false;render();}));
+  hdr.appendChild(acts);wrap.appendChild(hdr);
+
+  if(STATE.showReset){
+    const ban=dv('card fi row gap12 mb12');ban.style.cssText='background:var(--ngd);border:1px solid var(--ngb);justify-content:space-between';
+    ban.appendChild(sp('md ng','⚠ Delete everything? This cannot be undone.'));
+    const bb=dv('row gap8');
+    bb.appendChild(bt('btn-ng btn-sm','Yes, delete',()=>{
+      STATE.history=[];STATE.today={completed:0,target:0,morningCompleted:false,flagCompleted:false,pomodoros:0,penalties:[],sleep:{sleepDuration:0,napDuration:0,sleptEarly:false,earlyBedStreak:0},work:{workDuration:0},_date:tk};
+      STATE.showReset=false;save();refresh();
+    }));bb.appendChild(bt('btn-ghost btn-sm','Cancel',()=>{STATE.showReset=false;refresh()}));
+    ban.appendChild(bb);wrap.appendChild(ban);
+  }
+
+  if(STATE.showStreakPanel){
+    wrap.appendChild(renderStreakPanel());
+  }
+
+  if(STATE.showSyncPanel){
+    wrap.appendChild(renderSyncPanel());
+  }
+
+  const grid=dv('g4 mt4');
+  const c1=dv('s12');c1.appendChild(renderScoreCard(total,sc,sk_));c1.appendChild(renderWorkCard(sk_));grid.appendChild(c1);
+  grid.appendChild(renderTasksCard(sc,sk_));
+  const c3=dv('s12');c3.appendChild(renderPomCard());c3.appendChild(renderPenCard(sk_));grid.appendChild(c3);
+  grid.appendChild(renderSleepCard(sk_));
+  wrap.appendChild(grid);
+  wrap.appendChild(renderStreaks(sk_));
+  const ch=dv('g2 mt12');ch.appendChild(renderCalendar());ch.appendChild(renderHistEd(sk_));wrap.appendChild(ch);
+  wrap.appendChild(renderStats(total,sc));
+  wrap.appendChild(renderRules());
+  return wrap;
+}
+
+/* ═══ SCORE CARD ═══ */
+function renderScoreCard(total,sc,sk_){
+  const card=dv('card s12');
+  const tr=dv('rowb mb4');tr.appendChild(sp('ctit','Score'));tr.appendChild(sbadge(sc.status));card.appendChild(tr);
+  const big=dv('');
+  big.innerHTML=`<div class="xxxl w8 ac mo">${total.toLocaleString()}</div><div class="sm dim mt4">Today: <span class="ac w7">${sc.total>=0?'+':''}${sc.total}</span></div>`;
+  card.appendChild(big);
+  const pct=sc.pct,R=28,circ=2*Math.PI*R,off=circ-(pct/100)*circ;
+  const cr=dv('row gap12 mt10');cr.style.justifyContent='center';
+  cr.innerHTML=`<svg width="70" height="70" class="circ" viewBox="0 0 70 70"><circle cx="35" cy="35" r="${R}" stroke="#22222e" stroke-width="7" fill="none"/><circle cx="35" cy="35" r="${R}" stroke="var(--ac)" stroke-width="7" fill="none" stroke-dasharray="${circ}" stroke-dashoffset="${off}" stroke-linecap="round" style="transition:stroke-dashoffset .4s"/></svg><div><div class="xxl w7 ac mo">${pct}%</div><div class="xs dimmer">${STATE.today.completed}/${STATE.today.target} tasks</div></div>`;
+  card.appendChild(cr);
+  const posRows=[['Tasks',sc.total],['Morning',sc.mB],['Flags',sc.fB],['Pomodoros',sc.pom],['Work',sc.wrk],['Sleep',sc.slp],['Color',sc.col]].filter(r=>r[1]>0);
+  const negRows=[['Penalties',sc.pen]].filter(r=>r[1]!==0);
+  if(posRows.length||negRows.length){
+    const bd=dv('s4 mt10');
+    posRows.forEach(([l,v])=>{const r=dv('rowb');r.innerHTML=`<span class="xs dim">${l}</span><span class="xs mo w6 ac">+${v}</span>`;bd.appendChild(r);});
+    negRows.forEach(([l,v])=>{const r=dv('rowb');r.innerHTML=`<span class="xs dim">${l}</span><span class="xs mo w6 ng">${v}</span>`;bd.appendChild(r);});
+    card.appendChild(bd);
+  }
+  return card;
+}
+
+/* ═══ TASKS CARD ═══ */
+function renderTasksCard(sc,sk_){
+  const card=dv('card');card.appendChild(sp('ctit','Daily Tasks'));
+  const pr=dv('rowb mb6');pr.innerHTML=`<span class="xs dimmer up ls">Completed / Target</span><span class="md mo ac w6">${sc.pct}%</span>`;card.appendChild(pr);
+  const pg=dv('prog mb10');const pf=dv('prog-f');pf.style.cssText=`width:${Math.min(sc.pct,100)}%;background:var(--ac)`;pg.appendChild(pf);card.appendChild(pg);
+  const ir=dv('row gap8 mb10');
+  const ci=ip('number','',STATE.today.completed,'Done');ci.min=0;ci.style.flex='1';
+  const ti=ip('number','',STATE.today.target,'Target');ti.min=1;ti.style.flex='1';
+  ir.appendChild(ci);ir.appendChild(sp('dim md','de'));ir.appendChild(ti);card.appendChild(ir);
+  ci.oninput=()=>{STATE.today.completed=Math.min(Math.max(0,parseInt(ci.value)||0),STATE.today.target||9999);refresh();};
+  ti.oninput=()=>{STATE.today.target=Math.max(1,parseInt(ti.value)||1);refresh();};
+  card.appendChild(hr());
+  const mOk=STATE.today.completed>=13;
+  const mt=dv(`tog ${STATE.today.morningCompleted?'on':''} mb8`);mt.style.opacity=mOk?'1':'0.5';
+  const mc=ip('checkbox','');mc.checked=STATE.today.morningCompleted;mc.readOnly=true;
+  const mi=dv('f1');mi.innerHTML=`<div class="tt">Morning Routine</div><div class="ts">+${25*Math.max(1,sk_.morningStreak)} pts · requiere 13+ tasks</div>`;
+  mt.appendChild(mc);mt.appendChild(mi);mt.onclick=()=>{if(mOk){STATE.today.morningCompleted=!STATE.today.morningCompleted;refresh();}};card.appendChild(mt);
+  const ft=dv(`tog ${STATE.today.flagCompleted?'on':''}`);
+  const fc=ip('checkbox','');fc.checked=STATE.today.flagCompleted;fc.readOnly=true;
+  const fi_=dv('f1');fi_.innerHTML=`<div class="tt">Goals Annihilated</div><div class="ts">+${100*Math.max(1,sk_.flagStreak)} pts × streak (${sk_.flagStreak}d)</div>`;
+  ft.appendChild(fc);ft.appendChild(fi_);ft.onclick=()=>{STATE.today.flagCompleted=!STATE.today.flagCompleted;refresh();};card.appendChild(ft);
+  return card;
+}
+
+/* ═══ POMODORO ═══ */
+function renderPomCard(){
+  const card=dv('card');
+  const tr=dv('rowb mb8');tr.appendChild(sp('ctit','Pomodoros'));tr.appendChild(sp('xxl w7 ac mo',String(STATE.today.pomodoros)));card.appendChild(tr);
+  card.appendChild(sp('xs dim',`+${STATE.today.pomodoros*25} pts · ×25 cada uno`));
+  const ct=dv('row gap8 mt10');
+  ct.appendChild(bt('btn-ghost btn-sm f1','−',()=>{STATE.today.pomodoros=Math.max(0,STATE.today.pomodoros-1);refresh();}));
+  const n=dv('f1 ctr xl w7 mo');n.textContent=String(STATE.today.pomodoros);ct.appendChild(n);
+  ct.appendChild(bt('btn-ac btn-sm f1','+',()=>{STATE.today.pomodoros++;refresh();}));
+  card.appendChild(ct);return card;
+}
+
+/* ═══ PENALTY CARD — #3 keep type, #4 enter = add ═══ */
+function renderPenCard(sk_){
+  const card=dv('card');
+  card.style.borderColor='var(--ngb)';
+  const penPts=STATE.today.penalties.reduce((sum,p)=>{
+    const b=CALC.penBase(p);const procMins=STATE.today.penalties.filter(x=>x.type==='internet').reduce((s,x)=>s+(x.details?.minutes||0),0);
+    let m=1;
+    if(p.type==='drugs')m=Math.max(1,sk_.substancesPenaltyStreak);
+    else if(p.type==='internet')m=procMins>=30?Math.max(1,sk_.procrastinationPenaltyStreak):0;
+    else if(p.type==='macanazo')m=Math.max(1,sk_.macanazoPenaltyStreak);
+    return sum+b*m;
+  },0);
+  const tr=dv('rowb mb10');tr.appendChild(sp('ctit','Penalties'));if(penPts!==0)tr.appendChild(sp('md mo w7 ng',String(penPts)));card.appendChild(tr);
+
+  // #3: use STATE.penType so selection persists after refresh
+  const tEl=sk('mb8',[['drugs','💊 Substances'],['internet','🌐 Procrastination'],['macanazo','⚡ Macanazo']],STATE.penType);
+  tEl.onchange=()=>{STATE.penType=tEl.value;updateDet();};
+  card.appendChild(tEl);
+
+  const dw=dv('mb8');
+  const si=ip('number','',1,'# substances');si.min=1;
+  const pi=ip('text','','','e.g. 45m, 1h30m');
+  const errD=dv('xs ng mb8');
+
+  function doAdd(){
+    errD.textContent='';
+    const type=tEl.value;
+    if(type==='drugs'){
+      const n=parseInt(si.value)||0;if(n<1){errD.textContent='Min. 1';return;}
+      STATE.today.penalties.push({id:uid(),type:'drugs',count:n,details:{substances:n},timestamp:new Date().toISOString()});
+      si.value='1';
+    }else if(type==='internet'){
+      const r=parseDur(pi.value);if(r.v===null){errD.textContent=r.err;return;}if(r.v===0){errD.textContent='Enter time';return;}
+      STATE.today.penalties.push({id:uid(),type:'internet',count:r.v,details:{minutes:r.v},timestamp:new Date().toISOString()});
+      pi.value='';
+    }else{
+      STATE.today.penalties.push({id:uid(),type:'macanazo',count:1,details:{isPositive:false},timestamp:new Date().toISOString()});
+    }
+    // #3: do NOT reset tEl — keep selection
+    refresh();
+  }
+  // #4: enter key support for all penalty inputs
+  si.onkeydown=e=>{if(e.key==='Enter')doAdd();};
+  pi.onkeydown=e=>{if(e.key==='Enter')doAdd();};
+
+  function updateDet(){dw.innerHTML='';if(tEl.value==='drugs')dw.appendChild(si);else if(tEl.value==='internet')dw.appendChild(pi);}
+  updateDet();card.appendChild(dw);card.appendChild(errD);
+  const ab=bt('btn-ng btn-sm w100','+ Add',doAdd);ab.style.width='100%';card.appendChild(ab);
+
+  if(STATE.today.penalties.length){
+    const list=dv('s6 mt12');
+    const procMinsTotal=STATE.today.penalties.filter(x=>x.type==='internet').reduce((s,x)=>s+(x.details?.minutes||0),0);
+    STATE.today.penalties.forEach(p=>{
+      const base=CALC.penBase(p);
+      let mult=1;
+      if(p.type==='drugs') mult=Math.max(1,sk_.substancesPenaltyStreak);
+      else if(p.type==='internet') mult=procMinsTotal>=30?Math.max(1,sk_.procrastinationPenaltyStreak):0;
+      else if(p.type==='macanazo') mult=Math.max(1,sk_.macanazoPenaltyStreak);
+      const actual=base*mult;
+      const lbl=p.type==='drugs'?`Substances ×${p.details?.substances||1}`:p.type==='internet'?`Procrast. ${fmtDur(p.details?.minutes||0)}`:'Macanazo';
+      const row=dv('pen-it');
+      const info=dv('f1');
+      // Show label + breakdown: base × streak = actual
+      const breakdown = mult>1 ? `<span class="xs dimmer">${base} × ${mult} streak</span>` : `<span class="xs dimmer">base</span>`;
+      info.innerHTML=`<div class="md dim">${lbl}</div><div class="row gap6 mt2">${breakdown}<span class="sm mo w7 ng">${actual}</span></div>`;
+      const rm=bt('btn-icon','✕',()=>{STATE.today.penalties=STATE.today.penalties.filter(x=>x.id!==p.id);refresh();});
+      row.appendChild(info);row.appendChild(rm);list.appendChild(row);
+    });card.appendChild(list);
+  }
+  return card;
+}
+
+/* ═══ WORK CARD ═══ */
+function renderWorkCard(sk_){
+  const card=dv('card');
+  const tr=dv('rowb mb6');tr.appendChild(sp('ctit','Work'));tr.appendChild(sp('md mo ac w6',fmtDur(STATE.today.work.workDuration)));card.appendChild(tr);
+  card.appendChild(sp('xs dim mb8',`+${STATE.today.work.workDuration} pts · streak: ${sk_.workStreak}d`));
+  const errD=dv('xs ng mt4');
+  const wi=ip('text','','','e.g. 3h, 90m, 2h30m');
+  function doSet(){const r=parseDur(wi.value);if(r.v===null){errD.textContent=r.err;return;}STATE.today.work.workDuration=r.v;wi.value='';errD.textContent='';refresh();}
+  wi.onkeydown=e=>{if(e.key==='Enter')doSet();};
+  const row=dv('row gap8 mt8');row.appendChild(wi);row.appendChild(bt('btn-ac btn-sm','Set',doSet));
+  card.appendChild(row);card.appendChild(errD);return card;
+}
+
+/* ═══ SLEEP CARD ═══ */
+function renderSleepCard(sk_){
+  const sl=STATE.today.sleep;const card=dv('card s12');card.appendChild(sp('ctit','Sleep'));
+  function sleepRow(label,val,onSet){
+    const w=dv('');const lr=dv('rowb mb6');lr.innerHTML=`<span class="xs dimmer up ls">${label}</span><span class="md mo ac w6">${fmtDur(val)}</span>`;w.appendChild(lr);
+    const errD=dv('xs ng mt4');const si=ip('text','','','e.g. 7h30m');
+    function doS(){const r=parseDur(si.value);if(r.v===null){errD.textContent=r.err;return;}onSet(r.v);si.value='';errD.textContent='';refresh();}
+    si.onkeydown=e=>{if(e.key==='Enter')doS();};
+    const ir=dv('row gap8');ir.appendChild(si);ir.appendChild(bt('btn-ac btn-sm','Set',doS));w.appendChild(ir);w.appendChild(errD);return w;
+  }
+  card.appendChild(sleepRow('Main Sleep',sl.sleepDuration,v=>STATE.today.sleep.sleepDuration=v));
+  card.appendChild(sleepRow('Nap',sl.napDuration,v=>STATE.today.sleep.napDuration=v));
+  card.appendChild(hr());
+  const earlyStreak=sk_?sk_.earlyBedStreak:sl.earlyBedStreak||1;
+  const eb=sl.sleptEarly?sl.sleepDuration*(earlyStreak):0;
+  const et=dv(`tog ${sl.sleptEarly?'on':''}`);const ec=ip('checkbox','');ec.checked=sl.sleptEarly;ec.readOnly=true;
+  const ei=dv('f1');ei.innerHTML=`<div class="tt">Slept Early</div>${sl.sleptEarly?`<div class="ts">+${eb} pts · ×${sl.earlyBedStreak||1} streak`:''}`;
+  et.appendChild(ec);et.appendChild(ei);
+  et.onclick=()=>{STATE.today.sleep.sleptEarly=!sl.sleptEarly;refresh();};
+  card.appendChild(et);card.appendChild(sp('xs dim mt8',`Total sleep: +${(sl.sleepDuration||0)+(sl.napDuration||0)+eb} pts`));
+  return card;
+}
+
+/* ═══ STREAKS — 2 colors only ═══ */
+function renderStreaks(sk_){
+  const card=dv('card mt12');card.appendChild(sp('ctit','Streaks'));
+  card.appendChild(sp('xs dimmer up ls mb8','✅ Positive Streaks'));
+  const pg=dv('sk-g mb16');
+  [{k:'morningStreak',l:'Morning Routine'},{k:'flagStreak',l:'Goals'},{k:'workStreak',l:'Work'},
+   {k:'substancesStreak',l:'Clean (subs)'},{k:'procrastinationStreak',l:'Clean (proc)'},{k:'macanazoStreak',l:'Clean (mac)'}]
+  .forEach(item=>{const c=dv('skc pos');const n=dv('skn ac');n.textContent=String(sk_[item.k]||0);const l=dv('skl');l.textContent=item.l;c.appendChild(n);c.appendChild(l);pg.appendChild(c);});
+  card.appendChild(pg);
+  card.appendChild(sp('xs dimmer up ls mb8','🔥 Penalty Streaks'));
+  const ng=dv('sk-g');
+  [{k:'substancesPenaltyStreak',l:'Subs 🔥'},{k:'procrastinationPenaltyStreak',l:'Procrast. 🔥'},{k:'macanazoPenaltyStreak',l:'Macanazo 🔥'}]
+  .forEach(item=>{const c=dv('skc neg');const n=dv('skn ng');n.textContent=String(sk_[item.k]||0);const l=dv('skl');l.textContent=item.l;c.appendChild(n);c.appendChild(l);ng.appendChild(c);});
+  card.appendChild(ng);return card;
+}
+
+/* ═══ CALENDAR — #5 pts visible, #8 flag glow ═══ */
+function renderCalendar(){
+  const wrap=dv('card');const now=new Date();let cY=now.getFullYear(),cM=now.getMonth(),selK=null;
+  const sBg={red:{bg:'#2e0808',txt:'#fca5a5'},yellow:{bg:'#2e2008',txt:'#fde68a'},green:{bg:'#082e1a',txt:'#6ee7b7'},purple:{bg:'#16082e',txt:'#c4b5fd'},none:{bg:'#111118',txt:'#2a2a3a'}};
+
+  function build(){
+    wrap.innerHTML='';
+    const hd=dv('rowb mb12');
+    const pv=bt('btn-icon','‹',()=>{cM--;if(cM<0){cM=11;cY--;}build();});pv.style.fontSize='20px';
+    const nx=bt('btn-icon','›',()=>{cM++;if(cM>11){cM=0;cY++;}build();});nx.style.fontSize='20px';
+    hd.appendChild(pv);hd.appendChild(sp('lg w7',new Date(cY,cM).toLocaleDateString('en-US',{month:'long',year:'numeric'})));hd.appendChild(nx);wrap.appendChild(hd);
+
+    // #6: use history with gaps filled for calendar display
+    const filledHist=CALC.fillGaps(STATE.history);
+    const hMap=new Map(filledHist.map(d=>[d.date,d]));
+    // also merge STATE.history (gaps might not be in STATE yet)
+    STATE.history.forEach(d=>hMap.set(d.date,d));
+
+    const dim=new Date(cY,cM+1,0).getDate();const fd=new Date(cY,cM,1).getDay();
+    const tk=now.toISOString().split('T')[0];
+    const cg=dv('cal-g mb10');
+    ['Su','Mo','Tu','We','Th','Fr','Sa'].forEach(d=>cg.appendChild(dv('cal-hd',d)));
+    for(let i=0;i<fd;i++)cg.appendChild(dv(''));
+    for(let d=1;d<=dim;d++){
+      const key=new Date(cY,cM,d).toISOString().split('T')[0];
+      const entry=hMap.get(key);
+      const bg=entry?sBg[entry.status]||sBg.none:sBg.none;
+      const cell=dv(`cal-c${key===tk?' today':''}${key===selK?' sel':''}`);
+      cell.style.background=bg.bg;
+      const flagOn=entry?.streaks?.some(s=>s.type==='flags'&&s.active);
+      if(flagOn){
+        // #8: prominent ring + icon
+        const ring=dv('cal-flag-ring');cell.appendChild(ring);
+        cell.appendChild(sp('cal-flag-ico','🏅'));
+      }
+      const num=sp('cal-num',String(d));num.style.color=bg.txt;cell.appendChild(num);
+      // #5: always show pts if entry exists
+      if(entry){const pts=sp('cal-pts',String(entry.todayPoints||0));pts.style.color=bg.txt;cell.appendChild(pts);}
+      cell.onclick=()=>{selK=key===selK?null:key;build();};
+      cg.appendChild(cell);
+    }
+    wrap.appendChild(cg);
+    if(selK){
+      const entry=hMap.get(selK);
+      if(!entry){
+        // No data for this day — still allow diary
+        const det=dv('card2 fi');det.style.border='1px solid var(--b2)';
+        det.appendChild(sp('xs dim',selK));
+        det.appendChild(sp('xs dimmer mt4','No data logged for this day.'));
+        const diaryToggle=bt('btn-ghost btn-sm','📝 '+(STATE.diary[selK]?'Edit note':'Add note'),()=>{
+          const existing=det.querySelector('.diary-wrap');
+          if(existing){existing.remove();}
+          else{const dw=renderDiaryFor(selK);dw.className='diary-wrap fi';det.appendChild(dw);det.querySelector('.diary-area')?.focus();}
+        });
+        diaryToggle.style.marginTop='8px';det.appendChild(diaryToggle);
+        if(STATE.diary[selK]){const pv=dv('xs dim mt6');pv.style.cssText='white-space:pre-wrap;max-height:60px;overflow:hidden';pv.textContent=STATE.diary[selK].slice(0,120);pv.onclick=()=>diaryToggle.click();det.appendChild(pv);}
+        wrap.appendChild(det);
+      }
+      if(entry){
+        const det=dv(`card2 fi s-${entry.status}`);det.style.border='1px solid';
+        const dr=dv('rowb');dr.appendChild(sbadge(entry.status));dr.appendChild(sp('lg mo w7 ac',`${entry.todayPoints||0} pts`));det.appendChild(dr);
+        det.appendChild(sp('xs dim mt6',selK));
+        det.appendChild(sp('xs dim mt2',`${entry.completedTasks||0}/${entry.totalTasks||0} tasks · ${entry.pomodoros||0} 🍅`));
+        if(entry.streaks?.some(s=>s.type==='flags'&&s.active))det.appendChild(sp('sm mt4','🏅 Goals Annihilated'));
+        if(entry._gap)det.appendChild(sp('xs ng mt4','⚠ Day not logged (−1000)'));
+        // Diary entry
+        const diaryToggle=bt('btn-ghost btn-sm','📝 '+(STATE.diary[selK]?'Edit note':'Add note'),()=>{
+          const existing=det.querySelector('.diary-wrap');
+          if(existing){existing.remove();}
+          else{const dw=renderDiaryFor(selK);dw.className='diary-wrap fi';det.appendChild(dw);det.querySelector('.diary-area')?.focus();}
+          diaryToggle.textContent='📝 '+(STATE.diary[selK]?'Edit note':'Add note');
+        });
+        diaryToggle.style.marginTop='10px';
+        det.appendChild(diaryToggle);
+        // Show existing note preview
+        if(STATE.diary[selK]){
+          const preview=dv('xs dim mt6');preview.style.cssText='white-space:pre-wrap;max-height:60px;overflow:hidden;cursor:pointer';
+          preview.textContent=STATE.diary[selK].slice(0,120)+(STATE.diary[selK].length>120?'…':'');
+          preview.onclick=()=>diaryToggle.click();
+          det.appendChild(preview);
+        }
+        wrap.appendChild(det);
+      }
+    }
+  }
+  build();return wrap;
+}
+
+/* ═══ HISTORY EDITOR — #2 save triggers full refresh ═══ */
+function renderHistEd(sk_){
+  const wrap=dv('card');wrap.appendChild(sp('ctit','Edit History'));
+  let edKey=null,fst={},vis=7;
+  function buildDays(){
+    const days=[];const today=new Date();
+    for(let i=0;i<=30;i++){
+      const d=new Date(today);d.setDate(d.getDate()-i);
+      const key=d.toISOString().split('T')[0];
+      days.push({key,entry:STATE.history.find(h=>h.date===key),isToday:i===0});
+    }return days;
+  }
+  function build(){
+    while(wrap.children.length>1)wrap.removeChild(wrap.lastChild);
+    const days=buildDays();const list=dv('s6');
+    days.slice(0,vis).forEach(({key,entry,isToday})=>{
+      const isEd=edKey===key;const row=dv(`hr-row${isEd?' ed':''}`);
+      const hd=dv('rowb');const lft=dv('row gap6');
+      lft.appendChild(sp('sm mo dim',key));
+      if(isToday){const b=sp('badge s-ac','TODAY');b.style.marginLeft='4px';lft.appendChild(b);}
+      if(entry)lft.appendChild(sbadge(entry.status));
+      if(entry?._gap)lft.appendChild(sp('xs ng',' ⚠gap'));
+      hd.appendChild(lft);
+      const rgt=dv('row gap6');
+      if(entry)rgt.appendChild(sp('sm mo dimmer',`${entry.todayPoints||0}pt`));
+      const eb=bt('btn-icon',isEd?'✕':'✏',()=>{
+        if(isEd){edKey=null;}
+        else{
+          edKey=key;const e=entry;
+          fst={completed:e?.completedTasks||0,target:e?.totalTasks||0,pomodoros:e?.pomodoros||0,workDuration:e?.workDuration||0,
+            sleepDuration:e?.sleepDuration||0,napDuration:e?.napDuration||0,sleptEarly:e?.sleptEarly||false,
+            morningCompleted:e?.streaks?.some(s=>s.type==='morning'&&s.active)||false,
+            flagCompleted:e?.streaks?.some(s=>s.type==='flags'&&s.active)||false,
+            substances:e?.penalties?.find(p=>p.type==='drugs')?.count||0,
+            procMins:e?.penalties?.find(p=>p.type==='internet')?.count||0,
+            macanazoCount:e?.penalties?.filter(p=>p.type==='macanazo')?.length||0};
+        }build();
+      });
+      rgt.appendChild(eb);hd.appendChild(rgt);row.appendChild(hd);
+      if(isEd){
+        const form=dv('fi mt10');const g=dv('g2 mb10');g.style.gap='6px';
+        function nf(label,val,onChange){const w=dv('s4');w.innerHTML=`<div class="xs dimmer up ls">${label}</div>`;const i=ip('number','',val,'');i.min=0;i.style.width='100%';i.oninput=()=>onChange(parseInt(i.value)||0);w.appendChild(i);return w;}
+        g.appendChild(nf('Tasks',fst.completed,v=>fst.completed=v));g.appendChild(nf('Target',fst.target,v=>fst.target=v));
+        g.appendChild(nf('Pomodoros',fst.pomodoros,v=>fst.pomodoros=v));g.appendChild(nf('Work (min)',fst.workDuration,v=>fst.workDuration=v));
+        g.appendChild(nf('Sleep (min)',fst.sleepDuration,v=>fst.sleepDuration=v));g.appendChild(nf('Nap (min)',fst.napDuration,v=>fst.napDuration=v));
+        g.appendChild(nf('Substances #',fst.substances,v=>fst.substances=v));g.appendChild(nf('Procrast (min)',fst.procMins,v=>fst.procMins=v));
+        g.appendChild(nf('Macanazo #',fst.macanazoCount,v=>fst.macanazoCount=v));form.appendChild(g);
+        const cks=dv('row gap16 mb10');
+        function ck(label,val,onChange){const w=dv('row gap6');w.style.cursor='pointer';const c=ip('checkbox','');c.checked=val;c.onchange=()=>onChange(c.checked);w.appendChild(c);w.appendChild(sp('sm',label));w.onclick=e=>{if(e.target!==c){c.checked=!c.checked;c.dispatchEvent(new Event('change'));}};return w;}
+        cks.appendChild(ck('Morning',fst.morningCompleted,v=>fst.morningCompleted=v));cks.appendChild(ck('Flags',fst.flagCompleted,v=>fst.flagCompleted=v));cks.appendChild(ck('Early bed',fst.sleptEarly,v=>fst.sleptEarly=v));form.appendChild(cks);
+        const sb=bt('btn-ac btn-sm','Save',()=>{
+          const pens=[];
+          if(fst.substances>0)pens.push({type:'drugs',count:fst.substances,points:-25*fst.substances,streak:1});
+          if(fst.procMins>0)pens.push({type:'internet',count:fst.procMins,points:-fst.procMins,streak:1});
+          for(let i=0;i<fst.macanazoCount;i++)pens.push({type:'macanazo',count:1,points:-100,streak:1});
+          const mockDay={completed:fst.completed,target:fst.target,morningCompleted:fst.morningCompleted,flagCompleted:fst.flagCompleted,pomodoros:fst.pomodoros,
+            penalties:pens.map(p=>({type:p.type,count:p.count,details:p.type==='drugs'?{substances:p.count}:p.type==='internet'?{minutes:p.count}:{isPositive:false}})),
+            sleep:{sleepDuration:fst.sleepDuration,napDuration:fst.napDuration,sleptEarly:fst.sleptEarly,earlyBedStreak:1},work:{workDuration:fst.workDuration}};
+          const fsk={morningStreak:1,flagStreak:1,substancesPenaltyStreak:1,procrastinationPenaltyStreak:1,macanazoPenaltyStreak:1,substancesStreak:0,procrastinationStreak:0,macanazoStreak:0,workStreak:0};
+          const sc_=CALC.score(mockDay,fsk);
+          upsertHist({date:key,todayPoints:sc_.total,status:sc_.status,completedTasks:fst.completed,totalTasks:fst.target,pomodoros:fst.pomodoros,sleepDuration:fst.sleepDuration,napDuration:fst.napDuration,sleptEarly:fst.sleptEarly,workDuration:fst.workDuration,penalties:pens,_gap:false,
+            streaks:[{type:'morning',count:fst.morningCompleted?1:0,active:fst.morningCompleted},{type:'flags',count:fst.flagCompleted?1:0,active:fst.flagCompleted}]},key);
+          edKey=null;
+          // #2: full refresh so score + calendar update immediately
+          refresh();
+        });form.appendChild(sb);row.appendChild(form);
+      }
+      list.appendChild(row);
+    });
+    wrap.appendChild(list);
+    if(vis<31){const mb=bt('btn-ghost btn-sm w100 mt8','Show more',()=>{vis+=7;build();});mb.style.width='100%';wrap.appendChild(mb);}
+  }
+  build();return wrap;
+}
+
+/* ═══ STATS — #7 more interesting stats ═══ */
+function renderStats(total,sc){
+  const wrap=dv('card mt12');let open=true;
+  const tog=el('button','sec-t');tog.innerHTML='<span>Stats</span><span id="st-a">▲</span>';
+  const body=dv('fi');
+  tog.onclick=()=>{open=!open;body.style.display=open?'':'none';document.getElementById('st-a').textContent=open?'▲':'▼';};
+  wrap.appendChild(tog);
+
+  const allPts=STATE.history.map(d=>d.todayPoints||0).filter(p=>p>-1000);
+  const last7=STATE.history.slice(0,7).map(d=>d.todayPoints||0).filter(p=>p>-1000);
+  const best=allPts.length?Math.max(...allPts):0;
+  const worst=allPts.length?Math.min(...allPts):0;
+  const avg=allPts.length?Math.round(allPts.reduce((a,b)=>a+b,0)/allPts.length):0;
+  const avg7=last7.length?Math.round(last7.reduce((a,b)=>a+b,0)/last7.length):0;
+  const totalPoms=STATE.history.reduce((s,d)=>s+(d.pomodoros||0),0)+(STATE.today.pomodoros||0);
+  const totalWorkMin=STATE.history.reduce((s,d)=>s+(d.workDuration||0),0)+(STATE.today.work?.workDuration||0);
+  const drugFreeDays=STATE.history.filter(d=>!d.penalties?.some(p=>p.type==='drugs')&&!d._gap).length;
+  const totalTracked=STATE.history.filter(d=>!d._gap).length;
+  const dfPct=totalTracked?Math.round(drugFreeDays/totalTracked*100):100;
+  const macDays=STATE.history.filter(d=>d.penalties?.some(p=>p.type==='macanazo')).length;
+  const momentum=avg>0?Math.round((avg7-avg)/avg*100):0;
+  const momStr=momentum>0?`+${momentum}%`:momentum<0?`${momentum}%`:'—';
+  // best streak (consecutive non-red days)
+  const sortedH=[...STATE.history].sort((a,b)=>new Date(a.date)-new Date(b.date));
+  let bStrk=0,curStrk=0;sortedH.forEach(d=>{if(d.status!=='red'&&!d._gap){curStrk++;bStrk=Math.max(bStrk,curStrk);}else curStrk=0;});
+  // penalty-free streak
+  let pfStrk=0;for(let i=0;i<sortedH.length;i++){if(!sortedH[sortedH.length-1-i].penalties?.length&&!sortedH[sortedH.length-1-i]._gap)pfStrk++;else break;}
+  // total sleep hours
+  const totalSleepMin=STATE.history.reduce((s,d)=>s+(d.sleepDuration||0),0)+(STATE.today.sleep?.sleepDuration||0);
+  const counts={purple:0,green:0,yellow:0,red:0};STATE.history.forEach(d=>counts[d.status]=(counts[d.status]||0)+1);
+  const purplePct=totalTracked?Math.round((counts.purple/totalTracked)*100):0;
+
+  // Insight
+  let insight='';
+  if(totalTracked<3)insight='Keep logging days to see personalized insights.';
+  else if(momentum>20)insight=`🚀 Momentum +${momentum}% — your last 7 days beat your all-time average.`;
+  else if(momentum<-20)insight=`📉 Semana difícil (${momentum}%). Progress isn't linear. Tomorrow is a new day.`;
+  else if(dfPct===100)insight='🌟 100% substance-free days. Consistent discipline.';
+  else if(pfStrk>7)insight=`✨ ${pfStrk} consecutive days with no penalties. Clean streak!`;
+  else if(totalPoms>50)insight=`🍅 ${totalPoms} pomodoros = ${Math.round(totalPoms*25/60)}h of focused work.`;
+  else insight='📊 Building history. More data = better insights.';
+
+  // Grid 1
+  const g1=dv('g4 mb10');g1.style.gap='8px';
+  [['Best day',best,'var(--cg)','pts'],['Worst day',worst,'var(--cr)','pts'],['All-time avg',avg,'var(--ac)','pts/día'],['Last 7 avg',avg7,'var(--cy)','pts']].forEach(([l,v,c,sub])=>{
+    const s=dv('card2 ctr');const n=dv('xxl w7 mo');n.style.color=c;n.textContent=String(v);s.appendChild(n);s.appendChild(sp('xs dimmer mt4',l));s.appendChild(sp('xs dimmer mt2',sub));g1.appendChild(s);
+  });body.appendChild(g1);
+
+  // Grid 2
+  const g2=dv('g4 mb10');g2.style.gap='8px';
+  [['Total 🍅',String(totalPoms),'var(--cy)','pomodoros'],['Work total',fmtDur(totalWorkMin),'var(--cg)','worked'],['Sleep total',fmtDur(totalSleepMin),'var(--ac)','rested'],['Clean streak',pfStrk+'d','var(--cg)','penalty-free']].forEach(([l,v,c,sub])=>{
+    const s=dv('card2 ctr');const n=dv('xl w7 mo');n.style.color=c;n.textContent=v;s.appendChild(n);s.appendChild(sp('xs dimmer mt4',l));s.appendChild(sp('xs dimmer mt2',sub));g2.appendChild(s);
+  });body.appendChild(g2);
+
+  // Grid 3
+  const g3=dv('g4 mb12');g3.style.gap='8px';
+  [['Purple days',purplePct+'%','var(--cp)','de días totales'],['Best streak',bStrk+'d','var(--cy)','no red days'],['Clean (drugs)',dfPct+'%','var(--cg)','sin substances'],['Momentum',momStr,momentum>0?'var(--cg)':momentum<0?'var(--cr)':'var(--t3)','vs avg']].forEach(([l,v,c,sub])=>{
+    const s=dv('card2 ctr');const n=dv('xl w7 mo');n.style.color=c;n.textContent=v;s.appendChild(n);s.appendChild(sp('xs dimmer mt4',l));s.appendChild(sp('xs dimmer mt2',sub));g3.appendChild(s);
+  });body.appendChild(g3);
+
+  // Day counts
+  const dr=dv('row gap8 mb12');
+  [['purple','🟣'],['green','🟢'],['yellow','🟡'],['red','🔴']].forEach(([s,e])=>dr.appendChild(sp(`badge s-${s}`,`${e} ${counts[s]}d`)));
+  body.appendChild(dr);
+
+  // Insight box
+  const ib=dv('card2 s-ac fi');ib.appendChild(sp('sm dim',insight));body.appendChild(ib);
+  wrap.appendChild(body);return wrap;
+}
+
+/* ═══ RULES — #8 updated & simple ═══ */
+function renderRules(){
+  const wrap=dv('card mt12');let open=true;
+  const tog=el('button','sec-t');tog.innerHTML='<span>Rules & Scoring</span><span id="rl-a">▲</span>';
+  const body=dv('fi');
+  tog.onclick=()=>{open=!open;body.style.display=open?'':'none';document.getElementById('rl-a').textContent=open?'▲':'▼';};
+  wrap.appendChild(tog);
+  body.innerHTML=`<div class="s12 md dim">
+  <div><div class="xs up ls ac w7 mb8">✅ Positive Points</div><div class="s4">
+    <div>1 task = <span class="ac w6">+1 pt</span></div>
+    <div>Morning Routine = <span class="ac w6">+25 × streak</span> (requiere 13+ tasks)</div>
+    <div>Goals Annihilated = <span class="ac w6">+100 × streak</span></div>
+    <div>Pomodoro = <span class="ac w6">+25 c/u</span></div>
+    <div>Work = <span class="ac w6">+1 pt/min</span></div>
+    <div>Sleep = <span class="ac w6">+1 pt/min</span> + nap + early bonus (sleep × earlyStreak)</div>
+    <div>Color bonus: Purple <span class="ac w6">+30</span> · Green <span class="ac w6">+20</span> · Yellow <span class="ac w6">+10</span></div>
+  </div></div>
+  <div><div class="xs up ls ng w7 mb8">❌ Penalties</div><div class="s4">
+    <div>Substances = <span class="ng w6">−25 × count × streak</span></div>
+    <div>Procrastination = <span class="ng w6">−1 pt/min × streak</span> (active from 30+ accumulated mins)</div>
+    <div>Macanazo = <span class="ng w6">−100 × streak</span></div>
+    <div class="xs dimmer">Streak multiplies damage for each consecutive day with that penalty</div>
+  </div></div>
+  <div><div class="xs up ls cy w7 mb8">📊 Day Status</div><div class="s4">
+    <div><span class="cp w6">Purple</span> 100% · <span class="cg w6">Green</span> ≥85% · <span class="cy w6">Yellow</span> ≥50% · <span class="cr w6">Red</span> &lt;50%</div>
+    <div>Goals Annihilated sube el status un tier</div>
+  </div></div>
+  <div><div class="xs up ls dimmer w7 mb8">🔄 Penalty Streak Resets</div><div class="s4">
+    <div>Yellow day → resets Substances streak</div>
+    <div>Día Green → resetea Substances + Procrastination</div>
+    <div>Purple day → resets all penalty streaks</div>
+    <div class="xs dimmer">Days without a log between saved days = −1000 pts, red day</div>
+  </div></div>
+  <hr class="dv">
+  <div class="xs dimmer ctr">Stoic · Made by JuanFer · Data saved locally in your browser</div>
+  </div>`;
+  wrap.appendChild(body);return wrap;
+}
+
+
+
+/* ═══ CLOUD SYNC PANEL ═══ */
+function renderSyncPanel(){
+  const card=dv('card fi mb12');
+  card.style.cssText='border:1px solid var(--acb);background:var(--acd)';
+  const hd=dv('rowb mb12');
+  hd.appendChild(sp('ctit','☁ Cloud Sync — Supabase'));
+  hd.appendChild(bt('btn-icon','✕',()=>{STATE.showSyncPanel=false;refresh()}));
+  card.appendChild(hd);
+  const sbConfigured=!!(window._SUPABASE_URL&&window._SUPABASE_KEY);
+  if(!sbConfigured){
+    card.appendChild(dv('sm dim','Supabase not configured. Add window._SUPABASE_URL and window._SUPABASE_KEY to the HTML.'));
+    return card;
+  }
+  const hasToken=!!(localStorage.getItem('AUTH_TOKEN'));
+  if(hasToken){
+    const info=dv('sm cg mb8');info.textContent='✅ Logged in — sync is active.';card.appendChild(info);
+    const row=dv('row gap8');
+    row.appendChild(bt('btn-ac btn-sm','Pull from cloud',async()=>{
+      const remote=await SB.pull();
+      if(remote){
+        const merged=new Map();
+        [...(STATE.history||[]),...(remote.history||[])].forEach(d=>merged.set(d.date,d));
+        STATE.history=[...merged.values()].sort((a,b)=>b.date.localeCompare(a.date));
+        S.set(K.HIST,STATE.history);
+        refresh();alert('Synced from cloud!');
+      } else alert('Pull failed or no data.');
+    }));
+    row.appendChild(bt('btn-ghost btn-sm','Push to cloud',async()=>{
+      await SB.push(STATE.history,STATE.today);alert('Pushed to cloud!');
+    }));
+    row.appendChild(bt('btn-ng btn-sm','Log out',()=>{
+      localStorage.removeItem('AUTH_TOKEN');STATE.showSyncPanel=false;refresh();
+    }));
+    card.appendChild(row);
+    return card;
+  }
+  // Not logged in — show login form
+  card.appendChild(dv('sm dim mb10','Log in with your Supabase account to enable cross-device sync.'));
+  const ew=dv('s4 mb8');ew.innerHTML='<div class="xs dimmer up ls">Email</div>';
+  const ei=ip('email','','','you@email.com');ew.appendChild(ei);card.appendChild(ew);
+  const pw=dv('s4 mb8');pw.innerHTML='<div class="xs dimmer up ls">Password</div>';
+  const pi=ip('password','','','password');pw.appendChild(pi);card.appendChild(pw);
+  const err=dv('xs ng mb8');card.appendChild(err);
+  const loginBtn=bt('btn-ac btn-sm','Log In',async()=>{
+    err.textContent='';loginBtn.disabled=true;loginBtn.textContent='Logging in...';
+    const res=await SB.login(ei.value.trim(),pi.value);
+    if(res.ok){STATE.showSyncPanel=false;refresh();}
+    else{err.textContent=res.error||'Login failed';loginBtn.disabled=false;loginBtn.textContent='Log In';}
+  });
+  pi.onkeydown=e=>{if(e.key==='Enter')loginBtn.click();};
+  card.appendChild(loginBtn);
+  return card;
+}
+
+/* ═══ STREAK OVERRIDE PANEL ═══ */
+function renderStreakPanel(){
+  const card=dv('card fi mb12');
+  card.style.cssText='border:1px solid var(--acb);background:var(--acd)';
+
+  const hd=dv('rowb mb12');
+  hd.appendChild(sp('ctit','⚡ Set Historical Streaks'));
+  hd.appendChild(bt('btn-icon','✕',()=>{STATE.showStreakPanel=false;refresh()}));
+  card.appendChild(hd);
+
+  const info=dv('sm dim mb12');
+  info.innerHTML='Set your real streak counts here — use this if you have been tracking manually and want the app to reflect your true history without editing day by day.';
+  card.appendChild(info);
+
+  const ovr=STATE.streakOverrides;
+  const streakDefs=[
+    {k:'morningStreak',l:'Morning Routine',emoji:'🌅'},
+    {k:'flagStreak',l:'Goals Annihilated',emoji:'🏅'},
+    {k:'workStreak',l:'Work',emoji:'💼'},
+    {k:'substancesStreak',l:'Clean — Substances',emoji:'✅'},
+    {k:'procrastinationStreak',l:'Clean — Procrastination',emoji:'✅'},
+    {k:'macanazoStreak',l:'Clean — Macanazo',emoji:'✅'},
+    {k:'substancesPenaltyStreak',l:'Substances 🔥 streak',emoji:'💊'},
+    {k:'procrastinationPenaltyStreak',l:'Procrastination 🔥 streak',emoji:'🌐'},
+    {k:'macanazoPenaltyStreak',l:'Macanazo 🔥 streak',emoji:'⚡'},
+  ];
+
+  const g=dv('g2 mb12');g.style.gap='8px';
+  streakDefs.forEach(({k,l,emoji})=>{
+    const row=dv('card2 row gap10');
+    const lbl=dv('f1 sm');lbl.textContent=emoji+' '+l;
+    const i=ip('number','',ovr[k]!==undefined?ovr[k]:'','auto');
+    i.min=0;i.style.cssText='width:80px;flex:0 0 auto;text-align:center';
+    i.placeholder='auto';
+    i.oninput=()=>{
+      const v=parseInt(i.value);
+      if(!isNaN(v)&&v>=0) STATE.streakOverrides[k]=v;
+      else delete STATE.streakOverrides[k];
+      S.set(K.STREAK_OVR,STATE.streakOverrides);
+    };
+    row.appendChild(lbl);row.appendChild(i);g.appendChild(row);
+  });
+  card.appendChild(g);
+
+  const note=dv('xs dimmer');
+  note.innerHTML='Leave blank to use the calculated value. Overrides apply to today\'s score immediately. They do not modify your history.';
+  card.appendChild(note);
+
+  const clearBtn=bt('btn-ghost btn-sm mt10','Clear all overrides',()=>{STATE.streakOverrides={};S.set(K.STREAK_OVR,{});refresh();});
+  clearBtn.style.marginTop='10px';card.appendChild(clearBtn);
+  return card;
+}
+
+/* ═══ DIARY (used inside calendar) ═══ */
+function renderDiaryFor(dateKey){
+  const wrap=dv('mt10 fi');
+  const ta=document.createElement('textarea');
+  ta.className='diary-area';
+  ta.placeholder='Write your thoughts about this day...';
+  ta.value=STATE.diary[dateKey]||'';
+
+  let saveTimer=null;
+  ta.oninput=()=>{
+    clearTimeout(saveTimer);
+    saveTimer=setTimeout(()=>{
+      if(ta.value.trim()) STATE.diary[dateKey]=ta.value;
+      else delete STATE.diary[dateKey];
+      S.set(K.DIARY,STATE.diary);
+      SB.push(STATE.history,STATE.today).catch(()=>{});
+    },600);
+  };
+
+  const saved=dv('xs dimmer mt4','');
+  ta.onfocus=()=>{saved.textContent='';};
+
+  wrap.appendChild(ta);wrap.appendChild(saved);
+  return wrap;
+}
+
+/* ═══ BOOT ═══ */
+loadToday();applyTheme();render();
+// Start clock ticker once (not inside renderApp to prevent accumulation)
+let _lastDay=todayKey();
+setInterval(()=>{
+  const cl=document.getElementById('clk');
+  if(cl)cl.textContent=new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  const nd=todayKey();
+  if(nd!==_lastDay){_lastDay=nd;refresh();}
+},1000);
+</script>
+</body>
+</html>
