@@ -1277,7 +1277,31 @@ function renderDiaryFor(dateKey){
 }
 
 /* ═══ BOOT ═══ */
-loadToday();applyTheme();render();
+loadToday();applyTheme();
+
+// On boot: if token exists, pull from cloud before first render
+(async()=>{
+  if(SB.init()){
+    const remote=await SB.pull();
+    if(remote){
+      const merged=new Map();
+      (STATE.history||[]).forEach(d=>merged.set(d.date,d));
+      (remote.history||[]).forEach(d=>{
+        const existing=merged.get(d.date);
+        if(!existing||(d.todayPoints!==existing.todayPoints&&!d._gap)) merged.set(d.date,d);
+      });
+      STATE.history=[...merged.values()].sort((a,b)=>b.date.localeCompare(a.date));
+      const rt=remote.today||{},lt=STATE.today||{};
+      if((rt._date||'')>=(lt._date||'')&&Object.keys(rt).length>0) STATE.today=rt;
+      STATE.diary={...(STATE.diary||{}),...(remote.diary||{})};
+      if(remote.streak_overrides&&Object.keys(remote.streak_overrides).length>0)
+        STATE.streakOverrides=remote.streak_overrides;
+      S.set(K.HIST,STATE.history);S.set(K.TODAY,STATE.today);
+      S.set(K.DIARY,STATE.diary);S.set(K.STREAK_OVR,STATE.streakOverrides);
+    }
+  }
+  render();
+})();
 // Start clock ticker once (not inside renderApp to prevent accumulation)
 let _lastDay=todayKey();
 setInterval(()=>{
