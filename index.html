@@ -745,7 +745,7 @@ function renderTasksCard(sc,sk_){
   mt.appendChild(mc);mt.appendChild(mi);mt.onclick=()=>{STATE.today.morningCompleted=!STATE.today.morningCompleted;refresh();};card.appendChild(mt);
   const ft=dv(`tog ${STATE.today.flagCompleted?'on':''}`);
   const fc=ip('checkbox','');fc.checked=STATE.today.flagCompleted;fc.readOnly=true;
-  const fi_=dv('f1');fi_.innerHTML=`<div class="tt">Goals Annihilated</div><div class="ts">+${100*Math.max(1,sk_.flagStreak)} pts × streak (${sk_.flagStreak}d)</div>`;
+  const fi_=dv('f1');fi_.innerHTML=`<div class="tt">Goals Annihilated</div><div class="ts">+100 pts × streak (${sk_.flagStreak}d)</div>`;
   ft.appendChild(fc);ft.appendChild(fi_);ft.onclick=()=>{STATE.today.flagCompleted=!STATE.today.flagCompleted;refresh();};card.appendChild(ft);
   return card;
 }
