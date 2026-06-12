@@ -597,62 +597,28 @@ function mergeRemote(remote){
   const remoteSavedAt=remote.saved_at||0;
   const localSavedAt=STATE._savedAt||0;
 
-  // ── today: field-level merge — avoids _ts race condition ────
-  // save() bumps _ts on every click, so "newer _ts wins all" always clobbers the other device.
-  // Instead we merge each field independently so no device ever loses data.
+  // ── today: strict last-write-wins — the device that touched last wins EVERYTHING ────
+  // Merging fields causes duplicates (two devices, two uids for same penalty = both kept).
+  // Solution: whoever has the higher _ts gets their full today object. Period.
   if(remote.today){
     const R=remote.today, L=STATE.today;
     const tk=todayKey();
-    if(R._date===tk){
-      const remoteNewer=(R._ts||0)>(L._ts||0);
-      // Merge penalties: union by id (or type+details fingerprint if no id)
-      const localPens=L.penalties||[];
-      const remotePens=R.penalties||[];
-      const penMap=new Map();
-      localPens.forEach(p=>{const k=p.id||(p.type+JSON.stringify(p.details));penMap.set(k,p);});
-      remotePens.forEach(p=>{const k=p.id||(p.type+JSON.stringify(p.details));if(!penMap.has(k))penMap.set(k,p);});
-      const mergedPens=[...penMap.values()];
-      const merged={
-        ...L,
-        completed:Math.max(L.completed||0,R.completed||0),
-        target:Math.max(L.target||0,R.target||0),
-        morningCompleted:(L.morningCompleted||R.morningCompleted),
-        flagCompleted:(L.flagCompleted||R.flagCompleted),
-        pomodoros:Math.max(L.pomodoros||0,R.pomodoros||0),
-        penalties:mergedPens,
-        sleep:{
-          sleepDuration:Math.max(L.sleep?.sleepDuration||0,R.sleep?.sleepDuration||0),
-          napDuration:Math.max(L.sleep?.napDuration||0,R.sleep?.napDuration||0),
-          sleptEarly:(L.sleep?.sleptEarly||R.sleep?.sleptEarly)||false,
-          sleptLate:(L.sleep?.sleptLate||R.sleep?.sleptLate)||false,
-          earlyBedStreak:Math.max(L.sleep?.earlyBedStreak||0,R.sleep?.earlyBedStreak||0),
-        },
-        work:{workDuration:Math.max(L.work?.workDuration||0,R.work?.workDuration||0)},
-        // meta fields: newer device wins
-        _difficulty:remoteNewer?(R._difficulty||L._difficulty):(L._difficulty||R._difficulty),
-        _lang:remoteNewer?(R._lang||L._lang):(L._lang||R._lang),
-        _penType:remoteNewer?(R._penType||L._penType):(L._penType||R._penType),
-        _ts:Math.max(L._ts||0,R._ts||0),
-        _date:tk,
-      };
-      if(JSON.stringify(merged)!==JSON.stringify(L)){
-        STATE.today=merged;
-        if(merged._difficulty){STATE.difficulty=merged._difficulty;localStorage.setItem('st_difficulty',merged._difficulty);}
-        if(merged._lang){STATE.lang=merged._lang;localStorage.setItem('st_lang',merged._lang);}
-        if(merged._penType)STATE.penType=merged._penType;
-        S.set(K.TODAY,STATE.today);changed=true;
-      }
+    if(R._date===tk && (R._ts||0)>(L._ts||0)){
+      STATE.today={...R,_date:tk};
+      if(R._difficulty){STATE.difficulty=R._difficulty;localStorage.setItem('st_difficulty',R._difficulty);}
+      if(R._lang){STATE.lang=R._lang;localStorage.setItem('st_lang',R._lang);}
+      if(R._penType)STATE.penType=R._penType;
+      S.set(K.TODAY,STATE.today);changed=true;
     }
   }
 
-  // ── history: merge day-by-day using _ts per entry ────
+  // ── history: day-by-day, higher _ts wins that day entirely ────
   if(remote.history&&remote.history.length){
     const localMap=new Map(STATE.history.map(d=>[d.date,d]));
     let histChanged=false;
     remote.history.forEach(re=>{
       const le=localMap.get(re.date);
-      if(!le){localMap.set(re.date,re);histChanged=true;}
-      else if((re._ts||0)>(le._ts||0)){localMap.set(re.date,re);histChanged=true;}
+      if(!le||(re._ts||0)>(le._ts||0)){localMap.set(re.date,re);histChanged=true;}
     });
     if(histChanged){
       STATE.history=[...localMap.values()].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,200);
@@ -660,14 +626,11 @@ function mergeRemote(remote){
     }
   }
 
-  // ── diary: union, remote wins conflicts if remote is newer ────
-  if(remote.diary){
-    let diaryChanged=false;
-    Object.keys(remote.diary).forEach(k=>{
-      if(!(k in STATE.diary)){STATE.diary[k]=remote.diary[k];diaryChanged=true;}
-      else if(remoteSavedAt>localSavedAt&&STATE.diary[k]!==remote.diary[k]){STATE.diary[k]=remote.diary[k];diaryChanged=true;}
-    });
-    if(diaryChanged){S.set(K.DIARY,STATE.diary);changed=true;}
+  // ── diary: remote wins entirely if newer ────
+  if(remote.diary&&remoteSavedAt>localSavedAt){
+    if(JSON.stringify(remote.diary)!==JSON.stringify(STATE.diary)){
+      STATE.diary=remote.diary;S.set(K.DIARY,STATE.diary);changed=true;
+    }
   }
 
   // ── streak overrides: remote wins if newer ────
@@ -1601,11 +1564,18 @@ function renderSyncPanel(){
     row.appendChild(bt('btn-ac btn-sm',t('pull-cloud'),async()=>{
       const remote=await SB.pull();
       if(remote){
-        const merged=new Map();
-        [...(STATE.history||[]),...(remote.history||[])].forEach(d=>merged.set(d.date,d));
-        STATE.history=[...merged.values()].sort((a,b)=>b.date.localeCompare(a.date));
-        S.set(K.HIST,STATE.history);
-        refresh();alert('Synced from cloud!');
+        // Full replace — remote is the source of truth
+        if(remote.history) STATE.history=[...remote.history].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,200);
+        if(remote.today){
+          STATE.today=remote.today;
+          if(remote.today._difficulty){STATE.difficulty=remote.today._difficulty;localStorage.setItem('st_difficulty',remote.today._difficulty);}
+          if(remote.today._lang){STATE.lang=remote.today._lang;localStorage.setItem('st_lang',remote.today._lang);}
+          if(remote.today._penType)STATE.penType=remote.today._penType;
+        }
+        if(remote.diary) STATE.diary=remote.diary;
+        if(remote.streak_overrides) STATE.streakOverrides=remote.streak_overrides;
+        S.set(K.HIST,STATE.history);S.set(K.TODAY,STATE.today);S.set(K.DIARY,STATE.diary);S.set(K.STREAK_OVR,STATE.streakOverrides);
+        refresh();alert('✅ Synced from cloud!');
       } else alert('Pull failed or no data.');
     }));
     row.appendChild(bt('btn-ghost btn-sm',t('push-cloud'),async()=>{
