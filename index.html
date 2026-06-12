@@ -14,13 +14,13 @@
   --b1:#22222e;--b2:#2c2c3a;--b3:#3a3a4a;
   --t1:#f2f2f8;--t2:#b0b0cc;--t3:#707090;
   /* #10: warmer accent — soft amber-gold instead of cold teal */
-  --ac:#f5a623;--ac2:#e09518;--acd:rgba(245,166,35,.13);--acb:rgba(245,166,35,.30);
+  --ac:#7c6af0;--ac2:#6655e0;--acd:rgba(124,106,240,.12);--acb:rgba(124,106,240,.28);
   /* negative = red */
-  --ng:#ff5566;--ngd:rgba(255,85,102,.13);--ngb:rgba(255,85,102,.30);
+  --ng:#f97316;--ngd:rgba(249,115,22,.13);--ngb:rgba(249,115,22,.30);
   /* status */
-  --cr:#ff5566;--cy:#0ea5c9;--cg:#34d399;--cp:#a78bfa;
-  --rd:rgba(255,85,102,.13);--yd:rgba(14,165,201,.13);--gd:rgba(52,211,153,.13);--pd:rgba(167,139,250,.13);
-  --rb:rgba(255,85,102,.30);--yb:rgba(14,165,201,.30);--gb:rgba(52,211,153,.30);--pb:rgba(167,139,250,.30);
+  --cr:#ff5566;--cy:#f5c842;--cg:#34d399;--cp:#a78bfa;
+  --rd:rgba(255,85,102,.13);--yd:rgba(245,200,66,.13);--gd:rgba(52,211,153,.13);--pd:rgba(167,139,250,.13);
+  --rb:rgba(255,85,102,.30);--yb:rgba(245,200,66,.30);--gb:rgba(52,211,153,.30);--pb:rgba(167,139,250,.30);
   --ff:'Outfit',sans-serif;--mo:'JetBrains Mono',monospace;
 }
 /* #9: base font 17px, max-width 1100px = natural 125–150% feel */
@@ -82,7 +82,7 @@ input[type=number]::-webkit-inner-spin-button{opacity:.3}
 
 /* ── BUTTONS ── */
 button{cursor:pointer;font-family:var(--ff);font-size:15px;font-weight:600;border-radius:9px;border:none;padding:10px 18px;transition:all .15s;line-height:1.3}
-.btn-ac{background:var(--ac);color:#1a0e00;font-weight:800}
+.btn-ac{background:var(--ac);color:#ffffff;font-weight:800}
 .btn-ac:hover{background:var(--ac2);transform:translateY(-1px)}
 .btn-ghost{background:var(--sur2);color:var(--t2);border:1px solid var(--b2)}
 .btn-ghost:hover{color:var(--t1);border-color:var(--b3)}
@@ -154,6 +154,9 @@ button{cursor:pointer;font-family:var(--ff);font-size:15px;font-weight:600;borde
 
 /* ── LIGHT MODE ── */
 body.light{--bg:#f4f4f0;--sur:#ffffff;--sur2:#efefeb;--sur3:#e5e5e0;--b1:#ddddd8;--b2:#cacac4;--b3:#b0b0aa;--t1:#1a1a1a;--t2:#555550;--t3:#888880}
+body.light .cal-c{filter:none}
+body.light .cal-c:hover{filter:brightness(.92)}
+body.light .cal-c[data-status=none]{background:#e8e8e4!important}
 body.light .cal-c:hover{filter:brightness(.95)}
 /* ── DIARY ── */
 .diary-area{width:100%;min-height:90px;resize:vertical;background:var(--sur2);border:1px solid var(--b2);border-radius:8px;color:var(--t1);font-family:var(--ff);font-size:15px;padding:10px 14px;outline:none;transition:border-color .15s;line-height:1.6}
@@ -642,7 +645,6 @@ function renderApp(){
   const themeBtn=bt('btn-ghost btn-sm',STATE.theme==='light'?'🌙 Dark':'☀️ Light',toggleTheme);
   acts.appendChild(themeBtn);
   acts.appendChild(bt('btn-ghost btn-sm','⚡ Set Streaks',()=>{STATE.showStreakPanel=!STATE.showStreakPanel;refresh()}));
-  acts.appendChild(bt('btn-ng btn-sm','Reset All',()=>{STATE.showReset=!STATE.showReset;refresh()}));
   acts.appendChild(bt('btn-ghost btn-sm','Logout',()=>{S.set(K.AUTH,false);STATE.authed=false;render();}));
   hdr.appendChild(acts);wrap.appendChild(hdr);
 
@@ -675,6 +677,15 @@ function renderApp(){
   const ch=dv('g2 mt12');ch.appendChild(renderCalendar());ch.appendChild(renderHistEd(sk_));wrap.appendChild(ch);
   wrap.appendChild(renderStats(total,sc));
   wrap.appendChild(renderRules());
+  // Reset All — at the bottom where it's hard to hit accidentally
+  const resetWrap=dv('card mt12');resetWrap.style.cssText='border-color:var(--ngb);background:var(--ngd)';
+  const resetRow=dv('rowb');
+  const resetInfo=dv('');
+  resetInfo.innerHTML='<div class="sm w6 ng">Danger Zone</div><div class="xs dimmer mt2">This will erase all your data permanently.</div>';
+  resetRow.appendChild(resetInfo);
+  resetRow.appendChild(bt('btn-ng btn-sm','Reset All',()=>{STATE.showReset=!STATE.showReset;refresh()}));
+  resetWrap.appendChild(resetRow);
+  wrap.appendChild(resetWrap);
   return wrap;
 }
 
@@ -874,7 +885,10 @@ function renderStreaks(sk_){
 /* ═══ CALENDAR — #5 pts visible, #8 flag glow ═══ */
 function renderCalendar(){
   const wrap=dv('card');const now=new Date();let cY=now.getFullYear(),cM=now.getMonth(),selK=null;
-  const sBg={red:{bg:'#2e0808',txt:'#fca5a5'},yellow:{bg:'#2e2008',txt:'#fde68a'},green:{bg:'#082e1a',txt:'#6ee7b7'},purple:{bg:'#16082e',txt:'#c4b5fd'},none:{bg:'#111118',txt:'#2a2a3a'}};
+  const isLight=document.body.classList.contains('light');
+  const sBg=isLight
+    ? {red:{bg:'#fecaca',txt:'#991b1b'},yellow:{bg:'#fef08a',txt:'#854d0e'},green:{bg:'#bbf7d0',txt:'#14532d'},purple:{bg:'#e9d5ff',txt:'#581c87'},none:{bg:'#e2e8f0',txt:'#94a3b8'}}
+    : {red:{bg:'#2e0808',txt:'#fca5a5'},yellow:{bg:'#2e2008',txt:'#fde68a'},green:{bg:'#082e1a',txt:'#6ee7b7'},purple:{bg:'#16082e',txt:'#c4b5fd'},none:{bg:'#111118',txt:'#2a2a3a'}};
 
   function build(){
     wrap.innerHTML='';
@@ -1078,19 +1092,19 @@ function renderStats(total,sc){
 
   // Grid 1
   const g1=dv('g4 mb10');g1.style.gap='8px';
-  [['Best day',best,'var(--cg)','pts'],['Worst day',worst,'var(--cr)','pts'],['All-time avg',avg,'var(--ac)','pts/día'],['Last 7 avg',avg7,'var(--cy)','pts']].forEach(([l,v,c,sub])=>{
+  [['Best day',best,'var(--ac)','pts'],['Worst day',worst,'var(--ac)','pts'],['All-time avg',avg,'var(--ac)','pts/día'],['Last 7 avg',avg7,'var(--ac)','pts']].forEach(([l,v,c,sub])=>{
     const s=dv('card2 ctr');const n=dv('xxl w7 mo');n.style.color=c;n.textContent=String(v);s.appendChild(n);s.appendChild(sp('xs dimmer mt4',l));s.appendChild(sp('xs dimmer mt2',sub));g1.appendChild(s);
   });body.appendChild(g1);
 
   // Grid 2
   const g2=dv('g4 mb10');g2.style.gap='8px';
-  [['Total 🍅',String(totalPoms),'var(--cy)','pomodoros'],['Work total',fmtDur(totalWorkMin),'var(--cg)','worked'],['Sleep total',fmtDur(totalSleepMin),'var(--ac)','rested'],['Clean streak',pfStrk+'d','var(--cg)','penalty-free']].forEach(([l,v,c,sub])=>{
+  [['Total 🍅',String(totalPoms),'var(--ac)','pomodoros'],['Work total',fmtDur(totalWorkMin),'var(--ac)','worked'],['Sleep total',fmtDur(totalSleepMin),'var(--ac)','rested'],['Clean streak',pfStrk+'d','var(--ac)','reward-free']].forEach(([l,v,c,sub])=>{
     const s=dv('card2 ctr');const n=dv('xl w7 mo');n.style.color=c;n.textContent=v;s.appendChild(n);s.appendChild(sp('xs dimmer mt4',l));s.appendChild(sp('xs dimmer mt2',sub));g2.appendChild(s);
   });body.appendChild(g2);
 
   // Grid 3
   const g3=dv('g4 mb12');g3.style.gap='8px';
-  [['Purple days',purplePct+'%','var(--cp)','de días totales'],['Best streak',bStrk+'d','var(--cy)','no red days'],['Clean (drugs)',dfPct+'%','var(--cg)','sin substances'],['Momentum',momStr,momentum>0?'var(--cg)':momentum<0?'var(--cr)':'var(--t3)','vs avg']].forEach(([l,v,c,sub])=>{
+  [['Purple days',purplePct+'%','var(--ac)','of total days'],['Best streak',bStrk+'d','var(--ac)','no red days'],['Clean (drugs)',dfPct+'%','var(--ac)','no substances'],['Momentum',momStr,momentum>0?'var(--cg)':momentum<0?'var(--cr)':'var(--t3)','vs avg']].forEach(([l,v,c,sub])=>{
     const s=dv('card2 ctr');const n=dv('xl w7 mo');n.style.color=c;n.textContent=v;s.appendChild(n);s.appendChild(sp('xs dimmer mt4',l));s.appendChild(sp('xs dimmer mt2',sub));g3.appendChild(s);
   });body.appendChild(g3);
 
@@ -1111,34 +1125,61 @@ function renderRules(){
   const body=dv('fi');
   tog.onclick=()=>{open=!open;body.style.display=open?'':'none';document.getElementById('rl-a').textContent=open?'▲':'▼';};
   wrap.appendChild(tog);
-  body.innerHTML=`<div class="s12 md dim">
-  <div><div class="xs up ls ac w7 mb8">✅ Positive Points</div><div class="s4">
-    <div>1 task = <span class="ac w6">+1 pt</span></div>
-    <div>Morning Routine = <span class="ac w6">+25 × streak</span> (requiere 13+ tasks)</div>
-    <div>Goals Annihilated = <span class="ac w6">+100 × streak</span></div>
-    <div>Pomodoro = <span class="ac w6">+25 c/u</span></div>
-    <div>Work = <span class="ac w6">+1 pt/min</span></div>
-    <div>Sleep = <span class="ac w6">+1 pt/min</span> + nap + early bonus (sleep × earlyStreak)</div>
-    <div>Color bonus: Purple <span class="ac w6">+30</span> · Green <span class="ac w6">+20</span> · Yellow <span class="ac w6">+10</span></div>
-  </div></div>
-  <div><div class="xs up ls ng w7 mb8">❌ Rewards</div><div class="s4">
-    <div>Substances = <span class="ng w6">−25 × count × streak</span></div>
-    <div>Procrastination = <span class="ng w6">−1 pt/min × streak</span> (active from 30+ accumulated mins)</div>
-    <div>Orgasm = <span class="ng w6">−100 × streak</span></div>
-    <div class="xs dimmer">Streak multiplies damage for each consecutive day with that penalty</div>
-  </div></div>
-  <div><div class="xs up ls cy w7 mb8">📊 Day Status</div><div class="s4">
-    <div><span class="cp w6">Purple</span> 100% · <span class="cg w6">Green</span> ≥85% · <span class="cy w6">Yellow</span> ≥50% · <span class="cr w6">Red</span> &lt;50%</div>
-    <div>Goals Annihilated sube el status un tier</div>
-  </div></div>
-  <div><div class="xs up ls dimmer w7 mb8">🔄 Penalty Streak Resets</div><div class="s4">
-    <div>Yellow day → resets Substances streak</div>
-    <div>Día Green → resetea Substances + Procrastination</div>
-    <div>Purple day → resets all reward streaks</div>
-    <div class="xs dimmer">Days without a log between saved days = −1000 pts, red day</div>
-  </div></div>
+  body.innerHTML=`<div class="s16 dim">
+
+  <div>
+    <div class="xs up ls ac w7 mb10">✅ Positive Points</div>
+    <div class="s6">
+      <div><span class="ac w6">Tasks</span> — each completed task gives you +1 pt.</div>
+      <div><span class="ac w6">Morning Routine</span> — complete it before 9am and earn +25 pts. Your streak multiplies the bonus: day 5 = +125 pts. Requires 10+ tasks done that day.</div>
+      <div><span class="ac w6">Goals Annihilated</span> — mark all your key goals as done and earn +100 pts, multiplied by your streak.</div>
+      <div><span class="ac w6">Pomodoros</span> — each focused work session (pomodoro) gives +25 pts.</div>
+      <div><span class="ac w6">Work</span> — every minute of work logged gives +1 pt, multiplied by your work streak.</div>
+      <div><span class="ac w6">Sleep</span> — every minute of sleep or nap gives +1 pt. Sleeping early gives a bonus multiplied by your early-bed streak.</div>
+      <div><span class="ac w6">Day color bonus</span> — just for having a good day: <span class="cp">Purple</span> +30 · <span class="cg">Green</span> +20 · <span class="cy">Yellow</span> +10.</div>
+    </div>
+  </div>
+
   <hr class="dv">
-  <div class="xs dimmer ctr">Stoic · Made by JuanFer · Data saved locally in your browser</div>
+
+  <div>
+    <div class="xs up ls ng w7 mb10">❌ Rewards (negative)</div>
+    <div class="s6">
+      <div><span class="ng w6">Substances</span> — each substance used costs −25 pts, multiplied by how many days in a row you've used.</div>
+      <div><span class="ng w6">Procrastination</span> — costs −1 pt per minute, but only kicks in after 30 accumulated minutes. The longer your streak of procrastinating days, the heavier the cost.</div>
+      <div><span class="ng w6">Orgasm 💦</span> — costs −100 pts, multiplied by consecutive days.</div>
+    </div>
+  </div>
+
+  <hr class="dv">
+
+  <div>
+    <div class="xs up ls dimmer w7 mb10">📊 Day Status</div>
+    <div class="s6">
+      <div>Your day gets a color based on how many tasks you completed:</div>
+      <div><span class="cp w6">Purple</span> — 100% of tasks done. Perfect day.</div>
+      <div><span class="cg w6">Green</span> — 85% or more. Great day.</div>
+      <div><span class="cy w6">Yellow</span> — 50% or more. Decent day.</div>
+      <div><span class="cr w6">Red</span> — less than 50%. Rough day.</div>
+      <div class="xs dimmer">Tip: completing Goals Annihilated bumps your day up one tier — a Yellow becomes Green, a Green becomes Purple.</div>
+    </div>
+  </div>
+
+  <hr class="dv">
+
+  <div>
+    <div class="xs up ls dimmer w7 mb10">🔄 How streaks reset</div>
+    <div class="s6">
+      <div>Having a good day clears your negative streaks:</div>
+      <div>A <span class="cy w6">Yellow</span> day resets your Substances streak.</div>
+      <div>A <span class="cg w6">Green</span> day resets Substances + Procrastination streaks.</div>
+      <div>A <span class="cp w6">Purple</span> day resets all negative streaks.</div>
+      <div class="xs dimmer">Days you forget to log count as −1,000 pts and a red day.</div>
+    </div>
+  </div>
+
+  <hr class="dv">
+  <div class="xs dimmer ctr">Stoic · Made by JuanFer</div>
   </div>`;
   wrap.appendChild(body);return wrap;
 }
