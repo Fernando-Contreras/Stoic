@@ -14,7 +14,7 @@
   --b1:#22222e;--b2:#2c2c3a;--b3:#3a3a4a;
   --t1:#f2f2f8;--t2:#b0b0cc;--t3:#707090;
   /* #10: warmer accent — soft amber-gold instead of cold teal */
-  --ac:#7c6af0;--ac2:#6655e0;--acd:rgba(124,106,240,.12);--acb:rgba(124,106,240,.28);
+  --ac:#d4a017;--ac2:#b8880e;--acd:rgba(212,160,23,.12);--acb:rgba(212,160,23,.28);
   /* negative = red */
   --ng:#f97316;--ngd:rgba(249,115,22,.13);--ngb:rgba(249,115,22,.30);
   /* status */
@@ -29,7 +29,7 @@ html,body{background:var(--bg);color:var(--t1);font-family:var(--ff);font-size:2
 
 /* ── TYPOGRAPHY ── */
 .mo{font-family:var(--mo)}
-.xs{font-size:12px}.sm{font-size:14px}.md{font-size:16px}.lg{font-size:18px}.xl{font-size:23px}.xxl{font-size:30px}.xxxl{font-size:44px}
+.xs{font-size:14px}.sm{font-size:16px}.md{font-size:18px}.lg{font-size:21px}.xl{font-size:26px}.xxl{font-size:32px}.xxxl{font-size:46px}
 .w3{font-weight:300}.w4{font-weight:400}.w5{font-weight:500}.w6{font-weight:600}.w7{font-weight:700}.w8{font-weight:800}
 .dim{color:var(--t2)}.dimmer{color:var(--t3)}
 .ac{color:var(--ac)}.ng{color:var(--ng)}
@@ -278,11 +278,11 @@ const CALC={
     if(flag){const u={red:'yellow',yellow:'green',green:'purple',purple:'purple'};s=u[s];}
     return s;
   },
-  colorBonus(s){return{purple:30,green:20,yellow:10,red:0}[s]||0},
+  colorBonus(s){return{purple:60,green:30,yellow:10,red:0}[s]||0},
   penBase(p){
-    if(p.type==='drugs')return -25*(p.details?.substances||1);
-    if(p.type==='internet')return -1*(p.details?.minutes||0);
-    if(p.type==='macanazo')return p.details?.isPositive?100:-100;
+    if(p.type==='drugs')return -250*(p.details?.substances||1);
+    if(p.type==='internet')return -10*(p.details?.minutes||0);
+    if(p.type==='macanazo')return p.details?.isPositive?100:-1000;
     return 0;
   },
   streaks(history,today){
@@ -296,6 +296,8 @@ const CALC={
     function sStrk(type){let c=0;for(let i=hist.length-1;i>=0;i--){if(!hasSt(hist[i],type))break;c++;}return c;}
     function wStrk(){let c=0;for(let i=hist.length-1;i>=0;i--){if(hist[i].status==='red')break;c++;}return c;}
     function eStrk(){let c=0;for(let i=hist.length-1;i>=0;i--){if(!hist[i].sleptEarly)break;c++;}return c;}
+    function cStrk(){let c=0;for(let i=hist.length-1;i>=0;i--){if(hist[i].status==='red'||hist[i]._gap)break;c++;}return c;}
+    function lStrk(){let c=0;for(let i=hist.length-1;i>=0;i--){if(!hist[i].sleptLate||hist[i].status==='purple')break;c++;}return c;}
     const tD=today.penalties.some(p=>p.type==='drugs');
     const tN=today.penalties.some(p=>p.type==='internet');
     const tM=today.penalties.some(p=>p.type==='macanazo');
@@ -310,17 +312,20 @@ const CALC={
       flagStreak:sStrk('flags')+(today.flagCompleted?1:0),
       workStreak:wStrk()+(today.work?.workDuration>0?1:0),
       earlyBedStreak:eStrk()+(today.sleep?.sleptEarly?1:0),
+      colorStreak:cStrk(),
+      lateStreak:lStrk()+(today.sleep?.sleptLate?1:0),
     };
   },
   score(day,sk){
     const{completed=0,target=0,morningCompleted=false,flagCompleted=false,pomodoros=0,penalties=[],sleep={},work={}}=day;
     const s=sk||{morningStreak:0,flagStreak:0,substancesPenaltyStreak:1,procrastinationPenaltyStreak:1,macanazoPenaltyStreak:1};
     const base=completed;
-    const mB=morningCompleted&&completed>=13?25*Math.max(1,s.morningStreak):0;
+    const mB=morningCompleted?25*Math.max(1,s.morningStreak):0;
     const fB=flagCompleted?100*Math.max(1,s.flagStreak):0;
     const pom=pomodoros*25;
     const wrk=(work.workDuration||0)*Math.max(1,s.workStreak);
     const slp=(sleep.sleepDuration||0)+(sleep.napDuration||0)+(sleep.sleptEarly?(sleep.sleepDuration||0)*(sleep.earlyBedStreak||1):0);
+    const latePen=sleep.sleptLate?-100*Math.max(1,s.lateStreak||1):0;
     const procMins=penalties.filter(p=>p.type==='internet').reduce((a,p)=>a+(p.details?.minutes||0),0);
     const procActive=procMins>=30;
     const pen=penalties.reduce((sum,p)=>{
@@ -332,9 +337,9 @@ const CALC={
     },0);
     const pct=target>0?Math.round(completed/target*100):0;
     const status=this.status(pct,flagCompleted);
-    const col=this.colorBonus(status);
-    const total=base+mB+fB+pom+wrk+slp+pen+col;
-    return{total,status,pct,mB,fB,pom,wrk,slp,pen,col};
+    const col=this.colorBonus(status)*Math.max(1,s.colorStreak||0);
+    const total=base+mB+fB+pom+wrk+slp+pen+col+latePen;
+    return{total,status,pct,mB,fB,pom,wrk,slp,pen,col,latePen};
   },
   // #2 FIX: histTotal must exclude today to avoid double-count
   histTotal(history){
@@ -348,7 +353,7 @@ const CALC={
       penalties:today.penalties.map(p=>({type:p.type,count:p.count,points:this.penBase(p),streak:1})),
       streaks:[{type:'morning',count:today.morningCompleted?1:0,active:today.morningCompleted},{type:'flags',count:today.flagCompleted?1:0,active:today.flagCompleted}],
       sleepDuration:today.sleep?.sleepDuration||0,napDuration:today.sleep?.napDuration||0,
-      sleptEarly:today.sleep?.sleptEarly||false,workDuration:today.work?.workDuration||0,
+      sleptEarly:today.sleep?.sleptEarly||false,sleptLate:today.sleep?.sleptLate||false,workDuration:today.work?.workDuration||0,
       streaksUsed:{...streaks}};
   },
   /* #6: fill missing days between first and last history entry as red -1000 */
@@ -701,7 +706,7 @@ function renderScoreCard(total,sc,sk_){
   cr.innerHTML=`<svg width="70" height="70" class="circ" viewBox="0 0 70 70"><circle cx="35" cy="35" r="${R}" stroke="#22222e" stroke-width="7" fill="none"/><circle cx="35" cy="35" r="${R}" stroke="var(--ac)" stroke-width="7" fill="none" stroke-dasharray="${circ}" stroke-dashoffset="${off}" stroke-linecap="round" style="transition:stroke-dashoffset .4s"/></svg><div><div class="xxl w7 ac mo">${pct}%</div><div class="xs dimmer">${STATE.today.completed}/${STATE.today.target} tasks</div></div>`;
   card.appendChild(cr);
   const posRows=[['Tasks',sc.total],['Morning',sc.mB],['Flags',sc.fB],['Pomodoros',sc.pom],['Work',sc.wrk],['Sleep',sc.slp],['Color',sc.col]].filter(r=>r[1]>0);
-  const negRows=[['Rewards',sc.pen]].filter(r=>r[1]!==0);
+  const negRows=[['Rewards',sc.pen],['Late night',sc.latePen||0]].filter(r=>r[1]!==0);
   if(posRows.length||negRows.length){
     const bd=dv('s4 mt10');
     posRows.forEach(([l,v])=>{const r=dv('rowb');r.innerHTML=`<span class="xs dim">${l}</span><span class="xs mo w6 ac">+${v}</span>`;bd.appendChild(r);});
@@ -734,11 +739,10 @@ function renderTasksCard(sc,sk_){
   ti.onkeydown=e=>{if(e.key==='Enter'){ti.blur();}};
   ti.onblur=()=>{refresh();};
   card.appendChild(hr());
-  const mOk=STATE.today.completed>=13;
-  const mt=dv(`tog ${STATE.today.morningCompleted?'on':''} mb8`);mt.style.opacity=mOk?'1':'0.5';
+  const mt=dv(`tog ${STATE.today.morningCompleted?'on':''} mb8`);
   const mc=ip('checkbox','');mc.checked=STATE.today.morningCompleted;mc.readOnly=true;
-  const mi=dv('f1');mi.innerHTML=`<div class="tt">Morning Routine</div><div class="ts">+${25*Math.max(1,sk_.morningStreak)} pts · requiere 13+ tasks</div>`;
-  mt.appendChild(mc);mt.appendChild(mi);mt.onclick=()=>{if(mOk){STATE.today.morningCompleted=!STATE.today.morningCompleted;refresh();}};card.appendChild(mt);
+  const mi=dv('f1');mi.innerHTML=`<div class="tt">Morning Routine</div><div class="ts">+${25*Math.max(1,sk_.morningStreak)} pts · streak: ${sk_.morningStreak}d</div>`;
+  mt.appendChild(mc);mt.appendChild(mi);mt.onclick=()=>{STATE.today.morningCompleted=!STATE.today.morningCompleted;refresh();};card.appendChild(mt);
   const ft=dv(`tog ${STATE.today.flagCompleted?'on':''}`);
   const fc=ip('checkbox','');fc.checked=STATE.today.flagCompleted;fc.readOnly=true;
   const fi_=dv('f1');fi_.innerHTML=`<div class="tt">Goals Annihilated</div><div class="ts">+${100*Math.max(1,sk_.flagStreak)} pts × streak (${sk_.flagStreak}d)</div>`;
@@ -750,7 +754,7 @@ function renderTasksCard(sc,sk_){
 function renderPomCard(){
   const card=dv('card');
   const tr=dv('rowb mb8');tr.appendChild(sp('ctit','Pomodoros'));tr.appendChild(sp('xxl w7 ac mo',String(STATE.today.pomodoros)));card.appendChild(tr);
-  card.appendChild(sp('xs dim',`+${STATE.today.pomodoros*25} pts · ×25 cada uno`));
+  card.appendChild(sp('xs dim',`+${STATE.today.pomodoros*25} pts · ×25 each`));
   const ct=dv('row gap8 mt10');
   ct.appendChild(bt('btn-ghost btn-sm f1','−',()=>{STATE.today.pomodoros=Math.max(0,STATE.today.pomodoros-1);refresh();}));
   const n=dv('f1 ctr xl w7 mo');n.textContent=String(STATE.today.pomodoros);ct.appendChild(n);
@@ -773,7 +777,7 @@ function renderPenCard(sk_){
   const tr=dv('rowb mb10');tr.appendChild(sp('ctit','Rewards'));if(penPts!==0)tr.appendChild(sp('md mo w7 ng',String(penPts)));card.appendChild(tr);
 
   // #3: use STATE.penType so selection persists after refresh
-  const tEl=sk('mb8',[['drugs','💊 Substances'],['internet','🌐 Procrastination'],['macanazo','💦 Orgasm']],STATE.penType);
+  const tEl=sk('mb8',[['drugs','💊 Indulgences'],['internet','🌐 Procrastination'],['macanazo','💦 Orgasm']],STATE.penType);
   tEl.onchange=()=>{STATE.penType=tEl.value;updateDet();};
   card.appendChild(tEl);
 
@@ -817,7 +821,7 @@ function renderPenCard(sk_){
       else if(p.type==='internet') mult=procMinsTotal>=30?Math.max(1,sk_.procrastinationPenaltyStreak):0;
       else if(p.type==='macanazo') mult=Math.max(1,sk_.macanazoPenaltyStreak);
       const actual=base*mult;
-      const lbl=p.type==='drugs'?`Substances ×${p.details?.substances||1}`:p.type==='internet'?`Procrast. ${fmtDur(p.details?.minutes||0)}`:'Orgasm';
+      const lbl=p.type==='drugs'?`Indulgences ×${p.details?.substances||1}`:p.type==='internet'?`Procrast. ${fmtDur(p.details?.minutes||0)}`:'Orgasm';
       const row=dv('pen-it');
       const info=dv('f1');
       // Show label + breakdown: base × streak = actual
@@ -862,7 +866,16 @@ function renderSleepCard(sk_){
   const ei=dv('f1');ei.innerHTML=`<div class="tt">Slept Early</div>${sl.sleptEarly?`<div class="ts">+${eb} pts · ×${sl.earlyBedStreak||1} streak`:''}`;
   et.appendChild(ec);et.appendChild(ei);
   et.onclick=()=>{STATE.today.sleep.sleptEarly=!sl.sleptEarly;refresh();};
-  card.appendChild(et);card.appendChild(sp('xs dim mt8',`Total sleep: +${(sl.sleepDuration||0)+(sl.napDuration||0)+eb} pts`));
+  card.appendChild(et);
+  const lateStreak=sk_?.lateStreak||1;
+  const latePenShow=sl.sleptLate?-100*Math.max(1,lateStreak):0;
+  const ltt=dv(`tog ${sl.sleptLate?'on':''} mt8`);if(sl.sleptLate){ltt.style.borderColor='var(--ng)';ltt.style.background='var(--ngd)';}
+  const ltc=ip('checkbox','');ltc.checked=sl.sleptLate;ltc.readOnly=true;ltc.style.accentColor='var(--ng)';
+  const lti=dv('f1');lti.innerHTML=`<div class="tt" style="color:${sl.sleptLate?'var(--ng)':'var(--t2)'}">Slept Late</div>${sl.sleptLate?`<div class="ts">${latePenShow} pts · ×${lateStreak} streak</div>`:''}`;
+  ltt.appendChild(ltc);ltt.appendChild(lti);
+  ltt.onclick=()=>{STATE.today.sleep.sleptLate=!sl.sleptLate;refresh();};
+  card.appendChild(ltt);
+  card.appendChild(sp('xs dim mt8',`Total sleep: +${(sl.sleepDuration||0)+(sl.napDuration||0)+eb} pts`));
   return card;
 }
 
@@ -872,12 +885,12 @@ function renderStreaks(sk_){
   card.appendChild(sp('xs dimmer up ls mb8','✅ Positive Streaks'));
   const pg=dv('sk-g mb16');
   [{k:'morningStreak',l:'Morning Routine'},{k:'flagStreak',l:'Goals'},{k:'workStreak',l:'Work'},
-   {k:'substancesStreak',l:'Clean (subs)'},{k:'procrastinationStreak',l:'Clean (proc)'},{k:'macanazoStreak',l:'Clean (org)'}]
+   {k:'substancesStreak',l:'Clean (indulg.)'},{k:'procrastinationStreak',l:'Clean (proc)'},{k:'macanazoStreak',l:'Clean (org)'}]
   .forEach(item=>{const c=dv('skc pos');const n=dv('skn ac');n.textContent=String(sk_[item.k]||0);const l=dv('skl');l.textContent=item.l;c.appendChild(n);c.appendChild(l);pg.appendChild(c);});
   card.appendChild(pg);
   card.appendChild(sp('xs dimmer up ls mb8','🔥 Reward Streaks'));
   const ng=dv('sk-g');
-  [{k:'substancesPenaltyStreak',l:'Subs 🔥'},{k:'procrastinationPenaltyStreak',l:'Procrast. 🔥'},{k:'macanazoPenaltyStreak',l:'Orgasm 💦'}]
+  [{k:'substancesPenaltyStreak',l:'Indulg. 💊'},{k:'procrastinationPenaltyStreak',l:'Procrast. 🌐'},{k:'macanazoPenaltyStreak',l:'Orgasm 💦'},{k:'lateStreak',l:'Late Nights 🌙'}]
   .forEach(item=>{const c=dv('skc neg');const n=dv('skn ng');n.textContent=String(sk_[item.k]||0);const l=dv('skl');l.textContent=item.l;c.appendChild(n);c.appendChild(l);ng.appendChild(c);});
   card.appendChild(ng);return card;
 }
@@ -1006,6 +1019,7 @@ function renderHistEd(sk_){
             sleepDuration:e?.sleepDuration||0,napDuration:e?.napDuration||0,sleptEarly:e?.sleptEarly||false,
             morningCompleted:e?.streaks?.some(s=>s.type==='morning'&&s.active)||false,
             flagCompleted:e?.streaks?.some(s=>s.type==='flags'&&s.active)||false,
+            sleptLate:e?.sleptLate||false,
             substances:e?.penalties?.find(p=>p.type==='drugs')?.count||0,
             procMins:e?.penalties?.find(p=>p.type==='internet')?.count||0,
             macanazoCount:e?.penalties?.filter(p=>p.type==='macanazo')?.length||0};
@@ -1015,19 +1029,20 @@ function renderHistEd(sk_){
       if(isEd){
         const form=dv('fi mt10');const g=dv('g2 mb10');g.style.gap='6px';
         function nf(label,val,onChange){const w=dv('s4');w.innerHTML=`<div class="xs dimmer up ls">${label}</div>`;const i=ip('number','',val,'');i.min=0;i.style.width='100%';i.oninput=()=>onChange(parseInt(i.value)||0);i.onkeydown=e=>{if(e.key==='Enter')i.blur();};w.appendChild(i);return w;}
+        function df(label,val,onChange){const w=dv('s4');w.innerHTML=`<div class="xs dimmer up ls">${label}</div>`;const i=ip('text','',val?fmtDur(val):'','ej. 2h30m');i.style.width='100%';i.oninput=()=>{const r=parseDur(i.value);if(r.v!==null)onChange(r.v);};i.onkeydown=e=>{if(e.key==='Enter')i.blur();};w.appendChild(i);return w;}
         g.appendChild(nf('Tasks',fst.completed,v=>fst.completed=v));g.appendChild(nf('Target',fst.target,v=>fst.target=v));
-        g.appendChild(nf('Pomodoros',fst.pomodoros,v=>fst.pomodoros=v));g.appendChild(nf('Work (min)',fst.workDuration,v=>fst.workDuration=v));
-        g.appendChild(nf('Sleep (min)',fst.sleepDuration,v=>fst.sleepDuration=v));g.appendChild(nf('Nap (min)',fst.napDuration,v=>fst.napDuration=v));
-        g.appendChild(nf('Substances #',fst.substances,v=>fst.substances=v));g.appendChild(nf('Procrast (min)',fst.procMins,v=>fst.procMins=v));
+        g.appendChild(nf('Pomodoros',fst.pomodoros,v=>fst.pomodoros=v));g.appendChild(df('Work',fst.workDuration,v=>fst.workDuration=v));
+        g.appendChild(df('Sleep',fst.sleepDuration,v=>fst.sleepDuration=v));g.appendChild(df('Nap',fst.napDuration,v=>fst.napDuration=v));
+        g.appendChild(nf('Indulgences #',fst.substances,v=>fst.substances=v));g.appendChild(df('Procrast',fst.procMins,v=>fst.procMins=v));
         g.appendChild(nf('Orgasm #',fst.macanazoCount,v=>fst.macanazoCount=v));form.appendChild(g);
         const cks=dv('row gap16 mb10');
         function ck(label,val,onChange){const w=dv('row gap6');w.style.cursor='pointer';const c=ip('checkbox','');c.checked=val;c.onchange=()=>onChange(c.checked);w.appendChild(c);w.appendChild(sp('sm',label));w.onclick=e=>{if(e.target!==c){c.checked=!c.checked;c.dispatchEvent(new Event('change'));}};return w;}
-        cks.appendChild(ck('Morning',fst.morningCompleted,v=>fst.morningCompleted=v));cks.appendChild(ck('Flags',fst.flagCompleted,v=>fst.flagCompleted=v));cks.appendChild(ck('Early bed',fst.sleptEarly,v=>fst.sleptEarly=v));form.appendChild(cks);
+        cks.appendChild(ck('Morning',fst.morningCompleted,v=>fst.morningCompleted=v));cks.appendChild(ck('Flags',fst.flagCompleted,v=>fst.flagCompleted=v));cks.appendChild(ck('Early bed',fst.sleptEarly,v=>fst.sleptEarly=v));cks.appendChild(ck('Late bed',fst.sleptLate,v=>fst.sleptLate=v));form.appendChild(cks);
         const sb=bt('btn-ac btn-sm','Save',()=>{
           const pens=[];
-          if(fst.substances>0)pens.push({type:'drugs',count:fst.substances,points:-25*fst.substances,streak:1});
-          if(fst.procMins>0)pens.push({type:'internet',count:fst.procMins,points:-fst.procMins,streak:1});
-          for(let i=0;i<fst.macanazoCount;i++)pens.push({type:'macanazo',count:1,points:-100,streak:1});
+          if(fst.substances>0)pens.push({type:'drugs',count:fst.substances,points:-250*fst.substances,streak:1});
+          if(fst.procMins>0)pens.push({type:'internet',count:fst.procMins,points:-10*fst.procMins,streak:1});
+          for(let i=0;i<fst.macanazoCount;i++)pens.push({type:'macanazo',count:1,points:-1000,streak:1});
           const mockDay={completed:fst.completed,target:fst.target,morningCompleted:fst.morningCompleted,flagCompleted:fst.flagCompleted,pomodoros:fst.pomodoros,
             penalties:pens.map(p=>({type:p.type,count:p.count,details:p.type==='drugs'?{substances:p.count}:p.type==='internet'?{minutes:p.count}:{isPositive:false}})),
             sleep:{sleepDuration:fst.sleepDuration,napDuration:fst.napDuration,sleptEarly:fst.sleptEarly,earlyBedStreak:1},work:{workDuration:fst.workDuration}};
@@ -1070,6 +1085,7 @@ function renderStats(total,sc){
   const macDays=STATE.history.filter(d=>d.penalties?.some(p=>p.type==='macanazo')).length;
   const momentum=avg>0?Math.round((avg7-avg)/avg*100):0;
   const momStr=momentum>0?`+${momentum}%`:momentum<0?`${momentum}%`:'—';
+  const earlyNights=STATE.history.filter(d=>d.sleptEarly).length;
   // best streak (consecutive non-red days)
   const sortedH=[...STATE.history].sort((a,b)=>new Date(a.date)-new Date(b.date));
   let bStrk=0,curStrk=0;sortedH.forEach(d=>{if(d.status!=='red'&&!d._gap){curStrk++;bStrk=Math.max(bStrk,curStrk);}else curStrk=0;});
@@ -1081,6 +1097,13 @@ function renderStats(total,sc){
   const purplePct=totalTracked?Math.round((counts.purple/totalTracked)*100):0;
 
   // Insight
+  const totalIndulgences=STATE.history.reduce((s,d)=>s+(d.penalties?.filter(p=>p.type==='drugs').reduce((a,p)=>a+(p.count||1),0)||0),0);
+  const totalOrgasms=STATE.history.reduce((s,d)=>s+(d.penalties?.filter(p=>p.type==='macanazo').length||0),0);
+  const avgSleepMin=totalTracked>0?Math.round(STATE.history.filter(d=>!d._gap).reduce((s,d)=>s+(d.sleepDuration||0),0)/totalTracked):0;
+  const pomPerDay=totalTracked>0?Math.round(totalPoms/totalTracked*10)/10:0;
+  const workDays=STATE.history.filter(d=>!d._gap&&(d.workDuration||0)>0).length;
+  const workPct=totalTracked>0?Math.round(workDays/totalTracked*100):0;
+  const lateNights=STATE.history.filter(d=>d.sleptLate).length;
   let insight='';
   if(totalTracked<3)insight='Keep logging days to see personalized insights.';
   else if(momentum>20)insight=`🚀 Momentum +${momentum}% — your last 7 days beat your all-time average.`;
@@ -1092,7 +1115,7 @@ function renderStats(total,sc){
 
   // Grid 1
   const g1=dv('g4 mb10');g1.style.gap='8px';
-  [['Best day',best,'var(--ac)','pts'],['Worst day',worst,'var(--ac)','pts'],['All-time avg',avg,'var(--ac)','pts/día'],['Last 7 avg',avg7,'var(--ac)','pts']].forEach(([l,v,c,sub])=>{
+  [['Best day',best,'var(--ac)','pts'],['Worst day',worst,'var(--ac)','pts'],['All-time avg',avg,'var(--ac)','pts / day'],['Last 7 avg',avg7,'var(--ac)','pts']].forEach(([l,v,c,sub])=>{
     const s=dv('card2 ctr');const n=dv('xxl w7 mo');n.style.color=c;n.textContent=String(v);s.appendChild(n);s.appendChild(sp('xs dimmer mt4',l));s.appendChild(sp('xs dimmer mt2',sub));g1.appendChild(s);
   });body.appendChild(g1);
 
@@ -1104,10 +1127,19 @@ function renderStats(total,sc){
 
   // Grid 3
   const g3=dv('g4 mb12');g3.style.gap='8px';
-  [['Purple days',purplePct+'%','var(--ac)','of total days'],['Best streak',bStrk+'d','var(--ac)','no red days'],['Clean (drugs)',dfPct+'%','var(--ac)','no substances'],['Momentum',momStr,momentum>0?'var(--cg)':momentum<0?'var(--cr)':'var(--t3)','vs avg']].forEach(([l,v,c,sub])=>{
+  [['Purple days',purplePct+'%','var(--ac)','of total days'],['Best streak',bStrk+'d','var(--cp)','non-red days'],['Clean (drugs)',dfPct+'%','var(--ac)','no substances'],['Early nights',STATE.history.filter(d=>d.sleptEarly).length+'d','var(--cg)','slept early']].forEach(([l,v,c,sub])=>{
     const s=dv('card2 ctr');const n=dv('xl w7 mo');n.style.color=c;n.textContent=v;s.appendChild(n);s.appendChild(sp('xs dimmer mt4',l));s.appendChild(sp('xs dimmer mt2',sub));g3.appendChild(s);
   });body.appendChild(g3);
 
+  // Grid 4 – extra stats
+  const g4b=dv('g4 mb10');g4b.style.gap='8px';
+  [['Avg Sleep',fmtDur(avgSleepMin),'var(--ac)','per night'],['Poms / Day',String(pomPerDay),'var(--ac)','focused sessions'],['Work days',workPct+'%','var(--ac)','of logged days'],['Late nights',lateNights+'d','var(--ng)','times stayed up late']].forEach(([l,v,c,sub])=>{
+    const s=dv('card2 ctr');const n=dv('xl w7 mo');n.style.color=c;n.textContent=v;s.appendChild(n);s.appendChild(sp('xs dimmer mt4',l));s.appendChild(sp('xs dimmer mt2',sub));g4b.appendChild(s);
+  });body.appendChild(g4b);
+  const g5b=dv('g4 mb12');g5b.style.gap='8px';
+  [['Indulgences',String(totalIndulgences),'var(--ng)','total logged'],['Orgasms',String(totalOrgasms),'var(--ng)','total logged'],['Penalty-Free',pfStrk+'d','var(--cg)','streak now'],['Best Streak',bStrk+'d','var(--cp)','non-red days']].forEach(([l,v,c,sub])=>{
+    const s=dv('card2 ctr');const n=dv('xl w7 mo');n.style.color=c;n.textContent=v;s.appendChild(n);s.appendChild(sp('xs dimmer mt4',l));s.appendChild(sp('xs dimmer mt2',sub));g5b.appendChild(s);
+  });body.appendChild(g5b);
   // Day counts
   const dr=dv('row gap8 mb12');
   [['purple','🟣'],['green','🟢'],['yellow','🟡'],['red','🔴']].forEach(([s,e])=>dr.appendChild(sp(`badge s-${s}`,`${e} ${counts[s]}d`)));
@@ -1128,52 +1160,55 @@ function renderRules(){
   body.innerHTML=`<div class="s16 dim">
 
   <div>
-    <div class="xs up ls ac w7 mb10">✅ Positive Points</div>
+    <div class="md up ls ac w7 mb10">✅ Positive Points</div>
     <div class="s6">
-      <div><span class="ac w6">Tasks</span> — each completed task gives you +1 pt.</div>
-      <div><span class="ac w6">Morning Routine</span> — complete it before 9am and earn +25 pts. Your streak multiplies the bonus: day 5 = +125 pts. Requires 10+ tasks done that day.</div>
-      <div><span class="ac w6">Goals Annihilated</span> — mark all your key goals as done and earn +100 pts, multiplied by your streak.</div>
-      <div><span class="ac w6">Pomodoros</span> — each focused work session (pomodoro) gives +25 pts.</div>
-      <div><span class="ac w6">Work</span> — every minute of work logged gives +1 pt, multiplied by your work streak.</div>
-      <div><span class="ac w6">Sleep</span> — every minute of sleep or nap gives +1 pt. Sleeping early gives a bonus multiplied by your early-bed streak.</div>
-      <div><span class="ac w6">Day color bonus</span> — just for having a good day: <span class="cp">Purple</span> +30 · <span class="cg">Green</span> +20 · <span class="cy">Yellow</span> +10.</div>
+      <div><span class="ac w6">✅ Tasks</span> — each completed task gives you +1 pt.</div>
+      <div><span class="ac w6">🌅 Morning Routine</span> — complete it and earn +25 pts. Your streak multiplies the bonus: day 5 = +125 pts.</div>
+      <div><span class="ac w6">🏅 Goals Annihilated</span> — mark all your key goals as done and earn +100 pts, multiplied by your streak.</div>
+      <div><span class="ac w6">🍅 Pomodoros</span> — each focused work session (pomodoro) gives +25 pts.</div>
+      <div><span class="ac w6">💼 Work</span> — every minute of work logged gives +1 pt, multiplied by your work streak.</div>
+      <div><span class="ac w6">😴 Sleep</span> — every minute of sleep or nap gives +1 pt. Sleeping early gives a bonus multiplied by your early-bed streak.</div>
+      <div><span class="ac w6">Day color bonus</span> — stacking × streak: <span class="cy">Yellow</span> +10 · <span class="cg">Green</span> +30 (includes yellow) · <span class="cp">Purple</span> +60 (includes all). The longer your non-red streak, the bigger the bonus.</div>
     </div>
   </div>
 
   <hr class="dv">
 
   <div>
-    <div class="xs up ls ng w7 mb10">❌ Rewards (negative)</div>
+    <div class="md up ls ng w7 mb10">🤤 Rewards</div>
     <div class="s6">
-      <div><span class="ng w6">Substances</span> — each substance used costs −25 pts, multiplied by how many days in a row you've used.</div>
-      <div><span class="ng w6">Procrastination</span> — costs −1 pt per minute, but only kicks in after 30 accumulated minutes. The longer your streak of procrastinating days, the heavier the cost.</div>
-      <div><span class="ng w6">Orgasm 💦</span> — costs −100 pts, multiplied by consecutive days.</div>
+      <div><span class="ng w6">💊 Indulgences</span> — each indulgence (substance or junk food) costs −250 pts, multiplied by consecutive days used.</div>
+      <div><span class="ng w6">🌐 Procrastination</span> — costs −10 pts per minute, kicks in after 30 accumulated minutes. The longer your streak of procrastinating days, the heavier the cost.</div>
+      <div><span class="ng w6">💦 Orgasm</span> — costs −1,000 pts, multiplied by consecutive days.</div>
+      <div><span class="ng w6">🌙 Slept Late</span> — staying up too late costs −100 pts × your late-night streak.</div>
     </div>
   </div>
 
   <hr class="dv">
 
   <div>
-    <div class="xs up ls dimmer w7 mb10">📊 Day Status</div>
+    <div class="md up ls dimmer w7 mb10">📊 Day Status</div>
     <div class="s6">
       <div>Your day gets a color based on how many tasks you completed:</div>
       <div><span class="cp w6">Purple</span> — 100% of tasks done. Perfect day.</div>
       <div><span class="cg w6">Green</span> — 85% or more. Great day.</div>
       <div><span class="cy w6">Yellow</span> — 50% or more. Decent day.</div>
       <div><span class="cr w6">Red</span> — less than 50%. Rough day.</div>
-      <div class="xs dimmer">Tip: completing Goals Annihilated bumps your day up one tier — a Yellow becomes Green, a Green becomes Purple.</div>
+      <div class="xs dimmer">Tip: completing Goals Annihilated bumps your day up one tier — a Red becomes Yellow, a Yellow becomes Green, a Green becomes Purple.</div>
     </div>
   </div>
 
   <hr class="dv">
 
   <div>
-    <div class="xs up ls dimmer w7 mb10">🔄 How streaks reset</div>
+    <div class="md up ls dimmer w7 mb10">🔄 How streaks reset</div>
     <div class="s6">
-      <div>Having a good day clears your negative streaks:</div>
-      <div>A <span class="cy w6">Yellow</span> day resets your Substances streak.</div>
-      <div>A <span class="cg w6">Green</span> day resets Substances + Procrastination streaks.</div>
-      <div>A <span class="cp w6">Purple</span> day resets all negative streaks.</div>
+      <div>All streaks break naturally when you go a day without that activity — no work logged means no work streak.</div>
+      <div>Some streaks reset based on your day color:</div>
+      <div>A <span class="cr w6">Red</span> day resets your Work streak.</div>
+      <div>A <span class="cy w6">Yellow</span> day resets your Indulgences penalty streak.</div>
+      <div>A <span class="cg w6">Green</span> day resets Indulgences + Procrastination penalty streaks.</div>
+      <div>A <span class="cp w6">Purple</span> day resets all negative penalty streaks, including Late Night.</div>
       <div class="xs dimmer">Days you forget to log count as −1,000 pts and a red day.</div>
     </div>
   </div>
@@ -1259,10 +1294,10 @@ function renderStreakPanel(){
     {k:'morningStreak',l:'Morning Routine',emoji:'🌅'},
     {k:'flagStreak',l:'Goals Annihilated',emoji:'🏅'},
     {k:'workStreak',l:'Work',emoji:'💼'},
-    {k:'substancesStreak',l:'Clean — Substances',emoji:'✅'},
+    {k:'substancesStreak',l:'Clean — Indulgences',emoji:'✅'},
     {k:'procrastinationStreak',l:'Clean — Procrastination',emoji:'✅'},
     {k:'macanazoStreak',l:'Clean — Macanazo',emoji:'✅'},
-    {k:'substancesPenaltyStreak',l:'Substances 🔥 streak',emoji:'💊'},
+    {k:'substancesPenaltyStreak',l:'Indulgences 🔥 streak',emoji:'💊'},
     {k:'procrastinationPenaltyStreak',l:'Procrastination 🔥 streak',emoji:'🌐'},
     {k:'macanazoPenaltyStreak',l:'Orgasm 💦 streak',emoji:'💦'},
   ];
