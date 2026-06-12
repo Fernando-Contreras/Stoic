@@ -263,13 +263,144 @@ function parseDur(s){
   if(m=s.match(/^(\d+(?:\.\d+)?)h$/))return{v:Math.round(parseFloat(m[1])*60)};
   if(m=s.match(/^(\d+)m$/))return{v:+m[1]};
   const n=parseInt(s);if(!isNaN(n)&&n>=0)return{v:n};
-  return{v:null,err:'Use: 5h, 300m, 2h30m or number (minutes)'};
+  return{v:null,err:t('use-dur')};
 }
 function fmtDur(min){
   if(!min)return'0m';const h=Math.floor(min/60),m=min%60;
   if(!h)return m+'m';if(!m)return h+'h';return h+'h'+m+'m';
 }
 function todayKey(){return new Date().toISOString().split('T')[0]}
+
+
+/* ═══ TRANSLATIONS i18n ═══ */
+const T={
+en:{
+  'lang-btn':'🇲🇽 ES','auto-saved':'auto-saved','synced':'☁️ synced','local':'💾 local',
+  'set-streaks':'⚡ Set Streaks','logout':'Logout','dark':'🌙 Dark','light':'☀️ Light',
+  'easy':'🌱 Easy','medium':'⚖️ Medium','hard':'💪 Hard',
+  'score':'Score','today-lbl':'Today','tasks-lbl':'tasks',
+  'morning-lbl':'Morning','flags-lbl':'Flags','pom-lbl':'Pomodoros','work-lbl':'Work',
+  'sleep-lbl':'Sleep','color-lbl':'Color','rewards-lbl':'Rewards','late-night-lbl':'Late night',
+  'daily-tasks':'Daily Tasks','comp-target':'Completed / Target','done-ph':'Done','target-ph':'Target',
+  'morning-routine':'🌞 Morning Routine','goals-ann':'🏁 Goals Annihilated',
+  'pts-each':'pts · ×25 each','streak-pts':'pts · streak: ',
+  'pen-indulg':'💊 Stimulants','pen-proc':'🌐 Procrastination','pen-org':'💦 Orgasm',
+  'num-subs':'# substances','eg-time':'e.g. 45m, 1h30m','min-1':'Min. 1',
+  'enter-time':'Enter time','add-btn':'+ Add',
+  'procrast-s':'Procrastination','base-lbl':'base','streak-lbl':'streak',
+  'set-btn':'Set','eg-work':'e.g. 3h, 90m, 2h30m',
+  'main-sleep':'Main Sleep','nap-lbl':'Nap','slept-early':'Slept Early',
+  'slept-late':'Slept Late','total-sleep':'Total sleep',
+  'streaks-title':'Streaks','pos-streaks':'✅ Positive Streaks','rew-streaks':'🤤 Reward Streaks',
+  'sk-morning':'Morning Routine','sk-goals':'Goals','sk-work':'Work',
+  'sk-ci':'No Stimulants','sk-cp':'No Procrastination','sk-co':'No Orgasm :(',
+  'sk-i':'Stimulants 💊','sk-p':'Procrastination 🌐','sk-o':'Orgasm 💦','sk-l':'Late Nights 🌙',
+  'edit-note':'Edit note','add-note':'Add note','no-data':'No data logged for this day.',
+  'ver-mas':'Ver más','ver-menos':'Ver menos',
+  'edit-hist':'Edit History','show-more':'Show more','save-btn':'Save',
+  'early-bed':'Early bed','late-bed':'Late bed',
+  'indulg-hash':'Stimulants #','proc-lbl':'Procrast','org-hash':'Orgasm #','gap-warn':'⚠gap',
+  'reset-work':'Work streak reset','reset-indulg':'Stimulants streak reset',
+  'reset-ip':'Stimulants & Procrastination streaks reset','reset-all':'All streaks reset',
+  'stats-title':'Stats',
+  'best-day':'Best day','worst-day':'Worst day','all-avg':'All-time avg','last7-avg':'Last 7 avg',
+  'total-poms':'Total 🍅','work-total':'Work total','sleep-total':'Sleep total','clean-streak':'Clean streak',
+  'purple-days':'Purple days','best-streak':'Best streak','clean-drugs':'Clean (drugs)',
+  'early-nights':'Early nights','avg-sleep':'Avg Sleep','poms-day':'Poms / Day',
+  'work-days-lbl':'Work days','late-nights-lbl':'Late nights',
+  'pts-s':'pts','pts-day':'pts / day','poms-sub':'pomodoros','worked-sub':'worked',
+  'rested-sub':'rested','rf-sub':'reward-free','of-total':'of total days','non-red':'non-red days',
+  'no-subs':'no substances','se-sub':'slept early','per-night':'per night',
+  'focused-sub':'focused sessions','of-logged':'of logged days','stayed-up':'times stayed up late',
+  'total-logged':'total logged','streak-now':'streak now',
+  'danger-zone':'Danger Zone','erase-warn':'This will erase all your data permanently.',
+  'reset-all-btn':'Reset All','del-warn':'⚠ Delete everything? This cannot be undone.',
+  'yes-delete':'Yes, delete','cancel':'Cancel',
+  'Red':'Red','Yellow':'Yellow','Green':'Green','Purple':'Purple','Today':'TODAY',
+  'set-streaks-t':'⚡ Set Historical Streaks','clear-ovr':'Clear all overrides',
+  'sync-title':'☁ Cloud Sync — Supabase','logged-in':'✅ Logged in — sync is active.',
+  'pull-cloud':'Pull from cloud','push-cloud':'Push to cloud','log-out':'Log out',
+  'email-lbl':'Email','pass-lbl':'Password','log-in':'Log In','sign-up':'Sign Up',
+  'create-acct':'Create Account','guest-btn':'Continue as Guest (offline)',
+  'guest-note':'Guest mode: data stored locally in this browser only',
+  'rules-title':'Rules & Scoring',
+  'day-not-logged':'⚠ Day not logged (−1000)','goals-ann-badge':'🏅 Goals Annihilated',
+  'signing-in':'Signing in...','creating-acct':'Creating account...','syncing':'Syncing...',
+  'not-configured':'Supabase not configured — use Guest Mode below',
+  'enter-creds':'Enter email and password','pass-short':'Password must be at least 6 characters',
+  'acct-created':'✅ Account created! Check your email to confirm, then log in.',
+  'login-failed':'Login failed','net-error':'Network error: ',
+  'cloud-active':'☁️ Cloud sync active — data syncs across devices.',
+  'guest-only':'Guest mode only — no Supabase credentials found.',
+  'daily-tracker':'daily habit tracker · by JuanFer',
+  'use-dur':'Use: 5h, 300m, 2h30m or number (minutes)',
+  'ej-dur':'ej. 2h30m','indulg-x':'Stimulants ×',
+},
+es:{
+  'lang-btn':'🇺🇸 EN','auto-saved':'guardado','synced':'☁️ sincronizado','local':'💾 local',
+  'set-streaks':'⚡ Rachas','logout':'Salir','dark':'🌙 Oscuro','light':'☀️ Claro',
+  'easy':'🌱 Fácil','medium':'⚖️ Medio','hard':'💪 Difícil',
+  'score':'Puntaje','today-lbl':'Hoy','tasks-lbl':'tareas',
+  'morning-lbl':'Mañana','flags-lbl':'Metas','pom-lbl':'Pomodoros','work-lbl':'Trabajo',
+  'sleep-lbl':'Sueño','color-lbl':'Color','rewards-lbl':'Recompensas','late-night-lbl':'Trasnoche',
+  'daily-tasks':'Tareas del Día','comp-target':'Completadas / Meta','done-ph':'Hechas','target-ph':'Meta',
+  'morning-routine':'🌞 Rutina Matutina','goals-ann':'🏁 Metas Exterminadas alv',
+  'pts-each':'pts · ×25 c/u','streak-pts':'pts · racha: ',
+  'pen-indulg':'💊 Estimulantes','pen-proc':'🌐 Procrastinación','pen-org':'💦 Orgasmo',
+  'num-subs':'# sustancias','eg-time':'ej. 45m, 1h30m','min-1':'Mín. 1',
+  'enter-time':'Ingresa tiempo','add-btn':'+ Agregar',
+  'procrast-s':'Procrastinación','base-lbl':'base','streak-lbl':'racha',
+  'set-btn':'Guardar','eg-work':'ej. 3h, 90m, 2h30m',
+  'main-sleep':'Horas Dormidas','nap-lbl':'Siesta','slept-early':'Dormí Temprano',
+  'slept-late':'Dormí Tarde','total-sleep':'Sueño total',
+  'streaks-title':'Rachas','pos-streaks':'✅ Rachas Positivas','rew-streaks':'🤤 Rachas de Recompensas',
+  'sk-morning':'Rutina Matutina','sk-goals':'Metas','sk-work':'Trabajo',
+  'sk-ci':'Sin Estimulantes','sk-cp':'Sin Procrastinación','sk-co':'Sin Orgasmo (¿todo bien?)',
+  'sk-i':'Estimulantes 💊','sk-p':'Procrastinación 🌐','sk-o':'Orgasmo 💦','sk-l':'Trasnoche 🌙',
+  'edit-note':'Editar nota','add-note':'Agregar nota','no-data':'Sin datos para este día.',
+  'ver-mas':'Ver más','ver-menos':'Ver menos',
+  'edit-hist':'Editar Historial','show-more':'Ver más','save-btn':'Guardar',
+  'early-bed':'Dormí temprano','late-bed':'Dormí tarde',
+  'indulg-hash':'Estimulantes #','proc-lbl':'Procrast','org-hash':'Orgasmo #','gap-warn':'⚠vacío',
+  'reset-work':'Racha de trabajo reiniciada','reset-indulg':'Racha de Estimulantes reiniciada',
+  'reset-ip':'Rachas de indulg. y procrast. reiniciadas','reset-all':'Todas las rachas reiniciadas',
+  'stats-title':'Estadísticas',
+  'best-day':'Mejor día','worst-day':'Peor día','all-avg':'Promedio total','last7-avg':'Últimos 7 días',
+  'total-poms':'Total 🍅','work-total':'Total trabajo','sleep-total':'Total sueño','clean-streak':'Racha limpia',
+  'purple-days':'Días morados','best-streak':'Mejor racha','clean-drugs':'Limpio (sustanc.)',
+  'early-nights':'Noches tempr.','avg-sleep':'Sueño prom.','poms-day':'Poms / Día',
+  'work-days-lbl':'Días trabajados','late-nights-lbl':'Trasnoche',
+  'pts-s':'pts','pts-day':'pts / día','poms-sub':'pomodoros','worked-sub':'trabajado',
+  'rested-sub':'descansado','rf-sub':'sin castigos','of-total':'del total','non-red':'días no rojos',
+  'no-subs':'sin sustancias','se-sub':'durmió temprano','per-night':'por noche',
+  'focused-sub':'sesiones enfocadas','of-logged':'de días registrados','stayed-up':'veces trasnoché',
+  'total-logged':'total registrado','streak-now':'racha actual',
+  'danger-zone':'Zona de Peligro','erase-warn':'Esto borrará todos tus datos permanentemente.',
+  'reset-all-btn':'Borrar Todo','del-warn':'⚠ ¿Borrar todo? No se puede deshacer.',
+  'yes-delete':'Sí, borrar','cancel':'Cancelar',
+  'Red':'Rojo','Yellow':'Amarillo','Green':'Verde','Purple':'Morado','Today':'HOY',
+  'set-streaks-t':'⚡ Ajustar Rachas','clear-ovr':'Limpiar ajustes',
+  'sync-title':'☁ Sincronización — Supabase','logged-in':'✅ Sesión activa — sincronizando.',
+  'pull-cloud':'Traer de la nube','push-cloud':'Subir a la nube','log-out':'Cerrar sesión',
+  'email-lbl':'Correo','pass-lbl':'Contraseña','log-in':'Iniciar sesión','sign-up':'Registrarse',
+  'create-acct':'Crear cuenta','guest-btn':'Continuar como invitado (sin conexión)',
+  'guest-note':'Modo invitado: datos solo en este navegador',
+  'rules-title':'Reglas y Puntuación',
+  'day-not-logged':'⚠ Día sin registrar (−1000)','goals-ann-badge':'🏅 Metas Exterminadas',
+  'signing-in':'Iniciando sesión...','creating-acct':'Creando cuenta...','syncing':'Sincronizando...',
+  'not-configured':'Supabase no configurado — usa Modo Invitado',
+  'enter-creds':'Ingresa correo y contraseña','pass-short':'La contraseña debe tener al menos 6 caracteres',
+  'acct-created':'✅ ¡Cuenta creada! Revisa tu correo para confirmar, luego inicia sesión.',
+  'login-failed':'Error al iniciar sesión','net-error':'Error de red: ',
+  'cloud-active':'☁️ Sincronización activa — datos entre dispositivos.',
+  'guest-only':'Solo modo invitado — sin credenciales Supabase.',
+  'daily-tracker':'rastreador diario · por JuanFer',
+  'use-dur':'Usa: 5h, 300m, 2h30m o número (minutos)',
+  'ej-dur':'ej. 2h30m','indulg-x':'Estimulantes ×',
+}};
+function t(k){return T[STATE?.lang||'en']?.[k]??T.en[k]??k}
+function toggleLang(){STATE.lang=STATE.lang==='en'?'es':'en';localStorage.setItem('st_lang',STATE.lang);refresh();}
+function capFirst(s){return s?s.charAt(0).toUpperCase()+s.slice(1):s;}
 
 /* ═══ CALC — SINGLE SOURCE OF TRUTH ═══ */
 const CALC={
@@ -390,6 +521,7 @@ let STATE={
   showSyncPanel:false,
   penType:'drugs', // #3: persist penalty type selection
   difficulty: localStorage.getItem('st_difficulty')||'hard',
+  lang: localStorage.getItem('st_lang')||'en',
 };
 
 /* ═══ #1 FIX: loadToday checks for missed days, fills all gaps ═══ */
@@ -494,7 +626,7 @@ function ip(t,c,v,p){const i=document.createElement('input');i.type=t;i.classNam
 function sk(c,opts,v){const s=document.createElement('select');s.className=c;opts.forEach(([ov,l])=>{const o=document.createElement('option');o.value=ov;o.textContent=l;if(ov===v)o.selected=true;s.appendChild(o);});return s}
 function sp(c,t){const s=el('span',c);if(t!==undefined)s.textContent=t;return s}
 function hr(){const h=document.createElement('hr');h.className='dv';return h}
-function sbadge(status){const lb={red:'Red',yellow:'Yellow',green:'Green',purple:'Purple'};return sp(`badge s-${status}`,lb[status]||status)}
+function sbadge(status){const lb={red:t('Red'),yellow:t('Yellow'),green:t('Green'),purple:t('Purple')};return sp(`badge s-${status}`,lb[status]||status)}
 
 /* ═══ RENDER ═══ */
 function render(){
@@ -508,32 +640,31 @@ function refresh(){save();render();}
 function renderLogin(){
   const wrap=dv('login-wrap');
   const card=dv('card fi s12');card.style.cssText='max-width:400px;width:100%';
-  card.innerHTML=`<div class="xxxl w8 ac ctr" style="letter-spacing:-.02em">Stoic</div>
-    <div class="sm dim ctr mt4">daily habit tracker · by JuanFer</div>`;
+  card.innerHTML=`<div class="xxxl w8 ac ctr" style="letter-spacing:-.02em">Stoic</div><div class="sm dim ctr mt4">${t('daily-tracker')}</div>`;
 
   const sbConfigured=!!(window._SUPABASE_URL&&window._SUPABASE_KEY);
   const info=dv('card2 mt12 sm');
   if(sbConfigured){
     info.style.cssText='background:var(--acd);border:1px solid var(--acb);padding:10px 12px';
-    info.innerHTML='<span class="ac">☁️ Cloud sync active — data syncs across devices.</span>';
+    info.innerHTML=`<span class="ac">${t('cloud-active')}</span>`;
   } else {
     info.style.cssText='background:var(--sur2);border:1px solid var(--b2);padding:10px 12px';
-    info.innerHTML='<span class="dim">Guest mode only — no Supabase credentials found.</span>';
+    info.innerHTML=`<span class="dim">${t('guest-only')}</span>`;
   }
   card.appendChild(info);
 
   // tabs
   let mode='login';
   const modeRow=dv('row gap6');modeRow.style.marginTop='16px';
-  const loginTab=bt('btn-ac btn-sm f1','Log In',()=>{mode='login';syncTabs();});
-  const signupTab=bt('btn-ghost btn-sm f1','Sign Up',()=>{mode='signup';syncTabs();});
+  const loginTab=bt('btn-ac btn-sm f1',t('log-in'),()=>{mode='login';syncTabs();});
+  const signupTab=bt('btn-ghost btn-sm f1',t('sign-up'),()=>{mode='signup';syncTabs();});
   modeRow.appendChild(loginTab);modeRow.appendChild(signupTab);
   card.appendChild(modeRow);
 
   // fields
-  const ew=dv('s4');ew.style.marginTop='12px';ew.innerHTML='<div class="xs dimmer up ls">Email</div>';
+  const ew=dv('s4');ew.style.marginTop='12px';ew.innerHTML=`<div class="xs dimmer up ls">${t('email-lbl')}</div>`;
   const ei=ip('email','','','you@email.com');ew.appendChild(ei);card.appendChild(ew);
-  const pw=dv('s4');pw.style.marginTop='8px';pw.innerHTML='<div class="xs dimmer up ls">Password</div>';
+  const pw=dv('s4');pw.style.marginTop='8px';pw.innerHTML=`<div class="xs dimmer up ls">${t('pass-lbl')}</div>`;
   const pi=ip('password','','','min. 6 characters');pw.appendChild(pi);card.appendChild(pw);
 
   // feedback
@@ -541,7 +672,7 @@ function renderLogin(){
   const succ=dv('xs cg');succ.style.marginTop='8px';card.appendChild(succ);
 
   // main button — declared before doAction so hoisting isn't an issue
-  const actionBtn=bt('btn-ac','Log In',()=>doAction());
+  const actionBtn=bt('btn-ac',t('log-in'),()=>doAction());
   actionBtn.style.cssText='width:100%;margin-top:12px';
   card.appendChild(actionBtn);
 
@@ -550,11 +681,11 @@ function renderLogin(){
     if(mode==='login'){
       loginTab.className='btn-ac btn-sm f1';
       signupTab.className='btn-ghost btn-sm f1';
-      actionBtn.textContent='Log In';
+      actionBtn.textContent=t('log-in');
     } else {
       loginTab.className='btn-ghost btn-sm f1';
       signupTab.className='btn-ac btn-sm f1';
-      actionBtn.textContent='Create Account';
+      actionBtn.textContent=t('create-acct');
     }
   }
 
@@ -562,12 +693,12 @@ function renderLogin(){
     err.textContent='';succ.textContent='';
     const email=ei.value.trim();
     const pass=pi.value;
-    if(!email||!pass){err.textContent='Enter email and password';return;}
-    if(pass.length<6){err.textContent='Password must be at least 6 characters';return;}
-    if(!sbConfigured){err.textContent='Supabase not configured — use Guest Mode below';return;}
+    if(!email||!pass){err.textContent=t('enter-creds');return;}
+    if(pass.length<6){err.textContent=t('pass-short');return;}
+    if(!sbConfigured){err.textContent=t('not-configured');return;}
 
     actionBtn.disabled=true;
-    actionBtn.textContent=mode==='login'?'Signing in...':'Creating account...';
+    actionBtn.textContent=mode==='login'?t('signing-in'):t('creating-acct');
 
     try{
       if(mode==='signup'){
@@ -587,7 +718,7 @@ function renderLogin(){
             localStorage.setItem('AUTH_TOKEN',d.access_token);
             await afterLogin();
           } else {
-            succ.textContent='✅ Account created! Check your email to confirm, then log in.';
+            succ.textContent=t('acct-created');
             mode='login';syncTabs();
           }
         } else {
@@ -598,18 +729,18 @@ function renderLogin(){
         if(res.ok){
           await afterLogin();
         } else {
-          err.textContent=res.error||'Login failed';
+          err.textContent=res.error||t('login-failed');
         }
       }
     } catch(e){
-      err.textContent='Network error: '+e.message;
+      err.textContent=t('net-error')+e.message;
     }
     actionBtn.disabled=false;
     syncTabs();
   }
 
   async function afterLogin(){
-    actionBtn.textContent='Syncing...';
+    actionBtn.textContent=t('syncing');
     const remote=await SB.pull();
     mergeRemote(remote);
     S.set(K.AUTH,true);STATE.authed=true;render();
@@ -617,9 +748,9 @@ function renderLogin(){
 
   pi.onkeydown=e=>{if(e.key==='Enter')doAction();};
   card.appendChild(hr());
-  const gb=bt('btn-ghost','Continue as Guest (offline)',()=>{S.set(K.AUTH,true);STATE.authed=true;render();});
+  const gb=bt('btn-ghost',t('guest-btn'),()=>{S.set(K.AUTH,true);STATE.authed=true;render();});
   gb.style.width='100%';card.appendChild(gb);
-  card.appendChild(dv('xs dimmer ctr mt8','Guest mode: data stored locally in this browser only'));
+  card.appendChild(dv('xs dimmer ctr mt8',t('guest-note')));
   wrap.appendChild(card);return wrap;
 }
 
@@ -641,38 +772,39 @@ function renderApp(){
   const hdr=dv('ctr');hdr.style.padding='20px 0 16px';
   const now=new Date();
   hdr.innerHTML=`<div class="xxxl w8 ac" style="letter-spacing:-.02em">Stoic</div>
-    <div class="sm dim mt4">${now.toLocaleDateString('en-US',{weekday:'long',year:'numeric',month:'long',day:'numeric'})}</div>
-    <div class="xs dimmer mt2 mo" id="clk">${now.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',second:'2-digit'})}</div>`;
+    <div class="sm dim mt4">${capFirst(now.toLocaleDateString(STATE.lang==='es'?'es-MX':'en-US',{weekday:'long',year:'numeric',month:'long',day:'numeric'}))}</div>
+    <div class="xs dimmer mt2 mo" id="clk">${now.toLocaleTimeString(STATE.lang==='es'?'es-MX':'en-US',{hour:'2-digit',minute:'2-digit',second:'2-digit'})}</div>`;
 
   // clock update: interval is started once at boot level
   const sind=dv('row gap6 xs dim mt6');sind.style.justifyContent='center';
-  const lastSync=SB.init()?'☁️ synced':'💾 local';
-  sind.innerHTML=`<span class="sdot"></span><span>auto-saved · ${lastSync}</span>`;
+  const lastSync=SB.init()?t('synced'):t('local');
+  sind.innerHTML=`<span class="sdot"></span><span>${t('auto-saved')} · ${lastSync}</span>`;
   hdr.appendChild(sind);
   const acts=dv('row gap8 mt10');acts.style.justifyContent='center';
-  const themeBtn=bt('btn-ghost btn-sm',STATE.theme==='light'?'🌙 Dark':'☀️ Light',toggleTheme);
+  const themeBtn=bt('btn-ghost btn-sm',STATE.theme==='light'?t('dark'):t('light'),toggleTheme);
   acts.appendChild(themeBtn);
-  acts.appendChild(bt('btn-ghost btn-sm','⚡ Set Streaks',()=>{STATE.showStreakPanel=!STATE.showStreakPanel;refresh()}));
+  acts.appendChild(bt('btn-ghost btn-sm',t('set-streaks'),()=>{STATE.showStreakPanel=!STATE.showStreakPanel;refresh()}));
   // Difficulty switch
   const diffWrap=dv('row gap4');diffWrap.style.cssText='border:1px solid var(--b2);border-radius:9px;padding:2px;background:var(--sur2);';
-  [{d:'easy',lbl:'🌱 Easy'},{d:'medium',lbl:'⚖️ Medium'},{d:'hard',lbl:'💪 Hard'}].forEach(({d,lbl})=>{
+  [{d:'easy',lbl:t('easy')},{d:'medium',lbl:t('medium')},{d:'hard',lbl:t('hard')}].forEach(({d,lbl})=>{
     const active=STATE.difficulty===d;
     const b=bt(active?'btn-ac btn-xs':'btn-xs',lbl,()=>{STATE.difficulty=d;localStorage.setItem('st_difficulty',d);refresh();});
     if(!active){b.style.cssText='background:none;border:none;color:var(--t3);font-size:12px;padding:3px 8px;border-radius:5px;cursor:pointer';}
     diffWrap.appendChild(b);
   });
   acts.appendChild(diffWrap);
-  acts.appendChild(bt('btn-ghost btn-sm','Logout',()=>{S.set(K.AUTH,false);STATE.authed=false;render();}));
+  acts.appendChild(bt('btn-ghost btn-sm',t('lang-btn'),toggleLang));
+  acts.appendChild(bt('btn-ghost btn-sm',t('logout'),()=>{S.set(K.AUTH,false);STATE.authed=false;render();}));
   hdr.appendChild(acts);wrap.appendChild(hdr);
 
   if(STATE.showReset){
     const ban=dv('card fi row gap12 mb12');ban.style.cssText='background:var(--ngd);border:1px solid var(--ngb);justify-content:space-between';
-    ban.appendChild(sp('md ng','⚠ Delete everything? This cannot be undone.'));
+    ban.appendChild(sp('md ng',t('del-warn')));
     const bb=dv('row gap8');
-    bb.appendChild(bt('btn-ng btn-sm','Yes, delete',()=>{
+    bb.appendChild(bt('btn-ng btn-sm',t('yes-delete'),()=>{
       STATE.history=[];STATE.today={completed:0,target:0,morningCompleted:false,flagCompleted:false,pomodoros:0,penalties:[],sleep:{sleepDuration:0,napDuration:0,sleptEarly:false,earlyBedStreak:0},work:{workDuration:0},_date:tk};
       STATE.showReset=false;save();refresh();
-    }));bb.appendChild(bt('btn-ghost btn-sm','Cancel',()=>{STATE.showReset=false;refresh()}));
+    }));bb.appendChild(bt('btn-ghost btn-sm',t('cancel'),()=>{STATE.showReset=false;refresh()}));
     ban.appendChild(bb);wrap.appendChild(ban);
   }
 
@@ -698,9 +830,9 @@ function renderApp(){
   const resetWrap=dv('card mt12');resetWrap.style.cssText='border-color:var(--ngb);background:var(--ngd)';
   const resetRow=dv('rowb');
   const resetInfo=dv('');
-  resetInfo.innerHTML='<div class="sm w6 ng">Danger Zone</div><div class="xs dimmer mt2">This will erase all your data permanently.</div>';
+  resetInfo.innerHTML=`<div class="sm w6 ng">${t('danger-zone')}</div><div class="xs dimmer mt2">${t('erase-warn')}</div>`;
   resetRow.appendChild(resetInfo);
-  resetRow.appendChild(bt('btn-ng btn-sm','Reset All',()=>{STATE.showReset=!STATE.showReset;refresh()}));
+  resetRow.appendChild(bt('btn-ng btn-sm',t('reset-all-btn'),()=>{STATE.showReset=!STATE.showReset;refresh()}));
   resetWrap.appendChild(resetRow);
   wrap.appendChild(resetWrap);
   return wrap;
@@ -709,16 +841,16 @@ function renderApp(){
 /* ═══ SCORE CARD ═══ */
 function renderScoreCard(total,sc,sk_){
   const card=dv('card s12');
-  const tr=dv('rowb mb4');tr.appendChild(sp('ctit','Score'));tr.appendChild(sbadge(sc.status));card.appendChild(tr);
+  const tr=dv('rowb mb4');tr.appendChild(sp('ctit',t('score')));tr.appendChild(sbadge(sc.status));card.appendChild(tr);
   const big=dv('');
-  big.innerHTML=`<div class="xxxl w8 ac mo">${total.toLocaleString()}</div><div class="sm dim mt4">Today: <span class="ac w7">${sc.total>=0?'+':''}${sc.total}</span></div>`;
+  big.innerHTML=`<div class="xxxl w8 ac mo">${total.toLocaleString()}</div><div class="sm dim mt4">${t('today-lbl')}: <span class="ac w7">${sc.total>=0?'+':''}${sc.total}</span></div>`;
   card.appendChild(big);
   const pct=sc.pct,R=28,circ=2*Math.PI*R,off=circ-(pct/100)*circ;
   const cr=dv('row gap12 mt10');cr.style.justifyContent='center';
   cr.innerHTML=`<svg width="70" height="70" class="circ" viewBox="0 0 70 70"><circle cx="35" cy="35" r="${R}" stroke="#22222e" stroke-width="7" fill="none"/><circle cx="35" cy="35" r="${R}" stroke="var(--ac)" stroke-width="7" fill="none" stroke-dasharray="${circ}" stroke-dashoffset="${off}" stroke-linecap="round" style="transition:stroke-dashoffset .4s"/></svg><div><div class="xxl w7 ac mo">${pct}%</div><div class="xs dimmer">${STATE.today.completed}/${STATE.today.target} tasks</div></div>`;
   card.appendChild(cr);
-  const posRows=[['Tasks',sc.base],['Morning',sc.mB],['Flags',sc.fB],['Pomodoros',sc.pom],['Work',sc.wrk],['Sleep',sc.slp],['Color',sc.col]].filter(r=>r[1]>0);
-  const negRows=[['Rewards',sc.pen],['Late night',sc.latePen||0]].filter(r=>r[1]!==0);
+  const posRows=[[t('daily-tasks'),sc.base],[t('morning-lbl'),sc.mB],[t('flags-lbl'),sc.fB],[t('pom-lbl'),sc.pom],[t('work-lbl'),sc.wrk],[t('sleep-lbl'),sc.slp],[t('color-lbl'),sc.col]].filter(r=>r[1]>0);
+  const negRows=[[t('rewards-lbl'),sc.pen],[t('late-night-lbl'),sc.latePen||0]].filter(r=>r[1]!==0);
   if(posRows.length||negRows.length){
     const bd=dv('s4 mt10');
     posRows.forEach(([l,v])=>{const r=dv('rowb');r.innerHTML=`<span class="xs dim">${l}</span><span class="xs mo w6 ac">+${v}</span>`;bd.appendChild(r);});
@@ -730,12 +862,12 @@ function renderScoreCard(total,sc,sk_){
 
 /* ═══ TASKS CARD ═══ */
 function renderTasksCard(sc,sk_){
-  const card=dv('card');card.appendChild(sp('ctit','Daily Tasks'));
-  const pr=dv('rowb mb6');pr.innerHTML=`<span class="xs dimmer up ls">Completed / Target</span><span class="md mo ac w6">${sc.pct}%</span>`;card.appendChild(pr);
+  const card=dv('card');card.appendChild(sp('ctit',t('daily-tasks')));
+  const pr=dv('rowb mb6');pr.innerHTML=`<span class="xs dimmer up ls">${t('comp-target')}</span><span class="md mo ac w6">${sc.pct}%</span>`;card.appendChild(pr);
   const pg=dv('prog mb10');const pf=dv('prog-f');pf.style.cssText=`width:${Math.min(sc.pct,100)}%;background:var(--ac)`;pg.appendChild(pf);card.appendChild(pg);
   const ir=dv('row gap8 mb10');
-  const ci=ip('number','',STATE.today.completed,'Done');ci.min=0;ci.style.flex='1';
-  const ti=ip('number','',STATE.today.target,'Target');ti.min=1;ti.style.flex='1';
+  const ci=ip('number','',STATE.today.completed,t('done-ph'));ci.min=0;ci.style.flex='1';
+  const ti=ip('number','',STATE.today.target,t('target-ph'));ti.min=1;ti.style.flex='1';
   ir.appendChild(ci);ir.appendChild(sp('dim md','de'));ir.appendChild(ti);card.appendChild(ir);
   // Update STATE silently while typing — no re-render until Enter or focus leaves card
   ci.oninput=()=>{
@@ -753,11 +885,11 @@ function renderTasksCard(sc,sk_){
   card.appendChild(hr());
   const mt=dv(`tog ${STATE.today.morningCompleted?'on':''} mb8`);
   const mc=ip('checkbox','');mc.checked=STATE.today.morningCompleted;mc.readOnly=true;
-  const mi=dv('f1');mi.innerHTML=`<div class="tt">Morning Routine</div><div class="ts">+${25*Math.max(1,sk_.morningStreak)} pts · streak: ${sk_.morningStreak}d</div>`;
+  const mi=dv('f1');mi.innerHTML=`<div class="tt">${t('morning-routine')}</div><div class="ts">+${25*Math.max(1,sk_.morningStreak)} ${t('streak-pts')}${sk_.morningStreak}d</div>`;
   mt.appendChild(mc);mt.appendChild(mi);mt.onclick=()=>{STATE.today.morningCompleted=!STATE.today.morningCompleted;refresh();};card.appendChild(mt);
   const ft=dv(`tog ${STATE.today.flagCompleted?'on':''}`);
   const fc=ip('checkbox','');fc.checked=STATE.today.flagCompleted;fc.readOnly=true;
-  const fi_=dv('f1');fi_.innerHTML=`<div class="tt">Goals Annihilated</div><div class="ts">+100 pts × streak (${sk_.flagStreak}d)</div>`;
+  const fi_=dv('f1');fi_.innerHTML=`<div class="tt">${t('goals-ann')}</div><div class="ts">+100 ${t('pts-s')} × ${t('streak-lbl')} (${sk_.flagStreak}d)</div>`;
   ft.appendChild(fc);ft.appendChild(fi_);ft.onclick=()=>{STATE.today.flagCompleted=!STATE.today.flagCompleted;refresh();};card.appendChild(ft);
   return card;
 }
@@ -765,8 +897,8 @@ function renderTasksCard(sc,sk_){
 /* ═══ POMODORO ═══ */
 function renderPomCard(){
   const card=dv('card');
-  const tr=dv('rowb mb8');tr.appendChild(sp('ctit','Pomodoros'));tr.appendChild(sp('xxl w7 ac mo',String(STATE.today.pomodoros)));card.appendChild(tr);
-  card.appendChild(sp('xs dim',`+${STATE.today.pomodoros*25} pts · ×25 each`));
+  const tr=dv('rowb mb8');tr.appendChild(sp('ctit',t('pom-lbl')));tr.appendChild(sp('xxl w7 ac mo',String(STATE.today.pomodoros)));card.appendChild(tr);
+  card.appendChild(sp('xs dim',`+${STATE.today.pomodoros*25} ${t('pts-each')}`));
   const ct=dv('row gap8 mt10');
   ct.appendChild(bt('btn-ghost btn-sm f1','−',()=>{STATE.today.pomodoros=Math.max(0,STATE.today.pomodoros-1);refresh();}));
   const n=dv('f1 ctr xl w7 mo');n.textContent=String(STATE.today.pomodoros);ct.appendChild(n);
@@ -786,27 +918,27 @@ function renderPenCard(sk_){
     else if(p.type==='macanazo')m=Math.max(1,sk_.macanazoPenaltyStreak);
     return sum+b*m;
   },0);
-  const tr=dv('rowb mb10');tr.appendChild(sp('ctit','Rewards'));if(penPts!==0)tr.appendChild(sp('md mo w7 ng',String(penPts)));card.appendChild(tr);
+  const tr=dv('rowb mb10');tr.appendChild(sp('ctit',t('rewards-lbl')));if(penPts!==0)tr.appendChild(sp('md mo w7 ng',String(penPts)));card.appendChild(tr);
 
   // #3: use STATE.penType so selection persists after refresh
-  const tEl=sk('mb8',[['drugs','💊 Indulgences'],['internet','🌐 Procrastination'],['macanazo','💦 Orgasm']],STATE.penType);
+  const tEl=sk('mb8',[['drugs',t('pen-indulg')],['internet',t('pen-proc')],['macanazo',t('pen-org')]],STATE.penType);
   tEl.onchange=()=>{STATE.penType=tEl.value;updateDet();};
   card.appendChild(tEl);
 
   const dw=dv('mb8');
-  const si=ip('number','',1,'# substances');si.min=1;
-  const pi=ip('text','','','e.g. 45m, 1h30m');
+  const si=ip('number','',1,t('num-subs'));si.min=1;
+  const pi=ip('text','','',t('eg-time'));
   const errD=dv('xs ng mb8');
 
   function doAdd(){
     errD.textContent='';
     const type=tEl.value;
     if(type==='drugs'){
-      const n=parseInt(si.value)||0;if(n<1){errD.textContent='Min. 1';return;}
+      const n=parseInt(si.value)||0;if(n<1){errD.textContent=t('min-1');return;}
       STATE.today.penalties.push({id:uid(),type:'drugs',count:n,details:{substances:n},timestamp:new Date().toISOString()});
       si.value='1';
     }else if(type==='internet'){
-      const r=parseDur(pi.value);if(r.v===null){errD.textContent=r.err;return;}if(r.v===0){errD.textContent='Enter time';return;}
+      const r=parseDur(pi.value);if(r.v===null){errD.textContent=r.err;return;}if(r.v===0){errD.textContent=t('enter-time');return;}
       STATE.today.penalties.push({id:uid(),type:'internet',count:r.v,details:{minutes:r.v},timestamp:new Date().toISOString()});
       pi.value='';
     }else{
@@ -821,7 +953,7 @@ function renderPenCard(sk_){
 
   function updateDet(){dw.innerHTML='';if(tEl.value==='drugs')dw.appendChild(si);else if(tEl.value==='internet')dw.appendChild(pi);}
   updateDet();card.appendChild(dw);card.appendChild(errD);
-  const ab=bt('btn-ng btn-sm w100','+ Add',doAdd);ab.style.width='100%';card.appendChild(ab);
+  const ab=bt('btn-ng btn-sm w100',t('add-btn'),doAdd);ab.style.width='100%';card.appendChild(ab);
 
   if(STATE.today.penalties.length){
     const list=dv('s6 mt12');
@@ -833,11 +965,11 @@ function renderPenCard(sk_){
       else if(p.type==='internet') mult=procMinsTotal>=30?Math.max(1,sk_.procrastinationPenaltyStreak):1;
       else if(p.type==='macanazo') mult=Math.max(1,sk_.macanazoPenaltyStreak);
       const actual=base*mult;
-      const lbl=p.type==='drugs'?`Indulgences ×${p.details?.substances||1}`:p.type==='internet'?`Procrast. ${fmtDur(p.details?.minutes||0)}`:'Orgasm';
+      const lbl=p.type==='drugs'?`${t('indulg-x')}${p.details?.substances||1}`:p.type==='internet'?`${t('procrast-s')} ${fmtDur(p.details?.minutes||0)}`:t('pen-org').replace('💦 ','');
       const row=dv('pen-it');
       const info=dv('f1');
       // Show label + breakdown: base × streak = actual
-      const breakdown = mult>1 ? `<span class="xs dimmer">${base} × ${mult} streak</span>` : `<span class="xs dimmer">base</span>`;
+      const breakdown = mult>1 ? `<span class="xs dimmer">${base} × ${mult} ${t('streak-lbl')}</span>` : `<span class="xs dimmer">${t('base-lbl')}</span>`;
       info.innerHTML=`<div class="md dim">${lbl}</div><div class="row gap6 mt2">${breakdown}<span class="sm mo w7 ng">${actual}</span></div>`;
       const rm=bt('btn-icon','✕',()=>{STATE.today.penalties=STATE.today.penalties.filter(x=>x.id!==p.id);refresh();});
       row.appendChild(info);row.appendChild(rm);list.appendChild(row);
@@ -849,13 +981,13 @@ function renderPenCard(sk_){
 /* ═══ WORK CARD ═══ */
 function renderWorkCard(sk_){
   const card=dv('card');
-  const tr=dv('rowb mb6');tr.appendChild(sp('ctit','Work'));tr.appendChild(sp('md mo ac w6',fmtDur(STATE.today.work.workDuration)));card.appendChild(tr);
-  card.appendChild(sp('xs dim mb8',`+${STATE.today.work.workDuration} pts · streak: ${sk_.workStreak}d`));
+  const tr=dv('rowb mb6');tr.appendChild(sp('ctit',t('work-lbl')));tr.appendChild(sp('md mo ac w6',fmtDur(STATE.today.work.workDuration)));card.appendChild(tr);
+  card.appendChild(sp('xs dim mb8',`+${STATE.today.work.workDuration} ${t('streak-pts')}${sk_.workStreak}d`));
   const errD=dv('xs ng mt4');
-  const wi=ip('text','','','e.g. 3h, 90m, 2h30m');
+  const wi=ip('text','','',t('eg-work'));
   function doSet(){const r=parseDur(wi.value);if(r.v===null){errD.textContent=r.err;return;}STATE.today.work.workDuration=r.v;wi.value='';errD.textContent='';refresh();}
   wi.onkeydown=e=>{if(e.key==='Enter')doSet();};
-  const row=dv('row gap8 mt8');row.appendChild(wi);row.appendChild(bt('btn-ac btn-sm','Set',doSet));
+  const row=dv('row gap8 mt8');row.appendChild(wi);row.appendChild(bt('btn-ac btn-sm',t('set-btn'),doSet));
   card.appendChild(row);card.appendChild(errD);return card;
 }
 
@@ -864,18 +996,18 @@ function renderSleepCard(sk_){
   const sl=STATE.today.sleep;const card=dv('card s12');card.appendChild(sp('ctit','Sleep'));
   function sleepRow(label,val,onSet){
     const w=dv('');const lr=dv('rowb mb6');lr.innerHTML=`<span class="xs dimmer up ls">${label}</span><span class="md mo ac w6">${fmtDur(val)}</span>`;w.appendChild(lr);
-    const errD=dv('xs ng mt4');const si=ip('text','','','e.g. 7h30m');
+    const errD=dv('xs ng mt4');const si=ip('text','','',t('eg-work'));
     function doS(){const r=parseDur(si.value);if(r.v===null){errD.textContent=r.err;return;}onSet(r.v);si.value='';errD.textContent='';refresh();}
     si.onkeydown=e=>{if(e.key==='Enter')doS();};
-    const ir=dv('row gap8');ir.appendChild(si);ir.appendChild(bt('btn-ac btn-sm','Set',doS));w.appendChild(ir);w.appendChild(errD);return w;
+    const ir=dv('row gap8');ir.appendChild(si);ir.appendChild(bt('btn-ac btn-sm',t('set-btn'),doS));w.appendChild(ir);w.appendChild(errD);return w;
   }
-  card.appendChild(sleepRow('Main Sleep',sl.sleepDuration,v=>STATE.today.sleep.sleepDuration=v));
-  card.appendChild(sleepRow('Nap',sl.napDuration,v=>STATE.today.sleep.napDuration=v));
+  card.appendChild(sleepRow(t('main-sleep'),sl.sleepDuration,v=>STATE.today.sleep.sleepDuration=v));
+  card.appendChild(sleepRow(t('nap-lbl'),sl.napDuration,v=>STATE.today.sleep.napDuration=v));
   card.appendChild(hr());
   const earlyStreak=sk_?sk_.earlyBedStreak:sl.earlyBedStreak||1;
   const eb=sl.sleptEarly?sl.sleepDuration*(earlyStreak):0;
   const et=dv(`tog ${sl.sleptEarly?'on':''}`);const ec=ip('checkbox','');ec.checked=sl.sleptEarly;ec.readOnly=true;
-  const ei=dv('f1');ei.innerHTML=`<div class="tt">Slept Early</div>${sl.sleptEarly?`<div class="ts">+${eb} pts · ×${sl.earlyBedStreak||1} streak`:''}`;
+  const ei=dv('f1');ei.innerHTML=`<div class="tt">${t('slept-early')}</div>${sl.sleptEarly?`<div class="ts">+${eb} pts · ×${sl.earlyBedStreak||1} streak`:''}`;
   et.appendChild(ec);et.appendChild(ei);
   et.onclick=()=>{STATE.today.sleep.sleptEarly=!sl.sleptEarly;refresh();};
   card.appendChild(et);
@@ -883,26 +1015,26 @@ function renderSleepCard(sk_){
   const latePenShow=sl.sleptLate?-100*Math.max(1,lateStreak):0;
   const ltt=dv(`tog ${sl.sleptLate?'on':''} mt8`);if(sl.sleptLate){ltt.style.borderColor='var(--ng)';ltt.style.background='var(--ngd)';}
   const ltc=ip('checkbox','');ltc.checked=sl.sleptLate;ltc.readOnly=true;ltc.style.accentColor='var(--ng)';
-  const lti=dv('f1');lti.innerHTML=`<div class="tt" style="color:${sl.sleptLate?'var(--ng)':'var(--t2)'}">Slept Late</div>${sl.sleptLate?`<div class="ts">${latePenShow} pts · ×${lateStreak} streak</div>`:''}`;
+  const lti=dv('f1');lti.innerHTML=`<div class="tt" style="color:${sl.sleptLate?'var(--ng)':'var(--t2)'}">${t('slept-late')}</div>${sl.sleptLate?`<div class="ts">${latePenShow} pts · ×${lateStreak} streak</div>`:''}`;
   ltt.appendChild(ltc);ltt.appendChild(lti);
   ltt.onclick=()=>{STATE.today.sleep.sleptLate=!sl.sleptLate;refresh();};
   card.appendChild(ltt);
-  card.appendChild(sp('xs dim mt8',`Total sleep: +${(sl.sleepDuration||0)+(sl.napDuration||0)+eb} pts`));
+  card.appendChild(sp('xs dim mt8',`${t('total-sleep')}: +${(sl.sleepDuration||0)+(sl.napDuration||0)+eb} ${t('pts-s')}`));
   return card;
 }
 
 /* ═══ STREAKS — 2 colors only ═══ */
 function renderStreaks(sk_){
-  const card=dv('card mt12');card.appendChild(dv('ctit','Streaks'));
-  card.appendChild(dv('xs dimmer up ls mb8','✅ Positive Streaks'));
+  const card=dv('card mt12');card.appendChild(dv('ctit',t('streaks-title')));
+  card.appendChild(dv('xs dimmer up ls mb8',t('pos-streaks')));
   const pg=dv('sk-g mb16');
-  [{k:'morningStreak',l:'Morning Routine'},{k:'flagStreak',l:'Goals'},{k:'workStreak',l:'Work'},
-   {k:'substancesStreak',l:'Clean (indulg.)'},{k:'procrastinationStreak',l:'Clean (proc)'},{k:'macanazoStreak',l:'Clean (org)'}]
+  [{k:'morningStreak',l:t('sk-morning')},{k:'flagStreak',l:t('sk-goals')},{k:'workStreak',l:t('sk-work')},
+   {k:'substancesStreak',l:t('sk-ci')},{k:'procrastinationStreak',l:t('sk-cp')},{k:'macanazoStreak',l:t('sk-co')}]
   .forEach(item=>{const c=dv('skc pos');const n=dv('skn ac');n.textContent=String(sk_[item.k]||0);const l=dv('skl');l.textContent=item.l;c.appendChild(n);c.appendChild(l);pg.appendChild(c);});
   card.appendChild(pg);
-  card.appendChild(dv('xs dimmer up ls mb8','🤤 Reward Streaks'));
+  card.appendChild(dv('xs dimmer up ls mb8',t('rew-streaks')));
   const ng=dv('sk-g');
-  [{k:'substancesPenaltyStreak',l:'Indulg. 💊'},{k:'procrastinationPenaltyStreak',l:'Procrast. 🌐'},{k:'macanazoPenaltyStreak',l:'Orgasm 💦'},{k:'lateStreak',l:'Late Nights 🌙'}]
+  [{k:'substancesPenaltyStreak',l:t('sk-i')},{k:'procrastinationPenaltyStreak',l:t('sk-p')},{k:'macanazoPenaltyStreak',l:t('sk-o')},{k:'lateStreak',l:t('sk-l')}]
   .forEach(item=>{const c=dv('skc neg');const n=dv('skn ng');n.textContent=String(sk_[item.k]||0);const l=dv('skl');l.textContent=item.l;c.appendChild(n);c.appendChild(l);ng.appendChild(c);});
   card.appendChild(ng);return card;
 }
@@ -920,7 +1052,7 @@ function renderCalendar(){
     const hd=dv('rowb mb12');
     const pv=bt('btn-icon','‹',()=>{cM--;if(cM<0){cM=11;cY--;}build();});pv.style.fontSize='20px';
     const nx=bt('btn-icon','›',()=>{cM++;if(cM>11){cM=0;cY++;}build();});nx.style.fontSize='20px';
-    hd.appendChild(pv);hd.appendChild(sp('lg w7',new Date(cY,cM).toLocaleDateString('en-US',{month:'long',year:'numeric'})));hd.appendChild(nx);wrap.appendChild(hd);
+    hd.appendChild(pv);hd.appendChild(sp('lg w7',capFirst(new Date(cY,cM).toLocaleDateString(STATE.lang==='es'?'es-MX':'en-US',{month:'long',year:'numeric'}))));hd.appendChild(nx);wrap.appendChild(hd);
 
     // #6: use history with gaps filled for calendar display
     const filledHist=CALC.fillGaps(STATE.history);
@@ -931,7 +1063,7 @@ function renderCalendar(){
     const dim=new Date(cY,cM+1,0).getDate();const fd=new Date(cY,cM,1).getDay();
     const tk=now.toISOString().split('T')[0];
     const cg=dv('cal-g mb10');
-    ['Su','Mo','Tu','We','Th','Fr','Sa'].forEach(d=>cg.appendChild(dv('cal-hd',d)));
+    (STATE.lang==='es'?['Do','Lu','Ma','Mi','Ju','Vi','Sa']:['Su','Mo','Tu','We','Th','Fr','Sa']).forEach(d=>cg.appendChild(dv('cal-hd',d)));
     for(let i=0;i<fd;i++)cg.appendChild(dv(''));
     for(let d=1;d<=dim;d++){
       const key=new Date(cY,cM,d).toISOString().split('T')[0];
@@ -958,8 +1090,8 @@ function renderCalendar(){
         // No data for this day — still allow diary
         const det=dv('card2 fi');det.style.border='1px solid var(--b2)';
         det.appendChild(sp('xs dim',selK));
-        det.appendChild(sp('xs dimmer mt4','No data logged for this day.'));
-        const diaryToggle=bt('btn-ghost btn-sm','📝 '+(STATE.diary[selK]?'Edit note':'Add note'),()=>{
+        det.appendChild(sp('xs dimmer mt4',t('no-data')));
+        const diaryToggle=bt('btn-ghost btn-sm','📝 '+(STATE.diary[selK]?t('edit-note'):t('add-note')),()=>{
           const existing=det.querySelector('.diary-wrap');
           if(existing){existing.remove();}
           else{const dw=renderDiaryFor(selK);dw.className='diary-wrap fi';det.appendChild(dw);det.querySelector('.diary-area')?.focus();}
@@ -971,17 +1103,17 @@ function renderCalendar(){
       if(entry){
         const det=dv(`card2 fi s-${entry.status}`);det.style.border='1px solid';
         const dr=dv('rowb');dr.appendChild(sbadge(entry.status));dr.appendChild(sp('lg mo w7 ac',`${entry.todayPoints||0} pts`));det.appendChild(dr);
-        const fmtSelDate=new Date(selK+'T12:00:00').toLocaleDateString('en-US',{weekday:'short',year:'numeric',month:'short',day:'numeric'});
+        const fmtSelDate=new Date(selK+'T12:00:00').toLocaleDateString(STATE.lang==='es'?'es-MX':'en-US',{weekday:'short',year:'numeric',month:'short',day:'numeric'});
         det.appendChild(sp('xs dim mt6',fmtSelDate));
         det.appendChild(sp('xs dim mt2',`${entry.completedTasks||0}/${entry.totalTasks||0} tasks · ${entry.pomodoros||0} 🍅`));
-        if(entry.streaks?.some(s=>s.type==='flags'&&s.active))det.appendChild(sp('sm mt4','🏅 Goals Annihilated'));
-        if(entry._gap)det.appendChild(sp('xs ng mt4','⚠ Day not logged (−1000)'));
+        if(entry.streaks?.some(s=>s.type==='flags'&&s.active))det.appendChild(sp('sm mt4',t('goals-ann-badge')));
+        if(entry._gap)det.appendChild(sp('xs ng mt4',t('day-not-logged')));
         // Diary entry
-        const diaryToggle=bt('btn-ghost btn-sm','📝 '+(STATE.diary[selK]?'Edit note':'Add note'),()=>{
+        const diaryToggle=bt('btn-ghost btn-sm','📝 '+(STATE.diary[selK]?t('edit-note'):t('add-note')),()=>{
           const existing=det.querySelector('.diary-wrap');
           if(existing){existing.remove();}
           else{const dw=renderDiaryFor(selK);dw.className='diary-wrap fi';det.appendChild(dw);det.querySelector('.diary-area')?.focus();}
-          diaryToggle.textContent='📝 '+(STATE.diary[selK]?'Edit note':'Add note');
+          diaryToggle.textContent='📝 '+(STATE.diary[selK]?t('edit-note'):t('add-note'));
         });
         diaryToggle.style.marginTop='10px';
         det.appendChild(diaryToggle);
@@ -997,9 +1129,9 @@ function renderCalendar(){
           }
           renderPreview();
           if(needsToggle){
-            const vBtn=bt('btn-ghost btn-xs','Ver más',()=>{expanded=!expanded;renderPreview();vBtn.textContent=expanded?'Ver menos':'Ver más';});
+            const vBtn=bt('btn-ghost btn-xs',t('ver-mas'),()=>{expanded=!expanded;renderPreview();vBtn.textContent=expanded?t('ver-menos'):t('ver-mas');});
             vBtn.style.marginTop='4px';
-            preview.onclick=()=>{expanded=!expanded;renderPreview();vBtn.textContent=expanded?'Ver menos':'Ver más';};
+            preview.onclick=()=>{expanded=!expanded;renderPreview();vBtn.textContent=expanded?t('ver-menos'):t('ver-mas');};
             det.appendChild(preview);det.appendChild(vBtn);
           } else {
             det.appendChild(preview);
@@ -1014,7 +1146,7 @@ function renderCalendar(){
 
 /* ═══ HISTORY EDITOR — #2 save triggers full refresh ═══ */
 function renderHistEd(sk_){
-  const wrap=dv('card');wrap.appendChild(sp('ctit','Edit History'));
+  const wrap=dv('card');wrap.appendChild(sp('ctit',t('edit-hist')));
   let edKey=null,fst={},vis=7;
   function buildDays(){
     const days=[];const today=new Date();
@@ -1040,10 +1172,10 @@ function renderHistEd(sk_){
       return'';
     }
     function resetTooltip(status){
-      if(status==='red')return'Work streak reset';
-      if(status==='yellow')return'Indulgences streak reset';
-      if(status==='green')return'Indulgences & Procrastination streaks reset';
-      if(status==='purple')return'All streaks reset';
+      if(status==='red')return t('reset-work');
+      if(status==='yellow')return t('reset-indulg');
+      if(status==='green')return t('reset-ip');
+      if(status==='purple')return t('reset-all');
       return'';
     }
     // Pre-pass: find most recent day key for each color (today wins for its color)
@@ -1063,14 +1195,14 @@ function renderHistEd(sk_){
       lft.appendChild(sp('sm mo dim',key));
       if(isToday){
         // TODAY badge: colored by current day status
-        const b=sp(`badge s-${todaySt}`,'TODAY');b.style.marginLeft='4px';lft.appendChild(b);
+        const b=sp(`badge s-${todaySt}`,t('Today'));b.style.marginLeft='4px';lft.appendChild(b);
         // Reset emojis only if today is the most recent of its color
         if(mostRecentForColor[todaySt]==='today'){
           const re=sp('xs dimmer',' '+resetEmojis(todaySt));re.style.marginLeft='2px';re.title=resetTooltip(todaySt);re.style.cursor='help';lft.appendChild(re);
         }
       }
       if(entry&&!isToday)lft.appendChild(sbadge(entry.status));
-      if(entry?._gap)lft.appendChild(sp('xs ng',' ⚠gap'));
+      if(entry?._gap)lft.appendChild(sp('xs ng',' '+t('gap-warn')));
       // Show reset emojis only on the most recent historical entry of its color
       if(!isToday&&entry&&!entry._gap&&mostRecentForColor[entry.status]===key){
         const re=sp('xs dimmer',' '+resetEmojis(entry.status));re.style.marginLeft='4px';re.title=resetTooltip(entry.status);re.style.cursor='help';lft.appendChild(re);
@@ -1096,16 +1228,16 @@ function renderHistEd(sk_){
       if(isEd){
         const form=dv('fi mt10');const g=dv('g2 mb10');g.style.gap='6px';
         function nf(label,val,onChange){const w=dv('s4');w.innerHTML=`<div class="xs dimmer up ls">${label}</div>`;const i=ip('number','',val,'');i.min=0;i.style.width='100%';i.oninput=()=>onChange(parseInt(i.value)||0);i.onkeydown=e=>{if(e.key==='Enter')i.blur();};w.appendChild(i);return w;}
-        function df(label,val,onChange){const w=dv('s4');w.innerHTML=`<div class="xs dimmer up ls">${label}</div>`;const i=ip('text','',val?fmtDur(val):'','ej. 2h30m');i.style.width='100%';i.oninput=()=>{const r=parseDur(i.value);if(r.v!==null)onChange(r.v);};i.onkeydown=e=>{if(e.key==='Enter')i.blur();};w.appendChild(i);return w;}
-        g.appendChild(nf('Tasks',fst.completed,v=>fst.completed=v));g.appendChild(nf('Target',fst.target,v=>fst.target=v));
-        g.appendChild(nf('Pomodoros',fst.pomodoros,v=>fst.pomodoros=v));g.appendChild(df('Work',fst.workDuration,v=>fst.workDuration=v));
-        g.appendChild(df('Sleep',fst.sleepDuration,v=>fst.sleepDuration=v));g.appendChild(df('Nap',fst.napDuration,v=>fst.napDuration=v));
-        g.appendChild(nf('Indulgences #',fst.substances,v=>fst.substances=v));g.appendChild(df('Procrast',fst.procMins,v=>fst.procMins=v));
-        g.appendChild(nf('Orgasm #',fst.macanazoCount,v=>fst.macanazoCount=v));form.appendChild(g);
+        function df(label,val,onChange){const w=dv('s4');w.innerHTML=`<div class="xs dimmer up ls">${label}</div>`;const i=ip('text','',val?fmtDur(val):'',t('ej-dur'));i.style.width='100%';i.oninput=()=>{const r=parseDur(i.value);if(r.v!==null)onChange(r.v);};i.onkeydown=e=>{if(e.key==='Enter')i.blur();};w.appendChild(i);return w;}
+        g.appendChild(nf(t('daily-tasks'),fst.completed,v=>fst.completed=v));g.appendChild(nf(t('target-ph'),fst.target,v=>fst.target=v));
+        g.appendChild(nf(t('pom-lbl'),fst.pomodoros,v=>fst.pomodoros=v));g.appendChild(df(t('work-lbl'),fst.workDuration,v=>fst.workDuration=v));
+        g.appendChild(df(t('main-sleep'),fst.sleepDuration,v=>fst.sleepDuration=v));g.appendChild(df(t('nap-lbl'),fst.napDuration,v=>fst.napDuration=v));
+        g.appendChild(nf(t('indulg-hash'),fst.substances,v=>fst.substances=v));g.appendChild(df(t('proc-lbl'),fst.procMins,v=>fst.procMins=v));
+        g.appendChild(nf(t('org-hash'),fst.macanazoCount,v=>fst.macanazoCount=v));form.appendChild(g);
         const cks=dv('row gap16 mb10');
         function ck(label,val,onChange){const w=dv('row gap6');w.style.cursor='pointer';const c=ip('checkbox','');c.checked=val;c.onchange=()=>onChange(c.checked);w.appendChild(c);w.appendChild(sp('sm',label));w.onclick=e=>{if(e.target!==c){c.checked=!c.checked;c.dispatchEvent(new Event('change'));}};return w;}
-        cks.appendChild(ck('Morning',fst.morningCompleted,v=>fst.morningCompleted=v));cks.appendChild(ck('Flags',fst.flagCompleted,v=>fst.flagCompleted=v));cks.appendChild(ck('Early bed',fst.sleptEarly,v=>fst.sleptEarly=v));cks.appendChild(ck('Late bed',fst.sleptLate,v=>fst.sleptLate=v));form.appendChild(cks);
-        const sb=bt('btn-ac btn-sm','Save',()=>{
+        cks.appendChild(ck(t('morning-routine'),fst.morningCompleted,v=>fst.morningCompleted=v));cks.appendChild(ck(t('goals-ann'),fst.flagCompleted,v=>fst.flagCompleted=v));cks.appendChild(ck(t('early-bed'),fst.sleptEarly,v=>fst.sleptEarly=v));cks.appendChild(ck(t('late-bed'),fst.sleptLate,v=>fst.sleptLate=v));form.appendChild(cks);
+        const sb=bt('btn-ac btn-sm',t('save-btn'),()=>{
           const pens=[];
           if(fst.substances>0)pens.push({type:'drugs',count:fst.substances,points:-250*fst.substances,streak:1});
           if(fst.procMins>0)pens.push({type:'internet',count:fst.procMins,points:-10*fst.procMins,streak:1});
@@ -1125,7 +1257,7 @@ function renderHistEd(sk_){
       list.appendChild(row);
     });
     wrap.appendChild(list);
-    if(vis<31){const mb=bt('btn-ghost btn-sm w100 mt8','Show more',()=>{vis+=7;build();});mb.style.width='100%';wrap.appendChild(mb);}
+    if(vis<31){const mb=bt('btn-ghost btn-sm w100 mt8',t('show-more'),()=>{vis+=7;build();});mb.style.width='100%';wrap.appendChild(mb);}
   }
   build();return wrap;
 }
@@ -1133,7 +1265,7 @@ function renderHistEd(sk_){
 /* ═══ STATS — #7 more interesting stats ═══ */
 function renderStats(total,sc){
   const wrap=dv('card mt12');let open=true;
-  const tog=el('button','sec-t');tog.innerHTML='<span>Stats</span><span id="st-a">▲</span>';
+  const tog=el('button','sec-t');tog.innerHTML=`<span>${t('stats-title')}</span><span id="st-a">▲</span>`;
   const body=dv('fi');
   tog.onclick=()=>{open=!open;body.style.display=open?'':'none';document.getElementById('st-a').textContent=open?'▲':'▼';};
   wrap.appendChild(tog);
@@ -1172,39 +1304,39 @@ function renderStats(total,sc){
   const workPct=totalTracked>0?Math.round(workDays/totalTracked*100):0;
   const lateNights=STATE.history.filter(d=>d.sleptLate).length;
   let insight='';
-  if(totalTracked<3)insight='Keep logging days to see personalized insights.';
+  if(totalTracked<3)insight=STATE.lang==='es'?'Sigue registrando días para ver estadísticas personalizadas.':'Keep logging days to see personalized insights.';
   else if(momentum>20)insight=`🚀 Momentum +${momentum}% — your last 7 days beat your all-time average.`;
   else if(momentum<-20)insight=`📉 Semana difícil (${momentum}%). Progress isn't linear. Tomorrow is a new day.`;
-  else if(dfPct===100)insight='🌟 100% substance-free days. Consistent discipline.';
-  else if(pfStrk>7)insight=`✨ ${pfStrk} consecutive days with no penalties. Clean streak!`;
-  else if(totalPoms>50)insight=`🍅 ${totalPoms} pomodoros = ${Math.round(totalPoms*25/60)}h of focused work.`;
-  else insight='📊 Building history. More data = better insights.';
+  else if(dfPct===100)insight=STATE.lang==='es'?'🌟 100% de días sin sustancias. Disciplina consistente.':'🌟 100% substance-free days. Consistent discipline.';
+  else if(pfStrk>7)insight=STATE.lang==='es'?`✨ ${pfStrk} días consecutivos sin penalizaciones. ¡Racha limpia!`:`✨ ${pfStrk} consecutive days with no penalties. Clean streak!`;
+  else if(totalPoms>50)insight=STATE.lang==='es'?`🍅 ${totalPoms} pomodoros = ${Math.round(totalPoms*25/60)}h de trabajo enfocado.`:`🍅 ${totalPoms} pomodoros = ${Math.round(totalPoms*25/60)}h of focused work.`;
+  else insight=STATE.lang==='es'?'📊 Construyendo historial. Más datos = mejores estadísticas.':'📊 Building history. More data = better insights.';
 
   // Grid 1
   const g1=dv('g4 mb10');g1.style.gap='8px';
-  [['Best day',best,'var(--ac)','pts'],['Worst day',worst,'var(--ac)','pts'],['All-time avg',avg,'var(--ac)','pts / day'],['Last 7 avg',avg7,'var(--ac)','pts']].forEach(([l,v,c,sub])=>{
+  [[t('best-day'),best,'var(--ac)',t('pts-s')],[t('worst-day'),worst,'var(--ac)',t('pts-s')],[t('all-avg'),avg,'var(--ac)',t('pts-day')],[t('last7-avg'),avg7,'var(--ac)',t('pts-s')]].forEach(([l,v,c,sub])=>{
     const s=dv('card2 ctr');const n=dv('xxl w7 mo');n.style.color=c;n.textContent=String(v);s.appendChild(n);s.appendChild(sp('xs dimmer mt4',l));s.appendChild(sp('xs dimmer mt2',sub));g1.appendChild(s);
   });body.appendChild(g1);
 
   // Grid 2
   const g2=dv('g4 mb10');g2.style.gap='8px';
-  [['Total 🍅',String(totalPoms),'var(--ac)','pomodoros'],['Work total',fmtDur(totalWorkMin),'var(--ac)','worked'],['Sleep total',fmtDur(totalSleepMin),'var(--ac)','rested'],['Clean streak',pfStrk+'d','var(--ac)','reward-free']].forEach(([l,v,c,sub])=>{
+  [[t('total-poms'),String(totalPoms),'var(--ac)',t('poms-sub')],[t('work-total'),fmtDur(totalWorkMin),'var(--ac)',t('worked-sub')],[t('sleep-total'),fmtDur(totalSleepMin),'var(--ac)',t('rested-sub')],[t('clean-streak'),pfStrk+'d','var(--ac)',t('rf-sub')]].forEach(([l,v,c,sub])=>{
     const s=dv('card2 ctr');const n=dv('xl w7 mo');n.style.color=c;n.textContent=v;s.appendChild(n);s.appendChild(sp('xs dimmer mt4',l));s.appendChild(sp('xs dimmer mt2',sub));g2.appendChild(s);
   });body.appendChild(g2);
 
   // Grid 3
   const g3=dv('g4 mb12');g3.style.gap='8px';
-  [['Purple days',purplePct+'%','var(--ac)','of total days'],['Best streak',bStrk+'d','var(--cp)','non-red days'],['Clean (drugs)',dfPct+'%','var(--ac)','no substances'],['Early nights',STATE.history.filter(d=>d.sleptEarly).length+'d','var(--cg)','slept early']].forEach(([l,v,c,sub])=>{
+  [[t('purple-days'),purplePct+'%','var(--ac)',t('of-total')],[t('best-streak'),bStrk+'d','var(--cp)',t('non-red')],[t('clean-drugs'),dfPct+'%','var(--ac)',t('no-subs')],[t('early-nights'),STATE.history.filter(d=>d.sleptEarly).length+'d','var(--cg)',t('se-sub')]].forEach(([l,v,c,sub])=>{
     const s=dv('card2 ctr');const n=dv('xl w7 mo');n.style.color=c;n.textContent=v;s.appendChild(n);s.appendChild(sp('xs dimmer mt4',l));s.appendChild(sp('xs dimmer mt2',sub));g3.appendChild(s);
   });body.appendChild(g3);
 
   // Grid 4 – extra stats
   const g4b=dv('g4 mb10');g4b.style.gap='8px';
-  [['Avg Sleep',fmtDur(avgSleepMin),'var(--ac)','per night'],['Poms / Day',String(pomPerDay),'var(--ac)','focused sessions'],['Work days',workPct+'%','var(--ac)','of logged days'],['Late nights',lateNights+'d','var(--ng)','times stayed up late']].forEach(([l,v,c,sub])=>{
+  [[t('avg-sleep'),fmtDur(avgSleepMin),'var(--ac)',t('per-night')],[t('poms-day'),String(pomPerDay),'var(--ac)',t('focused-sub')],[t('work-days-lbl'),workPct+'%','var(--ac)',t('of-logged')],[t('late-nights-lbl'),lateNights+'d','var(--ng)',t('stayed-up')]].forEach(([l,v,c,sub])=>{
     const s=dv('card2 ctr');const n=dv('xl w7 mo');n.style.color=c;n.textContent=v;s.appendChild(n);s.appendChild(sp('xs dimmer mt4',l));s.appendChild(sp('xs dimmer mt2',sub));g4b.appendChild(s);
   });body.appendChild(g4b);
   const g5b=dv('g4 mb12');g5b.style.gap='8px';
-  [['Indulgences',String(totalIndulgences),'var(--ng)','total logged'],['Orgasms',String(totalOrgasms),'var(--ng)','total logged'],['Penalty-Free',pfStrk+'d','var(--cg)','streak now'],['Best Streak',bStrk+'d','var(--cp)','non-red days']].forEach(([l,v,c,sub])=>{
+  [[t('pen-indulg').replace('💊 ',''),String(totalIndulgences),'var(--ng)',t('total-logged')],[t('pen-org').replace('💦 ',''),String(totalOrgasms),'var(--ng)',t('total-logged')],['Penalty-Free',pfStrk+'d','var(--cg)',t('streak-now')],[t('best-streak'),bStrk+'d','var(--cp)',t('non-red')]].forEach(([l,v,c,sub])=>{
     const s=dv('card2 ctr');const n=dv('xl w7 mo');n.style.color=c;n.textContent=v;s.appendChild(n);s.appendChild(sp('xs dimmer mt4',l));s.appendChild(sp('xs dimmer mt2',sub));g5b.appendChild(s);
   });body.appendChild(g5b);
   // Day counts
@@ -1220,12 +1352,82 @@ function renderStats(total,sc){
 /* ═══ RULES — #8 updated & simple ═══ */
 function renderRules(){
   const wrap=dv('card mt12');let open=true;
-  const tog=el('button','sec-t');tog.innerHTML='<span>Rules & Scoring</span><span id="rl-a">▲</span>';
+  const tog=el('button','sec-t');tog.innerHTML=`<span>${t('rules-title')}</span><span id="rl-a">▲</span>`;
   const body=dv('fi');
   tog.onclick=()=>{open=!open;body.style.display=open?'':'none';document.getElementById('rl-a').textContent=open?'▲':'▼';};
   wrap.appendChild(tog);
-  body.innerHTML=`<div class="s16 dim">
-
+  body.innerHTML=STATE.lang==='es'?`<div class="s16 dim">
+  <div>
+    <div class="md up ls dimmer w7 mb10">📋 Cómo funciona esta app</div>
+    <div class="s6">
+      <div>Stoic es <span class="ac w6">productividad gamificada</span>. Funciona mejor junto a una lista de tareas (Notion, Apple Reminders, papel — lo que uses).</div>
+      <div>Cada día: <strong>1)</strong> haz tu lista de tareas en algún lado, <strong>2)</strong> trabaja en ella, <strong>3)</strong> vuelve aquí y registra cómo te fue.</div>
+      <div>La app convierte tu día en un puntaje y un color. Con el tiempo ves tus patrones — qué ayuda, qué perjudica, qué tan consistente eres realmente, qué necesita cambiar.</div>
+    </div>
+  </div>
+  <hr class="dv">
+  <div>
+    <div class="md up ls dimmer w7 mb10">📊 Estado del día — tu color diario</div>
+    <div class="s6">
+      <div>Tu día recibe un color basado en cuántas tareas completaste de tu meta:</div>
+      <div><span class="cp w6">🟣 Morado</span> — 100% completado. Día perfecto.</div>
+      <div><span class="cg w6">🟢 Verde</span> — 85% o más. Día excelente.</div>
+      <div><span class="cy w6">🟡 Amarillo</span> — 50% o más. Día decente.</div>
+      <div><span class="cr w6">🔴 Rojo</span> — menos del 50%. Día difícil.</div>
+      <div class="xs dimmer">Bonus: <strong>Exterminar tus Metas</strong> sube tu color un nivel — Rojo→Amarillo, Amarillo→Verde, Verde→Morado.</div>
+    </div>
+  </div>
+  <hr class="dv">
+  <div>
+    <div class="md up ls ac w7 mb10">💰 Cómo ganas puntos</div>
+    <div class="s6">
+      <div><span class="ac w6">✅ Tareas</span> — +1 pt por tarea completada.</div>
+      <div><span class="ac w6">🌅 Rutina Matutina</span> — ¿hiciste tu rutina hoy? Márcala por +25 pts. Cuanto más larga tu racha, mayor el bonus.</div>
+      <div><span class="ac w6">🏅 Metas Exterminadas alv</span> — ¿aplastaste tus tareas clave? +100 pts × tu racha.</div>
+      <div><span class="ac w6">🍅 Pomodoros</span> — cada sesión de trabajo enfocado = +25 pts.</div>
+      <div><span class="ac w6">💼 Trabajo</span> — registra tu tiempo de trabajo. +1 pt por minuto, multiplicado por tu racha de días trabajados consecutivos.</div>
+      <div><span class="ac w6">😴 Sueño</span> — registra tu sueño y siestas. +1 pt por minuto. Dormir temprano da un bonus multiplicado por racha.</div>
+      <div><span class="ac w6">🎨 Bonus de color</span> — tu color da puntos que <em>se acumulan</em>: <span class="cy">Amarillo</span> +10 · <span class="cg">Verde</span> +30 (incluye Amarillo) · <span class="cp">Morado</span> +60 (incluye los tres). Este bonus se multiplica por tu racha de días no rojos consecutivos.</div>
+    </div>
+  </div>
+  <hr class="dv">
+  <div>
+    <div class="md up ls ng w7 mb10">🤤 Recompensas (costos en puntos 💸)</div>
+    <div class="s6">
+      <div>Son premios que quieres mantener a raya. Cada uno cuesta puntos — y cuanto más seguido las haces, más cuestan (multiplicador de racha).</div>
+      <div><span class="ng w6">💊 Estimulantes</span> — comida chatarra, sustancias (azúcar, café, mota, alcohol; todo cuenta) y cualquier mal hábito que disfrutas pero quieras reducir. Cuesta puntos × cuántos días seguidos llevas.</div>
+      <div><span class="ng w6">🌐 Procrastinación</span> — registra cuántos minutos desperdiciaste. Después de 30 min, el multiplicador de racha aplica.</div>
+      <div><span class="ng w6">💦 Orgasmo</span> — cuesta bastante × días consecutivos.</div>
+      <div><span class="ng w6">🌙 Trasnoché</span> — quedarse despierto tarde cuesta 100 pts × tu racha de desvelo.</div>
+      <div class="xs dimmer">Los costos exactos dependen de tu modo de dificultad — ver abajo.</div>
+    </div>
+  </div>
+  <hr class="dv">
+  <div>
+    <div class="md up ls dimmer w7 mb10">🌱⚖️💪 Modo de Dificultad</div>
+    <div class="s6">
+      <div>Cambia la dificultad en la barra superior. Escala qué tan duro pegan las <em>Recompensas</em>. Los puntos positivos son iguales en todos los modos.</div>
+      <div><span class="w6" style="color:var(--cg)">🌱 Fácil</span> — para principiantes o formación de hábitos. Estimulantes −25 · Procrastinación −10/min · Orgasmo −100.</div>
+      <div><span class="w6" style="color:var(--cy)">⚖️ Medio</span> — balanceado. Estimulantes −125 · Procrastinación −50/min · Orgasmo −500.</div>
+      <div><span class="w6" style="color:var(--cr)">💪 Difícil</span> — modo disciplina total (predeterminado). Estimulantes −250 · Procrastinación −100/min · Orgasmo −1,000.</div>
+    </div>
+  </div>
+  <hr class="dv">
+  <div>
+    <div class="md up ls dimmer w7 mb10">🔄 Cómo se reinician las rachas</div>
+    <div class="s6">
+      <div>Todas las rachas se rompen al saltarte un día, excepto procrastinación, que permite 30 minutos diarios.</div>
+      <div>Además, algunas rachas se reinician según el color de tu día:</div>
+      <div>Un día <span class="cr w6">🔴 Rojo</span> reinicia tu racha de Trabajo. 💼</div>
+      <div>Un día <span class="cy w6">🟡 Amarillo</span> reinicia tu racha de Estimulantes. 💊</div>
+      <div>Un día <span class="cg w6">🟢 Verde</span> reinicia Estimulantes 💊 + Procrastinación. 🌐</div>
+      <div>Un día <span class="cp w6">🟣 Morado</span> reinicia TODAS las rachas de recompensas, incluyendo Desvelo. 🌙</div>
+      <div class="xs dimmer">Los días que olvidas registrar cuentan como −1,000 pts y día Rojo. ¡Registra diario!</div>
+    </div>
+  </div>
+  <hr class="dv">
+  <div class="xs dimmer ctr">Stoic · Hecho por JuanFer</div>
+</div>`:`<div class="s16 dim">
   <div>
     <div class="md up ls dimmer w7 mb10">📋 How this app works</div>
     <div class="s6">
@@ -1234,9 +1436,7 @@ function renderRules(){
       <div>The app turns your day into a score and a color. Over time you see your patterns — what helps, what hurts, how consistent you really are, what needs to change.</div>
     </div>
   </div>
-
   <hr class="dv">
-
   <div>
     <div class="md up ls dimmer w7 mb10">📊 Day Status — your daily color</div>
     <div class="s6">
@@ -1245,12 +1445,10 @@ function renderRules(){
       <div><span class="cg w6">🟢 Green</span> — 85% or more. Great day.</div>
       <div><span class="cy w6">🟡 Yellow</span> — 50% or more. Decent day.</div>
       <div><span class="cr w6">🔴 Red</span> — less than 50%. Rough day.</div>
-      <div class="xs dimmer">Bonus: marking <strong>Goals Annihilated</strong> bumps your color up one tier — Red→Yellow, Yellow→Green, Green→Purple. Use this for days when you crushed your most important goals even if the task count was low.</div>
+      <div class="xs dimmer">Bonus: marking <strong>Goals Annihilated</strong> bumps your color up one tier — Red→Yellow, Yellow→Green, Green→Purple.</div>
     </div>
   </div>
-
   <hr class="dv">
-
   <div>
     <div class="md up ls ac w7 mb10">💰 How you earn points</div>
     <div class="s6">
@@ -1260,54 +1458,47 @@ function renderRules(){
       <div><span class="ac w6">🍅 Pomodoros</span> — each focused work session = +25 pts.</div>
       <div><span class="ac w6">💼 Work</span> — log your work time. +1 pt per minute, multiplied by your consecutive work-day streak.</div>
       <div><span class="ac w6">😴 Sleep</span> — log your sleep and naps. +1 pt per minute. Going to bed early gives a streak-multiplied bonus on top.</div>
-      <div><span class="ac w6">🎨 Day color bonus</span> — your color gives bonus points that <em>stack</em>: <span class="cy">Yellow</span> +10 · <span class="cg">Green</span> +30 (includes Yellow) · <span class="cp">Purple</span> +60 (includes all three). This bonus multiplies by your consecutive non-red streak, so staying consistent pays off exponentially.</div>
+      <div><span class="ac w6">🎨 Day color bonus</span> — your color gives bonus points that <em>stack</em>: <span class="cy">Yellow</span> +10 · <span class="cg">Green</span> +30 (includes Yellow) · <span class="cp">Purple</span> +60 (includes all three). This bonus multiplies by your consecutive non-red streak.</div>
     </div>
   </div>
-
   <hr class="dv">
-
   <div>
     <div class="md up ls ng w7 mb10">🤤 Rewards (point costs 💸)</div>
     <div class="s6">
       <div>These are behaviors you want to keep at bay. Each one costs points — and the longer you keep doing them, the more they cost (streak multiplier).</div>
-      <div><span class="ng w6">💊 Indulgences</span> — junk food, substances (sugar, coffee, weed, alcohol; your call), and anything you want to cut back on. Costs points × how many days in a row you indulged.</div>
+      <div><span class="ng w6">💊 Stimulants</span> — junk food, substances (sugar, coffee, weed, alcohol; your call), and anything you want to cut back on. Costs points × how many days in a row you indulged.</div>
       <div><span class="ng w6">🌐 Procrastination</span> — log how many minutes you wasted. After 30 min, the streak multiplier kicks in.</div>
       <div><span class="ng w6">💦 Orgasm</span> — costs a lot × consecutive days.</div>
       <div><span class="ng w6">🌙 Slept Late</span> — staying up late costs 100 pts × your late-night streak.</div>
       <div class="xs dimmer">Exact costs depend on your difficulty mode — see below.</div>
     </div>
   </div>
-
   <hr class="dv">
-
   <div>
     <div class="md up ls dimmer w7 mb10">🌱⚖️💪 Difficulty Mode</div>
     <div class="s6">
       <div>Switch difficulty in the top bar. It scales how hard the <em>Rewards</em> hit. Positive points stay the same in all modes.</div>
-      <div><span class="w6" style="color:var(--cg)">🌱 Easy</span> — good for beginners or habit formation. Indulgences −25 · Procrastination −10/min · Orgasm −100.</div>
-      <div><span class="w6" style="color:var(--cy)">⚖️ Medium</span> — balanced. Indulgences −125 · Procrastination −50/min · Orgasm −500.</div>
-      <div><span class="w6" style="color:var(--cr)">💪 Hard</span> — full discipline mode (default). Indulgences −250 · Procrastination −100/min · Orgasm −1,000.</div>
+      <div><span class="w6" style="color:var(--cg)">🌱 Easy</span> — good for beginners or habit formation. Stimulants −25 · Procrastination −10/min · Orgasm −100.</div>
+      <div><span class="w6" style="color:var(--cy)">⚖️ Medium</span> — balanced. Stimulants −125 · Procrastination −50/min · Orgasm −500.</div>
+      <div><span class="w6" style="color:var(--cr)">💪 Hard</span> — full discipline mode (default). Stimulants −250 · Procrastination −100/min · Orgasm −1,000.</div>
     </div>
   </div>
-
   <hr class="dv">
-
   <div>
     <div class="md up ls dimmer w7 mb10">🔄 How streaks reset</div>
     <div class="s6">
       <div>All streaks break the moment you skip a day, except for procrastination, which you're allowed for 30 minutes a day.</div>
       <div>Also, some streaks reset based on your day color:</div>
       <div>A <span class="cr w6">🔴 Red</span> day resets your Work streak.</div>
-      <div>A <span class="cy w6">🟡 Yellow</span> day resets your Indulgences reward streak.</div>
-      <div>A <span class="cg w6">🟢 Green</span> day resets Indulgences + Procrastination reward streaks.</div>
+      <div>A <span class="cy w6">🟡 Yellow</span> day resets your Stimulants reward streak.</div>
+      <div>A <span class="cg w6">🟢 Green</span> day resets Stimulants + Procrastination reward streaks.</div>
       <div>A <span class="cp w6">🟣 Purple</span> day resets ALL reward streaks, including Late Night.</div>
       <div class="xs dimmer">Days you forget to log count as −1,000 pts and a Red day. Don't skip!</div>
     </div>
   </div>
-
   <hr class="dv">
   <div class="xs dimmer ctr">Stoic · Made by JuanFer</div>
-  </div>`;
+</div>`;
   wrap.appendChild(body);return wrap;
 }
 
@@ -1318,7 +1509,7 @@ function renderSyncPanel(){
   const card=dv('card fi mb12');
   card.style.cssText='border:1px solid var(--acb);background:var(--acd)';
   const hd=dv('rowb mb12');
-  hd.appendChild(sp('ctit','☁ Cloud Sync — Supabase'));
+  hd.appendChild(sp('ctit',t('sync-title')));
   hd.appendChild(bt('btn-icon','✕',()=>{STATE.showSyncPanel=false;refresh()}));
   card.appendChild(hd);
   const sbConfigured=!!(window._SUPABASE_URL&&window._SUPABASE_KEY);
@@ -1328,9 +1519,9 @@ function renderSyncPanel(){
   }
   const hasToken=!!(localStorage.getItem('AUTH_TOKEN'));
   if(hasToken){
-    const info=dv('sm cg mb8');info.textContent='✅ Logged in — sync is active.';card.appendChild(info);
+    const info=dv('sm cg mb8');info.textContent=t('logged-in');card.appendChild(info);
     const row=dv('row gap8');
-    row.appendChild(bt('btn-ac btn-sm','Pull from cloud',async()=>{
+    row.appendChild(bt('btn-ac btn-sm',t('pull-cloud'),async()=>{
       const remote=await SB.pull();
       if(remote){
         const merged=new Map();
@@ -1340,10 +1531,10 @@ function renderSyncPanel(){
         refresh();alert('Synced from cloud!');
       } else alert('Pull failed or no data.');
     }));
-    row.appendChild(bt('btn-ghost btn-sm','Push to cloud',async()=>{
+    row.appendChild(bt('btn-ghost btn-sm',t('push-cloud'),async()=>{
       await SB.push(STATE.history,STATE.today,STATE.diary,STATE.streakOverrides);alert('Pushed to cloud!');
     }));
-    row.appendChild(bt('btn-ng btn-sm','Log out',()=>{
+    row.appendChild(bt('btn-ng btn-sm',t('log-out'),()=>{
       localStorage.removeItem('AUTH_TOKEN');STATE.showSyncPanel=false;refresh();
     }));
     card.appendChild(row);
@@ -1351,16 +1542,16 @@ function renderSyncPanel(){
   }
   // Not logged in — show login form
   card.appendChild(dv('sm dim mb10','Log in with your Supabase account to enable cross-device sync.'));
-  const ew=dv('s4 mb8');ew.innerHTML='<div class="xs dimmer up ls">Email</div>';
+  const ew=dv('s4 mb8');ew.innerHTML=`<div class="xs dimmer up ls">${t('email-lbl')}</div>`;
   const ei=ip('email','','','you@email.com');ew.appendChild(ei);card.appendChild(ew);
-  const pw=dv('s4 mb8');pw.innerHTML='<div class="xs dimmer up ls">Password</div>';
+  const pw=dv('s4 mb8');pw.innerHTML=`<div class="xs dimmer up ls">${t('pass-lbl')}</div>`;
   const pi=ip('password','','','password');pw.appendChild(pi);card.appendChild(pw);
   const err=dv('xs ng mb8');card.appendChild(err);
   const loginBtn=bt('btn-ac btn-sm','Log In',async()=>{
     err.textContent='';loginBtn.disabled=true;loginBtn.textContent='Logging in...';
     const res=await SB.login(ei.value.trim(),pi.value);
     if(res.ok){STATE.showSyncPanel=false;refresh();}
-    else{err.textContent=res.error||'Login failed';loginBtn.disabled=false;loginBtn.textContent='Log In';}
+    else{err.textContent=res.error||t('login-failed');loginBtn.disabled=false;loginBtn.textContent='Log In';}
   });
   pi.onkeydown=e=>{if(e.key==='Enter')loginBtn.click();};
   card.appendChild(loginBtn);
@@ -1373,7 +1564,7 @@ function renderStreakPanel(){
   card.style.cssText='border:1px solid var(--acb);background:var(--acd)';
 
   const hd=dv('rowb mb12');
-  hd.appendChild(sp('ctit','⚡ Set Historical Streaks'));
+  hd.appendChild(sp('ctit',t('set-streaks-t')));
   hd.appendChild(bt('btn-icon','✕',()=>{STATE.showStreakPanel=false;refresh()}));
   card.appendChild(hd);
 
@@ -1383,15 +1574,15 @@ function renderStreakPanel(){
 
   const ovr=STATE.streakOverrides;
   const streakDefs=[
-    {k:'morningStreak',l:'Morning Routine',emoji:'🌅'},
-    {k:'flagStreak',l:'Goals Annihilated',emoji:'🏅'},
-    {k:'workStreak',l:'Work',emoji:'💼'},
-    {k:'substancesStreak',l:'Clean — Indulgences',emoji:'✅'},
-    {k:'procrastinationStreak',l:'Clean — Procrastination',emoji:'✅'},
-    {k:'macanazoStreak',l:'Clean — Macanazo',emoji:'✅'},
-    {k:'substancesPenaltyStreak',l:'Indulgences 🔥 streak',emoji:'💊'},
-    {k:'procrastinationPenaltyStreak',l:'Procrastination 🔥 streak',emoji:'🌐'},
-    {k:'macanazoPenaltyStreak',l:'Orgasm 💦 streak',emoji:'💦'},
+    {k:'morningStreak',l:t('sk-morning'),emoji:'🌅'},
+    {k:'flagStreak',l:t('goals-ann'),emoji:'🏅'},
+    {k:'workStreak',l:t('work-lbl'),emoji:'💼'},
+    {k:'substancesStreak',l:t('sk-ci'),emoji:'✅'},
+    {k:'procrastinationStreak',l:t('sk-cp'),emoji:'✅'},
+    {k:'macanazoStreak',l:t('sk-co'),emoji:'✅'},
+    {k:'substancesPenaltyStreak',l:t('sk-i'),emoji:'💊'},
+    {k:'procrastinationPenaltyStreak',l:t('sk-p'),emoji:'🌐'},
+    {k:'macanazoPenaltyStreak',l:t('sk-o'),emoji:'💦'},
   ];
 
   const g=dv('g2 mb12');g.style.gap='8px';
@@ -1417,7 +1608,7 @@ function renderStreakPanel(){
   note.innerHTML='Leave blank to use the calculated value. Overrides apply to today\'s score immediately. They do not modify your history.';
   card.appendChild(note);
 
-  const clearBtn=bt('btn-ghost btn-sm mt10','Clear all overrides',()=>{STATE.streakOverrides={};S.set(K.STREAK_OVR,{});refresh();});
+  const clearBtn=bt('btn-ghost btn-sm mt10',t('clear-ovr'),()=>{STATE.streakOverrides={};S.set(K.STREAK_OVR,{});refresh();});
   clearBtn.style.marginTop='10px';card.appendChild(clearBtn);
   return card;
 }
@@ -1463,7 +1654,7 @@ loadToday();applyTheme();
 let _lastDay=todayKey();
 setInterval(()=>{
   const cl=document.getElementById('clk');
-  if(cl)cl.textContent=new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  if(cl)cl.textContent=new Date().toLocaleTimeString(STATE.lang==='es'?'es-MX':'en-US',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
   const nd=todayKey();
   if(nd!==_lastDay){_lastDay=nd;refresh();}
 },1000);
