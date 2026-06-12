@@ -208,6 +208,7 @@ const SB={
           today: today,
           diary: diary||{},
           streak_overrides: streakOverrides||{},
+          saved_at: Date.now(),
           updated_at: new Date().toISOString()
         })
       });
@@ -217,7 +218,7 @@ const SB={
   async pull(){
     if(!this.init()) return null;
     try{
-      const r=await fetch(`${this.url}/rest/v1/stoic_data?select=history,today,diary,streak_overrides&limit=1`,{headers:this.headers()});
+      const r=await fetch(`${this.url}/rest/v1/stoic_data?select=history,today,diary,streak_overrides,saved_at&limit=1`,{headers:this.headers()});
       if(!r.ok) return null;
       const rows=await r.json();
       return rows&&rows.length?rows[0]:null;
@@ -367,6 +368,7 @@ let STATE={
   diary:S.get(K.DIARY,{}),
   theme:S.get(K.THEME,'dark'),
   streakOverrides:S.get(K.STREAK_OVR,{}),
+  _savedAt:S.get('st_saved_at',0),
   authed:true,
   history:S.get(K.HIST,[]),
   today:{completed:0,target:0,morningCompleted:false,flagCompleted:false,
@@ -420,10 +422,11 @@ function upsertHist(entry,dk){
 /* save: local + push to Supabase if logged in */
 function save(){
   const tk=todayKey();STATE.today._date=tk;STATE.today._penType=STATE.penType;
-  STATE.today._ts=Date.now(); // timestamp every save
+  STATE.today._ts=Date.now();
+  STATE._savedAt=Date.now(); // track when this device last saved
   const sk=CALC.streaks(STATE.history,STATE.today);
   upsertHist(CALC.buildEntry(STATE.today,sk,tk),tk);
-  S.set(K.TODAY,STATE.today);S.set(K.HIST,STATE.history);S.set(K.DIARY,STATE.diary);S.set(K.THEME,STATE.theme);S.set(K.STREAK_OVR,STATE.streakOverrides);
+  S.set(K.TODAY,STATE.today);S.set(K.HIST,STATE.history);S.set(K.DIARY,STATE.diary);S.set(K.THEME,STATE.theme);S.set(K.STREAK_OVR,STATE.streakOverrides);S.set('st_saved_at',STATE._savedAt);
   // push to cloud — fire and forget
   SB.push(STATE.history,STATE.today,STATE.diary,STATE.streakOverrides).catch(()=>{});
 }
@@ -443,39 +446,26 @@ function toggleTheme(){
 /* ═══ BACKGROUND SYNC — pulls from cloud every 30s if logged in ═══ */
 function mergeRemote(remote){
   if(!remote) return false;
+  // Simple rule: remote saved_at vs local saved_at — newest wins everything
+  const remoteSavedAt = remote.saved_at||0;
+  const localSavedAt  = STATE._savedAt||0;
+  if(remoteSavedAt <= localSavedAt) return false; // local is newer, ignore remote
+  // Remote is newer — take everything from remote
   let changed=false;
-  // History: merge by date, remote wins per entry
-  const merged=new Map();
-  (STATE.history||[]).forEach(d=>merged.set(d.date,d));
-  (remote.history||[]).forEach(d=>{
-    const local=merged.get(d.date);
-    // remote wins if: no local entry, OR remote has more points (more data entered), OR remote is not a gap
-    if(!local||(!d._gap&&(Math.abs(d.todayPoints||0)>Math.abs(local.todayPoints||0)||(d.todayPoints!==0&&local.todayPoints===0)))){
-      merged.set(d.date,d);changed=true;
-    }
-  });
-  if(changed){
-    STATE.history=[...merged.values()].sort((a,b)=>b.date.localeCompare(a.date));
-    S.set(K.HIST,STATE.history);
+  if(remote.history&&JSON.stringify(remote.history)!==JSON.stringify(STATE.history)){
+    STATE.history=remote.history;S.set(K.HIST,STATE.history);changed=true;
   }
-  // Today: remote wins if it has a newer timestamp OR more data
-  const rt=remote.today||{};
-  const lt=STATE.today||{};
-  const remoteTs=rt._ts||0;
-  const localTs=lt._ts||0;
-  if(remoteTs>localTs){
-    STATE.today=rt;S.set(K.TODAY,STATE.today);changed=true;
+  if(remote.today&&JSON.stringify(remote.today)!==JSON.stringify(STATE.today)){
+    STATE.today=remote.today;S.set(K.TODAY,STATE.today);changed=true;
   }
-  // Diary: merge both, remote wins on conflict
-  const newDiary={...(STATE.diary||{}),...(remote.diary||{})};
-  if(JSON.stringify(newDiary)!==JSON.stringify(STATE.diary||{})){
-    STATE.diary=newDiary;S.set(K.DIARY,STATE.diary);changed=true;
+  if(remote.diary&&JSON.stringify(remote.diary)!==JSON.stringify(STATE.diary)){
+    STATE.diary=remote.diary;S.set(K.DIARY,STATE.diary);changed=true;
   }
-  // Streak overrides: remote wins always
   const remoteOvr=remote.streak_overrides||{};
   if(JSON.stringify(remoteOvr)!==JSON.stringify(STATE.streakOverrides||{})){
     STATE.streakOverrides=remoteOvr;S.set(K.STREAK_OVR,STATE.streakOverrides);changed=true;
   }
+  if(changed) STATE._savedAt=remoteSavedAt;
   return changed;
 }
 
