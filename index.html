@@ -645,11 +645,11 @@ function renderApp(){
     <div class="xs dimmer mt2 mo" id="clk">${now.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',second:'2-digit'})}</div>`;
 
   // clock update: interval is started once at boot level
-  const acts=dv('row gap8 mt12');acts.style.justifyContent='center';
-  const sind=dv('row gap6 xs dim');
+  const sind=dv('row gap6 xs dim mt6');sind.style.justifyContent='center';
   const lastSync=SB.init()?'☁️ synced':'💾 local';
   sind.innerHTML=`<span class="sdot"></span><span>auto-saved · ${lastSync}</span>`;
-  acts.appendChild(sind);
+  hdr.appendChild(sind);
+  const acts=dv('row gap8 mt10');acts.style.justifyContent='center';
   const themeBtn=bt('btn-ghost btn-sm',STATE.theme==='light'?'🌙 Dark':'☀️ Light',toggleTheme);
   acts.appendChild(themeBtn);
   acts.appendChild(bt('btn-ghost btn-sm','⚡ Set Streaks',()=>{STATE.showStreakPanel=!STATE.showStreakPanel;refresh()}));
@@ -893,14 +893,14 @@ function renderSleepCard(sk_){
 
 /* ═══ STREAKS — 2 colors only ═══ */
 function renderStreaks(sk_){
-  const card=dv('card mt12');card.appendChild(sp('ctit','Streaks'));
-  card.appendChild(sp('xs dimmer up ls mb8','✅ Positive Streaks'));
+  const card=dv('card mt12');card.appendChild(dv('ctit','Streaks'));
+  card.appendChild(dv('xs dimmer up ls mb8','✅ Positive Streaks'));
   const pg=dv('sk-g mb16');
   [{k:'morningStreak',l:'Morning Routine'},{k:'flagStreak',l:'Goals'},{k:'workStreak',l:'Work'},
    {k:'substancesStreak',l:'Clean (indulg.)'},{k:'procrastinationStreak',l:'Clean (proc)'},{k:'macanazoStreak',l:'Clean (org)'}]
   .forEach(item=>{const c=dv('skc pos');const n=dv('skn ac');n.textContent=String(sk_[item.k]||0);const l=dv('skl');l.textContent=item.l;c.appendChild(n);c.appendChild(l);pg.appendChild(c);});
   card.appendChild(pg);
-  card.appendChild(sp('xs dimmer up ls mb8','🔥 Reward Streaks'));
+  card.appendChild(dv('xs dimmer up ls mb8','🤤 Reward Streaks'));
   const ng=dv('sk-g');
   [{k:'substancesPenaltyStreak',l:'Indulg. 💊'},{k:'procrastinationPenaltyStreak',l:'Procrast. 🌐'},{k:'macanazoPenaltyStreak',l:'Orgasm 💦'},{k:'lateStreak',l:'Late Nights 🌙'}]
   .forEach(item=>{const c=dv('skc neg');const n=dv('skn ng');n.textContent=String(sk_[item.k]||0);const l=dv('skl');l.textContent=item.l;c.appendChild(n);c.appendChild(l);ng.appendChild(c);});
