@@ -410,10 +410,11 @@ function upsertHist(entry,dk){
 /* save: local + push to Supabase if logged in */
 function save(){
   const tk=todayKey();STATE.today._date=tk;STATE.today._penType=STATE.penType;
+  STATE.today._ts=Date.now(); // timestamp every save
   const sk=CALC.streaks(STATE.history,STATE.today);
   upsertHist(CALC.buildEntry(STATE.today,sk,tk),tk);
   S.set(K.TODAY,STATE.today);S.set(K.HIST,STATE.history);S.set(K.DIARY,STATE.diary);S.set(K.THEME,STATE.theme);S.set(K.STREAK_OVR,STATE.streakOverrides);
-  // async push — don't await, fire and forget
+  // push to cloud — fire and forget
   SB.push(STATE.history,STATE.today,STATE.diary,STATE.streakOverrides).catch(()=>{});
 }
 
@@ -430,17 +431,16 @@ function toggleTheme(){
 }
 
 /* ═══ BACKGROUND SYNC — pulls from cloud every 30s if logged in ═══ */
-async function bgSync(){
-  if(!STATE.authed||!SB.init()) return;
-  const remote=await SB.pull();
-  if(!remote) return;
+function mergeRemote(remote){
+  if(!remote) return false;
   let changed=false;
-  // Merge history
+  // History: merge by date, remote wins per entry
   const merged=new Map();
   (STATE.history||[]).forEach(d=>merged.set(d.date,d));
   (remote.history||[]).forEach(d=>{
-    const existing=merged.get(d.date);
-    if(!existing||(d.todayPoints!==existing.todayPoints&&!d._gap)){
+    const local=merged.get(d.date);
+    // remote wins if: no local entry, OR remote has more points (more data entered), OR remote is not a gap
+    if(!local||(!d._gap&&(Math.abs(d.todayPoints||0)>Math.abs(local.todayPoints||0)||(d.todayPoints!==0&&local.todayPoints===0)))){
       merged.set(d.date,d);changed=true;
     }
   });
@@ -448,20 +448,28 @@ async function bgSync(){
     STATE.history=[...merged.values()].sort((a,b)=>b.date.localeCompare(a.date));
     S.set(K.HIST,STATE.history);
   }
-  // Today: if remote is newer
+  // Today: remote wins if it has a newer timestamp OR more data
   const rt=remote.today||{};
   const lt=STATE.today||{};
-  if((rt._date||'')>(lt._date||'')||(rt._date===lt._date&&JSON.stringify(rt)!==JSON.stringify(lt))){
+  const remoteTs=rt._ts||0;
+  const localTs=lt._ts||0;
+  if(remoteTs>localTs){
     STATE.today=rt;S.set(K.TODAY,STATE.today);changed=true;
   }
-  // Diary merge
+  // Diary: merge both, remote wins on conflict
   const newDiary={...(STATE.diary||{}),...(remote.diary||{})};
   if(JSON.stringify(newDiary)!==JSON.stringify(STATE.diary||{})){
     STATE.diary=newDiary;S.set(K.DIARY,STATE.diary);changed=true;
   }
-  if(changed) render();
+  return changed;
 }
-setInterval(bgSync, 30000);
+
+async function bgSync(){
+  if(!STATE.authed||!SB.init()) return;
+  const remote=await SB.pull();
+  if(mergeRemote(remote)) render();
+}
+setInterval(bgSync,15000); // every 15s
 /* ═══ DOM HELPERS ═══ */
 function el(t,c,h){const e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e}
 function dv(c,h){return el('div',c,h)}
@@ -587,29 +595,7 @@ function renderLogin(){
   async function afterLogin(){
     actionBtn.textContent='Syncing...';
     const remote=await SB.pull();
-    if(remote){
-      // Merge history: for same date, prefer the one with more points (more complete)
-      const merged=new Map();
-      (STATE.history||[]).forEach(d=>merged.set(d.date,d));
-      (remote.history||[]).forEach(d=>{
-        const existing=merged.get(d.date);
-        if(!existing||Math.abs(d.todayPoints||0)>Math.abs(existing.todayPoints||0))
-          merged.set(d.date,d);
-      });
-      STATE.history=[...merged.values()].sort((a,b)=>b.date.localeCompare(a.date));
-      // Today: use remote if it has newer _date or more data
-      const remoteToday=remote.today||{};
-      const localToday=STATE.today||{};
-      const remoteNewer=(remoteToday._date||'')>=(localToday._date||'');
-      if(remoteNewer&&Object.keys(remoteToday).length>0) STATE.today=remoteToday;
-      // Merge diary
-      STATE.diary={...(STATE.diary||{}),...(remote.diary||{})};
-      // Streak overrides: remote wins
-      if(remote.streak_overrides&&Object.keys(remote.streak_overrides).length>0)
-        STATE.streakOverrides=remote.streak_overrides;
-      S.set(K.HIST,STATE.history);S.set(K.TODAY,STATE.today);
-      S.set(K.DIARY,STATE.diary);S.set(K.STREAK_OVR,STATE.streakOverrides);
-    }
+    mergeRemote(remote);
     S.set(K.AUTH,true);STATE.authed=true;render();
   }
 
@@ -1283,22 +1269,7 @@ loadToday();applyTheme();
 (async()=>{
   if(SB.init()){
     const remote=await SB.pull();
-    if(remote){
-      const merged=new Map();
-      (STATE.history||[]).forEach(d=>merged.set(d.date,d));
-      (remote.history||[]).forEach(d=>{
-        const existing=merged.get(d.date);
-        if(!existing||(d.todayPoints!==existing.todayPoints&&!d._gap)) merged.set(d.date,d);
-      });
-      STATE.history=[...merged.values()].sort((a,b)=>b.date.localeCompare(a.date));
-      const rt=remote.today||{},lt=STATE.today||{};
-      if((rt._date||'')>=(lt._date||'')&&Object.keys(rt).length>0) STATE.today=rt;
-      STATE.diary={...(STATE.diary||{}),...(remote.diary||{})};
-      if(remote.streak_overrides&&Object.keys(remote.streak_overrides).length>0)
-        STATE.streakOverrides=remote.streak_overrides;
-      S.set(K.HIST,STATE.history);S.set(K.TODAY,STATE.today);
-      S.set(K.DIARY,STATE.diary);S.set(K.STREAK_OVR,STATE.streakOverrides);
-    }
+    mergeRemote(remote);
   }
   render();
 })();
