@@ -199,17 +199,19 @@ const SB={
   async push(history, today, diary, streakOverrides){
     if(!this.init()) return;
     try{
-      // Use RPC so user_id is set server-side as auth.uid()
-      await fetch(`${this.url}/rest/v1/rpc/upsert_stoic_data`, {
+      const res=await fetch(`${this.url}/rest/v1/stoic_data`, {
         method:'POST',
-        headers:this.headers(),
+        headers:{...this.headers(),'Prefer':'resolution=merge-duplicates,return=minimal'},
         body:JSON.stringify({
-          p_history: history,
-          p_today: today,
-          p_diary: diary||{},
-          p_streak_overrides: streakOverrides||{}
+          user_id: this.userId(),
+          history: history,
+          today: today,
+          diary: diary||{},
+          streak_overrides: streakOverrides||{},
+          updated_at: new Date().toISOString()
         })
       });
+      if(!res.ok){const t=await res.text();console.warn('Push failed:',res.status,t);}
     }catch(e){console.warn('Supabase push failed',e);}
   },
   async pull(){
@@ -220,6 +222,14 @@ const SB={
       const rows=await r.json();
       return rows&&rows.length?rows[0]:null;
     }catch(e){console.warn('Supabase pull failed',e);return null;}
+  },
+  userId(){
+    // Extract user_id from JWT token without external library
+    try{
+      const payload=this.token.split('.')[1];
+      const decoded=JSON.parse(atob(payload.replace(/-/g,'+').replace(/_/g,'/')));
+      return decoded.sub||null;
+    }catch{return null;}
   },
   async login(email,password){
     this.url=(window._SUPABASE_URL||'').replace(/\/rest\/v1\/?$/,'').replace(/\/+$/,'');
