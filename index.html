@@ -280,9 +280,11 @@ const CALC={
   },
   colorBonus(s){return{purple:60,green:30,yellow:10,red:0}[s]||0},
   penBase(p){
-    if(p.type==='drugs')return -250*(p.details?.substances||1);
-    if(p.type==='internet')return -10*(p.details?.minutes||0);
-    if(p.type==='macanazo')return p.details?.isPositive?100:-1000;
+    const diff=(typeof STATE!=='undefined'?STATE.difficulty:null)||'hard';
+    const mult=diff==='easy'?0.1:diff==='medium'?0.5:1;
+    if(p.type==='drugs')return Math.round(-250*mult*(p.details?.substances||1));
+    if(p.type==='internet')return Math.round(-100*mult*(p.details?.minutes||0));
+    if(p.type==='macanazo')return p.details?.isPositive?100:Math.round(-1000*mult);
     return 0;
   },
   streaks(history,today){
@@ -327,11 +329,11 @@ const CALC={
     const slp=(sleep.sleepDuration||0)+(sleep.napDuration||0)+(sleep.sleptEarly?(sleep.sleepDuration||0)*(sleep.earlyBedStreak||1):0);
     const latePen=sleep.sleptLate?-100*Math.max(1,s.lateStreak||1):0;
     const procMins=penalties.filter(p=>p.type==='internet').reduce((a,p)=>a+(p.details?.minutes||0),0);
-    const procActive=procMins>=30;
+    const procActive=procMins>30;
     const pen=penalties.reduce((sum,p)=>{
       const b=this.penBase(p);let mult=1;
       if(p.type==='drugs')mult=Math.max(1,s.substancesPenaltyStreak);
-      else if(p.type==='internet')mult=procActive?Math.max(1,s.procrastinationPenaltyStreak):0;
+      else if(p.type==='internet')mult=procActive?Math.max(1,s.procrastinationPenaltyStreak):1;
       else if(p.type==='macanazo')mult=Math.max(1,s.macanazoPenaltyStreak);
       return sum+b*mult;
     },0);
@@ -387,6 +389,7 @@ let STATE={
   showStreakPanel:false,
   showSyncPanel:false,
   penType:'drugs', // #3: persist penalty type selection
+  difficulty: localStorage.getItem('st_difficulty')||'hard',
 };
 
 /* ═══ #1 FIX: loadToday checks for missed days, fills all gaps ═══ */
@@ -650,6 +653,15 @@ function renderApp(){
   const themeBtn=bt('btn-ghost btn-sm',STATE.theme==='light'?'🌙 Dark':'☀️ Light',toggleTheme);
   acts.appendChild(themeBtn);
   acts.appendChild(bt('btn-ghost btn-sm','⚡ Set Streaks',()=>{STATE.showStreakPanel=!STATE.showStreakPanel;refresh()}));
+  // Difficulty switch
+  const diffWrap=dv('row gap4');diffWrap.style.cssText='border:1px solid var(--b2);border-radius:9px;padding:2px;background:var(--sur2);';
+  [{d:'easy',lbl:'🌱 Easy'},{d:'medium',lbl:'⚖️ Medium'},{d:'hard',lbl:'💪 Hard'}].forEach(({d,lbl})=>{
+    const active=STATE.difficulty===d;
+    const b=bt(active?'btn-ac btn-xs':'btn-xs',lbl,()=>{STATE.difficulty=d;localStorage.setItem('st_difficulty',d);refresh();});
+    if(!active){b.style.cssText='background:none;border:none;color:var(--t3);font-size:12px;padding:3px 8px;border-radius:5px;cursor:pointer';}
+    diffWrap.appendChild(b);
+  });
+  acts.appendChild(diffWrap);
   acts.appendChild(bt('btn-ghost btn-sm','Logout',()=>{S.set(K.AUTH,false);STATE.authed=false;render();}));
   hdr.appendChild(acts);wrap.appendChild(hdr);
 
@@ -770,7 +782,7 @@ function renderPenCard(sk_){
     const b=CALC.penBase(p);const procMins=STATE.today.penalties.filter(x=>x.type==='internet').reduce((s,x)=>s+(x.details?.minutes||0),0);
     let m=1;
     if(p.type==='drugs')m=Math.max(1,sk_.substancesPenaltyStreak);
-    else if(p.type==='internet')m=procMins>=30?Math.max(1,sk_.procrastinationPenaltyStreak):0;
+    else if(p.type==='internet')m=procMins>30?Math.max(1,sk_.procrastinationPenaltyStreak):0;
     else if(p.type==='macanazo')m=Math.max(1,sk_.macanazoPenaltyStreak);
     return sum+b*m;
   },0);
@@ -818,7 +830,7 @@ function renderPenCard(sk_){
       const base=CALC.penBase(p);
       let mult=1;
       if(p.type==='drugs') mult=Math.max(1,sk_.substancesPenaltyStreak);
-      else if(p.type==='internet') mult=procMinsTotal>=30?Math.max(1,sk_.procrastinationPenaltyStreak):0;
+      else if(p.type==='internet') mult=procMinsTotal>=30?Math.max(1,sk_.procrastinationPenaltyStreak):1;
       else if(p.type==='macanazo') mult=Math.max(1,sk_.macanazoPenaltyStreak);
       const actual=base*mult;
       const lbl=p.type==='drugs'?`Indulgences ×${p.details?.substances||1}`:p.type==='internet'?`Procrast. ${fmtDur(p.details?.minutes||0)}`:'Orgasm';
@@ -959,7 +971,8 @@ function renderCalendar(){
       if(entry){
         const det=dv(`card2 fi s-${entry.status}`);det.style.border='1px solid';
         const dr=dv('rowb');dr.appendChild(sbadge(entry.status));dr.appendChild(sp('lg mo w7 ac',`${entry.todayPoints||0} pts`));det.appendChild(dr);
-        det.appendChild(sp('xs dim mt6',selK));
+        const fmtSelDate=new Date(selK+'T12:00:00').toLocaleDateString('en-US',{weekday:'short',year:'numeric',month:'short',day:'numeric'});
+        det.appendChild(sp('xs dim mt6',fmtSelDate));
         det.appendChild(sp('xs dim mt2',`${entry.completedTasks||0}/${entry.totalTasks||0} tasks · ${entry.pomodoros||0} 🍅`));
         if(entry.streaks?.some(s=>s.type==='flags'&&s.active))det.appendChild(sp('sm mt4','🏅 Goals Annihilated'));
         if(entry._gap)det.appendChild(sp('xs ng mt4','⚠ Day not logged (−1000)'));
@@ -974,10 +987,23 @@ function renderCalendar(){
         det.appendChild(diaryToggle);
         // Show existing note preview
         if(STATE.diary[selK]){
-          const preview=dv('xs dim mt6');preview.style.cssText='white-space:pre-wrap;max-height:60px;overflow:hidden;cursor:pointer';
-          preview.textContent=STATE.diary[selK].slice(0,120)+(STATE.diary[selK].length>120?'…':'');
-          preview.onclick=()=>diaryToggle.click();
-          det.appendChild(preview);
+          const noteText=STATE.diary[selK];
+          const needsToggle=noteText.split('\n').length>3||noteText.length>120;
+          const preview=dv('xs dim mt6');preview.style.cssText='white-space:pre-wrap;cursor:pointer';
+          let expanded=false;
+          function renderPreview(){
+            if(!needsToggle||expanded){preview.textContent=noteText;}
+            else{preview.textContent=noteText.split('\n').slice(0,2).join('\n')+(noteText.split('\n').length>2?'…':'');}
+          }
+          renderPreview();
+          if(needsToggle){
+            const vBtn=bt('btn-ghost btn-xs','Ver más',()=>{expanded=!expanded;renderPreview();vBtn.textContent=expanded?'Ver menos':'Ver más';});
+            vBtn.style.marginTop='4px';
+            preview.onclick=()=>{expanded=!expanded;renderPreview();vBtn.textContent=expanded?'Ver menos':'Ver más';};
+            det.appendChild(preview);det.appendChild(vBtn);
+          } else {
+            det.appendChild(preview);
+          }
         }
         wrap.appendChild(det);
       }
@@ -1001,13 +1027,54 @@ function renderHistEd(sk_){
   function build(){
     while(wrap.children.length>1)wrap.removeChild(wrap.lastChild);
     const days=buildDays();const list=dv('s6');
+    // Most recent day shown = today (i=0); that's where we show reset emojis
+    const todaySt=CALC.score(STATE.today,sk_).status;
+    // Most recent logged key = today if it has tasks/data, else last history entry
+    const shownKeys=days.slice(0,vis).map(d=>d.key);
+    const mostRecentKey=shownKeys[0]; // always today
+    function resetEmojis(status){
+      if(status==='red')return'💼🔄';
+      if(status==='yellow')return'💊🔄';
+      if(status==='green')return'💊🌐🔄';
+      if(status==='purple')return'💊🌐💦🌙🔄';
+      return'';
+    }
+    function resetTooltip(status){
+      if(status==='red')return'Work streak reset';
+      if(status==='yellow')return'Indulgences streak reset';
+      if(status==='green')return'Indulgences & Procrastination streaks reset';
+      if(status==='purple')return'All streaks reset';
+      return'';
+    }
+    // Pre-pass: find most recent day key for each color (today wins for its color)
+    const mostRecentForColor={};
+    // today is always most recent for its own color
+    mostRecentForColor[todaySt]='today';
+    // scan history entries in order (days is already newest-first)
+    days.slice(0,vis).forEach(({key,entry,isToday})=>{
+      if(isToday)return;
+      if(entry&&!entry._gap&&!mostRecentForColor[entry.status]){
+        mostRecentForColor[entry.status]=key;
+      }
+    });
     days.slice(0,vis).forEach(({key,entry,isToday})=>{
       const isEd=edKey===key;const row=dv(`hr-row${isEd?' ed':''}`);
       const hd=dv('rowb');const lft=dv('row gap6');
       lft.appendChild(sp('sm mo dim',key));
-      if(isToday){const b=sp('badge s-ac','TODAY');b.style.marginLeft='4px';lft.appendChild(b);}
-      if(entry)lft.appendChild(sbadge(entry.status));
+      if(isToday){
+        // TODAY badge: colored by current day status
+        const b=sp(`badge s-${todaySt}`,'TODAY');b.style.marginLeft='4px';lft.appendChild(b);
+        // Reset emojis only if today is the most recent of its color
+        if(mostRecentForColor[todaySt]==='today'){
+          const re=sp('xs dimmer',' '+resetEmojis(todaySt));re.style.marginLeft='2px';re.title=resetTooltip(todaySt);re.style.cursor='help';lft.appendChild(re);
+        }
+      }
+      if(entry&&!isToday)lft.appendChild(sbadge(entry.status));
       if(entry?._gap)lft.appendChild(sp('xs ng',' ⚠gap'));
+      // Show reset emojis only on the most recent historical entry of its color
+      if(!isToday&&entry&&!entry._gap&&mostRecentForColor[entry.status]===key){
+        const re=sp('xs dimmer',' '+resetEmojis(entry.status));re.style.marginLeft='4px';re.title=resetTooltip(entry.status);re.style.cursor='help';lft.appendChild(re);
+      }
       hd.appendChild(lft);
       const rgt=dv('row gap6');
       if(entry)rgt.appendChild(sp('sm mo dimmer',`${entry.todayPoints||0}pt`));
@@ -1160,41 +1227,66 @@ function renderRules(){
   body.innerHTML=`<div class="s16 dim">
 
   <div>
-    <div class="md up ls ac w7 mb10">✅ Positive Points</div>
+    <div class="md up ls dimmer w7 mb10">📋 How this app works</div>
     <div class="s6">
-      <div><span class="ac w6">✅ Tasks</span> — each completed task gives you +1 pt.</div>
-      <div><span class="ac w6">🌅 Morning Routine</span> — complete it and earn +25 pts. Your streak multiplies the bonus: day 5 = +125 pts.</div>
-      <div><span class="ac w6">🏅 Goals Annihilated</span> — mark all your key goals as done and earn +100 pts, multiplied by your streak.</div>
-      <div><span class="ac w6">🍅 Pomodoros</span> — each focused work session (pomodoro) gives +25 pts.</div>
-      <div><span class="ac w6">💼 Work</span> — every minute of work logged gives +1 pt, multiplied by your work streak.</div>
-      <div><span class="ac w6">😴 Sleep</span> — every minute of sleep or nap gives +1 pt. Sleeping early gives a bonus multiplied by your early-bed streak.</div>
-      <div><span class="ac w6">Day color bonus</span> — stacking × streak: <span class="cy">Yellow</span> +10 · <span class="cg">Green</span> +30 (includes yellow) · <span class="cp">Purple</span> +60 (includes all). The longer your non-red streak, the bigger the bonus.</div>
+      <div>Stoic is a <span class="ac w6">daily accountability tracker</span>. It works best alongside a to-do list (Notion, Apple Reminders, paper — whatever you use).</div>
+      <div>Every day: <strong>1)</strong> make your task list somewhere, <strong>2)</strong> work through it, <strong>3)</strong> come back here and log how it went.</div>
+      <div>The app turns your day into a score and a color. Over time you see your patterns — what helps, what hurts, how consistent you really are, what needs to change.</div>
     </div>
   </div>
 
   <hr class="dv">
 
   <div>
-    <div class="md up ls ng w7 mb10">🤤 Rewards</div>
+    <div class="md up ls dimmer w7 mb10">📊 Day Status — your daily color</div>
     <div class="s6">
-      <div><span class="ng w6">💊 Indulgences</span> — each indulgence (substance or junk food) costs −250 pts, multiplied by consecutive days used.</div>
-      <div><span class="ng w6">🌐 Procrastination</span> — costs −10 pts per minute, kicks in after 30 accumulated minutes. The longer your streak of procrastinating days, the heavier the cost.</div>
-      <div><span class="ng w6">💦 Orgasm</span> — costs −1,000 pts, multiplied by consecutive days.</div>
-      <div><span class="ng w6">🌙 Slept Late</span> — staying up too late costs −100 pts × your late-night streak.</div>
+      <div>Your day gets a color based on how many tasks you completed out of your target:</div>
+      <div><span class="cp w6">🟣 Purple</span> — 100% done. Perfect day.</div>
+      <div><span class="cg w6">🟢 Green</span> — 85% or more. Great day.</div>
+      <div><span class="cy w6">🟡 Yellow</span> — 50% or more. Decent day.</div>
+      <div><span class="cr w6">🔴 Red</span> — less than 50%. Rough day.</div>
+      <div class="xs dimmer">Bonus: marking <strong>Goals Annihilated</strong> bumps your color up one tier — Red→Yellow, Yellow→Green, Green→Purple. Use this for days when you crushed your most important goals even if the task count was low.</div>
     </div>
   </div>
 
   <hr class="dv">
 
   <div>
-    <div class="md up ls dimmer w7 mb10">📊 Day Status</div>
+    <div class="md up ls ac w7 mb10">💰 How you earn points</div>
     <div class="s6">
-      <div>Your day gets a color based on how many tasks you completed:</div>
-      <div><span class="cp w6">Purple</span> — 100% of tasks done. Perfect day.</div>
-      <div><span class="cg w6">Green</span> — 85% or more. Great day.</div>
-      <div><span class="cy w6">Yellow</span> — 50% or more. Decent day.</div>
-      <div><span class="cr w6">Red</span> — less than 50%. Rough day.</div>
-      <div class="xs dimmer">Tip: completing Goals Annihilated bumps your day up one tier — a Red becomes Yellow, a Yellow becomes Green, a Green becomes Purple.</div>
+      <div><span class="ac w6">✅ Tasks</span> — +1 pt per completed task.</div>
+      <div><span class="ac w6">🌅 Morning Routine</span> — did you do your morning routine today? Check it off for +25 pts. The longer your streak, the bigger the bonus.</div>
+      <div><span class="ac w6">🏅 Goals Annihilated</span> — crushed your key goals for the day? +100 pts × your streak.</div>
+      <div><span class="ac w6">🍅 Pomodoros</span> — each focused work session = +25 pts.</div>
+      <div><span class="ac w6">💼 Work</span> — log your work time. +1 pt per minute, multiplied by your consecutive work-day streak.</div>
+      <div><span class="ac w6">😴 Sleep</span> — log your sleep and naps. +1 pt per minute. Going to bed early gives a streak-multiplied bonus on top.</div>
+      <div><span class="ac w6">🎨 Day color bonus</span> — your color gives bonus points that <em>stack</em>: <span class="cy">Yellow</span> +10 · <span class="cg">Green</span> +30 (includes Yellow) · <span class="cp">Purple</span> +60 (includes all three). This bonus multiplies by your consecutive non-red streak, so staying consistent pays off exponentially.</div>
+    </div>
+  </div>
+
+  <hr class="dv">
+
+  <div>
+    <div class="md up ls ng w7 mb10">🤤 Rewards (point costs 💸)</div>
+    <div class="s6">
+      <div>These are behaviors you want to keep at bay. Each one costs points — and the longer you keep doing them, the more they cost (streak multiplier).</div>
+      <div><span class="ng w6">💊 Indulgences</span> — junk food, substances (sugar, coffee, weed, alcohol; your call), and anything you want to cut back on. Costs points × how many days in a row you indulged.</div>
+      <div><span class="ng w6">🌐 Procrastination</span> — log how many minutes you wasted. After 30 min, the streak multiplier kicks in.</div>
+      <div><span class="ng w6">💦 Orgasm</span> — costs a lot × consecutive days.</div>
+      <div><span class="ng w6">🌙 Slept Late</span> — staying up late costs 100 pts × your late-night streak.</div>
+      <div class="xs dimmer">Exact costs depend on your difficulty mode — see below.</div>
+    </div>
+  </div>
+
+  <hr class="dv">
+
+  <div>
+    <div class="md up ls dimmer w7 mb10">🌱⚖️💪 Difficulty Mode</div>
+    <div class="s6">
+      <div>Switch difficulty in the top bar. It scales how hard the <em>Rewards</em> hit. Positive points stay the same in all modes.</div>
+      <div><span class="w6" style="color:var(--cg)">🌱 Easy</span> — good for beginners or habit formation. Indulgences −25 · Procrastination −10/min · Orgasm −100.</div>
+      <div><span class="w6" style="color:var(--cy)">⚖️ Medium</span> — balanced. Indulgences −125 · Procrastination −50/min · Orgasm −500.</div>
+      <div><span class="w6" style="color:var(--cr)">💪 Hard</span> — full discipline mode (default). Indulgences −250 · Procrastination −100/min · Orgasm −1,000.</div>
     </div>
   </div>
 
@@ -1203,13 +1295,13 @@ function renderRules(){
   <div>
     <div class="md up ls dimmer w7 mb10">🔄 How streaks reset</div>
     <div class="s6">
-      <div>All streaks break naturally when you go a day without that activity — no work logged means no work streak.</div>
-      <div>Some streaks reset based on your day color:</div>
-      <div>A <span class="cr w6">Red</span> day resets your Work streak.</div>
-      <div>A <span class="cy w6">Yellow</span> day resets your Indulgences penalty streak.</div>
-      <div>A <span class="cg w6">Green</span> day resets Indulgences + Procrastination penalty streaks.</div>
-      <div>A <span class="cp w6">Purple</span> day resets all negative penalty streaks, including Late Night.</div>
-      <div class="xs dimmer">Days you forget to log count as −1,000 pts and a red day.</div>
+      <div>All streaks break the moment you skip a day, except for procrastination, which you're allowed for 30 minutes a day.</div>
+      <div>Also, some streaks reset based on your day color:</div>
+      <div>A <span class="cr w6">🔴 Red</span> day resets your Work streak.</div>
+      <div>A <span class="cy w6">🟡 Yellow</span> day resets your Indulgences reward streak.</div>
+      <div>A <span class="cg w6">🟢 Green</span> day resets Indulgences + Procrastination reward streaks.</div>
+      <div>A <span class="cp w6">🟣 Purple</span> day resets ALL reward streaks, including Late Night.</div>
+      <div class="xs dimmer">Days you forget to log count as −1,000 pts and a Red day. Don't skip!</div>
     </div>
   </div>
 
