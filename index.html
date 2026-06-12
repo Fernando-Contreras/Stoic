@@ -18,9 +18,9 @@
   /* negative = red */
   --ng:#ff5566;--ngd:rgba(255,85,102,.13);--ngb:rgba(255,85,102,.30);
   /* status */
-  --cr:#ff5566;--cy:#f5c842;--cg:#34d399;--cp:#a78bfa;
-  --rd:rgba(255,85,102,.13);--yd:rgba(245,200,66,.13);--gd:rgba(52,211,153,.13);--pd:rgba(167,139,250,.13);
-  --rb:rgba(255,85,102,.30);--yb:rgba(245,200,66,.30);--gb:rgba(52,211,153,.30);--pb:rgba(167,139,250,.30);
+  --cr:#ff5566;--cy:#0ea5c9;--cg:#34d399;--cp:#a78bfa;
+  --rd:rgba(255,85,102,.13);--yd:rgba(14,165,201,.13);--gd:rgba(52,211,153,.13);--pd:rgba(167,139,250,.13);
+  --rb:rgba(255,85,102,.30);--yb:rgba(14,165,201,.30);--gb:rgba(52,211,153,.30);--pb:rgba(167,139,250,.30);
   --ff:'Outfit',sans-serif;--mo:'JetBrains Mono',monospace;
 }
 /* #9: base font 17px, max-width 1100px = natural 125–150% feel */
@@ -316,7 +316,7 @@ const CALC={
     const mB=morningCompleted&&completed>=13?25*Math.max(1,s.morningStreak):0;
     const fB=flagCompleted?100*Math.max(1,s.flagStreak):0;
     const pom=pomodoros*25;
-    const wrk=work.workDuration||0;
+    const wrk=(work.workDuration||0)*Math.max(1,s.workStreak);
     const slp=(sleep.sleepDuration||0)+(sleep.napDuration||0)+(sleep.sleptEarly?(sleep.sleepDuration||0)*(sleep.earlyBedStreak||1):0);
     const procMins=penalties.filter(p=>p.type==='internet').reduce((a,p)=>a+(p.details?.minutes||0),0);
     const procActive=procMins>=30;
