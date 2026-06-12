@@ -482,6 +482,7 @@ const CALC={
   buildEntry(today,streaks,date){
     const sc=this.score(today,streaks);
     return{date,todayPoints:sc.total,status:sc.status,
+      _ts:today._ts||Date.now(),
       completedTasks:today.completed,totalTasks:today.target,pomodoros:today.pomodoros,
       penalties:today.penalties.map(p=>({type:p.type,count:p.count,points:this.penBase(p),streak:1})),
       streaks:[{type:'morning',count:today.morningCompleted?1:0,active:today.morningCompleted},{type:'flags',count:today.flagCompleted?1:0,active:today.flagCompleted}],
@@ -589,26 +590,51 @@ function toggleTheme(){
 /* ═══ BACKGROUND SYNC — pulls from cloud every 30s if logged in ═══ */
 function mergeRemote(remote){
   if(!remote) return false;
-  // Simple rule: remote saved_at vs local saved_at — newest wins everything
-  const remoteSavedAt = remote.saved_at||0;
-  const localSavedAt  = STATE._savedAt||0;
-  if(remoteSavedAt <= localSavedAt) return false; // local is newer, ignore remote
-  // Remote is newer — take everything from remote
   let changed=false;
-  if(remote.history&&JSON.stringify(remote.history)!==JSON.stringify(STATE.history)){
-    STATE.history=remote.history;S.set(K.HIST,STATE.history);changed=true;
+
+  // ── History: merge per-day, newest entry per date wins ──
+  if(remote.history&&remote.history.length){
+    const localMap=new Map((STATE.history||[]).map(d=>[d.date,d]));
+    let histChanged=false;
+    for(const rd of remote.history){
+      const ld=localMap.get(rd.date);
+      // take remote entry if local doesn't have it, or remote is newer (has _ts)
+      if(!ld||(rd._ts||0)>(ld._ts||0)){
+        localMap.set(rd.date,rd);histChanged=true;
+      }
+    }
+    if(histChanged){
+      STATE.history=[...localMap.values()].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,200);
+      S.set(K.HIST,STATE.history);changed=true;
+    }
   }
-  if(remote.today&&JSON.stringify(remote.today)!==JSON.stringify(STATE.today)){
-    STATE.today=remote.today;S.set(K.TODAY,STATE.today);changed=true;
+
+  // ── Today: compare _ts timestamps — newest wins ──
+  if(remote.today){
+    const remoteTs=remote.today._ts||0;
+    const localTs=STATE.today._ts||0;
+    if(remoteTs>localTs&&JSON.stringify(remote.today)!==JSON.stringify(STATE.today)){
+      STATE.today=remote.today;S.set(K.TODAY,STATE.today);changed=true;
+    }
   }
-  if(remote.diary&&JSON.stringify(remote.diary)!==JSON.stringify(STATE.diary)){
-    STATE.diary=remote.diary;S.set(K.DIARY,STATE.diary);changed=true;
+
+  // ── Diary: merge key by key, keep non-empty ──
+  if(remote.diary&&Object.keys(remote.diary).length){
+    let diaryChanged=false;
+    for(const[k,v] of Object.entries(remote.diary)){
+      if(!STATE.diary[k]&&v){STATE.diary[k]=v;diaryChanged=true;}
+    }
+    if(diaryChanged){S.set(K.DIARY,STATE.diary);changed=true;}
   }
+
+  // ── Streak overrides: remote wins if remote saved_at is newer ──
   const remoteOvr=remote.streak_overrides||{};
-  if(JSON.stringify(remoteOvr)!==JSON.stringify(STATE.streakOverrides||{})){
+  const remoteSavedAt=remote.saved_at||0;
+  const localSavedAt=STATE._savedAt||0;
+  if(remoteSavedAt>localSavedAt&&JSON.stringify(remoteOvr)!==JSON.stringify(STATE.streakOverrides||{})){
     STATE.streakOverrides=remoteOvr;S.set(K.STREAK_OVR,STATE.streakOverrides);changed=true;
   }
-  if(changed) STATE._savedAt=remoteSavedAt;
+
   return changed;
 }
 
