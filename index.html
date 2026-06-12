@@ -690,7 +690,7 @@ function renderScoreCard(total,sc,sk_){
   cr.innerHTML=`<svg width="70" height="70" class="circ" viewBox="0 0 70 70"><circle cx="35" cy="35" r="${R}" stroke="#22222e" stroke-width="7" fill="none"/><circle cx="35" cy="35" r="${R}" stroke="var(--ac)" stroke-width="7" fill="none" stroke-dasharray="${circ}" stroke-dashoffset="${off}" stroke-linecap="round" style="transition:stroke-dashoffset .4s"/></svg><div><div class="xxl w7 ac mo">${pct}%</div><div class="xs dimmer">${STATE.today.completed}/${STATE.today.target} tasks</div></div>`;
   card.appendChild(cr);
   const posRows=[['Tasks',sc.total],['Morning',sc.mB],['Flags',sc.fB],['Pomodoros',sc.pom],['Work',sc.wrk],['Sleep',sc.slp],['Color',sc.col]].filter(r=>r[1]>0);
-  const negRows=[['Penalties',sc.pen]].filter(r=>r[1]!==0);
+  const negRows=[['Rewards',sc.pen]].filter(r=>r[1]!==0);
   if(posRows.length||negRows.length){
     const bd=dv('s4 mt10');
     posRows.forEach(([l,v])=>{const r=dv('rowb');r.innerHTML=`<span class="xs dim">${l}</span><span class="xs mo w6 ac">+${v}</span>`;bd.appendChild(r);});
@@ -759,10 +759,10 @@ function renderPenCard(sk_){
     else if(p.type==='macanazo')m=Math.max(1,sk_.macanazoPenaltyStreak);
     return sum+b*m;
   },0);
-  const tr=dv('rowb mb10');tr.appendChild(sp('ctit','Penalties'));if(penPts!==0)tr.appendChild(sp('md mo w7 ng',String(penPts)));card.appendChild(tr);
+  const tr=dv('rowb mb10');tr.appendChild(sp('ctit','Rewards'));if(penPts!==0)tr.appendChild(sp('md mo w7 ng',String(penPts)));card.appendChild(tr);
 
   // #3: use STATE.penType so selection persists after refresh
-  const tEl=sk('mb8',[['drugs','💊 Substances'],['internet','🌐 Procrastination'],['macanazo','⚡ Macanazo']],STATE.penType);
+  const tEl=sk('mb8',[['drugs','💊 Substances'],['internet','🌐 Procrastination'],['macanazo','💦 Orgasm']],STATE.penType);
   tEl.onchange=()=>{STATE.penType=tEl.value;updateDet();};
   card.appendChild(tEl);
 
@@ -806,7 +806,7 @@ function renderPenCard(sk_){
       else if(p.type==='internet') mult=procMinsTotal>=30?Math.max(1,sk_.procrastinationPenaltyStreak):0;
       else if(p.type==='macanazo') mult=Math.max(1,sk_.macanazoPenaltyStreak);
       const actual=base*mult;
-      const lbl=p.type==='drugs'?`Substances ×${p.details?.substances||1}`:p.type==='internet'?`Procrast. ${fmtDur(p.details?.minutes||0)}`:'Macanazo';
+      const lbl=p.type==='drugs'?`Substances ×${p.details?.substances||1}`:p.type==='internet'?`Procrast. ${fmtDur(p.details?.minutes||0)}`:'Orgasm';
       const row=dv('pen-it');
       const info=dv('f1');
       // Show label + breakdown: base × streak = actual
@@ -861,12 +861,12 @@ function renderStreaks(sk_){
   card.appendChild(sp('xs dimmer up ls mb8','✅ Positive Streaks'));
   const pg=dv('sk-g mb16');
   [{k:'morningStreak',l:'Morning Routine'},{k:'flagStreak',l:'Goals'},{k:'workStreak',l:'Work'},
-   {k:'substancesStreak',l:'Clean (subs)'},{k:'procrastinationStreak',l:'Clean (proc)'},{k:'macanazoStreak',l:'Clean (mac)'}]
+   {k:'substancesStreak',l:'Clean (subs)'},{k:'procrastinationStreak',l:'Clean (proc)'},{k:'macanazoStreak',l:'Clean (org)'}]
   .forEach(item=>{const c=dv('skc pos');const n=dv('skn ac');n.textContent=String(sk_[item.k]||0);const l=dv('skl');l.textContent=item.l;c.appendChild(n);c.appendChild(l);pg.appendChild(c);});
   card.appendChild(pg);
-  card.appendChild(sp('xs dimmer up ls mb8','🔥 Penalty Streaks'));
+  card.appendChild(sp('xs dimmer up ls mb8','🔥 Reward Streaks'));
   const ng=dv('sk-g');
-  [{k:'substancesPenaltyStreak',l:'Subs 🔥'},{k:'procrastinationPenaltyStreak',l:'Procrast. 🔥'},{k:'macanazoPenaltyStreak',l:'Macanazo 🔥'}]
+  [{k:'substancesPenaltyStreak',l:'Subs 🔥'},{k:'procrastinationPenaltyStreak',l:'Procrast. 🔥'},{k:'macanazoPenaltyStreak',l:'Orgasm 💦'}]
   .forEach(item=>{const c=dv('skc neg');const n=dv('skn ng');n.textContent=String(sk_[item.k]||0);const l=dv('skl');l.textContent=item.l;c.appendChild(n);c.appendChild(l);ng.appendChild(c);});
   card.appendChild(ng);return card;
 }
@@ -1005,7 +1005,7 @@ function renderHistEd(sk_){
         g.appendChild(nf('Pomodoros',fst.pomodoros,v=>fst.pomodoros=v));g.appendChild(nf('Work (min)',fst.workDuration,v=>fst.workDuration=v));
         g.appendChild(nf('Sleep (min)',fst.sleepDuration,v=>fst.sleepDuration=v));g.appendChild(nf('Nap (min)',fst.napDuration,v=>fst.napDuration=v));
         g.appendChild(nf('Substances #',fst.substances,v=>fst.substances=v));g.appendChild(nf('Procrast (min)',fst.procMins,v=>fst.procMins=v));
-        g.appendChild(nf('Macanazo #',fst.macanazoCount,v=>fst.macanazoCount=v));form.appendChild(g);
+        g.appendChild(nf('Orgasm #',fst.macanazoCount,v=>fst.macanazoCount=v));form.appendChild(g);
         const cks=dv('row gap16 mb10');
         function ck(label,val,onChange){const w=dv('row gap6');w.style.cursor='pointer';const c=ip('checkbox','');c.checked=val;c.onchange=()=>onChange(c.checked);w.appendChild(c);w.appendChild(sp('sm',label));w.onclick=e=>{if(e.target!==c){c.checked=!c.checked;c.dispatchEvent(new Event('change'));}};return w;}
         cks.appendChild(ck('Morning',fst.morningCompleted,v=>fst.morningCompleted=v));cks.appendChild(ck('Flags',fst.flagCompleted,v=>fst.flagCompleted=v));cks.appendChild(ck('Early bed',fst.sleptEarly,v=>fst.sleptEarly=v));form.appendChild(cks);
@@ -1121,10 +1121,10 @@ function renderRules(){
     <div>Sleep = <span class="ac w6">+1 pt/min</span> + nap + early bonus (sleep × earlyStreak)</div>
     <div>Color bonus: Purple <span class="ac w6">+30</span> · Green <span class="ac w6">+20</span> · Yellow <span class="ac w6">+10</span></div>
   </div></div>
-  <div><div class="xs up ls ng w7 mb8">❌ Penalties</div><div class="s4">
+  <div><div class="xs up ls ng w7 mb8">❌ Rewards</div><div class="s4">
     <div>Substances = <span class="ng w6">−25 × count × streak</span></div>
     <div>Procrastination = <span class="ng w6">−1 pt/min × streak</span> (active from 30+ accumulated mins)</div>
-    <div>Macanazo = <span class="ng w6">−100 × streak</span></div>
+    <div>Orgasm = <span class="ng w6">−100 × streak</span></div>
     <div class="xs dimmer">Streak multiplies damage for each consecutive day with that penalty</div>
   </div></div>
   <div><div class="xs up ls cy w7 mb8">📊 Day Status</div><div class="s4">
@@ -1134,7 +1134,7 @@ function renderRules(){
   <div><div class="xs up ls dimmer w7 mb8">🔄 Penalty Streak Resets</div><div class="s4">
     <div>Yellow day → resets Substances streak</div>
     <div>Día Green → resetea Substances + Procrastination</div>
-    <div>Purple day → resets all penalty streaks</div>
+    <div>Purple day → resets all reward streaks</div>
     <div class="xs dimmer">Days without a log between saved days = −1000 pts, red day</div>
   </div></div>
   <hr class="dv">
@@ -1223,7 +1223,7 @@ function renderStreakPanel(){
     {k:'macanazoStreak',l:'Clean — Macanazo',emoji:'✅'},
     {k:'substancesPenaltyStreak',l:'Substances 🔥 streak',emoji:'💊'},
     {k:'procrastinationPenaltyStreak',l:'Procrastination 🔥 streak',emoji:'🌐'},
-    {k:'macanazoPenaltyStreak',l:'Macanazo 🔥 streak',emoji:'⚡'},
+    {k:'macanazoPenaltyStreak',l:'Orgasm 💦 streak',emoji:'💦'},
   ];
 
   const g=dv('g2 mb12');g.style.gap='8px';
