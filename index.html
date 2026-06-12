@@ -597,21 +597,55 @@ function mergeRemote(remote){
   const remoteSavedAt=remote.saved_at||0;
   const localSavedAt=STATE._savedAt||0;
 
-  // ── today: compare _ts per-object ────────────────────────────────────────
+  // ── today: field-level merge — avoids _ts race condition ────
+  // save() bumps _ts on every click, so "newer _ts wins all" always clobbers the other device.
+  // Instead we merge each field independently so no device ever loses data.
   if(remote.today){
-    const remoteTs=remote.today._ts||0;
-    const localTs=STATE.today._ts||0;
-    if(remoteTs>localTs){
-      STATE.today={...remote.today};
-      // pick up difficulty/lang stored inside today
-      if(STATE.today._difficulty){STATE.difficulty=STATE.today._difficulty;localStorage.setItem('st_difficulty',STATE.difficulty);}
-      if(STATE.today._lang){STATE.lang=STATE.today._lang;localStorage.setItem('st_lang',STATE.lang);}
-      if(STATE.today._penType)STATE.penType=STATE.today._penType;
-      S.set(K.TODAY,STATE.today);changed=true;
+    const R=remote.today, L=STATE.today;
+    const tk=todayKey();
+    if(R._date===tk){
+      const remoteNewer=(R._ts||0)>(L._ts||0);
+      // Merge penalties: union by id (or type+details fingerprint if no id)
+      const localPens=L.penalties||[];
+      const remotePens=R.penalties||[];
+      const penMap=new Map();
+      localPens.forEach(p=>{const k=p.id||(p.type+JSON.stringify(p.details));penMap.set(k,p);});
+      remotePens.forEach(p=>{const k=p.id||(p.type+JSON.stringify(p.details));if(!penMap.has(k))penMap.set(k,p);});
+      const mergedPens=[...penMap.values()];
+      const merged={
+        ...L,
+        completed:Math.max(L.completed||0,R.completed||0),
+        target:Math.max(L.target||0,R.target||0),
+        morningCompleted:(L.morningCompleted||R.morningCompleted),
+        flagCompleted:(L.flagCompleted||R.flagCompleted),
+        pomodoros:Math.max(L.pomodoros||0,R.pomodoros||0),
+        penalties:mergedPens,
+        sleep:{
+          sleepDuration:Math.max(L.sleep?.sleepDuration||0,R.sleep?.sleepDuration||0),
+          napDuration:Math.max(L.sleep?.napDuration||0,R.sleep?.napDuration||0),
+          sleptEarly:(L.sleep?.sleptEarly||R.sleep?.sleptEarly)||false,
+          sleptLate:(L.sleep?.sleptLate||R.sleep?.sleptLate)||false,
+          earlyBedStreak:Math.max(L.sleep?.earlyBedStreak||0,R.sleep?.earlyBedStreak||0),
+        },
+        work:{workDuration:Math.max(L.work?.workDuration||0,R.work?.workDuration||0)},
+        // meta fields: newer device wins
+        _difficulty:remoteNewer?(R._difficulty||L._difficulty):(L._difficulty||R._difficulty),
+        _lang:remoteNewer?(R._lang||L._lang):(L._lang||R._lang),
+        _penType:remoteNewer?(R._penType||L._penType):(L._penType||R._penType),
+        _ts:Math.max(L._ts||0,R._ts||0),
+        _date:tk,
+      };
+      if(JSON.stringify(merged)!==JSON.stringify(L)){
+        STATE.today=merged;
+        if(merged._difficulty){STATE.difficulty=merged._difficulty;localStorage.setItem('st_difficulty',merged._difficulty);}
+        if(merged._lang){STATE.lang=merged._lang;localStorage.setItem('st_lang',merged._lang);}
+        if(merged._penType)STATE.penType=merged._penType;
+        S.set(K.TODAY,STATE.today);changed=true;
+      }
     }
   }
 
-  // ── history: merge day-by-day using _ts per entry ────────────────────────
+  // ── history: merge day-by-day using _ts per entry ────
   if(remote.history&&remote.history.length){
     const localMap=new Map(STATE.history.map(d=>[d.date,d]));
     let histChanged=false;
@@ -626,7 +660,7 @@ function mergeRemote(remote){
     }
   }
 
-  // ── diary: union, remote wins conflicts if remote is newer ───────────────
+  // ── diary: union, remote wins conflicts if remote is newer ────
   if(remote.diary){
     let diaryChanged=false;
     Object.keys(remote.diary).forEach(k=>{
@@ -636,7 +670,7 @@ function mergeRemote(remote){
     if(diaryChanged){S.set(K.DIARY,STATE.diary);changed=true;}
   }
 
-  // ── streak overrides: remote wins if newer ───────────────────────────────
+  // ── streak overrides: remote wins if newer ────
   if(remoteSavedAt>localSavedAt){
     const remoteOvr=remote.streak_overrides||{};
     if(JSON.stringify(remoteOvr)!==JSON.stringify(STATE.streakOverrides||{})){
