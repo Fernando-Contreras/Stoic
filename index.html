@@ -471,6 +471,11 @@ function mergeRemote(remote){
   if(JSON.stringify(newDiary)!==JSON.stringify(STATE.diary||{})){
     STATE.diary=newDiary;S.set(K.DIARY,STATE.diary);changed=true;
   }
+  // Streak overrides: remote wins always
+  const remoteOvr=remote.streak_overrides||{};
+  if(JSON.stringify(remoteOvr)!==JSON.stringify(STATE.streakOverrides||{})){
+    STATE.streakOverrides=remoteOvr;S.set(K.STREAK_OVR,STATE.streakOverrides);changed=true;
+  }
   return changed;
 }
 
@@ -1167,7 +1172,7 @@ function renderSyncPanel(){
       } else alert('Pull failed or no data.');
     }));
     row.appendChild(bt('btn-ghost btn-sm','Push to cloud',async()=>{
-      await SB.push(STATE.history,STATE.today);alert('Pushed to cloud!');
+      await SB.push(STATE.history,STATE.today,STATE.diary,STATE.streakOverrides);alert('Pushed to cloud!');
     }));
     row.appendChild(bt('btn-ng btn-sm','Log out',()=>{
       localStorage.removeItem('AUTH_TOKEN');STATE.showSyncPanel=false;refresh();
@@ -1232,6 +1237,8 @@ function renderStreakPanel(){
       if(!isNaN(v)&&v>=0) STATE.streakOverrides[k]=v;
       else delete STATE.streakOverrides[k];
       S.set(K.STREAK_OVR,STATE.streakOverrides);
+      // push immediately so other devices get the update
+      SB.push(STATE.history,STATE.today,STATE.diary,STATE.streakOverrides).catch(()=>{});
     };
     row.appendChild(lbl);row.appendChild(i);g.appendChild(row);
   });
