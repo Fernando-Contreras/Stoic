@@ -341,7 +341,7 @@ const CALC={
     const status=this.status(pct,flagCompleted);
     const col=this.colorBonus(status)*Math.max(1,s.colorStreak||0);
     const total=base+mB+fB+pom+wrk+slp+pen+col+latePen;
-    return{total,status,pct,mB,fB,pom,wrk,slp,pen,col,latePen};
+    return{total,base,status,pct,mB,fB,pom,wrk,slp,pen,col,latePen};
   },
   // #2 FIX: histTotal must exclude today to avoid double-count
   histTotal(history){
@@ -717,7 +717,7 @@ function renderScoreCard(total,sc,sk_){
   const cr=dv('row gap12 mt10');cr.style.justifyContent='center';
   cr.innerHTML=`<svg width="70" height="70" class="circ" viewBox="0 0 70 70"><circle cx="35" cy="35" r="${R}" stroke="#22222e" stroke-width="7" fill="none"/><circle cx="35" cy="35" r="${R}" stroke="var(--ac)" stroke-width="7" fill="none" stroke-dasharray="${circ}" stroke-dashoffset="${off}" stroke-linecap="round" style="transition:stroke-dashoffset .4s"/></svg><div><div class="xxl w7 ac mo">${pct}%</div><div class="xs dimmer">${STATE.today.completed}/${STATE.today.target} tasks</div></div>`;
   card.appendChild(cr);
-  const posRows=[['Tasks',sc.total],['Morning',sc.mB],['Flags',sc.fB],['Pomodoros',sc.pom],['Work',sc.wrk],['Sleep',sc.slp],['Color',sc.col]].filter(r=>r[1]>0);
+  const posRows=[['Tasks',sc.base],['Morning',sc.mB],['Flags',sc.fB],['Pomodoros',sc.pom],['Work',sc.wrk],['Sleep',sc.slp],['Color',sc.col]].filter(r=>r[1]>0);
   const negRows=[['Rewards',sc.pen],['Late night',sc.latePen||0]].filter(r=>r[1]!==0);
   if(posRows.length||negRows.length){
     const bd=dv('s4 mt10');
