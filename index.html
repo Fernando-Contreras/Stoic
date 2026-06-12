@@ -275,7 +275,7 @@ function todayKey(){return new Date().toISOString().split('T')[0]}
 /* ═══ TRANSLATIONS i18n ═══ */
 const T={
 en:{
-  'lang-btn':'🇲🇽 ES','auto-saved':'auto-saved','synced':'☁️ synced','local':'💾 local',
+  'lang-btn':'🇲🇽 ES','Auto-saved':'Guardado','Synced':'☁️ Sincronizado','Local':'💾 Local',
   'set-streaks':'⚡ Set Streaks','logout':'Logout','dark':'🌙 Dark','light':'☀️ Light',
   'easy':'🌱 Easy','medium':'⚖️ Medium','hard':'💪 Hard',
   'score':'Score','today-lbl':'Today','tasks-lbl':'tasks',
@@ -337,7 +337,7 @@ en:{
   'ej-dur':'ej. 2h30m','indulg-x':'Stimulants ×',
 },
 es:{
-  'lang-btn':'🇺🇸 EN','auto-saved':'guardado','synced':'☁️ sincronizado','local':'💾 local',
+  'lang-btn':'🇺🇸 EN','Auto-saved':'Guardado','Synced':'☁️ Sincronizado','Local':'💾 Local',
   'set-streaks':'⚡ Rachas','logout':'Salir','dark':'🌙 Oscuro','light':'☀️ Claro',
   'easy':'🌱 Fácil','medium':'⚖️ Medio','hard':'💪 Difícil',
   'score':'Puntaje','today-lbl':'Hoy','tasks-lbl':'tareas',
@@ -794,19 +794,9 @@ function renderApp(){
   });
   acts.appendChild(diffWrap);
   acts.appendChild(bt('btn-ghost btn-sm',t('lang-btn'),toggleLang));
-  acts.appendChild(bt('btn-ghost btn-sm',t('logout'),()=>{S.set(K.AUTH,false);STATE.authed=false;render();}));
   hdr.appendChild(acts);wrap.appendChild(hdr);
 
-  if(STATE.showReset){
-    const ban=dv('card fi row gap12 mb12');ban.style.cssText='background:var(--ngd);border:1px solid var(--ngb);justify-content:space-between';
-    ban.appendChild(sp('md ng',t('del-warn')));
-    const bb=dv('row gap8');
-    bb.appendChild(bt('btn-ng btn-sm',t('yes-delete'),()=>{
-      STATE.history=[];STATE.today={completed:0,target:0,morningCompleted:false,flagCompleted:false,pomodoros:0,penalties:[],sleep:{sleepDuration:0,napDuration:0,sleptEarly:false,earlyBedStreak:0},work:{workDuration:0},_date:tk};
-      STATE.showReset=false;save();refresh();
-    }));bb.appendChild(bt('btn-ghost btn-sm',t('cancel'),()=>{STATE.showReset=false;refresh()}));
-    ban.appendChild(bb);wrap.appendChild(ban);
-  }
+
 
   if(STATE.showStreakPanel){
     wrap.appendChild(renderStreakPanel());
@@ -834,7 +824,24 @@ function renderApp(){
   resetRow.appendChild(resetInfo);
   resetRow.appendChild(bt('btn-ng btn-sm',t('reset-all-btn'),()=>{STATE.showReset=!STATE.showReset;refresh()}));
   resetWrap.appendChild(resetRow);
+  // Reset confirmation banner — right inside danger zone
+  if(STATE.showReset){
+    const ban=dv('fi row gap12 mt10');ban.style.cssText='background:var(--ngd);border:1px solid var(--ngb);border-radius:10px;padding:12px 14px;justify-content:space-between';
+    ban.appendChild(sp('md ng',t('del-warn')));
+    const bb=dv('row gap8');
+    bb.appendChild(bt('btn-ng btn-sm',t('yes-delete'),()=>{
+      STATE.history=[];STATE.today={completed:0,target:0,morningCompleted:false,flagCompleted:false,pomodoros:0,penalties:[],sleep:{sleepDuration:0,napDuration:0,sleptEarly:false,earlyBedStreak:0},work:{workDuration:0},_date:todayKey()};
+      STATE.diary={};STATE.streakOverrides={};
+      [K.TODAY,K.HIST,K.DIARY,K.STREAK_OVR].forEach(k=>localStorage.removeItem(k));
+      STATE.showReset=false;save();refresh();
+    }));bb.appendChild(bt('btn-ghost btn-sm',t('cancel'),()=>{STATE.showReset=false;refresh()}));
+    ban.appendChild(bb);resetWrap.appendChild(ban);
+  }
   wrap.appendChild(resetWrap);
+  // Logout button — below danger zone
+  const logoutWrap=dv('ctr mt8 mb16');
+  logoutWrap.appendChild(bt('btn-ghost btn-sm',t('logout'),()=>{S.set(K.AUTH,false);STATE.authed=false;render();}));
+  wrap.appendChild(logoutWrap);
   return wrap;
 }
 
@@ -1395,7 +1402,7 @@ function renderRules(){
     <div class="md up ls ng w7 mb10">🤤 Recompensas (costos en puntos 💸)</div>
     <div class="s6">
       <div>Son premios que quieres mantener a raya. Cada uno cuesta puntos — y cuanto más seguido las haces, más cuestan (multiplicador de racha).</div>
-      <div><span class="ng w6">💊 Estimulantes</span> — comida chatarra, sustancias (azúcar, café, mota, alcohol; todo cuenta) y cualquier mal hábito que disfrutas pero quieras reducir. Cuesta puntos × cuántos días seguidos llevas.</div>
+      <div><span class="ng w6">💊 Estimulantes</span> — comida chatarra, sustancias (azúcar, café, mota, alcohol; todo cuenta) y cualquier mal hábito que quieras reducir. Cuesta puntos × cuántos días seguidos llevas.</div>
       <div><span class="ng w6">🌐 Procrastinación</span> — registra cuántos minutos desperdiciaste. Después de 30 min, el multiplicador de racha aplica.</div>
       <div><span class="ng w6">💦 Orgasmo</span> — cuesta bastante × días consecutivos.</div>
       <div><span class="ng w6">🌙 Trasnoché</span> — quedarse despierto tarde cuesta 100 pts × tu racha de desvelo.</div>
@@ -1466,7 +1473,7 @@ function renderRules(){
     <div class="md up ls ng w7 mb10">🤤 Rewards (point costs 💸)</div>
     <div class="s6">
       <div>These are behaviors you want to keep at bay. Each one costs points — and the longer you keep doing them, the more they cost (streak multiplier).</div>
-      <div><span class="ng w6">💊 Stimulants</span> — junk food, substances (sugar, coffee, weed, alcohol; your call), and anything you want to cut back on. Costs points × how many days in a row you indulged.</div>
+      <div><span class="ng w6">💊 Stimulants</span> — junk food, substances (sugar, coffee, weed, alcohol; all counts), and any bad habit you want to cut back on. Costs points × how many days in a row you indulged.</div>
       <div><span class="ng w6">🌐 Procrastination</span> — log how many minutes you wasted. After 30 min, the streak multiplier kicks in.</div>
       <div><span class="ng w6">💦 Orgasm</span> — costs a lot × consecutive days.</div>
       <div><span class="ng w6">🌙 Slept Late</span> — staying up late costs 100 pts × your late-night streak.</div>
