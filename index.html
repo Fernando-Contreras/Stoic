@@ -196,21 +196,26 @@ const SB={
   headers(){
     return {'Content-Type':'application/json','apikey':this.key,'Authorization':`Bearer ${this.token}`};
   },
-  async push(history, today){
+  async push(history, today, diary, streakOverrides){
     if(!this.init()) return;
     try{
-      await fetch(`${this.url}/rest/v1/stoic_data`, {
+      // Use RPC so user_id is set server-side as auth.uid()
+      await fetch(`${this.url}/rest/v1/rpc/upsert_stoic_data`, {
         method:'POST',
-        headers:{...this.headers(),'Prefer':'resolution=merge-duplicates,return=minimal'},
-        body:JSON.stringify({user_id:'placeholder', history, today})
+        headers:this.headers(),
+        body:JSON.stringify({
+          p_history: history,
+          p_today: today,
+          p_diary: diary||{},
+          p_streak_overrides: streakOverrides||{}
+        })
       });
-      // user_id is set server-side via RLS auth.uid() — placeholder is overwritten
     }catch(e){console.warn('Supabase push failed',e);}
   },
   async pull(){
     if(!this.init()) return null;
     try{
-      const r=await fetch(`${this.url}/rest/v1/stoic_data?select=history,today&limit=1`,{headers:this.headers()});
+      const r=await fetch(`${this.url}/rest/v1/stoic_data?select=history,today,diary,streak_overrides&limit=1`,{headers:this.headers()});
       if(!r.ok) return null;
       const rows=await r.json();
       return rows&&rows.length?rows[0]:null;
@@ -409,7 +414,7 @@ function save(){
   upsertHist(CALC.buildEntry(STATE.today,sk,tk),tk);
   S.set(K.TODAY,STATE.today);S.set(K.HIST,STATE.history);S.set(K.DIARY,STATE.diary);S.set(K.THEME,STATE.theme);S.set(K.STREAK_OVR,STATE.streakOverrides);
   // async push — don't await, fire and forget
-  SB.push(STATE.history,STATE.today).catch(()=>{});
+  SB.push(STATE.history,STATE.today,STATE.diary,STATE.streakOverrides).catch(()=>{});
 }
 
 
@@ -423,6 +428,40 @@ function toggleTheme(){
   // re-render header only (refresh full would flicker)
   refresh();
 }
+
+/* ═══ BACKGROUND SYNC — pulls from cloud every 30s if logged in ═══ */
+async function bgSync(){
+  if(!STATE.authed||!SB.init()) return;
+  const remote=await SB.pull();
+  if(!remote) return;
+  let changed=false;
+  // Merge history
+  const merged=new Map();
+  (STATE.history||[]).forEach(d=>merged.set(d.date,d));
+  (remote.history||[]).forEach(d=>{
+    const existing=merged.get(d.date);
+    if(!existing||(d.todayPoints!==existing.todayPoints&&!d._gap)){
+      merged.set(d.date,d);changed=true;
+    }
+  });
+  if(changed){
+    STATE.history=[...merged.values()].sort((a,b)=>b.date.localeCompare(a.date));
+    S.set(K.HIST,STATE.history);
+  }
+  // Today: if remote is newer
+  const rt=remote.today||{};
+  const lt=STATE.today||{};
+  if((rt._date||'')>(lt._date||'')||(rt._date===lt._date&&JSON.stringify(rt)!==JSON.stringify(lt))){
+    STATE.today=rt;S.set(K.TODAY,STATE.today);changed=true;
+  }
+  // Diary merge
+  const newDiary={...(STATE.diary||{}),...(remote.diary||{})};
+  if(JSON.stringify(newDiary)!==JSON.stringify(STATE.diary||{})){
+    STATE.diary=newDiary;S.set(K.DIARY,STATE.diary);changed=true;
+  }
+  if(changed) render();
+}
+setInterval(bgSync, 30000);
 /* ═══ DOM HELPERS ═══ */
 function el(t,c,h){const e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e}
 function dv(c,h){return el('div',c,h)}
@@ -549,13 +588,27 @@ function renderLogin(){
     actionBtn.textContent='Syncing...';
     const remote=await SB.pull();
     if(remote){
+      // Merge history: for same date, prefer the one with more points (more complete)
       const merged=new Map();
-      [...(STATE.history||[]),...(remote.history||[])].forEach(d=>merged.set(d.date,d));
+      (STATE.history||[]).forEach(d=>merged.set(d.date,d));
+      (remote.history||[]).forEach(d=>{
+        const existing=merged.get(d.date);
+        if(!existing||Math.abs(d.todayPoints||0)>Math.abs(existing.todayPoints||0))
+          merged.set(d.date,d);
+      });
       STATE.history=[...merged.values()].sort((a,b)=>b.date.localeCompare(a.date));
-      if(remote.today&&Object.keys(remote.today).length>Object.keys(STATE.today||{}).length){
-        STATE.today=remote.today;
-      }
+      // Today: use remote if it has newer _date or more data
+      const remoteToday=remote.today||{};
+      const localToday=STATE.today||{};
+      const remoteNewer=(remoteToday._date||'')>=(localToday._date||'');
+      if(remoteNewer&&Object.keys(remoteToday).length>0) STATE.today=remoteToday;
+      // Merge diary
+      STATE.diary={...(STATE.diary||{}),...(remote.diary||{})};
+      // Streak overrides: remote wins
+      if(remote.streak_overrides&&Object.keys(remote.streak_overrides).length>0)
+        STATE.streakOverrides=remote.streak_overrides;
       S.set(K.HIST,STATE.history);S.set(K.TODAY,STATE.today);
+      S.set(K.DIARY,STATE.diary);S.set(K.STREAK_OVR,STATE.streakOverrides);
     }
     S.set(K.AUTH,true);STATE.authed=true;render();
   }
@@ -591,7 +644,9 @@ function renderApp(){
 
   // clock update: interval is started once at boot level
   const acts=dv('row gap8 mt12');acts.style.justifyContent='center';
-  const sind=dv('row gap6 xs dim');sind.innerHTML=`<span class="sdot"></span><span>auto-saved</span>`;
+  const sind=dv('row gap6 xs dim');
+  const lastSync=SB.init()?'☁️ synced':'💾 local';
+  sind.innerHTML=`<span class="sdot"></span><span>auto-saved · ${lastSync}</span>`;
   acts.appendChild(sind);
   const themeBtn=bt('btn-ghost btn-sm',STATE.theme==='light'?'🌙 Dark':'☀️ Light',toggleTheme);
   acts.appendChild(themeBtn);
