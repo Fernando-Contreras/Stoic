@@ -481,8 +481,7 @@ const CALC={
   },
   buildEntry(today,streaks,date){
     const sc=this.score(today,streaks);
-    return{date,todayPoints:sc.total,status:sc.status,
-      _ts:today._ts||Date.now(),
+    return{date,_ts:Date.now(),todayPoints:sc.total,status:sc.status,
       completedTasks:today.completed,totalTasks:today.target,pomodoros:today.pomodoros,
       penalties:today.penalties.map(p=>({type:p.type,count:p.count,points:this.penBase(p),streak:1})),
       streaks:[{type:'morning',count:today.morningCompleted?1:0,active:today.morningCompleted},{type:'flags',count:today.flagCompleted?1:0,active:today.flagCompleted}],
@@ -528,7 +527,10 @@ let STATE={
 /* ═══ #1 FIX: loadToday checks for missed days, fills all gaps ═══ */
 function loadToday(){
   const t=S.get(K.TODAY,null);
-  if(t){STATE.today={...STATE.today,...t};if(t._penType)STATE.penType=t._penType;}
+  if(t){STATE.today={...STATE.today,...t};if(t._penType)STATE.penType=t._penType;
+    if(t._difficulty){STATE.difficulty=t._difficulty;localStorage.setItem('st_difficulty',t._difficulty);}
+    if(t._lang){STATE.lang=t._lang;localStorage.setItem('st_lang',t._lang);}
+  }
   const tk=todayKey();
   const saved=STATE.today._date||'';
   if(saved&&saved!==tk){
@@ -544,7 +546,7 @@ function loadToday(){
       const gapDate=new Date(savedDate);gapDate.setDate(gapDate.getDate()+i);
       const gk=gapDate.toISOString().split('T')[0];
       if(!STATE.history.find(h=>h.date===gk)){
-        upsertHist({date:gk,todayPoints:-1000,status:'red',completedTasks:0,totalTasks:0,pomodoros:0,penalties:[],streaks:[],workDuration:0,sleepDuration:0,napDuration:0,sleptEarly:false,_gap:true},gk);
+        upsertHist({date:gk,_ts:Date.now(),todayPoints:-1000,status:'red',completedTasks:0,totalTasks:0,pomodoros:0,penalties:[],streaks:[],workDuration:0,sleepDuration:0,napDuration:0,sleptEarly:false,_gap:true},gk);
       }
     }
     // reset today
@@ -566,6 +568,7 @@ function upsertHist(entry,dk){
 /* save: local + push to Supabase if logged in */
 function save(){
   const tk=todayKey();STATE.today._date=tk;STATE.today._penType=STATE.penType;
+  STATE.today._difficulty=STATE.difficulty;STATE.today._lang=STATE.lang;
   STATE.today._ts=Date.now();
   STATE._savedAt=Date.now(); // track when this device last saved
   const sk=CALC.streaks(STATE.history,STATE.today);
@@ -591,50 +594,57 @@ function toggleTheme(){
 function mergeRemote(remote){
   if(!remote) return false;
   let changed=false;
+  const remoteSavedAt=remote.saved_at||0;
+  const localSavedAt=STATE._savedAt||0;
 
-  // ── History: merge per-day, newest entry per date wins ──
-  if(remote.history&&remote.history.length){
-    const localMap=new Map((STATE.history||[]).map(d=>[d.date,d]));
-    let histChanged=false;
-    for(const rd of remote.history){
-      const ld=localMap.get(rd.date);
-      // take remote entry if local doesn't have it, or remote is newer (has _ts)
-      if(!ld||(rd._ts||0)>(ld._ts||0)){
-        localMap.set(rd.date,rd);histChanged=true;
-      }
+  // ── today: compare _ts per-object ────────────────────────────────────────
+  if(remote.today){
+    const remoteTs=remote.today._ts||0;
+    const localTs=STATE.today._ts||0;
+    if(remoteTs>localTs){
+      STATE.today={...remote.today};
+      // pick up difficulty/lang stored inside today
+      if(STATE.today._difficulty){STATE.difficulty=STATE.today._difficulty;localStorage.setItem('st_difficulty',STATE.difficulty);}
+      if(STATE.today._lang){STATE.lang=STATE.today._lang;localStorage.setItem('st_lang',STATE.lang);}
+      if(STATE.today._penType)STATE.penType=STATE.today._penType;
+      S.set(K.TODAY,STATE.today);changed=true;
     }
+  }
+
+  // ── history: merge day-by-day using _ts per entry ────────────────────────
+  if(remote.history&&remote.history.length){
+    const localMap=new Map(STATE.history.map(d=>[d.date,d]));
+    let histChanged=false;
+    remote.history.forEach(re=>{
+      const le=localMap.get(re.date);
+      if(!le){localMap.set(re.date,re);histChanged=true;}
+      else if((re._ts||0)>(le._ts||0)){localMap.set(re.date,re);histChanged=true;}
+    });
     if(histChanged){
       STATE.history=[...localMap.values()].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,200);
       S.set(K.HIST,STATE.history);changed=true;
     }
   }
 
-  // ── Today: compare _ts timestamps — newest wins ──
-  if(remote.today){
-    const remoteTs=remote.today._ts||0;
-    const localTs=STATE.today._ts||0;
-    if(remoteTs>localTs&&JSON.stringify(remote.today)!==JSON.stringify(STATE.today)){
-      STATE.today=remote.today;S.set(K.TODAY,STATE.today);changed=true;
-    }
-  }
-
-  // ── Diary: merge key by key, keep non-empty ──
-  if(remote.diary&&Object.keys(remote.diary).length){
+  // ── diary: union, remote wins conflicts if remote is newer ───────────────
+  if(remote.diary){
     let diaryChanged=false;
-    for(const[k,v] of Object.entries(remote.diary)){
-      if(!STATE.diary[k]&&v){STATE.diary[k]=v;diaryChanged=true;}
-    }
+    Object.keys(remote.diary).forEach(k=>{
+      if(!(k in STATE.diary)){STATE.diary[k]=remote.diary[k];diaryChanged=true;}
+      else if(remoteSavedAt>localSavedAt&&STATE.diary[k]!==remote.diary[k]){STATE.diary[k]=remote.diary[k];diaryChanged=true;}
+    });
     if(diaryChanged){S.set(K.DIARY,STATE.diary);changed=true;}
   }
 
-  // ── Streak overrides: remote wins if remote saved_at is newer ──
-  const remoteOvr=remote.streak_overrides||{};
-  const remoteSavedAt=remote.saved_at||0;
-  const localSavedAt=STATE._savedAt||0;
-  if(remoteSavedAt>localSavedAt&&JSON.stringify(remoteOvr)!==JSON.stringify(STATE.streakOverrides||{})){
-    STATE.streakOverrides=remoteOvr;S.set(K.STREAK_OVR,STATE.streakOverrides);changed=true;
+  // ── streak overrides: remote wins if newer ───────────────────────────────
+  if(remoteSavedAt>localSavedAt){
+    const remoteOvr=remote.streak_overrides||{};
+    if(JSON.stringify(remoteOvr)!==JSON.stringify(STATE.streakOverrides||{})){
+      STATE.streakOverrides=remoteOvr;S.set(K.STREAK_OVR,STATE.streakOverrides);changed=true;
+    }
   }
 
+  if(changed) STATE._savedAt=Math.max(localSavedAt,remoteSavedAt);
   return changed;
 }
 
