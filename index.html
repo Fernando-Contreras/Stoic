@@ -709,12 +709,19 @@ function renderTasksCard(sc,sk_){
   const ci=ip('number','',STATE.today.completed,'Done');ci.min=0;ci.style.flex='1';
   const ti=ip('number','',STATE.today.target,'Target');ti.min=1;ti.style.flex='1';
   ir.appendChild(ci);ir.appendChild(sp('dim md','de'));ir.appendChild(ti);card.appendChild(ir);
-  function applyCompleted(){const n=Math.min(Math.max(0,parseInt(ci.value)||0),STATE.today.target||9999);if(n!==STATE.today.completed){STATE.today.completed=n;refresh();}}
-  function applyTarget(){const n=Math.max(1,parseInt(ti.value)||1);if(n!==STATE.today.target){STATE.today.target=n;refresh();}}
-  ci.onblur=applyCompleted;
-  ci.onkeydown=e=>{if(e.key==='Enter'){applyCompleted();ci.blur();}};
-  ti.onblur=applyTarget;
-  ti.onkeydown=e=>{if(e.key==='Enter'){applyTarget();ti.blur();}};
+  // Update STATE silently while typing — no re-render until Enter or focus leaves card
+  ci.oninput=()=>{
+    const n=Math.min(Math.max(0,parseInt(ci.value)||0),STATE.today.target||9999);
+    STATE.today.completed=n;
+  };
+  ci.onkeydown=e=>{if(e.key==='Enter'){ci.blur();}};
+  ci.onblur=()=>{refresh();};
+  ti.oninput=()=>{
+    const n=Math.max(1,parseInt(ti.value)||1);
+    STATE.today.target=n;
+  };
+  ti.onkeydown=e=>{if(e.key==='Enter'){ti.blur();}};
+  ti.onblur=()=>{refresh();};
   card.appendChild(hr());
   const mOk=STATE.today.completed>=13;
   const mt=dv(`tog ${STATE.today.morningCompleted?'on':''} mb8`);mt.style.opacity=mOk?'1':'0.5';
@@ -993,7 +1000,7 @@ function renderHistEd(sk_){
       rgt.appendChild(eb);hd.appendChild(rgt);row.appendChild(hd);
       if(isEd){
         const form=dv('fi mt10');const g=dv('g2 mb10');g.style.gap='6px';
-        function nf(label,val,onChange){const w=dv('s4');w.innerHTML=`<div class="xs dimmer up ls">${label}</div>`;const i=ip('number','',val,'');i.min=0;i.style.width='100%';const apply=()=>onChange(parseInt(i.value)||0);i.onblur=apply;i.onkeydown=e=>{if(e.key==='Enter'){apply();i.blur();}};w.appendChild(i);return w;}
+        function nf(label,val,onChange){const w=dv('s4');w.innerHTML=`<div class="xs dimmer up ls">${label}</div>`;const i=ip('number','',val,'');i.min=0;i.style.width='100%';i.oninput=()=>onChange(parseInt(i.value)||0);i.onkeydown=e=>{if(e.key==='Enter')i.blur();};w.appendChild(i);return w;}
         g.appendChild(nf('Tasks',fst.completed,v=>fst.completed=v));g.appendChild(nf('Target',fst.target,v=>fst.target=v));
         g.appendChild(nf('Pomodoros',fst.pomodoros,v=>fst.pomodoros=v));g.appendChild(nf('Work (min)',fst.workDuration,v=>fst.workDuration=v));
         g.appendChild(nf('Sleep (min)',fst.sleepDuration,v=>fst.sleepDuration=v));g.appendChild(nf('Nap (min)',fst.napDuration,v=>fst.napDuration=v));
