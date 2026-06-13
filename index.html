@@ -318,6 +318,7 @@ en:{
   'yes-delete':'Yes, delete','cancel':'Cancel',
   'Red':'Red','Yellow':'Yellow','Green':'Green','Purple':'Purple','Today':'TODAY',
   'set-streaks-t':'⚡ Set Historical Streaks','clear-ovr':'Clear all overrides',
+  'set-streaks-info':'Set your real streak counts here — useful if you were tracking manually before using this app.','set-streaks-note':'Leave blank to use the calculated value. Press Enter to save. Enter 0 to clear an override.',
   'sync-title':'☁ Cloud Sync — Supabase','logged-in':'✅ Logged in — sync is active.',
   'pull-cloud':'Pull from cloud','push-cloud':'Push to cloud','log-out':'Log out',
   'email-lbl':'Email','pass-lbl':'Password','log-in':'Log In','sign-up':'Sign Up',
@@ -380,6 +381,7 @@ es:{
   'yes-delete':'Sí, borrar','cancel':'Cancelar',
   'Red':'Rojo','Yellow':'Amarillo','Green':'Verde','Purple':'Morado','Today':'HOY',
   'set-streaks-t':'⚡ Ajustar Rachas','clear-ovr':'Limpiar ajustes',
+  'set-streaks-info':'Ajusta tus rachas reales aquí — útil si venías registrando manualmente antes de usar la app.','set-streaks-note':'Deja en blanco para usar el valor calculado. Presiona Enter para guardar. Pon 0 para quitar el ajuste.',
   'sync-title':'☁ Sincronización — Supabase','logged-in':'✅ Sesión activa — sincronizando.',
   'pull-cloud':'Traer de la nube','push-cloud':'Subir a la nube','log-out':'Cerrar sesión',
   'email-lbl':'Correo','pass-lbl':'Contraseña','log-in':'Iniciar sesión','sign-up':'Registrarse',
@@ -493,7 +495,7 @@ const CALC={
       +((e.pomodoros||0)*25)
       +((e.workDuration||0)*(e.streaksUsed?.workStreak||1))
       +((e.sleepDuration||0)+(e.napDuration||0)+(e.sleptEarly?(e.sleepDuration||0)*(e.streaksUsed?.earlyBedStreak||1):0))
-      +(this.colorBonus(e.status)*(e.streaksUsed?.colorStreak||1))
+      +(this.colorBonus(e.status))
       +(e.sleptLate?-100*this.diffMult()*(e.streaksUsed?.lateStreak||1):0);
     // recompute penalties with current difficulty
     const pen=(e.penalties||[]).reduce((sum,p)=>{
@@ -818,21 +820,22 @@ function renderApp(){
   /* loadToday already called at boot and after save */
   const tk=todayKey();
   const sk_raw=CALC.streaks(STATE.history,STATE.today);
-  // Apply manual overrides — overrides ALWAYS win, zero them out on the opposite side too
+  // Apply manual overrides for TODAY only — does NOT affect history liveScore
   const ovr=STATE.streakOverrides||{};
   const sk_={...sk_raw};
+  const opposites={
+    earlyBedStreak:'lateStreak',lateStreak:'earlyBedStreak',
+    substancesStreak:'substancesPenaltyStreak',substancesPenaltyStreak:'substancesStreak',
+    procrastinationStreak:'procrastinationPenaltyStreak',procrastinationPenaltyStreak:'procrastinationStreak',
+    macanazoStreak:'macanazoPenaltyStreak',macanazoPenaltyStreak:'macanazoStreak',
+  };
   Object.entries(ovr).forEach(([k,v])=>{
     if(v===undefined||v===null) return;
-    sk_[k]=v;
-    // Zero out the mutually exclusive opposite in the calculated streaks
-    const opposites={
-      earlyBedStreak:'lateStreak',lateStreak:'earlyBedStreak',
-      substancesStreak:'substancesPenaltyStreak',substancesPenaltyStreak:'substancesStreak',
-      procrastinationStreak:'procrastinationPenaltyStreak',procrastinationPenaltyStreak:'procrastinationStreak',
-      macanazoStreak:'macanazoPenaltyStreak',macanazoPenaltyStreak:'macanazoStreak',
-    };
+    // Override wins only if it's HIGHER than calculated (seed, not cheat)
+    // OR if the opposite has real history (then force it)
+    sk_[k]=Math.max(v, sk_raw[k]||0);
     const opp=opposites[k];
-    if(opp&&!(opp in ovr)) sk_[opp]=0; // zero opposite unless it also has an override
+    if(opp&&!(opp in ovr)) sk_[opp]=0;
   });
   STATE.today.sleep.earlyBedStreak=sk_.earlyBedStreak||1;
   const sc=CALC.score(STATE.today,sk_);
@@ -855,7 +858,15 @@ function renderApp(){
   const acts=dv('row gap8 mt10');acts.style.justifyContent='center';
   const themeBtn=bt('btn-ghost btn-sm',STATE.theme==='light'?t('dark'):t('light'),toggleTheme);
   acts.appendChild(themeBtn);
-  acts.appendChild(bt('btn-ghost btn-sm',t('set-streaks'),()=>{STATE.showStreakPanel=!STATE.showStreakPanel;refresh()}));
+  acts.appendChild(bt('btn-ghost btn-sm',t('set-streaks'),()=>{
+    STATE.showStreakPanel=!STATE.showStreakPanel;
+    if(STATE.showStreakPanel){
+      // Close on Escape
+      const onEsc=(e)=>{if(e.key==='Escape'){STATE.showStreakPanel=false;refresh();document.removeEventListener('keydown',onEsc);}};
+      document.addEventListener('keydown',onEsc);
+    }
+    refresh();
+  }));
   // Difficulty switch
   const diffWrap=dv('row gap4');diffWrap.style.cssText='border:1px solid var(--b2);border-radius:9px;padding:2px;background:var(--sur2);';
   [{d:'easy',lbl:t('easy')},{d:'medium',lbl:t('medium')},{d:'hard',lbl:t('hard')}].forEach(({d,lbl})=>{
@@ -1658,7 +1669,7 @@ function renderStreakPanel(){
   card.appendChild(hd);
 
   const info=dv('sm dim mb12');
-  info.innerHTML='Set your real streak counts here — use this if you have been tracking manually and want the app to reflect your true history without editing day by day.';
+  info.textContent=t('set-streaks-info');
   card.appendChild(info);
 
   const ovr=STATE.streakOverrides;
@@ -1738,7 +1749,7 @@ function renderStreakPanel(){
   card.appendChild(buildSection(streakDefs.filter(d=>d.section==='neg'),'🔥 Reward Streaks','ng'));
 
   const note=dv('xs dimmer');
-  note.innerHTML='Leave blank to use the calculated value. Overrides apply to today\'s score immediately. They do not modify your history.';
+  note.textContent=t('set-streaks-note');
   card.appendChild(note);
 
   const clearBtn=bt('btn-ghost btn-sm mt10',t('clear-ovr'),()=>{STATE.streakOverrides={};S.set(K.STREAK_OVR,{});refresh();});
