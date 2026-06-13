@@ -575,7 +575,7 @@ function loadToday(){
     // fill any days between saved and today as gap days
     for(let i=1;i<daysDiff;i++){
       const gapDate=new Date(savedDate);gapDate.setDate(gapDate.getDate()+i);
-      const gk=gapDate.toISOString().split('T')[0];
+      const gk=gapDate.getFullYear()+'-'+String(gapDate.getMonth()+1).padStart(2,'0')+'-'+String(gapDate.getDate()).padStart(2,'0');
       if(!STATE.history.find(h=>h.date===gk)){
         upsertHist({date:gk,_ts:Date.now(),todayPoints:-1000,status:'red',completedTasks:0,totalTasks:0,pomodoros:0,penalties:[],streaks:[],workDuration:0,sleepDuration:0,napDuration:0,sleptEarly:false,_gap:true},gk);
         S.set(K.HIST,STATE.history);
@@ -1276,7 +1276,7 @@ function renderHistEd(sk_){
     const days=[];const today=new Date();
     for(let i=0;i<=30;i++){
       const d=new Date(today);d.setDate(d.getDate()-i);
-      const key=d.toISOString().split('T')[0];
+      const key=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
       days.push({key,entry:STATE.history.find(h=>h.date===key),isToday:i===0});
     }return days;
   }
@@ -1849,6 +1849,8 @@ loadToday();applyTheme();
   if(SB.init()){
     const remote=await SB.pull();
     applyRemote(remote);
+    // Push any gap days created by loadToday() so both devices stay in sync
+    SB.push(STATE.history,STATE.today,STATE.diary,STATE.streakOverrides).catch(()=>{});
   }
   render();
 })();
