@@ -306,13 +306,15 @@ en:{
   'best-day':'Best day','worst-day':'Worst day','all-avg':'All-time avg','last7-avg':'Last 7 avg',
   'total-poms':'Total 🍅','work-total':'Work total','sleep-total':'Sleep total','clean-streak':'Clean streak',
   'purple-days':'Purple days','best-streak':'Best streak','clean-drugs':'Clean (drugs)',
-  'early-nights':'Early nights','avg-sleep':'Avg Sleep','poms-day':'Poms / Day',
+  'early-nights':'Early nights','avg-sleep':'Avg sleep','poms-day':'Poms / day',
   'work-days-lbl':'Work days','late-nights-lbl':'Late nights',
   'pts-s':'pts','pts-day':'pts / day','poms-sub':'pomodoros','worked-sub':'worked',
   'rested-sub':'rested','rf-sub':'reward-free','of-total':'of total days','non-red':'non-red days',
-  'no-subs':'no substances','se-sub':'slept early','per-night':'per night',
+  'no-subs':'no stimulants','no-proc':'no procrastination','no-org':'no orgasms',
+  'se-sub':'slept early','per-night':'per night',
   'focused-sub':'focused sessions','of-logged':'of logged days','stayed-up':'times stayed up late',
-  'total-logged':'total logged','streak-now':'streak now',
+  'total-logged':'total logged','streak-now':'current streak',
+  'clean-proc':'No procrastination','clean-org':'No orgasms',
   'danger-zone':'Danger Zone','erase-warn':'This will erase all your data permanently.',
   'reset-all-btn':'Reset All','del-warn':'⚠ Delete everything? This cannot be undone.',
   'yes-delete':'Yes, delete','cancel':'Cancel',
@@ -369,13 +371,15 @@ es:{
   'best-day':'Mejor día','worst-day':'Peor día','all-avg':'Promedio total','last7-avg':'Últimos 7 días',
   'total-poms':'Total 🍅','work-total':'Total trabajo','sleep-total':'Total sueño','clean-streak':'Racha limpia',
   'purple-days':'Días morados','best-streak':'Mejor racha','clean-drugs':'Limpio (sustanc.)',
-  'early-nights':'Noches tempr.','avg-sleep':'Sueño prom.','poms-day':'Poms / Día',
-  'work-days-lbl':'Días trabajados','late-nights-lbl':'Trasnoche',
+  'early-nights':'Noches temprano','avg-sleep':'Sueño prom.','poms-day':'Poms / día',
+  'work-days-lbl':'Días trabajados','late-nights-lbl':'Trasnochadas',
   'pts-s':'pts','pts-day':'pts / día','poms-sub':'pomodoros','worked-sub':'trabajado',
   'rested-sub':'descansado','rf-sub':'sin castigos','of-total':'del total','non-red':'días no rojos',
-  'no-subs':'sin sustancias','se-sub':'durmió temprano','per-night':'por noche',
+  'no-subs':'sin estimulantes','no-proc':'sin procrastinar','no-org':'sin orgasmos',
+  'se-sub':'durmió temprano','per-night':'por noche',
   'focused-sub':'sesiones enfocadas','of-logged':'de días registrados','stayed-up':'veces trasnoché',
   'total-logged':'total registrado','streak-now':'racha actual',
+  'clean-proc':'Sin procrastinación','clean-org':'Sin orgasmos',
   'danger-zone':'Zona de Peligro','erase-warn':'Esto borrará todos tus datos permanentemente.',
   'reset-all-btn':'Borrar Todo','del-warn':'⚠ ¿Borrar todo? No se puede deshacer.',
   'yes-delete':'Sí, borrar','cancel':'Cancelar',
@@ -574,6 +578,7 @@ function loadToday(){
       const gk=gapDate.toISOString().split('T')[0];
       if(!STATE.history.find(h=>h.date===gk)){
         upsertHist({date:gk,_ts:Date.now(),todayPoints:-1000,status:'red',completedTasks:0,totalTasks:0,pomodoros:0,penalties:[],streaks:[],workDuration:0,sleepDuration:0,napDuration:0,sleptEarly:false,_gap:true},gk);
+        S.set(K.HIST,STATE.history);
       }
     }
     // reset today
@@ -590,6 +595,7 @@ function upsertHist(entry,dk){
   if(idx>=0)STATE.history[idx]={...STATE.history[idx],...entry};
   else STATE.history.unshift(entry);
   STATE.history=STATE.history.slice(0,200);
+  S.set(K.HIST,STATE.history); // always persist locally
 }
 
 /* save: local + push to Supabase if logged in */
@@ -1365,10 +1371,12 @@ function renderHistEd(sk_){
             sleep:{sleepDuration:fst.sleepDuration,napDuration:fst.napDuration,sleptEarly:fst.sleptEarly,earlyBedStreak:1},work:{workDuration:fst.workDuration}};
           const fsk={morningStreak:1,flagStreak:1,substancesPenaltyStreak:1,procrastinationPenaltyStreak:1,macanazoPenaltyStreak:1,substancesStreak:0,procrastinationStreak:0,macanazoStreak:0,workStreak:0};
           const sc_=CALC.score(mockDay,fsk);
-          upsertHist({date:key,todayPoints:sc_.total,status:sc_.status,completedTasks:fst.completed,totalTasks:fst.target,pomodoros:fst.pomodoros,sleepDuration:fst.sleepDuration,napDuration:fst.napDuration,sleptEarly:fst.sleptEarly,workDuration:fst.workDuration,penalties:pens,_gap:false,
+          upsertHist({date:key,_ts:Date.now(),todayPoints:sc_.total,status:sc_.status,completedTasks:fst.completed,totalTasks:fst.target,pomodoros:fst.pomodoros,sleepDuration:fst.sleepDuration,napDuration:fst.napDuration,sleptEarly:fst.sleptEarly,workDuration:fst.workDuration,penalties:pens,_gap:false,
             streaks:[{type:'morning',count:fst.morningCompleted?1:0,active:fst.morningCompleted},{type:'flags',count:fst.flagCompleted?1:0,active:fst.flagCompleted}]},key);
+          // Save locally AND push to Supabase immediately
+          S.set(K.HIST,STATE.history);
+          SB.push(STATE.history,STATE.today,STATE.diary,STATE.streakOverrides).catch(()=>{});
           edKey=null;
-          // #2: full refresh so score + calendar update immediately
           refresh();
         });form.appendChild(sb);row.appendChild(form);
       }
@@ -1388,8 +1396,9 @@ function renderStats(total,sc){
   tog.onclick=()=>{open=!open;body.style.display=open?'':'none';document.getElementById('st-a').textContent=open?'▲':'▼';};
   wrap.appendChild(tog);
 
-  const allPts=STATE.history.map(d=>d.todayPoints||0).filter(p=>p>-1000);
-  const last7=STATE.history.slice(0,7).map(d=>d.todayPoints||0).filter(p=>p>-1000);
+  // Use liveScore so stats update when difficulty changes
+  const allPts=STATE.history.filter(d=>!d._gap).map(d=>CALC.liveScore(d));
+  const last7=STATE.history.filter(d=>!d._gap).slice(0,7).map(d=>CALC.liveScore(d));
   const best=allPts.length?Math.max(...allPts):0;
   const worst=allPts.length?Math.min(...allPts):0;
   const avg=allPts.length?Math.round(allPts.reduce((a,b)=>a+b,0)/allPts.length):0;
@@ -1442,21 +1451,45 @@ function renderStats(total,sc){
     const s=dv('card2 ctr');const n=dv('xl w7 mo');n.style.color=c;n.textContent=v;s.appendChild(n);s.appendChild(sp('xs dimmer mt4',l));s.appendChild(sp('xs dimmer mt2',sub));g2.appendChild(s);
   });body.appendChild(g2);
 
-  // Grid 3
-  const g3=dv('g4 mb12');g3.style.gap='8px';
-  [[t('purple-days'),purplePct+'%','var(--ac)',t('of-total')],[t('best-streak'),bStrk+'d','var(--cp)',t('non-red')],[t('clean-drugs'),dfPct+'%','var(--ac)',t('no-subs')],[t('early-nights'),STATE.history.filter(d=>d.sleptEarly).length+'d','var(--cg)',t('se-sub')]].forEach(([l,v,c,sub])=>{
-    const s=dv('card2 ctr');const n=dv('xl w7 mo');n.style.color=c;n.textContent=v;s.appendChild(n);s.appendChild(sp('xs dimmer mt4',l));s.appendChild(sp('xs dimmer mt2',sub));g3.appendChild(s);
-  });body.appendChild(g3);
+  // Compute clean pcts for proc and orgasm
+  const procFreeDays=STATE.history.filter(d=>!d.penalties?.some(p=>p.type==='internet')&&!d._gap).length;
+  const procFreePct=totalTracked?Math.round(procFreeDays/totalTracked*100):100;
+  const orgFreeDays=STATE.history.filter(d=>!d.penalties?.some(p=>p.type==='macanazo')&&!d._gap).length;
+  const orgFreePct=totalTracked?Math.round(orgFreeDays/totalTracked*100):100;
 
-  // Grid 4 – extra stats
+  // Grid 3 — clean days
+  function statCard(label,value,color,sub){
+    const s=dv('card2 ctr');const n=dv('xl w7 mo');n.style.color=color;n.textContent=value;
+    s.appendChild(n);s.appendChild(sp('xs dimmer mt4',label));s.appendChild(sp('xs dimmer mt2',sub));return s;
+  }
+  const g3=dv('g4 mb12');g3.style.gap='8px';
+  [
+    [t('clean-drugs'),dfPct+'%','var(--ac)',t('no-subs')],
+    [t('clean-proc'),procFreePct+'%','var(--ac)',t('no-proc')],
+    [t('clean-org'),orgFreePct+'%','var(--ac)',t('no-org')],
+    [t('early-nights'),earlyNights+'d','var(--cg)',t('se-sub')],
+  ].forEach(([l,v,c,sub])=>g3.appendChild(statCard(l,v,c,sub)));
+  body.appendChild(g3);
+
+  // Grid 4 — activity
   const g4b=dv('g4 mb10');g4b.style.gap='8px';
-  [[t('avg-sleep'),fmtDur(avgSleepMin),'var(--ac)',t('per-night')],[t('poms-day'),String(pomPerDay),'var(--ac)',t('focused-sub')],[t('work-days-lbl'),workPct+'%','var(--ac)',t('of-logged')],[t('late-nights-lbl'),lateNights+'d','var(--ng)',t('stayed-up')]].forEach(([l,v,c,sub])=>{
-    const s=dv('card2 ctr');const n=dv('xl w7 mo');n.style.color=c;n.textContent=v;s.appendChild(n);s.appendChild(sp('xs dimmer mt4',l));s.appendChild(sp('xs dimmer mt2',sub));g4b.appendChild(s);
-  });body.appendChild(g4b);
+  [
+    [t('avg-sleep'),fmtDur(avgSleepMin),'var(--ac)',t('per-night')],
+    [t('poms-day'),String(pomPerDay),'var(--ac)',t('focused-sub')],
+    [t('work-days-lbl'),workPct+'%','var(--ac)',t('of-logged')],
+    [t('late-nights-lbl'),lateNights+'d','var(--ng)',t('stayed-up')],
+  ].forEach(([l,v,c,sub])=>g4b.appendChild(statCard(l,v,c,sub)));
+  body.appendChild(g4b);
+
+  // Grid 5 — rewards totals
   const g5b=dv('g4 mb12');g5b.style.gap='8px';
-  [[t('pen-indulg').replace('💊 ',''),String(totalIndulgences),'var(--ng)',t('total-logged')],[t('pen-org').replace('💦 ',''),String(totalOrgasms),'var(--ng)',t('total-logged')],['Penalty-Free',pfStrk+'d','var(--cg)',t('streak-now')],[t('best-streak'),bStrk+'d','var(--cp)',t('non-red')]].forEach(([l,v,c,sub])=>{
-    const s=dv('card2 ctr');const n=dv('xl w7 mo');n.style.color=c;n.textContent=v;s.appendChild(n);s.appendChild(sp('xs dimmer mt4',l));s.appendChild(sp('xs dimmer mt2',sub));g5b.appendChild(s);
-  });body.appendChild(g5b);
+  [
+    [t('pen-indulg').replace('💊 ',''),String(totalIndulgences),'var(--ng)',t('total-logged')],
+    [t('pen-org').replace('💦 ',''),String(totalOrgasms),'var(--ng)',t('total-logged')],
+    [STATE.lang==='es'?'Sin castigos':'Reward-free',pfStrk+'d','var(--cg)',t('streak-now')],
+    [t('best-streak'),bStrk+'d','var(--cp)',t('non-red')],
+  ].forEach(([l,v,c,sub])=>g5b.appendChild(statCard(l,v,c,sub)));
+  body.appendChild(g5b);
   // Day counts
   const dr=dv('row gap8 mb12');
   [['purple','🟣'],['green','🟢'],['yellow','🟡'],['red','🔴']].forEach(([s,e])=>dr.appendChild(sp(`badge s-${s}`,`${e} ${counts[s]}d`)));
@@ -1797,7 +1830,7 @@ function renderDiaryFor(dateKey){
       if(ta.value.trim()) STATE.diary[dateKey]=ta.value;
       else delete STATE.diary[dateKey];
       S.set(K.DIARY,STATE.diary);
-      SB.push(STATE.history,STATE.today).catch(()=>{});
+      SB.push(STATE.history,STATE.today,STATE.diary,STATE.streakOverrides).catch(()=>{});
     },600);
   };
 
