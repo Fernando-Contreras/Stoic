@@ -477,7 +477,28 @@ const CALC={
   // #2 FIX: histTotal must exclude today to avoid double-count
   histTotal(history){
     const tk=todayKey();
-    return history.filter(h=>h.date!==tk).reduce((s,d)=>s+(d.todayPoints||0),0);
+    return history.filter(h=>h.date!==tk).reduce((s,d)=>s+this.liveScore(d),0);
+  },
+  /* recompute a stored day's score using CURRENT difficulty (penalties scale with mode) */
+  liveScore(e){
+    if(e._gap)return e.todayPoints||-1000;
+    // positive components are difficulty-independent; recompute penalties live
+    const pos=(e.completedTasks||0)
+      +((e.streaks?.some(s=>s.type==='morning'&&s.active))?25*(e.streaksUsed?.morningStreak||1):0)
+      +((e.streaks?.some(s=>s.type==='flags'&&s.active))?100*(e.streaksUsed?.flagStreak||1):0)
+      +((e.pomodoros||0)*25)
+      +((e.workDuration||0)*(e.streaksUsed?.workStreak||1))
+      +((e.sleepDuration||0)+(e.napDuration||0)+(e.sleptEarly?(e.sleepDuration||0)*(e.streaksUsed?.earlyBedStreak||1):0))
+      +(this.colorBonus(e.status)*(e.streaksUsed?.colorStreak||1))
+      +(e.sleptLate?-100*(e.streaksUsed?.lateStreak||1):0);
+    // recompute penalties with current difficulty
+    const pen=(e.penalties||[]).reduce((sum,p)=>{
+      const det=p.type==='drugs'?{substances:p.count}:p.type==='internet'?{minutes:p.count}:{isPositive:false};
+      const b=this.penBase({type:p.type,details:det});
+      const mult=p.streak||1;
+      return sum+b*mult;
+    },0);
+    return pos+pen;
   },
   buildEntry(today,streaks,date){
     const sc=this.score(today,streaks);
@@ -491,10 +512,11 @@ const CALC={
   },
   /* #6: fill missing days between first and last history entry as red -1000 */
   fillGaps(history){
-    if(history.length<2)return history;
+    // Only fill gaps BETWEEN real logged days (ignore gap-only entries when finding bounds)
+    const realDays=history.filter(d=>!d._gap).map(d=>d.date).sort();
+    if(realDays.length<2)return history;
     const map=new Map(history.map(d=>[d.date,d]));
-    const dates=history.map(d=>d.date).sort();
-    const start=new Date(dates[0]),end=new Date(dates[dates.length-1]);
+    const start=new Date(realDays[0]+'T12:00:00'),end=new Date(realDays[realDays.length-1]+'T12:00:00');
     const result=[];
     for(let d=new Date(start);d<=end;d.setDate(d.getDate()+1)){
       const k=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
@@ -1119,7 +1141,7 @@ function renderCalendar(){
       }
       const num=sp('cal-num',String(d));num.style.color=bg.txt;cell.appendChild(num);
       // #5: always show pts if entry exists
-      if(entry){const pts=sp('cal-pts',String(entry.todayPoints||0));pts.style.color=bg.txt;cell.appendChild(pts);}
+      if(entry){const pts=sp('cal-pts',String(CALC.liveScore(entry)));pts.style.color=bg.txt;cell.appendChild(pts);}
       cell.onclick=()=>{selK=key===selK?null:key;build();};
       cg.appendChild(cell);
     }
@@ -1142,7 +1164,7 @@ function renderCalendar(){
       }
       if(entry){
         const det=dv(`card2 fi s-${entry.status}`);det.style.border='1px solid';
-        const dr=dv('rowb');dr.appendChild(sbadge(entry.status));dr.appendChild(sp('lg mo w7 ac',`${entry.todayPoints||0} pts`));det.appendChild(dr);
+        const dr=dv('rowb');dr.appendChild(sbadge(entry.status));dr.appendChild(sp('lg mo w7 ac',`${CALC.liveScore(entry)} pts`));det.appendChild(dr);
         const fmtSelDate=new Date(selK+'T12:00:00').toLocaleDateString(STATE.lang==='es'?'es-MX':'en-US',{weekday:'short',year:'numeric',month:'short',day:'numeric'});
         det.appendChild(sp('xs dim mt6',fmtSelDate));
         det.appendChild(sp('xs dim mt2',`${entry.completedTasks||0}/${entry.totalTasks||0} tasks · ${entry.pomodoros||0} 🍅`));
@@ -1249,7 +1271,7 @@ function renderHistEd(sk_){
       }
       hd.appendChild(lft);
       const rgt=dv('row gap6');
-      if(entry)rgt.appendChild(sp('sm mo dimmer',`${entry.todayPoints||0}pt`));
+      if(entry)rgt.appendChild(sp('sm mo dimmer',`${CALC.liveScore(entry)}pt`));
       const eb=bt('btn-icon',isEd?'✕':'✏',()=>{
         if(isEd){edKey=null;}
         else{
