@@ -405,7 +405,7 @@ es:{
   'ej-dur':'ej. 2h30m','indulg-x':'Estimulantes ×',
 }};
 function t(k){return T[STATE?.lang||'en']?.[k]??T.en[k]??k}
-function toggleLang(){STATE.lang=STATE.lang==='en'?'es':'en';localStorage.setItem('st_lang',STATE.lang);refresh();}
+function toggleLang(){STATE.lang=STATE.lang==='en'?'es':'en';localStorage.setItem('st_lang',STATE.lang);refresh();SB.push(STATE.history,STATE.today,STATE.diary,STATE.streakOverrides).catch(()=>{});}
 function capFirst(s){return s?s.charAt(0).toUpperCase()+s.slice(1):s;}
 
 /* ═══ CALC — SINGLE SOURCE OF TRUTH ═══ */
@@ -579,6 +579,7 @@ function loadToday(){
       if(!STATE.history.find(h=>h.date===gk)){
         upsertHist({date:gk,_ts:Date.now(),todayPoints:-1000,status:'red',completedTasks:0,totalTasks:0,pomodoros:0,penalties:[],streaks:[],workDuration:0,sleepDuration:0,napDuration:0,sleptEarly:false,_gap:true},gk);
         S.set(K.HIST,STATE.history);
+        SB.push(STATE.history,STATE.today,STATE.diary,STATE.streakOverrides).catch(()=>{});
       }
     }
     // reset today
@@ -599,22 +600,26 @@ function upsertHist(entry,dk){
 }
 
 /* save: local + push to Supabase if logged in */
+// commit() = user changed something real → bump _ts, push to cloud
+function commit(){
+  STATE.today._ts=Date.now(); // only bump when user actually changed data
+  save();
+}
+
 function save(){
   const tk=todayKey();
   STATE.today._date=tk;
   STATE.today._penType=STATE.penType;
   STATE.today._difficulty=STATE.difficulty;
   STATE.today._lang=STATE.lang;
-  STATE.today._ts=Date.now();
+  STATE.today._theme=STATE.theme;
   const sk=CALC.streaks(STATE.history,STATE.today);
   upsertHist(CALC.buildEntry(STATE.today,sk,tk),tk);
-  // Save locally
   S.set(K.TODAY,STATE.today);
   S.set(K.HIST,STATE.history);
   S.set(K.DIARY,STATE.diary);
   S.set(K.THEME,STATE.theme);
   S.set(K.STREAK_OVR,STATE.streakOverrides);
-  // Push to cloud — Supabase is the source of truth
   SB.push(STATE.history,STATE.today,STATE.diary,STATE.streakOverrides).catch(()=>{});
 }
 
@@ -626,8 +631,8 @@ function toggleTheme(){
   STATE.theme=STATE.theme==='light'?'dark':'light';
   S.set(K.THEME,STATE.theme);
   applyTheme();
-  // re-render header only (refresh full would flicker)
   refresh();
+  SB.push(STATE.history,STATE.today,STATE.diary,STATE.streakOverrides).catch(()=>{});
 }
 
 /* ═══ SYNC — Supabase is the single source of truth ═══
@@ -648,16 +653,39 @@ function applyRemote(remote){
   let changed=false;
   const tk=todayKey();
 
-  // TODAY: remote wins if its _ts is newer than local
+  // TODAY: smart merge — newer _ts wins per field, penalties are unioned by id
   if(remote.today){
     const R=remote.today, L=STATE.today||{};
-    if((R._ts||0)>(L._ts||0)){
-      STATE.today={...R};
-      if(R._difficulty){STATE.difficulty=R._difficulty;localStorage.setItem('st_difficulty',R._difficulty);}
-      if(R._lang){STATE.lang=R._lang;localStorage.setItem('st_lang',R._lang);}
-      if(R._penType)STATE.penType=R._penType;
-      S.set(K.TODAY,STATE.today);
-      changed=true;
+    const Rts=R._ts||0, Lts=L._ts||0;
+    if(Rts!==Lts){ // only process if different
+      let todayChanged=false;
+      const merged={...L};
+      // For scalar fields: remote wins if it has newer _ts
+      if(Rts>Lts){
+        // Remote is newer overall — take scalar fields from remote
+        const scalars=['completed','target','morningCompleted','flagCompleted','pomodoros',
+          'work','sleep','_date','_penType','_difficulty','_lang'];
+        scalars.forEach(k=>{if(R[k]!==undefined&&JSON.stringify(R[k])!==JSON.stringify(L[k])){merged[k]=R[k];todayChanged=true;}});
+      }
+      // Penalties: UNION by id — keep all unique penalties from both devices
+      const localPens=L.penalties||[];
+      const remotePens=R.penalties||[];
+      const penMap=new Map(localPens.map(p=>[p.id,p]));
+      remotePens.forEach(p=>{
+        if(!penMap.has(p.id)){penMap.set(p.id,p);todayChanged=true;}
+      });
+      merged.penalties=[...penMap.values()];
+      // Keep highest _ts
+      merged._ts=Math.max(Rts,Lts);
+      if(todayChanged){
+        STATE.today=merged;
+        if(R._difficulty){STATE.difficulty=R._difficulty;localStorage.setItem('st_difficulty',R._difficulty);}
+        if(R._theme&&R._theme!==STATE.theme){STATE.theme=R._theme;S.set(K.THEME,R._theme);applyTheme();}
+        if(R._lang){STATE.lang=R._lang;localStorage.setItem('st_lang',R._lang);}
+                if(R._penType&&Rts>Lts)STATE.penType=R._penType;
+        S.set(K.TODAY,STATE.today);
+        changed=true;
+      }
     }
   }
 
@@ -726,7 +754,8 @@ function render(){
   if(!STATE.authed){root.appendChild(renderLogin());return;}
   root.appendChild(renderApp());
 }
-function refresh(){save();render();}
+function refresh(){save();render();}  // save() without bumping _ts
+function commitAndRefresh(){commit();render();}  // user action: bump _ts then render
 
 /* ═══ LOGIN / SIGNUP ═══ */
 function renderLogin(){
@@ -868,7 +897,7 @@ function renderApp(){
     const opp=opposites[k];
     if(opp&&!(opp in ovr)) sk_[opp]=0;
   });
-  STATE.today.sleep.earlyBedStreak=sk_.earlyBedStreak||1;
+  // earlyBedStreak for display only — read from sk_ but don't mutate STATE here
   const sc=CALC.score(STATE.today,sk_);
   // #2: histTotal excludes today, score.total is today — no double count
   const total=CALC.histTotal(STATE.history)+sc.total;
@@ -902,7 +931,7 @@ function renderApp(){
   const diffWrap=dv('row gap4');diffWrap.style.cssText='border:1px solid var(--b2);border-radius:9px;padding:2px;background:var(--sur2);';
   [{d:'easy',lbl:t('easy')},{d:'medium',lbl:t('medium')},{d:'hard',lbl:t('hard')}].forEach(({d,lbl})=>{
     const active=STATE.difficulty===d;
-    const b=bt(active?'btn-ac btn-xs':'btn-xs',lbl,()=>{STATE.difficulty=d;localStorage.setItem('st_difficulty',d);refresh();});
+    const b=bt(active?'btn-ac btn-xs':'btn-xs',lbl,()=>{STATE.difficulty=d;localStorage.setItem('st_difficulty',d);commitAndRefresh();});
     if(!active){b.style.cssText='background:none;border:none;color:var(--t3);font-size:12px;padding:3px 8px;border-radius:5px;cursor:pointer';}
     diffWrap.appendChild(b);
   });
@@ -947,7 +976,7 @@ function renderApp(){
       STATE.history=[];STATE.today={completed:0,target:0,morningCompleted:false,flagCompleted:false,pomodoros:0,penalties:[],sleep:{sleepDuration:0,napDuration:0,sleptEarly:false,earlyBedStreak:0},work:{workDuration:0},_date:todayKey()};
       STATE.diary={};STATE.streakOverrides={};
       [K.TODAY,K.HIST,K.DIARY,K.STREAK_OVR].forEach(k=>localStorage.removeItem(k));
-      STATE.showReset=false;save();refresh();
+      STATE.showReset=false;commit();refresh();
     }));bb.appendChild(bt('btn-ghost btn-sm',t('cancel'),()=>{STATE.showReset=false;refresh()}));
     ban.appendChild(bb);resetWrap.appendChild(ban);
   }
@@ -996,22 +1025,22 @@ function renderTasksCard(sc,sk_){
     STATE.today.completed=n;
   };
   ci.onkeydown=e=>{if(e.key==='Enter'){ci.blur();}};
-  ci.onblur=()=>{refresh();};
+  ci.onblur=()=>{commitAndRefresh();};
   ti.oninput=()=>{
     const n=Math.max(1,parseInt(ti.value)||1);
     STATE.today.target=n;
   };
   ti.onkeydown=e=>{if(e.key==='Enter'){ti.blur();}};
-  ti.onblur=()=>{refresh();};
+  ti.onblur=()=>{commitAndRefresh();};
   card.appendChild(hr());
   const mt=dv(`tog ${STATE.today.morningCompleted?'on':''} mb8`);
   const mc=ip('checkbox','');mc.checked=STATE.today.morningCompleted;mc.readOnly=true;
   const mi=dv('f1');mi.innerHTML=`<div class="tt">${t('morning-routine')}</div><div class="ts">+${25*Math.max(1,sk_.morningStreak)} ${t('streak-pts')}${sk_.morningStreak}d</div>`;
-  mt.appendChild(mc);mt.appendChild(mi);mt.onclick=()=>{STATE.today.morningCompleted=!STATE.today.morningCompleted;refresh();};card.appendChild(mt);
+  mt.appendChild(mc);mt.appendChild(mi);mt.onclick=()=>{STATE.today.morningCompleted=!STATE.today.morningCompleted;commitAndRefresh();};card.appendChild(mt);
   const ft=dv(`tog ${STATE.today.flagCompleted?'on':''}`);
   const fc=ip('checkbox','');fc.checked=STATE.today.flagCompleted;fc.readOnly=true;
   const fi_=dv('f1');fi_.innerHTML=`<div class="tt">${t('goals-ann')}</div><div class="ts">+100 ${t('pts-s')} × ${t('streak-lbl')} (${sk_.flagStreak}d)</div>`;
-  ft.appendChild(fc);ft.appendChild(fi_);ft.onclick=()=>{STATE.today.flagCompleted=!STATE.today.flagCompleted;refresh();};card.appendChild(ft);
+  ft.appendChild(fc);ft.appendChild(fi_);ft.onclick=()=>{STATE.today.flagCompleted=!STATE.today.flagCompleted;commitAndRefresh();};card.appendChild(ft);
   return card;
 }
 
@@ -1021,9 +1050,9 @@ function renderPomCard(){
   const tr=dv('rowb mb8');tr.appendChild(sp('ctit',t('pom-lbl')));tr.appendChild(sp('xxl w7 ac mo',String(STATE.today.pomodoros)));card.appendChild(tr);
   card.appendChild(sp('xs dim',`+${STATE.today.pomodoros*25} ${t('pts-each')}`));
   const ct=dv('row gap8 mt10');
-  ct.appendChild(bt('btn-ghost btn-sm f1','−',()=>{STATE.today.pomodoros=Math.max(0,STATE.today.pomodoros-1);refresh();}));
+  ct.appendChild(bt('btn-ghost btn-sm f1','−',()=>{STATE.today.pomodoros=Math.max(0,STATE.today.pomodoros-1);commitAndRefresh();}));
   const n=dv('f1 ctr xl w7 mo');n.textContent=String(STATE.today.pomodoros);ct.appendChild(n);
-  ct.appendChild(bt('btn-ac btn-sm f1','+',()=>{STATE.today.pomodoros++;refresh();}));
+  ct.appendChild(bt('btn-ac btn-sm f1','+',()=>{STATE.today.pomodoros++;commitAndRefresh();}));
   card.appendChild(ct);return card;
 }
 
@@ -1066,7 +1095,7 @@ function renderPenCard(sk_){
       STATE.today.penalties.push({id:uid(),type:'macanazo',count:1,details:{isPositive:false},timestamp:new Date().toISOString()});
     }
     // #3: do NOT reset tEl — keep selection
-    refresh();
+    commitAndRefresh();
   }
   // #4: enter key support for all penalty inputs
   si.onkeydown=e=>{if(e.key==='Enter')doAdd();};
@@ -1092,7 +1121,7 @@ function renderPenCard(sk_){
       // Show label + breakdown: base × streak = actual
       const breakdown = mult>1 ? `<span class="xs dimmer">${base} × ${mult} ${t('streak-lbl')}</span>` : `<span class="xs dimmer">${t('base-lbl')}</span>`;
       info.innerHTML=`<div class="md dim">${lbl}</div><div class="row gap6 mt2">${breakdown}<span class="sm mo w7 ng">${actual}</span></div>`;
-      const rm=bt('btn-icon','✕',()=>{STATE.today.penalties=STATE.today.penalties.filter(x=>x.id!==p.id);refresh();});
+      const rm=bt('btn-icon','✕',()=>{STATE.today.penalties=STATE.today.penalties.filter(x=>x.id!==p.id);commitAndRefresh();});
       row.appendChild(info);row.appendChild(rm);list.appendChild(row);
     });card.appendChild(list);
   }
@@ -1106,7 +1135,7 @@ function renderWorkCard(sk_){
   card.appendChild(sp('xs dim mb8',`+${STATE.today.work.workDuration} ${t('streak-pts')}${sk_.workStreak}d`));
   const errD=dv('xs ng mt4');
   const wi=ip('text','','',t('eg-work'));
-  function doSet(){const r=parseDur(wi.value);if(r.v===null){errD.textContent=r.err;return;}STATE.today.work.workDuration=r.v;wi.value='';errD.textContent='';refresh();}
+  function doSet(){const r=parseDur(wi.value);if(r.v===null){errD.textContent=r.err;return;}STATE.today.work.workDuration=r.v;wi.value='';errD.textContent='';commitAndRefresh();}
   wi.onkeydown=e=>{if(e.key==='Enter')doSet();};
   const row=dv('row gap8 mt8');row.appendChild(wi);row.appendChild(bt('btn-ac btn-sm',t('set-btn'),doSet));
   card.appendChild(row);card.appendChild(errD);return card;
@@ -1118,7 +1147,7 @@ function renderSleepCard(sk_){
   function sleepRow(label,val,onSet){
     const w=dv('');const lr=dv('rowb mb6');lr.innerHTML=`<span class="xs dimmer up ls">${label}</span><span class="md mo ac w6">${fmtDur(val)}</span>`;w.appendChild(lr);
     const errD=dv('xs ng mt4');const si=ip('text','','',t('eg-work'));
-    function doS(){const r=parseDur(si.value);if(r.v===null){errD.textContent=r.err;return;}onSet(r.v);si.value='';errD.textContent='';refresh();}
+    function doS(){const r=parseDur(si.value);if(r.v===null){errD.textContent=r.err;return;}onSet(r.v);si.value='';errD.textContent='';commitAndRefresh();}
     si.onkeydown=e=>{if(e.key==='Enter')doS();};
     const ir=dv('row gap8');ir.appendChild(si);ir.appendChild(bt('btn-ac btn-sm',t('set-btn'),doS));w.appendChild(ir);w.appendChild(errD);return w;
   }
@@ -1132,8 +1161,8 @@ function renderSleepCard(sk_){
   et.appendChild(ec);et.appendChild(ei);
   et.onclick=()=>{
     STATE.today.sleep.sleptEarly=!sl.sleptEarly;
-    if(STATE.today.sleep.sleptEarly) STATE.today.sleep.sleptLate=false; // mutually exclusive
-    refresh();
+    if(STATE.today.sleep.sleptEarly) STATE.today.sleep.sleptLate=false;
+    commitAndRefresh();
   };
   card.appendChild(et);
   const lateStreak=sk_?.lateStreak||1;
@@ -1144,8 +1173,8 @@ function renderSleepCard(sk_){
   ltt.appendChild(ltc);ltt.appendChild(lti);
   ltt.onclick=()=>{
     STATE.today.sleep.sleptLate=!sl.sleptLate;
-    if(STATE.today.sleep.sleptLate) STATE.today.sleep.sleptEarly=false; // mutually exclusive
-    refresh();
+    if(STATE.today.sleep.sleptLate) STATE.today.sleep.sleptEarly=false;
+    commitAndRefresh();
   };
   card.appendChild(ltt);
   card.appendChild(sp('xs dim mt8',`${t('total-sleep')}: +${(sl.sleepDuration||0)+(sl.napDuration||0)+eb} ${t('pts-s')}`));
@@ -1675,17 +1704,13 @@ function renderSyncPanel(){
     row.appendChild(bt('btn-ac btn-sm',t('pull-cloud'),async()=>{
       const remote=await SB.pull();
       if(remote){
-        // Full replace — remote is the source of truth
-        if(remote.history) STATE.history=[...remote.history].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,200);
-        if(remote.today){
-          STATE.today=remote.today;
-          if(remote.today._difficulty){STATE.difficulty=remote.today._difficulty;localStorage.setItem('st_difficulty',remote.today._difficulty);}
-          if(remote.today._lang){STATE.lang=remote.today._lang;localStorage.setItem('st_lang',remote.today._lang);}
-          if(remote.today._penType)STATE.penType=remote.today._penType;
-        }
-        if(remote.diary) STATE.diary=remote.diary;
-        if(remote.streak_overrides) STATE.streakOverrides=remote.streak_overrides;
-        S.set(K.HIST,STATE.history);S.set(K.TODAY,STATE.today);S.set(K.DIARY,STATE.diary);S.set(K.STREAK_OVR,STATE.streakOverrides);
+        // Force-apply remote — remote is the source of truth for manual pull
+        // Temporarily bump remote _ts so applyRemote accepts everything
+        if(remote.today) remote.today._ts=(remote.today._ts||0)+1;
+        if(remote.history) remote.history=remote.history.map(d=>({...d,_ts:(d._ts||0)+1}));
+        applyRemote(remote);
+        S.set(K.HIST,STATE.history);S.set(K.TODAY,STATE.today);
+        S.set(K.DIARY,STATE.diary);S.set(K.STREAK_OVR,STATE.streakOverrides);
         refresh();alert('✅ Synced from cloud!');
       } else alert('Pull failed or no data.');
     }));
@@ -1810,7 +1835,7 @@ function renderStreakPanel(){
   note.textContent=t('set-streaks-note');
   card.appendChild(note);
 
-  const clearBtn=bt('btn-ghost btn-sm mt10',t('clear-ovr'),()=>{STATE.streakOverrides={};S.set(K.STREAK_OVR,{});refresh();});
+  const clearBtn=bt('btn-ghost btn-sm mt10',t('clear-ovr'),()=>{STATE.streakOverrides={};S.set(K.STREAK_OVR,{});SB.push(STATE.history,STATE.today,STATE.diary,STATE.streakOverrides).catch(()=>{});refresh();});
   clearBtn.style.marginTop='10px';card.appendChild(clearBtn);
   return card;
 }
@@ -1830,6 +1855,7 @@ function renderDiaryFor(dateKey){
       if(ta.value.trim()) STATE.diary[dateKey]=ta.value;
       else delete STATE.diary[dateKey];
       S.set(K.DIARY,STATE.diary);
+      // Push immediately — no debounce, diary must sync
       SB.push(STATE.history,STATE.today,STATE.diary,STATE.streakOverrides).catch(()=>{});
     },600);
   };
