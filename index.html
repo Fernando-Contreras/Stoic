@@ -1442,13 +1442,13 @@ function renderStats(total,sc){
   // Grid 1
   const g1=dv('g4 mb10');g1.style.gap='8px';
   [[t('best-day'),best,'var(--ac)',t('pts-s')],[t('worst-day'),worst,'var(--ac)',t('pts-s')],[t('all-avg'),avg,'var(--ac)',t('pts-day')],[t('last7-avg'),avg7,'var(--ac)',t('pts-s')]].forEach(([l,v,c,sub])=>{
-    const s=dv('card2 ctr');const n=dv('xxl w7 mo');n.style.color=c;n.textContent=String(v);s.appendChild(n);s.appendChild(dv('xs dimmer mt4',l));s.appendChild(dv('xs dimmer mt2',sub));g1.appendChild(s);
+    const s=dv('card2 ctr');const n=dv('xxl w7 mo');n.style.color=c;n.textContent=String(v);s.appendChild(n);s.appendChild(dv('xs dimmer mt4',l));g1.appendChild(s);
   });body.appendChild(g1);
 
   // Grid 2
   const g2=dv('g4 mb10');g2.style.gap='8px';
   [[t('total-poms'),String(totalPoms),'var(--ac)',t('poms-sub')],[t('work-total'),fmtDur(totalWorkMin),'var(--ac)',t('worked-sub')],[t('sleep-total'),fmtDur(totalSleepMin),'var(--ac)',t('rested-sub')],[t('clean-streak'),pfStrk+'d','var(--ac)',t('rf-sub')]].forEach(([l,v,c,sub])=>{
-    const s=dv('card2 ctr');const n=dv('xl w7 mo');n.style.color=c;n.textContent=v;s.appendChild(n);s.appendChild(dv('xs dimmer mt4',l));s.appendChild(dv('xs dimmer mt2',sub));g2.appendChild(s);
+    const s=dv('card2 ctr');const n=dv('xl w7 mo');n.style.color=c;n.textContent=v;s.appendChild(n);s.appendChild(dv('xs dimmer mt4',l));g2.appendChild(s);
   });body.appendChild(g2);
 
   // Compute clean pcts for proc and orgasm
@@ -1460,7 +1460,7 @@ function renderStats(total,sc){
   // Grid 3 — clean days
   function statCard(label,value,color,sub){
     const s=dv('card2 ctr');const n=dv('xl w7 mo');n.style.color=color;n.textContent=value;
-    s.appendChild(n);s.appendChild(dv('xs dimmer mt4',label));s.appendChild(dv('xs dimmer mt2',sub));return s;
+    s.appendChild(n);s.appendChild(dv('xs dimmer mt4',label));return s;
   }
   const g3=dv('g4 mb12');g3.style.gap='8px';
   [
