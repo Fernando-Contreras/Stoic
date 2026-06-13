@@ -537,7 +537,6 @@ let STATE={
   diary:S.get(K.DIARY,{}),
   theme:S.get(K.THEME,'dark'),
   streakOverrides:S.get(K.STREAK_OVR,{}),
-  _savedAt:S.get('st_saved_at',0),
   authed:true,
   history:S.get(K.HIST,[]),
   today:{completed:0,target:0,morningCompleted:false,flagCompleted:false,
@@ -595,14 +594,21 @@ function upsertHist(entry,dk){
 
 /* save: local + push to Supabase if logged in */
 function save(){
-  const tk=todayKey();STATE.today._date=tk;STATE.today._penType=STATE.penType;
-  STATE.today._difficulty=STATE.difficulty;STATE.today._lang=STATE.lang;
+  const tk=todayKey();
+  STATE.today._date=tk;
+  STATE.today._penType=STATE.penType;
+  STATE.today._difficulty=STATE.difficulty;
+  STATE.today._lang=STATE.lang;
   STATE.today._ts=Date.now();
-  STATE._savedAt=Date.now(); // track when this device last saved
   const sk=CALC.streaks(STATE.history,STATE.today);
   upsertHist(CALC.buildEntry(STATE.today,sk,tk),tk);
-  S.set(K.TODAY,STATE.today);S.set(K.HIST,STATE.history);S.set(K.DIARY,STATE.diary);S.set(K.THEME,STATE.theme);S.set(K.STREAK_OVR,STATE.streakOverrides);S.set('st_saved_at',STATE._savedAt);
-  // push to cloud — fire and forget
+  // Save locally
+  S.set(K.TODAY,STATE.today);
+  S.set(K.HIST,STATE.history);
+  S.set(K.DIARY,STATE.diary);
+  S.set(K.THEME,STATE.theme);
+  S.set(K.STREAK_OVR,STATE.streakOverrides);
+  // Push to cloud — Supabase is the source of truth
   SB.push(STATE.history,STATE.today,STATE.diary,STATE.streakOverrides).catch(()=>{});
 }
 
@@ -618,76 +624,86 @@ function toggleTheme(){
   refresh();
 }
 
-/* ═══ BACKGROUND SYNC — pulls from cloud every 30s if logged in ═══ */
-function mergeRemote(remote){
+/* ═══ SYNC — Supabase is the single source of truth ═══
+   Philosophy: like Facebook — the server has the data,
+   devices just read and write to it. No complex merging.
+   
+   WRITE: every save() pushes full state to Supabase immediately.
+   READ:  every 8s, pull from Supabase. If it differs from local,
+          take the remote version. Period. No merge logic.
+   
+   Conflict resolution: last writer wins (highest _ts on today,
+   highest _ts per day in history). Simple and predictable.
+   ══════════════════════════════════════════════════════════ */
+
+function applyRemote(remote){
+  // Called on boot and every bgSync — remote is always Supabase
   if(!remote) return false;
   let changed=false;
-  const remoteSavedAt=remote.saved_at||0;
-  const localSavedAt=STATE._savedAt||0;
+  const tk=todayKey();
 
-  // ── today: strict last-write-wins — the device that touched last wins EVERYTHING ────
-  // Merging fields causes duplicates (two devices, two uids for same penalty = both kept).
-  // Solution: whoever has the higher _ts gets their full today object. Period.
+  // TODAY: remote wins if its _ts is newer than local
   if(remote.today){
-    const R=remote.today, L=STATE.today;
-    const tk=todayKey();
-    if(R._date===tk && (R._ts||0)>(L._ts||0)){
-      STATE.today={...R,_date:tk};
+    const R=remote.today, L=STATE.today||{};
+    if((R._ts||0)>(L._ts||0)){
+      STATE.today={...R};
       if(R._difficulty){STATE.difficulty=R._difficulty;localStorage.setItem('st_difficulty',R._difficulty);}
       if(R._lang){STATE.lang=R._lang;localStorage.setItem('st_lang',R._lang);}
       if(R._penType)STATE.penType=R._penType;
-      S.set(K.TODAY,STATE.today);changed=true;
+      S.set(K.TODAY,STATE.today);
+      changed=true;
     }
   }
 
-  // ── history: day-by-day, higher _ts wins that day entirely ────
-  if(remote.history&&remote.history.length){
-    const localMap=new Map(STATE.history.map(d=>[d.date,d]));
-    let histChanged=false;
+  // HISTORY: per-day, remote entry wins if its _ts is newer
+  if(Array.isArray(remote.history)&&remote.history.length){
+    const localMap=new Map((STATE.history||[]).map(d=>[d.date,d]));
+    let hChanged=false;
     remote.history.forEach(re=>{
       const le=localMap.get(re.date);
-      if(!le||(re._ts||0)>(le._ts||0)){localMap.set(re.date,re);histChanged=true;}
+      if(!le||(re._ts||0)>(le._ts||0)){
+        localMap.set(re.date,{...re});
+        hChanged=true;
+      }
     });
-    if(histChanged){
+    if(hChanged){
       STATE.history=[...localMap.values()].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,200);
-      S.set(K.HIST,STATE.history);changed=true;
+      S.set(K.HIST,STATE.history);
+      changed=true;
     }
   }
 
-  // ── diary: remote wins entirely if newer ────
-  if(remote.diary&&remoteSavedAt>localSavedAt){
-    if(JSON.stringify(remote.diary)!==JSON.stringify(STATE.diary)){
-      STATE.diary=remote.diary;S.set(K.DIARY,STATE.diary);changed=true;
+  // DIARY: remote wins if it has more keys or different content
+  if(remote.diary){
+    const merged={...STATE.diary,...remote.diary};
+    if(JSON.stringify(merged)!==JSON.stringify(STATE.diary)){
+      STATE.diary=merged;
+      S.set(K.DIARY,STATE.diary);
+      changed=true;
     }
   }
 
-  // ── streak overrides: remote wins if newer ────
-  if(remoteSavedAt>localSavedAt){
-    const remoteOvr=remote.streak_overrides||{};
-    if(JSON.stringify(remoteOvr)!==JSON.stringify(STATE.streakOverrides||{})){
-      STATE.streakOverrides=remoteOvr;S.set(K.STREAK_OVR,STATE.streakOverrides);changed=true;
+  // STREAK OVERRIDES: remote wins
+  if(remote.streak_overrides){
+    const ro=remote.streak_overrides;
+    if(JSON.stringify(ro)!==JSON.stringify(STATE.streakOverrides||{})){
+      STATE.streakOverrides=ro;
+      S.set(K.STREAK_OVR,STATE.streakOverrides);
+      changed=true;
     }
   }
 
-  if(changed){
-    STATE._savedAt=Date.now(); // this device now owns the merged state
-    S.set('st_saved_at',STATE._savedAt);
-  }
   return changed;
 }
 
 async function bgSync(){
   if(!STATE.authed||!SB.init()) return;
-  const remote=await SB.pull();
-  const changed=mergeRemote(remote);
-  if(changed){
-    render();
-    // Push merged state back so Supabase has the truth
-    // Small delay to let render settle
-    setTimeout(()=>SB.push(STATE.history,STATE.today,STATE.diary,STATE.streakOverrides).catch(()=>{}),500);
-  }
+  try{
+    const remote=await SB.pull();
+    if(applyRemote(remote)) render();
+  }catch(e){/* silent — will retry next cycle */}
 }
-setInterval(bgSync,10000); // every 10s for snappier sync
+setInterval(bgSync,8000); // every 8s
 /* ═══ DOM HELPERS ═══ */
 function el(t,c,h){const e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e}
 function dv(c,h){return el('div',c,h)}
@@ -812,7 +828,7 @@ function renderLogin(){
   async function afterLogin(){
     actionBtn.textContent=t('syncing');
     const remote=await SB.pull();
-    mergeRemote(remote);
+    applyRemote(remote);
     S.set(K.AUTH,true);STATE.authed=true;render();
   }
 
@@ -1799,13 +1815,9 @@ loadToday();applyTheme();
 (async()=>{
   if(SB.init()){
     const remote=await SB.pull();
-    const changed=mergeRemote(remote);
-    render();
-    // Push merged result back immediately on boot
-    if(changed) SB.push(STATE.history,STATE.today,STATE.diary,STATE.streakOverrides).catch(()=>{});
-  } else {
-    render();
+    applyRemote(remote);
   }
+  render();
 })();
 // Start clock ticker once (not inside renderApp to prevent accumulation)
 let _lastDay=todayKey();
