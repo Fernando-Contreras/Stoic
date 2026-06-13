@@ -411,12 +411,16 @@ const CALC={
   },
   colorBonus(s){return{purple:60,green:30,yellow:10,red:0}[s]||0},
   penBase(p){
-    const diff=(typeof STATE!=='undefined'?STATE.difficulty:null)||'hard';
-    const mult=diff==='easy'?0.1:diff==='medium'?0.5:1;
-    if(p.type==='drugs')return Math.round(-250*mult*(p.details?.substances||1));
-    if(p.type==='internet')return Math.round(-100*mult*(p.details?.minutes||0));
-    if(p.type==='macanazo')return p.details?.isPositive?100:Math.round(-1000*mult);
+    const diff=(typeof STATE!=='undefined'?STATE.difficulty:null)||'easy';
+    const mult=diff==='hard'?10:diff==='medium'?5:1;
+    if(p.type==='drugs')return Math.round(-25*mult*(p.details?.substances||1));
+    if(p.type==='internet')return Math.round(-1*mult*(p.details?.minutes||0));
+    if(p.type==='macanazo')return p.details?.isPositive?100:Math.round(-100*mult);
     return 0;
+  },
+  diffMult(){
+    const diff=(typeof STATE!=='undefined'?STATE.difficulty:null)||'easy';
+    return diff==='hard'?10:diff==='medium'?5:1;
   },
   streaks(history,today){
     const tk=todayKey();
@@ -458,7 +462,7 @@ const CALC={
     const pom=pomodoros*25;
     const wrk=(work.workDuration||0)*Math.max(1,s.workStreak);
     const slp=(sleep.sleepDuration||0)+(sleep.napDuration||0)+(sleep.sleptEarly?(sleep.sleepDuration||0)*(sleep.earlyBedStreak||1):0);
-    const latePen=sleep.sleptLate?-100*Math.max(1,s.lateStreak||1):0;
+    const latePen=sleep.sleptLate?-100*this.diffMult()*Math.max(1,s.lateStreak||1):0;
     const procMins=penalties.filter(p=>p.type==='internet').reduce((a,p)=>a+(p.details?.minutes||0),0);
     const procActive=procMins>30;
     const pen=penalties.reduce((sum,p)=>{
@@ -490,7 +494,7 @@ const CALC={
       +((e.workDuration||0)*(e.streaksUsed?.workStreak||1))
       +((e.sleepDuration||0)+(e.napDuration||0)+(e.sleptEarly?(e.sleepDuration||0)*(e.streaksUsed?.earlyBedStreak||1):0))
       +(this.colorBonus(e.status)*(e.streaksUsed?.colorStreak||1))
-      +(e.sleptLate?-100*(e.streaksUsed?.lateStreak||1):0);
+      +(e.sleptLate?-100*this.diffMult()*(e.streaksUsed?.lateStreak||1):0);
     // recompute penalties with current difficulty
     const pen=(e.penalties||[]).reduce((sum,p)=>{
       const det=p.type==='drugs'?{substances:p.count}:p.type==='internet'?{minutes:p.count}:{isPositive:false};
@@ -542,7 +546,7 @@ let STATE={
   showStreakPanel:false,
   showSyncPanel:false,
   penType:'drugs', // #3: persist penalty type selection
-  difficulty: localStorage.getItem('st_difficulty')||'hard',
+  difficulty: localStorage.getItem('st_difficulty')||'easy',
   lang: localStorage.getItem('st_lang')||'en',
 };
 
@@ -814,9 +818,22 @@ function renderApp(){
   /* loadToday already called at boot and after save */
   const tk=todayKey();
   const sk_raw=CALC.streaks(STATE.history,STATE.today);
-  // Apply manual overrides from streak panel
+  // Apply manual overrides — overrides ALWAYS win, zero them out on the opposite side too
   const ovr=STATE.streakOverrides||{};
-  const sk_={...sk_raw,...Object.fromEntries(Object.entries(ovr).filter(([k,v])=>v!==undefined&&v!==null))};
+  const sk_={...sk_raw};
+  Object.entries(ovr).forEach(([k,v])=>{
+    if(v===undefined||v===null) return;
+    sk_[k]=v;
+    // Zero out the mutually exclusive opposite in the calculated streaks
+    const opposites={
+      earlyBedStreak:'lateStreak',lateStreak:'earlyBedStreak',
+      substancesStreak:'substancesPenaltyStreak',substancesPenaltyStreak:'substancesStreak',
+      procrastinationStreak:'procrastinationPenaltyStreak',procrastinationPenaltyStreak:'procrastinationStreak',
+      macanazoStreak:'macanazoPenaltyStreak',macanazoPenaltyStreak:'macanazoStreak',
+    };
+    const opp=opposites[k];
+    if(opp&&!(opp in ovr)) sk_[opp]=0; // zero opposite unless it also has an override
+  });
   STATE.today.sleep.earlyBedStreak=sk_.earlyBedStreak||1;
   const sc=CALC.score(STATE.today,sk_);
   // #2: histTotal excludes today, score.total is today — no double count
@@ -1071,15 +1088,23 @@ function renderSleepCard(sk_){
   const et=dv(`tog ${sl.sleptEarly?'on':''}`);const ec=ip('checkbox','');ec.checked=sl.sleptEarly;ec.readOnly=true;
   const ei=dv('f1');ei.innerHTML=`<div class="tt">${t('slept-early')}</div>${sl.sleptEarly?`<div class="ts">+${eb} pts · ×${sl.earlyBedStreak||1} streak`:''}`;
   et.appendChild(ec);et.appendChild(ei);
-  et.onclick=()=>{STATE.today.sleep.sleptEarly=!sl.sleptEarly;refresh();};
+  et.onclick=()=>{
+    STATE.today.sleep.sleptEarly=!sl.sleptEarly;
+    if(STATE.today.sleep.sleptEarly) STATE.today.sleep.sleptLate=false; // mutually exclusive
+    refresh();
+  };
   card.appendChild(et);
   const lateStreak=sk_?.lateStreak||1;
-  const latePenShow=sl.sleptLate?-100*Math.max(1,lateStreak):0;
+  const latePenShow=sl.sleptLate?-100*CALC.diffMult()*Math.max(1,lateStreak):0;
   const ltt=dv(`tog ${sl.sleptLate?'on':''} mt8`);if(sl.sleptLate){ltt.style.borderColor='var(--ng)';ltt.style.background='var(--ngd)';}
   const ltc=ip('checkbox','');ltc.checked=sl.sleptLate;ltc.readOnly=true;ltc.style.accentColor='var(--ng)';
   const lti=dv('f1');lti.innerHTML=`<div class="tt" style="color:${sl.sleptLate?'var(--ng)':'var(--t2)'}">${t('slept-late')}</div>${sl.sleptLate?`<div class="ts">${latePenShow} pts · ×${lateStreak} streak</div>`:''}`;
   ltt.appendChild(ltc);ltt.appendChild(lti);
-  ltt.onclick=()=>{STATE.today.sleep.sleptLate=!sl.sleptLate;refresh();};
+  ltt.onclick=()=>{
+    STATE.today.sleep.sleptLate=!sl.sleptLate;
+    if(STATE.today.sleep.sleptLate) STATE.today.sleep.sleptEarly=false; // mutually exclusive
+    refresh();
+  };
   card.appendChild(ltt);
   card.appendChild(sp('xs dim mt8',`${t('total-sleep')}: +${(sl.sleepDuration||0)+(sl.napDuration||0)+eb} ${t('pts-s')}`));
   return card;
@@ -1165,10 +1190,17 @@ function renderCalendar(){
       if(entry){
         const det=dv(`card2 fi s-${entry.status}`);det.style.border='1px solid';
         const dr=dv('rowb');dr.appendChild(sbadge(entry.status));dr.appendChild(sp('lg mo w7 ac',`${CALC.liveScore(entry)} pts`));det.appendChild(dr);
-        const fmtSelDate=new Date(selK+'T12:00:00').toLocaleDateString(STATE.lang==='es'?'es-MX':'en-US',{weekday:'short',year:'numeric',month:'short',day:'numeric'});
-        det.appendChild(sp('xs dim mt6',fmtSelDate));
-        det.appendChild(sp('xs dim mt2',`${entry.completedTasks||0}/${entry.totalTasks||0} tasks · ${entry.pomodoros||0} 🍅`));
-        if(entry.streaks?.some(s=>s.type==='flags'&&s.active))det.appendChild(sp('sm mt4',t('goals-ann-badge')));
+        // Format: Fri, Jun 12 2026 | 21/28 tasks | 20 🍅 | 🏅 ×37
+        const fmtSelDate=new Date(selK+'T12:00:00').toLocaleDateString('en-US',{weekday:'short',year:'numeric',month:'short',day:'numeric'});
+        const flagActive=entry.streaks?.some(s=>s.type==='flags'&&s.active);
+        const flagStreak=entry.streaksUsed?.flagStreak||entry.streaksUsed?.flagstreak||'';
+        const parts=[
+          fmtSelDate,
+          `${entry.completedTasks||0}/${entry.totalTasks||0} tasks`,
+          `${entry.pomodoros||0} 🍅`,
+          ...(flagActive?[`🏅 ×${flagStreak||'?'}`]:[])
+        ];
+        det.appendChild(sp('xs dim mt6',parts.join(' · ')));
         if(entry._gap)det.appendChild(sp('xs ng mt4',t('day-not-logged')));
         // Diary entry
         const diaryToggle=bt('btn-ghost btn-sm','📝 '+(STATE.diary[selK]?t('edit-note'):t('add-note')),()=>{
@@ -1182,22 +1214,10 @@ function renderCalendar(){
         // Show existing note preview
         if(STATE.diary[selK]){
           const noteText=STATE.diary[selK];
-          const needsToggle=noteText.split('\n').length>3||noteText.length>120;
-          const preview=dv('xs dim mt6');preview.style.cssText='white-space:pre-wrap;cursor:pointer';
-          let expanded=false;
-          function renderPreview(){
-            if(!needsToggle||expanded){preview.textContent=noteText;}
-            else{preview.textContent=noteText.split('\n').slice(0,2).join('\n')+(noteText.split('\n').length>2?'…':'');}
-          }
-          renderPreview();
-          if(needsToggle){
-            const vBtn=bt('btn-ghost btn-xs',t('ver-mas'),()=>{expanded=!expanded;renderPreview();vBtn.textContent=expanded?t('ver-menos'):t('ver-mas');});
-            vBtn.style.marginTop='4px';
-            preview.onclick=()=>{expanded=!expanded;renderPreview();vBtn.textContent=expanded?t('ver-menos'):t('ver-mas');};
-            det.appendChild(preview);det.appendChild(vBtn);
-          } else {
-            det.appendChild(preview);
-          }
+          const preview=dv('xs dim mt6');
+          preview.style.cssText='white-space:pre-wrap;line-height:1.6';
+          preview.textContent=noteText;
+          det.appendChild(preview);
         }
         wrap.appendChild(det);
       }
@@ -1642,36 +1662,80 @@ function renderStreakPanel(){
   card.appendChild(info);
 
   const ovr=STATE.streakOverrides;
+  // Pairs that cancel each other out — setting one clears the other
+  const mutuallyExclusive={
+    earlyBedStreak:'lateStreak',
+    lateStreak:'earlyBedStreak',
+    substancesStreak:'substancesPenaltyStreak',
+    substancesPenaltyStreak:'substancesStreak',
+    procrastinationStreak:'procrastinationPenaltyStreak',
+    procrastinationPenaltyStreak:'procrastinationStreak',
+    macanazoStreak:'macanazoPenaltyStreak',
+    macanazoPenaltyStreak:'macanazoStreak',
+  };
+
   const streakDefs=[
-    {k:'morningStreak',l:t('sk-morning'),emoji:'🌅'},
-    {k:'flagStreak',l:t('goals-ann'),emoji:'🏅'},
-    {k:'workStreak',l:t('work-lbl'),emoji:'💼'},
-    {k:'substancesStreak',l:t('sk-ci'),emoji:'✅'},
-    {k:'procrastinationStreak',l:t('sk-cp'),emoji:'✅'},
-    {k:'macanazoStreak',l:t('sk-co'),emoji:'✅'},
-    {k:'substancesPenaltyStreak',l:t('sk-i'),emoji:'💊'},
-    {k:'procrastinationPenaltyStreak',l:t('sk-p'),emoji:'🌐'},
-    {k:'macanazoPenaltyStreak',l:t('sk-o'),emoji:'💦'},
+    // ── Positive streaks ──────────────────────────
+    {k:'morningStreak',      l:t('sk-morning'),  emoji:'🌅', section:'pos'},
+    {k:'flagStreak',         l:t('goals-ann'),   emoji:'🏅', section:'pos'},
+    {k:'workStreak',         l:t('work-lbl'),    emoji:'💼', section:'pos'},
+    {k:'earlyBedStreak',     l:'Slept Early',    emoji:'😴', section:'pos'},
+    {k:'substancesStreak',   l:t('sk-ci'),       emoji:'✅', section:'pos'},
+    {k:'procrastinationStreak',l:t('sk-cp'),     emoji:'✅', section:'pos'},
+    {k:'macanazoStreak',     l:t('sk-co'),       emoji:'✅', section:'pos'},
+    // ── Reward (negative) streaks ─────────────────
+    {k:'substancesPenaltyStreak',     l:t('sk-i'), emoji:'💊', section:'neg'},
+    {k:'procrastinationPenaltyStreak',l:t('sk-p'), emoji:'🌐', section:'neg'},
+    {k:'macanazoPenaltyStreak',       l:t('sk-o'), emoji:'💦', section:'neg'},
+    {k:'lateStreak',                  l:t('sk-l'), emoji:'🌙', section:'neg'},
   ];
 
-  const g=dv('g2 mb12');g.style.gap='8px';
-  streakDefs.forEach(({k,l,emoji})=>{
-    const row=dv('card2 row gap10');
-    const lbl=dv('f1 sm');lbl.textContent=emoji+' '+l;
-    const i=ip('number','',ovr[k]!==undefined?ovr[k]:'','auto');
-    i.min=0;i.style.cssText='width:80px;flex:0 0 auto;text-align:center';
-    i.placeholder='auto';
-    i.oninput=()=>{
-      const v=parseInt(i.value);
-      if(!isNaN(v)&&v>=0) STATE.streakOverrides[k]=v;
-      else delete STATE.streakOverrides[k];
-      S.set(K.STREAK_OVR,STATE.streakOverrides);
-      // push immediately so other devices get the update
-      SB.push(STATE.history,STATE.today,STATE.diary,STATE.streakOverrides).catch(()=>{});
-    };
-    row.appendChild(lbl);row.appendChild(i);g.appendChild(row);
-  });
-  card.appendChild(g);
+  // Track input elements by key so mutual exclusion can clear them
+  const inputRefs={};
+
+  function buildSection(defs, sectionTitle, sectionClass){
+    const wrap=dv('mb12');
+    const lbl=dv(`xs dimmer up ls mb8 ${sectionClass}`);lbl.textContent=sectionTitle;wrap.appendChild(lbl);
+    const g=dv('g2');g.style.gap='8px';
+    defs.forEach(({k,l,emoji})=>{
+      const row=dv('card2 row gap10');
+      const lbl2=dv('f1 sm');lbl2.textContent=emoji+' '+l;
+      const i=ip('number','',ovr[k]!==undefined?ovr[k]:'','auto');
+      i.min=0;i.style.cssText='width:80px;flex:0 0 auto;text-align:center';
+      i.placeholder='auto';
+      inputRefs[k]=i;
+      i.onkeydown=e=>{
+        if(e.key==='Enter'){
+          const v=parseInt(i.value);
+          if(!isNaN(v)&&v>=0){
+            if(v===0){
+              // 0 = clear override, show calculated value again
+              delete STATE.streakOverrides[k];
+              i.value='';
+              i.placeholder='auto';
+            } else {
+              STATE.streakOverrides[k]=v;
+              // Clear the mutually exclusive opposite
+              const opposite=mutuallyExclusive[k];
+              if(opposite){
+                delete STATE.streakOverrides[opposite];
+                if(inputRefs[opposite]){inputRefs[opposite].value='';inputRefs[opposite].placeholder='auto';}
+              }
+              i.value='';
+              i.placeholder='✓ '+v;
+            }
+            S.set(K.STREAK_OVR,STATE.streakOverrides);
+            SB.push(STATE.history,STATE.today,STATE.diary,STATE.streakOverrides).catch(()=>{});
+          }
+        }
+      };
+      row.appendChild(lbl2);row.appendChild(i);g.appendChild(row);
+    });
+    wrap.appendChild(g);return wrap;
+  }
+
+  card.appendChild(buildSection(streakDefs.filter(d=>d.section==='pos'),'✅ Positive Streaks','ac'));
+  card.appendChild(buildSection(streakDefs.filter(d=>d.section==='neg'),'🔥 Reward Streaks','ng'));
 
   const note=dv('xs dimmer');
   note.innerHTML='Leave blank to use the calculated value. Overrides apply to today\'s score immediately. They do not modify your history.';
