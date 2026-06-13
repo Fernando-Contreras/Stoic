@@ -269,7 +269,7 @@ function fmtDur(min){
   if(!min)return'0m';const h=Math.floor(min/60),m=min%60;
   if(!h)return m+'m';if(!m)return h+'h';return h+'h'+m+'m';
 }
-function todayKey(){return new Date().toISOString().split('T')[0]}
+function todayKey(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
 
 
 /* ═══ TRANSLATIONS i18n ═══ */
@@ -497,7 +497,7 @@ const CALC={
     const start=new Date(dates[0]),end=new Date(dates[dates.length-1]);
     const result=[];
     for(let d=new Date(start);d<=end;d.setDate(d.getDate()+1)){
-      const k=d.toISOString().split('T')[0];
+      const k=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
       result.push(map.get(k)||{date:k,todayPoints:-1000,status:'red',completedTasks:0,totalTasks:0,pomodoros:0,penalties:[],streaks:[],workDuration:0,sleepDuration:0,napDuration:0,sleptEarly:false,_gap:true});
     }
     return result;
@@ -1101,12 +1101,12 @@ function renderCalendar(){
     STATE.history.forEach(d=>hMap.set(d.date,d));
 
     const dim=new Date(cY,cM+1,0).getDate();const fd=new Date(cY,cM,1).getDay();
-    const tk=now.toISOString().split('T')[0];
+    const tk=todayKey();
     const cg=dv('cal-g mb10');
     (STATE.lang==='es'?['Do','Lu','Ma','Mi','Ju','Vi','Sa']:['Su','Mo','Tu','We','Th','Fr','Sa']).forEach(d=>cg.appendChild(dv('cal-hd',d)));
     for(let i=0;i<fd;i++)cg.appendChild(dv(''));
     for(let d=1;d<=dim;d++){
-      const key=new Date(cY,cM,d).toISOString().split('T')[0];
+      const key=(()=>{const _d=new Date(cY,cM,d);return _d.getFullYear()+'-'+String(_d.getMonth()+1).padStart(2,'0')+'-'+String(_d.getDate()).padStart(2,'0');})();
       const entry=hMap.get(key);
       const bg=entry?sBg[entry.status]||sBg.none:sBg.none;
       const cell=dv(`cal-c${key===tk?' today':''}${key===selK?' sel':''}`);
