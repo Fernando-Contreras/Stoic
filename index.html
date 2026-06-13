@@ -669,16 +669,25 @@ function mergeRemote(remote){
     }
   }
 
-  if(changed) STATE._savedAt=Math.max(localSavedAt,remoteSavedAt);
+  if(changed){
+    STATE._savedAt=Date.now(); // this device now owns the merged state
+    S.set('st_saved_at',STATE._savedAt);
+  }
   return changed;
 }
 
 async function bgSync(){
   if(!STATE.authed||!SB.init()) return;
   const remote=await SB.pull();
-  if(mergeRemote(remote)) render();
+  const changed=mergeRemote(remote);
+  if(changed){
+    render();
+    // Push merged state back so Supabase has the truth
+    // Small delay to let render settle
+    setTimeout(()=>SB.push(STATE.history,STATE.today,STATE.diary,STATE.streakOverrides).catch(()=>{}),500);
+  }
 }
-setInterval(bgSync,15000); // every 15s
+setInterval(bgSync,10000); // every 10s for snappier sync
 /* ═══ DOM HELPERS ═══ */
 function el(t,c,h){const e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e}
 function dv(c,h){return el('div',c,h)}
@@ -1790,9 +1799,13 @@ loadToday();applyTheme();
 (async()=>{
   if(SB.init()){
     const remote=await SB.pull();
-    mergeRemote(remote);
+    const changed=mergeRemote(remote);
+    render();
+    // Push merged result back immediately on boot
+    if(changed) SB.push(STATE.history,STATE.today,STATE.diary,STATE.streakOverrides).catch(()=>{});
+  } else {
+    render();
   }
-  render();
 })();
 // Start clock ticker once (not inside renderApp to prevent accumulation)
 let _lastDay=todayKey();
