@@ -1852,23 +1852,43 @@ function renderStreakPanel(){
           const v=parseInt(i.value);
           if(!isNaN(v)&&v>=0){
             if(v===0){
-              // 0 = clear override, show calculated value again
+              // 0 = clear, use calculated value
               delete STATE.streakOverrides[k];
               i.value='';
               i.placeholder='auto';
+              S.set(K.STREAK_OVR,STATE.streakOverrides);
+              SB.push(STATE.history,STATE.today,STATE.diary,STATE.streakOverrides).catch(()=>{});
+              refresh();
             } else {
-              STATE.streakOverrides[k]=v;
-              // Clear the mutually exclusive opposite
+              // Inject into the most recent history entry's streaksUsed
+              // so the natural calculation picks it up as baseline
+              // Then clear the override — history does the work from now on
+              const tk=todayKey();
+              // Find the most recent history entry that is NOT today
+              const recentEntry=STATE.history.find(h=>h.date!==tk&&!h._gap);
+              if(recentEntry){
+                if(!recentEntry.streaksUsed) recentEntry.streaksUsed={};
+                // Set the streak to v-1 in the last history entry
+                // so that when today adds +1, it becomes v
+                recentEntry.streaksUsed[k]=Math.max(0,v-1);
+                // Also clear the opposite streak in history
+                const opposite=mutuallyExclusive[k];
+                if(opposite) recentEntry.streaksUsed[opposite]=0;
+                S.set(K.HIST,STATE.history);
+              }
+              // Clear override — natural calculation takes over
+              delete STATE.streakOverrides[k];
               const opposite=mutuallyExclusive[k];
               if(opposite){
                 delete STATE.streakOverrides[opposite];
                 if(inputRefs[opposite]){inputRefs[opposite].value='';inputRefs[opposite].placeholder='auto';}
               }
+              S.set(K.STREAK_OVR,STATE.streakOverrides);
               i.value='';
-              i.placeholder='✓ '+v;
+              i.placeholder='✓ seeded as '+v;
+              SB.push(STATE.history,STATE.today,STATE.diary,STATE.streakOverrides).catch(()=>{});
+              refresh();
             }
-            S.set(K.STREAK_OVR,STATE.streakOverrides);
-            SB.push(STATE.history,STATE.today,STATE.diary,STATE.streakOverrides).catch(()=>{});
           }
         }
       };
