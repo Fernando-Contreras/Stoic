@@ -269,7 +269,17 @@ function fmtDur(min){
   if(!min)return'0m';const h=Math.floor(min/60),m=min%60;
   if(!h)return m+'m';if(!m)return h+'h';return h+'h'+m+'m';
 }
-function todayKey(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
+function todayKey(){
+  const storedTz=parseInt(localStorage.getItem('st_tz_offset'));
+  const tzOffset=isNaN(storedTz)?new Date().getTimezoneOffset():storedTz;
+  const n=new Date(Date.now()-tzOffset*60000);
+  return n.getUTCFullYear()+'-'+String(n.getUTCMonth()+1).padStart(2,'0')+'-'+String(n.getUTCDate()).padStart(2,'0');
+}
+function initTimezone(){
+  if(!localStorage.getItem('st_tz_offset')){
+    localStorage.setItem('st_tz_offset',String(new Date().getTimezoneOffset()));
+  }
+}
 
 
 /* ═══ TRANSLATIONS i18n ═══ */
