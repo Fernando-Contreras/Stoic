@@ -279,7 +279,7 @@ en:{
   'set-streaks':'⚡ Set Streaks','logout':'Logout','dark':'🌙 Dark','light':'☀️ Light',
   'easy':'🌱 Easy','medium':'⚖️ Medium','hard':'💪 Hard',
   'score':'Score','today-lbl':'Today','tasks-lbl':'tasks',
-  'morning-lbl':'Morning','flags-lbl':'Flags','pom-lbl':'Pomodoros','work-lbl':'Work',
+  'morning-lbl':'Morning','flags-lbl':'Goals','pom-lbl':'Pomodoros','work-lbl':'Work',
   'sleep-lbl':'Sleep','color-lbl':'Color','rewards-lbl':'Rewards','late-night-lbl':'Late night',
   'daily-tasks':'Daily Tasks','comp-target':'Completed / Target','done-ph':'Done','target-ph':'Target',
   'morning-routine':'🌞 Morning Routine','goals-ann':'🏁 Goals Annihilated',
@@ -444,10 +444,28 @@ const CALC={
     const tD=today.penalties.some(p=>p.type==='drugs');
     const tN=today.penalties.some(p=>p.type==='internet');
     const tM=today.penalties.some(p=>p.type==='macanazo');
+    const tLate=today.sleep?.sleptLate||false;
+
+    // Calculate today's status to know which streaks reset TODAY
+    const pct=today.target>0?Math.round((today.completed||0)/today.target*100):0;
+    const todayStatus=CALC.status(pct, today.flagCompleted||false);
+
+    // Rules:
+    // Yellow+ → resets Substances
+    // Green+  → resets Substances + Procrastination
+    // Purple  → resets Substances + Procrastination + Orgasm + Slept Late
+    // Red     → cuts Work streak (handled in wStrk)
+    const todayResetsSubstances = ['yellow','green','purple'].includes(todayStatus);
+    const todayResetsProcrast   = ['green','purple'].includes(todayStatus);
+    const todayResetsMacanazo   = todayStatus==='purple';
+    const todayResetsLate       = todayStatus==='purple';  // ONLY purple
+
     return{
-      substancesPenaltyStreak:pStrk('drugs',['yellow','green','purple'])+(tD?1:0),
-      procrastinationPenaltyStreak:pStrk('internet',['green','purple'])+(tN?1:0),
-      macanazoPenaltyStreak:pStrk('macanazo',['purple'])+(tM?1:0),
+      substancesPenaltyStreak:      todayResetsSubstances ? 0 : pStrk('drugs',['yellow','green','purple']) + (tD?1:0),
+      procrastinationPenaltyStreak: todayResetsProcrast   ? 0 : pStrk('internet',['green','purple']) + (tN?1:0),
+      macanazoPenaltyStreak:        todayResetsMacanazo   ? 0 : pStrk('macanazo',['purple']) + (tM?1:0),
+      lateStreak:                   todayResetsLate        ? 0 : lStrk() + (tLate?1:0),
+      // Positive streaks: unaffected by day color
       substancesStreak:tD?0:aStrk('drugs'),
       procrastinationStreak:tN?0:aStrk('internet'),
       macanazoStreak:tM?0:aStrk('macanazo'),
@@ -456,7 +474,6 @@ const CALC={
       workStreak:wStrk()+(today.work?.workDuration>0?1:0),
       earlyBedStreak:eStrk()+(today.sleep?.sleptEarly?1:0),
       colorStreak:cStrk(),
-      lateStreak:lStrk()+(today.sleep?.sleptLate?1:0),
     };
   },
   score(day,sk){
@@ -889,10 +906,16 @@ function renderApp(){
     procrastinationStreak:'procrastinationPenaltyStreak',procrastinationPenaltyStreak:'procrastinationStreak',
     macanazoStreak:'macanazoPenaltyStreak',macanazoPenaltyStreak:'macanazoStreak',
   };
+  // Penalty streaks that get reset by purple/green/yellow days
+  // If the calculated value is 0 (reset happened), override must also be 0
+  const penaltyStreakResetKeys=['substancesPenaltyStreak','procrastinationPenaltyStreak','macanazoPenaltyStreak','lateStreak']; // all reset to 0 by day color
   Object.entries(ovr).forEach(([k,v])=>{
     if(v===undefined||v===null) return;
-    // Override wins only if it's HIGHER than calculated (seed, not cheat)
-    // OR if the opposite has real history (then force it)
+    // If this is a penalty streak AND the calculated value is 0 (day color reset it) — don't apply override
+    if(penaltyStreakResetKeys.includes(k)&&(sk_raw[k]||0)===0){
+      sk_[k]=0; // day color reset wins over override
+      return;
+    }
     sk_[k]=Math.max(v, sk_raw[k]||0);
     const opp=opposites[k];
     if(opp&&!(opp in ovr)) sk_[opp]=0;
