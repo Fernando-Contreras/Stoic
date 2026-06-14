@@ -644,6 +644,48 @@ function commit(){
   save();
 }
 
+function applyStreakOverrides(skRaw){
+  // Anchor-based overrides: a seeded streak = {base, since}.
+  // Effective = base + days elapsed since seed, AS LONG AS the natural
+  // streak chain is unbroken (natural >= elapsed). If broken, drop the
+  // override and let the natural calculation take over.
+  const ovr=STATE.streakOverrides||{};
+  const sk={...skRaw};
+  const opposites={
+    earlyBedStreak:'lateStreak',lateStreak:'earlyBedStreak',
+    substancesStreak:'substancesPenaltyStreak',substancesPenaltyStreak:'substancesStreak',
+    procrastinationStreak:'procrastinationPenaltyStreak',procrastinationPenaltyStreak:'procrastinationStreak',
+    macanazoStreak:'macanazoPenaltyStreak',macanazoPenaltyStreak:'macanazoStreak',
+  };
+  const penaltyStreakResetKeys=['substancesPenaltyStreak','procrastinationPenaltyStreak','macanazoPenaltyStreak','lateStreak'];
+  const tk=todayKey();
+  const DAY=86400000;
+  let changed=false;
+  Object.keys(ovr).forEach(k=>{
+    let o=ovr[k];
+    if(o===undefined||o===null){return;}
+    // migrate legacy numeric override -> anchor object
+    if(typeof o==='number'){o={base:o,since:tk};ovr[k]=o;changed=true;}
+    const base=o.base||0, since=o.since||tk;
+    const natural=skRaw[k]||0;
+    // day-color reset wins over a penalty/reward streak override
+    if(penaltyStreakResetKeys.includes(k)&&natural===0){
+      sk[k]=0; delete ovr[k]; changed=true; return;
+    }
+    const elapsed=Math.max(0,Math.round((new Date(tk)-new Date(since))/DAY));
+    if(natural>=elapsed){
+      // chain still alive — grow naturally from the seeded base
+      sk[k]=base+elapsed;
+      const opp=opposites[k]; if(opp) sk[opp]=0;
+    } else {
+      // chain broke since seeding — discard override, natural takes over
+      delete ovr[k]; changed=true; sk[k]=natural;
+    }
+  });
+  if(changed){STATE.streakOverrides=ovr;S.set(K.STREAK_OVR,STATE.streakOverrides);}
+  return sk;
+}
+
 function save(){
   const tk=todayKey();
   STATE.today._date=tk;
@@ -652,7 +694,7 @@ function save(){
   STATE.today._lang=STATE.lang;
   STATE.today._theme=STATE.theme;
   STATE.today._tzOffset=new Date().getTimezoneOffset();
-  const sk=CALC.streaks(STATE.history,STATE.today);
+  const sk=applyStreakOverrides(CALC.streaks(STATE.history,STATE.today));
   upsertHist(CALC.buildEntry(STATE.today,sk,tk),tk);
   S.set(K.TODAY,STATE.today);
   S.set(K.HIST,STATE.history);
@@ -924,28 +966,7 @@ function renderApp(){
   const tk=todayKey();
   const sk_raw=CALC.streaks(STATE.history,STATE.today);
   // Apply manual overrides for TODAY only — does NOT affect history liveScore
-  const ovr=STATE.streakOverrides||{};
-  const sk_={...sk_raw};
-  const opposites={
-    earlyBedStreak:'lateStreak',lateStreak:'earlyBedStreak',
-    substancesStreak:'substancesPenaltyStreak',substancesPenaltyStreak:'substancesStreak',
-    procrastinationStreak:'procrastinationPenaltyStreak',procrastinationPenaltyStreak:'procrastinationStreak',
-    macanazoStreak:'macanazoPenaltyStreak',macanazoPenaltyStreak:'macanazoStreak',
-  };
-  // Penalty streaks that get reset by purple/green/yellow days
-  // If the calculated value is 0 (reset happened), override must also be 0
-  const penaltyStreakResetKeys=['substancesPenaltyStreak','procrastinationPenaltyStreak','macanazoPenaltyStreak','lateStreak']; // all reset to 0 by day color
-  Object.entries(ovr).forEach(([k,v])=>{
-    if(v===undefined||v===null) return;
-    // If this is a penalty streak AND the calculated value is 0 (day color reset it) — don't apply override
-    if(penaltyStreakResetKeys.includes(k)&&(sk_raw[k]||0)===0){
-      sk_[k]=0; // day color reset wins over override
-      return;
-    }
-    sk_[k]=Math.max(v, sk_raw[k]||0);
-    const opp=opposites[k];
-    if(opp&&!(opp in ovr)) sk_[opp]=0;
-  });
+  const sk_=applyStreakOverrides(sk_raw);
   // earlyBedStreak for display only — read from sk_ but don't mutate STATE here
   const sc=CALC.score(STATE.today,sk_);
   // #2: histTotal excludes today, score.total is today — no double count
@@ -1843,7 +1864,7 @@ function renderStreakPanel(){
     defs.forEach(({k,l,emoji})=>{
       const row=dv('card2 row gap10');
       const lbl2=dv('f1 sm');lbl2.textContent=emoji+' '+l;
-      const i=ip('number','',ovr[k]!==undefined?ovr[k]:'','auto');
+      const i=ip('number','',ovr[k]!==undefined?(typeof ovr[k]==='object'?ovr[k].base:ovr[k]):'','auto');
       i.min=0;i.style.cssText='width:80px;flex:0 0 auto;text-align:center';
       i.placeholder='auto';
       inputRefs[k]=i;
@@ -1860,24 +1881,9 @@ function renderStreakPanel(){
               SB.push(STATE.history,STATE.today,STATE.diary,STATE.streakOverrides).catch(()=>{});
               refresh();
             } else {
-              // Inject into the most recent history entry's streaksUsed
-              // so the natural calculation picks it up as baseline
-              // Then clear the override — history does the work from now on
-              const tk=todayKey();
-              // Find the most recent history entry that is NOT today
-              const recentEntry=STATE.history.find(h=>h.date!==tk&&!h._gap);
-              if(recentEntry){
-                if(!recentEntry.streaksUsed) recentEntry.streaksUsed={};
-                // Set the streak to v-1 in the last history entry
-                // so that when today adds +1, it becomes v
-                recentEntry.streaksUsed[k]=Math.max(0,v-1);
-                // Also clear the opposite streak in history
-                const opposite=mutuallyExclusive[k];
-                if(opposite) recentEntry.streaksUsed[opposite]=0;
-                S.set(K.HIST,STATE.history);
-              }
-              // Clear override — natural calculation takes over
-              delete STATE.streakOverrides[k];
+              // Seed an anchor: base value as of today. From now on it grows
+              // naturally each qualifying day and resets when the streak breaks.
+              STATE.streakOverrides[k]={base:v,since:todayKey()};
               const opposite=mutuallyExclusive[k];
               if(opposite){
                 delete STATE.streakOverrides[opposite];
