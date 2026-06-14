@@ -509,7 +509,13 @@ const CALC={
   /* recompute a stored day's score using CURRENT difficulty (penalties scale with mode) */
   liveScore(e){
     if(e._gap)return e.todayPoints||-1000;
-    // positive components are difficulty-independent; recompute penalties live
+    const st=e.status||'red';
+    // Streak resets by day color — same rules as CALC.streaks()
+    const subsReset  =['yellow','green','purple'].includes(st);
+    const procReset  =['green','purple'].includes(st);
+    const macReset   = st==='purple';
+    const lateReset  = st==='purple';
+    // Positive components
     const pos=(e.completedTasks||0)
       +((e.streaks?.some(s=>s.type==='morning'&&s.active))?25*(e.streaksUsed?.morningStreak||1):0)
       +((e.streaks?.some(s=>s.type==='flags'&&s.active))?100*(e.streaksUsed?.flagStreak||1):0)
@@ -517,12 +523,17 @@ const CALC={
       +((e.workDuration||0)*(e.streaksUsed?.workStreak||1))
       +((e.sleepDuration||0)+(e.napDuration||0)+(e.sleptEarly?(e.sleepDuration||0)*(e.streaksUsed?.earlyBedStreak||1):0))
       +(this.colorBonus(e.status))
-      +(e.sleptLate?-100*this.diffMult()*(e.streaksUsed?.lateStreak||1):0);
-    // recompute penalties with current difficulty
+      // slept late: if day was purple, streak resets to 0 so no penalty
+      +(e.sleptLate&&!lateReset?-100*this.diffMult()*(e.streaksUsed?.lateStreak||1):0);
+    // Penalties: recompute with current difficulty, but reset streak if day color resets it
     const pen=(e.penalties||[]).reduce((sum,p)=>{
       const det=p.type==='drugs'?{substances:p.count}:p.type==='internet'?{minutes:p.count}:{isPositive:false};
       const b=this.penBase({type:p.type,details:det});
-      const mult=p.streak||1;
+      // If day color resets this penalty streak, cost is base×1 only (first day streak)
+      let mult=1;
+      if(p.type==='drugs'&&!subsReset) mult=p.streak||1;
+      else if(p.type==='internet'&&!procReset) mult=p.streak||1;
+      else if(p.type==='macanazo'&&!macReset) mult=p.streak||1;
       return sum+b*mult;
     },0);
     return pos+pen;
@@ -630,6 +641,7 @@ function save(){
   STATE.today._difficulty=STATE.difficulty;
   STATE.today._lang=STATE.lang;
   STATE.today._theme=STATE.theme;
+  STATE.today._tzOffset=new Date().getTimezoneOffset();
   const sk=CALC.streaks(STATE.history,STATE.today);
   upsertHist(CALC.buildEntry(STATE.today,sk,tk),tk);
   S.set(K.TODAY,STATE.today);
@@ -698,6 +710,10 @@ function applyRemote(remote){
         STATE.today=merged;
         if(R._difficulty){STATE.difficulty=R._difficulty;localStorage.setItem('st_difficulty',R._difficulty);}
         if(R._theme&&R._theme!==STATE.theme){STATE.theme=R._theme;S.set(K.THEME,R._theme);applyTheme();}
+        // Sync timezone — use the timezone of whichever device first saved
+        if(R._tzOffset!==undefined&&!localStorage.getItem('st_tz_offset')){
+          localStorage.setItem('st_tz_offset',R._tzOffset);
+        }
         if(R._lang){STATE.lang=R._lang;localStorage.setItem('st_lang',R._lang);}
                 if(R._penType&&Rts>Lts)STATE.penType=R._penType;
         S.set(K.TODAY,STATE.today);
@@ -1891,7 +1907,7 @@ function renderDiaryFor(dateKey){
 }
 
 /* ═══ BOOT ═══ */
-loadToday();applyTheme();
+initTimezone();loadToday();applyTheme();
 
 // On boot: if token exists, pull from cloud before first render
 (async()=>{
