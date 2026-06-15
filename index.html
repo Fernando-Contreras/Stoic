@@ -645,40 +645,45 @@ function commit(){
 }
 
 function applyStreakOverrides(skRaw){
-  // How it works:
-  // - You set a streak to N. That value is the FLOOR — the minimum the streak will show.
-  // - The natural calculation still runs normally on top of it.
-  // - Result = max(override, natural). So if natural grows past override, natural wins.
-  // - If natural resets to 0 (streak broke / day color reset it), override also resets to 0.
-  //   This is the "break" condition — once broken, the override is gone.
+  // Anchor logic: store {base, since}. Grows naturally day by day.
+  // effective = base + elapsed (days since seed where streak unbroken).
+  // If streak broke (natural < elapsed), override is cleared.
   const ovr=STATE.streakOverrides||{};
   const sk={...skRaw};
-  const penaltyKeys=['substancesPenaltyStreak','procrastinationPenaltyStreak','macanazoPenaltyStreak','lateStreak'];
+  const penaltyResetKeys=['substancesPenaltyStreak','procrastinationPenaltyStreak','macanazoPenaltyStreak','lateStreak'];
   let changed=false;
+  const tk=todayKey();
+  const DAY=86400000;
 
   Object.keys(ovr).forEach(k=>{
     const o=ovr[k];
     if(o===undefined||o===null) return;
-    // Support both number and legacy anchor object
-    const floor=typeof o==='object'?(o.base||0):o;
+    // Normalize: plain number → anchor with today as since
+    let base, since;
+    if(typeof o==='object'){base=o.base||0;since=o.since||tk;}
+    else{base=o;since=tk;ovr[k]={base,since};changed=true;}
+
     const natural=skRaw[k]||0;
 
-    // If natural is 0 → streak broke → kill override
-    if(natural===0){
-      // Exception: on the very same day you set it, natural might be 0
-      // because history doesn't have today yet. Check if today is since day.
-      const since=typeof o==='object'?(o.since||''):'';
-      const isToday=since===todayKey();
-      if(!isToday){
-        // Broke after seeding — kill it
-        delete ovr[k]; changed=true; sk[k]=0; return;
-      }
-      // Same day as seed — keep the floor value
-      sk[k]=floor;
+    // Penalty streaks reset to 0 by day color → honor that, clear override
+    if(penaltyResetKeys.includes(k)&&natural===0&&since!==tk){
+      delete ovr[k];changed=true;sk[k]=0;return;
+    }
+
+    // elapsed = full history days since seed (0 on seed day itself)
+    const sinceDate=new Date(since+'T12:00:00');
+    const todayDate=new Date(tk+'T12:00:00');
+    const elapsed=Math.max(0,Math.round((todayDate-sinceDate)/DAY));
+
+    if(elapsed===0){
+      // Same day as seed — show base immediately regardless of natural
+      sk[k]=base;
+    } else if(natural<elapsed){
+      // Streak broke since seed (natural counts consecutive unbroken days)
+      delete ovr[k];changed=true;sk[k]=natural;
     } else {
-      // Natural is alive — show max(floor, natural)
-      // This makes it grow naturally once natural catches up to floor
-      sk[k]=Math.max(floor, natural);
+      // Unbroken since seed — grow: base + days elapsed since seed
+      sk[k]=base+elapsed;
     }
   });
 
@@ -1467,10 +1472,10 @@ function renderHistEd(sk_){
           for(let i=0;i<fst.macanazoCount;i++)pens.push({type:'macanazo',count:1,points:-1000,streak:1});
           const mockDay={completed:fst.completed,target:fst.target,morningCompleted:fst.morningCompleted,flagCompleted:fst.flagCompleted,pomodoros:fst.pomodoros,
             penalties:pens.map(p=>({type:p.type,count:p.count,details:p.type==='drugs'?{substances:p.count}:p.type==='internet'?{minutes:p.count}:{isPositive:false}})),
-            sleep:{sleepDuration:fst.sleepDuration,napDuration:fst.napDuration,sleptEarly:fst.sleptEarly,earlyBedStreak:1},work:{workDuration:fst.workDuration}};
-          const fsk={morningStreak:1,flagStreak:1,substancesPenaltyStreak:1,procrastinationPenaltyStreak:1,macanazoPenaltyStreak:1,substancesStreak:0,procrastinationStreak:0,macanazoStreak:0,workStreak:0};
+            sleep:{sleepDuration:fst.sleepDuration,napDuration:fst.napDuration,sleptEarly:fst.sleptEarly,sleptLate:fst.sleptLate||false,earlyBedStreak:1},work:{workDuration:fst.workDuration}};
+          const fsk={morningStreak:1,flagStreak:1,substancesPenaltyStreak:1,procrastinationPenaltyStreak:1,macanazoPenaltyStreak:1,lateStreak:1,substancesStreak:0,procrastinationStreak:0,macanazoStreak:0,workStreak:0};
           const sc_=CALC.score(mockDay,fsk);
-          upsertHist({date:key,_ts:Date.now(),todayPoints:sc_.total,status:sc_.status,completedTasks:fst.completed,totalTasks:fst.target,pomodoros:fst.pomodoros,sleepDuration:fst.sleepDuration,napDuration:fst.napDuration,sleptEarly:fst.sleptEarly,workDuration:fst.workDuration,penalties:pens,_gap:false,
+          upsertHist({date:key,_ts:Date.now(),todayPoints:sc_.total,status:sc_.status,completedTasks:fst.completed,totalTasks:fst.target,pomodoros:fst.pomodoros,sleepDuration:fst.sleepDuration,napDuration:fst.napDuration,sleptEarly:fst.sleptEarly,sleptLate:fst.sleptLate||false,workDuration:fst.workDuration,penalties:pens,_gap:false,
             streaks:[{type:'morning',count:fst.morningCompleted?1:0,active:fst.morningCompleted},{type:'flags',count:fst.flagCompleted?1:0,active:fst.flagCompleted}]},key);
           // Save locally AND push to Supabase immediately
           S.set(K.HIST,STATE.history);
