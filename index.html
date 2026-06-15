@@ -645,45 +645,28 @@ function commit(){
 }
 
 function applyStreakOverrides(skRaw){
-  // Anchor logic: store {base, since}. Grows naturally day by day.
-  // effective = base + elapsed (days since seed where streak unbroken).
-  // If streak broke (natural < elapsed), override is cleared.
+  // Offset logic: base = days you already had before the app knew.
+  // effective = natural===0 ? 0 : base + natural
+  // → natural counts your real consecutive days from today onward.
+  // → base shifts the count to reflect your true history.
+  // If you miss a day (natural=0), the override dies — streak broke.
   const ovr=STATE.streakOverrides||{};
   const sk={...skRaw};
-  const penaltyResetKeys=['substancesPenaltyStreak','procrastinationPenaltyStreak','macanazoPenaltyStreak','lateStreak'];
   let changed=false;
-  const tk=todayKey();
-  const DAY=86400000;
 
   Object.keys(ovr).forEach(k=>{
     const o=ovr[k];
     if(o===undefined||o===null) return;
-    // Normalize: plain number → anchor with today as since
-    let base, since;
-    if(typeof o==='object'){base=o.base||0;since=o.since||tk;}
-    else{base=o;since=tk;ovr[k]={base,since};changed=true;}
-
+    // Support both plain number and legacy {base,since} object
+    const base=typeof o==='object'?(o.base||0):o;
     const natural=skRaw[k]||0;
 
-    // Penalty streaks reset to 0 by day color → honor that, clear override
-    if(penaltyResetKeys.includes(k)&&natural===0&&since!==tk){
-      delete ovr[k];changed=true;sk[k]=0;return;
-    }
-
-    // elapsed = full history days since seed (0 on seed day itself)
-    const sinceDate=new Date(since+'T12:00:00');
-    const todayDate=new Date(tk+'T12:00:00');
-    const elapsed=Math.max(0,Math.round((todayDate-sinceDate)/DAY));
-
-    if(elapsed===0){
-      // Same day as seed — show base immediately regardless of natural
-      sk[k]=base;
-    } else if(natural<elapsed){
-      // Streak broke since seed (natural counts consecutive unbroken days)
-      delete ovr[k];changed=true;sk[k]=natural;
+    if(natural===0){
+      // Streak broke (or not yet earned today) — kill override, show 0
+      delete ovr[k]; changed=true; sk[k]=0;
     } else {
-      // Unbroken since seed — grow: base + days elapsed since seed
-      sk[k]=base+elapsed;
+      // Alive — offset by base
+      sk[k]=base+natural;
     }
   });
 
