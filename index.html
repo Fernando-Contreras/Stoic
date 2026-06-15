@@ -587,6 +587,7 @@ let STATE={
     work:{workDuration:0}},
   showReset:false,
   showStreakPanel:false,
+  editingStreaks:false,
   showSyncPanel:false,
   penType:'drugs', // #3: persist penalty type selection
   difficulty: localStorage.getItem('st_difficulty')||'easy',
@@ -974,15 +975,7 @@ function renderApp(){
   const acts=dv('row gap8 mt10');acts.style.justifyContent='center';
   const themeBtn=bt('btn-ghost btn-sm',STATE.theme==='light'?t('dark'):t('light'),toggleTheme);
   acts.appendChild(themeBtn);
-  acts.appendChild(bt('btn-ghost btn-sm',t('set-streaks'),()=>{
-    STATE.showStreakPanel=!STATE.showStreakPanel;
-    if(STATE.showStreakPanel){
-      // Close on Escape
-      const onEsc=(e)=>{if(e.key==='Escape'){STATE.showStreakPanel=false;refresh();document.removeEventListener('keydown',onEsc);}};
-      document.addEventListener('keydown',onEsc);
-    }
-    refresh();
-  }));
+  
   // Difficulty switch
   const diffWrap=dv('row gap4');diffWrap.style.cssText='border:1px solid var(--b2);border-radius:9px;padding:2px;background:var(--sur2);';
   [{d:'easy',lbl:t('easy')},{d:'medium',lbl:t('medium')},{d:'hard',lbl:t('hard')}].forEach(({d,lbl})=>{
@@ -996,10 +989,6 @@ function renderApp(){
   hdr.appendChild(acts);wrap.appendChild(hdr);
 
 
-
-  if(STATE.showStreakPanel){
-    wrap.appendChild(renderStreakPanel());
-  }
 
   if(STATE.showSyncPanel){
     wrap.appendChild(renderSyncPanel());
@@ -1239,18 +1228,80 @@ function renderSleepCard(sk_){
 
 /* ═══ STREAKS — 2 colors only ═══ */
 function renderStreaks(sk_){
-  const card=dv('card mt12');card.appendChild(dv('ctit',t('streaks-title')));
+  const card=dv('card mt12');
+  const hdr=dv('rowb mb8');
+  hdr.appendChild(dv('ctit',t('streaks-title')));
+  const editBtn=bt('btn-ghost btn-sm',STATE.editingStreaks?'✕ Done':'✏️ Edit',()=>{STATE.editingStreaks=!STATE.editingStreaks;refresh();});
+  hdr.appendChild(editBtn);
+  card.appendChild(hdr);
+
+  const mutuallyExclusive={
+    earlyBedStreak:'lateStreak',lateStreak:'earlyBedStreak',
+    substancesStreak:'substancesPenaltyStreak',substancesPenaltyStreak:'substancesStreak',
+    procrastinationStreak:'procrastinationPenaltyStreak',procrastinationPenaltyStreak:'procrastinationStreak',
+    macanazoStreak:'macanazoPenaltyStreak',macanazoPenaltyStreak:'macanazoStreak',
+  };
+
+  function makeStreakItem(item, cls, numCls){
+    const c=dv('skc '+cls);
+    if(STATE.editingStreaks){
+      // Show current value as editable input
+      const cur=sk_[item.k]||0;
+      const inp=ip('number','',cur===0?'':cur,'—');
+      inp.min=0;inp.style.cssText='width:54px;text-align:center;font-size:1.3rem;font-weight:700;background:transparent;border:none;border-bottom:2px solid var(--ac);color:var(--ac);padding:2px 0;outline:none;';
+      const lbl=dv('skl');lbl.textContent=item.l;
+      c.appendChild(inp);c.appendChild(lbl);
+      function commit(){
+        const raw=inp.value.trim();
+        if(raw===''){
+          // blank = clear override
+          delete STATE.streakOverrides[item.k];
+          S.set(K.STREAK_OVR,STATE.streakOverrides);
+          SB.push(STATE.history,STATE.today,STATE.diary,STATE.streakOverrides).catch(()=>{});
+          refresh(); return;
+        }
+        const v=parseInt(raw);
+        if(isNaN(v)||v<0) return;
+        if(v===0){
+          delete STATE.streakOverrides[item.k];
+        } else {
+          const naturalNow=CALC.streaks(STATE.history,STATE.today)[item.k]||0;
+          STATE.streakOverrides[item.k]={base:v,offset:v-naturalNow};
+          const opp=mutuallyExclusive[item.k];
+          if(opp) delete STATE.streakOverrides[opp];
+        }
+        S.set(K.STREAK_OVR,STATE.streakOverrides);
+        SB.push(STATE.history,STATE.today,STATE.diary,STATE.streakOverrides).catch(()=>{});
+        refresh();
+      }
+      inp.onkeydown=e=>{if(e.key==='Enter')inp.blur();};
+      inp.onblur=()=>commit();
+    } else {
+      const n=dv('skn '+numCls);n.textContent=String(sk_[item.k]||0);
+      const l=dv('skl');l.textContent=item.l;
+      c.appendChild(n);c.appendChild(l);
+    }
+    return c;
+  }
+
   card.appendChild(dv('xs dimmer up ls mb8',t('pos-streaks')));
   const pg=dv('sk-g mb16');
   [{k:'morningStreak',l:t('sk-morning')},{k:'flagStreak',l:t('sk-goals')},{k:'workStreak',l:t('sk-work')},
    {k:'substancesStreak',l:t('sk-ci')},{k:'procrastinationStreak',l:t('sk-cp')},{k:'macanazoStreak',l:t('sk-co')}]
-  .forEach(item=>{const c=dv('skc pos');const n=dv('skn ac');n.textContent=String(sk_[item.k]||0);const l=dv('skl');l.textContent=item.l;c.appendChild(n);c.appendChild(l);pg.appendChild(c);});
+  .forEach(item=>pg.appendChild(makeStreakItem(item,'pos','ac')));
   card.appendChild(pg);
+
   card.appendChild(dv('xs dimmer up ls mb8',t('rew-streaks')));
   const ng=dv('sk-g');
   [{k:'substancesPenaltyStreak',l:t('sk-i')},{k:'procrastinationPenaltyStreak',l:t('sk-p')},{k:'macanazoPenaltyStreak',l:t('sk-o')},{k:'lateStreak',l:t('sk-l')}]
-  .forEach(item=>{const c=dv('skc neg');const n=dv('skn ng');n.textContent=String(sk_[item.k]||0);const l=dv('skl');l.textContent=item.l;c.appendChild(n);c.appendChild(l);ng.appendChild(c);});
-  card.appendChild(ng);return card;
+  .forEach(item=>ng.appendChild(makeStreakItem(item,'neg','ng')));
+  card.appendChild(ng);
+
+  if(STATE.editingStreaks){
+    const clearBtn=bt('btn-ghost btn-sm mt10',t('clear-ovr'),()=>{STATE.streakOverrides={};STATE.editingStreaks=false;S.set(K.STREAK_OVR,{});SB.push(STATE.history,STATE.today,STATE.diary,STATE.streakOverrides).catch(()=>{});refresh();});
+    clearBtn.style.marginTop='12px';card.appendChild(clearBtn);
+  }
+  return card;
 }
 
 /* ═══ CALENDAR — #5 pts visible, #8 flag glow ═══ */
@@ -1797,105 +1848,6 @@ function renderSyncPanel(){
   return card;
 }
 
-/* ═══ STREAK OVERRIDE PANEL ═══ */
-function renderStreakPanel(){
-  const card=dv('card fi mb12');
-  card.style.cssText='border:1px solid var(--acb);background:var(--acd)';
-
-  const hd=dv('rowb mb12');
-  hd.appendChild(sp('ctit',t('set-streaks-t')));
-  hd.appendChild(bt('btn-icon','✕',()=>{STATE.showStreakPanel=false;refresh()}));
-  card.appendChild(hd);
-
-  const info=dv('sm dim mb12');
-  info.textContent=t('set-streaks-info');
-  card.appendChild(info);
-
-  const ovr=STATE.streakOverrides;
-  // Pairs that cancel each other out — setting one clears the other
-  const mutuallyExclusive={
-    earlyBedStreak:'lateStreak',
-    lateStreak:'earlyBedStreak',
-    substancesStreak:'substancesPenaltyStreak',
-    substancesPenaltyStreak:'substancesStreak',
-    procrastinationStreak:'procrastinationPenaltyStreak',
-    procrastinationPenaltyStreak:'procrastinationStreak',
-    macanazoStreak:'macanazoPenaltyStreak',
-    macanazoPenaltyStreak:'macanazoStreak',
-  };
-
-  const streakDefs=[
-    // ── Positive streaks ──────────────────────────
-    {k:'morningStreak',      l:t('sk-morning'),  emoji:'🌅', section:'pos'},
-    {k:'flagStreak',         l:t('goals-ann'),   emoji:'🏅', section:'pos'},
-    {k:'workStreak',         l:t('work-lbl'),    emoji:'💼', section:'pos'},
-    {k:'earlyBedStreak',     l:'Slept Early',    emoji:'😴', section:'pos'},
-    {k:'substancesStreak',   l:t('sk-ci'),       emoji:'✅', section:'pos'},
-    {k:'procrastinationStreak',l:t('sk-cp'),     emoji:'✅', section:'pos'},
-    {k:'macanazoStreak',     l:t('sk-co'),       emoji:'✅', section:'pos'},
-    // ── Reward (negative) streaks ─────────────────
-    {k:'substancesPenaltyStreak',     l:t('sk-i'), emoji:'💊', section:'neg'},
-    {k:'procrastinationPenaltyStreak',l:t('sk-p'), emoji:'🌐', section:'neg'},
-    {k:'macanazoPenaltyStreak',       l:t('sk-o'), emoji:'💦', section:'neg'},
-    {k:'lateStreak',                  l:t('sk-l'), emoji:'🌙', section:'neg'},
-  ];
-
-  // Track input elements by key so mutual exclusion can clear them
-  const inputRefs={};
-
-  function buildSection(defs, sectionTitle, sectionClass){
-    const wrap=dv('mb12');
-    const lbl=dv(`xs dimmer up ls mb8 ${sectionClass}`);lbl.textContent=sectionTitle;wrap.appendChild(lbl);
-    const g=dv('g2');g.style.gap='8px';
-    defs.forEach(({k,l,emoji})=>{
-      const row=dv('card2 row gap10');
-      const lbl2=dv('f1 sm');lbl2.textContent=emoji+' '+l;
-      const i=ip('number','',ovr[k]!==undefined?(typeof ovr[k]==='object'?ovr[k].base:ovr[k]):'','auto');
-      i.min=0;i.style.cssText='width:80px;flex:0 0 auto;text-align:center';
-      i.placeholder='auto';
-      inputRefs[k]=i;
-      function commitStreakInput(){
-        const v=parseInt(i.value);
-        if(!isNaN(v)&&v>=0){
-          if(v===0){
-            delete STATE.streakOverrides[k];
-            i.value='';i.placeholder='auto';
-            S.set(K.STREAK_OVR,STATE.streakOverrides);
-            SB.push(STATE.history,STATE.today,STATE.diary,STATE.streakOverrides).catch(()=>{});
-            refresh();
-          } else {
-            const naturalNow=CALC.streaks(STATE.history,STATE.today)[k]||0;
-            STATE.streakOverrides[k]={base:v,offset:v-naturalNow};
-            const opposite=mutuallyExclusive[k];
-            if(opposite){
-              delete STATE.streakOverrides[opposite];
-              if(inputRefs[opposite]){inputRefs[opposite].value='';inputRefs[opposite].placeholder='auto';}
-            }
-            S.set(K.STREAK_OVR,STATE.streakOverrides);
-            i.value='';i.placeholder='✓ seeded as '+v;
-            SB.push(STATE.history,STATE.today,STATE.diary,STATE.streakOverrides).catch(()=>{});
-            refresh();
-          }
-        }
-      }
-      i.onkeydown=e=>{if(e.key==='Enter'){i.blur();}};
-      i.onblur=()=>commitStreakInput();
-      row.appendChild(lbl2);row.appendChild(i);g.appendChild(row);
-    });
-    wrap.appendChild(g);return wrap;
-  }
-
-  card.appendChild(buildSection(streakDefs.filter(d=>d.section==='pos'),'✅ Positive Streaks','ac'));
-  card.appendChild(buildSection(streakDefs.filter(d=>d.section==='neg'),'🔥 Reward Streaks','ng'));
-
-  const note=dv('xs dimmer');
-  note.textContent=t('set-streaks-note');
-  card.appendChild(note);
-
-  const clearBtn=bt('btn-ghost btn-sm mt10',t('clear-ovr'),()=>{STATE.streakOverrides={};S.set(K.STREAK_OVR,{});SB.push(STATE.history,STATE.today,STATE.diary,STATE.streakOverrides).catch(()=>{});refresh();});
-  clearBtn.style.marginTop='10px';card.appendChild(clearBtn);
-  return card;
-}
 
 /* ═══ DIARY (used inside calendar) ═══ */
 function renderDiaryFor(dateKey){
