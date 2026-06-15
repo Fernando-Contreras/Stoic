@@ -645,58 +645,41 @@ function commit(){
 }
 
 function applyStreakOverrides(skRaw){
+  // How it works:
+  // - You set a streak to N. That value is the FLOOR — the minimum the streak will show.
+  // - The natural calculation still runs normally on top of it.
+  // - Result = max(override, natural). So if natural grows past override, natural wins.
+  // - If natural resets to 0 (streak broke / day color reset it), override also resets to 0.
+  //   This is the "break" condition — once broken, the override is gone.
   const ovr=STATE.streakOverrides||{};
   const sk={...skRaw};
-  const opposites={
-    earlyBedStreak:'lateStreak',lateStreak:'earlyBedStreak',
-    substancesStreak:'substancesPenaltyStreak',substancesPenaltyStreak:'substancesStreak',
-    procrastinationStreak:'procrastinationPenaltyStreak',procrastinationPenaltyStreak:'procrastinationStreak',
-    macanazoStreak:'macanazoPenaltyStreak',macanazoPenaltyStreak:'macanazoStreak',
-  };
-  // Penalty streaks reset to 0 by day color — override can't fight that
-  const penaltyStreakKeys=['substancesPenaltyStreak','procrastinationPenaltyStreak','macanazoPenaltyStreak','lateStreak'];
-  const tk=todayKey();
-  const DAY=86400000;
+  const penaltyKeys=['substancesPenaltyStreak','procrastinationPenaltyStreak','macanazoPenaltyStreak','lateStreak'];
   let changed=false;
 
   Object.keys(ovr).forEach(k=>{
-    let o=ovr[k];
+    const o=ovr[k];
     if(o===undefined||o===null) return;
-    // Migrate legacy numeric override to anchor object
-    if(typeof o==='number'){o={base:o,since:tk};ovr[k]=o;changed=true;}
-
-    const base=o.base||0;
-    const since=o.since||tk;
+    // Support both number and legacy anchor object
+    const floor=typeof o==='object'?(o.base||0):o;
     const natural=skRaw[k]||0;
-    const elapsed=Math.max(0,Math.round((new Date(tk)-new Date(since))/DAY));
 
-    if(penaltyStreakKeys.includes(k)){
-      // Penalty streaks: if day color reset it (natural=0), override dies
-      if(natural===0){delete ovr[k];changed=true;sk[k]=0;return;}
-      sk[k]=base+elapsed;
-    } else {
-      // Positive streaks (goals, work, morning, etc.)
-      // The streak grows by elapsed days from the seed date.
-      // It breaks ONLY if the natural calculation is 0 AND
-      // the user has not done the activity today (natural would be >=1 if they did it today).
-      // We never kill the override on the seed day itself (elapsed=0).
-      if(elapsed>0 && natural===0){
-        // Check if today's activity could explain natural=0
-        // (i.e. user just did it today but history doesn't reflect it yet)
-        // We do this by checking: if elapsed===1 and the seed was yesterday,
-        // the override is still valid for today — it grows to base+1
-        // Only truly break if elapsed>1 (meaning a day was skipped with no activity)
-        if(elapsed>1){
-          delete ovr[k];changed=true;sk[k]=0;return;
-        }
-        // elapsed===1: might just be today — keep override alive at base+1
-        sk[k]=base+elapsed;
-      } else {
-        sk[k]=base+elapsed;
+    // If natural is 0 → streak broke → kill override
+    if(natural===0){
+      // Exception: on the very same day you set it, natural might be 0
+      // because history doesn't have today yet. Check if today is since day.
+      const since=typeof o==='object'?(o.since||''):'';
+      const isToday=since===todayKey();
+      if(!isToday){
+        // Broke after seeding — kill it
+        delete ovr[k]; changed=true; sk[k]=0; return;
       }
+      // Same day as seed — keep the floor value
+      sk[k]=floor;
+    } else {
+      // Natural is alive — show max(floor, natural)
+      // This makes it grow naturally once natural catches up to floor
+      sk[k]=Math.max(floor, natural);
     }
-    const opp=opposites[k];
-    if(opp) sk[opp]=0;
   });
 
   if(changed){STATE.streakOverrides=ovr;S.set(K.STREAK_OVR,STATE.streakOverrides);}
@@ -819,24 +802,11 @@ function applyRemote(remote){
     }
   }
 
-  // STREAK OVERRIDES: merge — remote wins per key, but never deletes local keys
-  // This prevents bgSync from killing an override that was just set on this device
+  // STREAK OVERRIDES: remote wins
   if(remote.streak_overrides){
     const ro=remote.streak_overrides;
-    const lo=STATE.streakOverrides||{};
-    const merged={...lo};
-    let ovrChanged=false;
-    Object.entries(ro).forEach(([k,v])=>{
-      // Remote key wins if local doesn't have it, or if remote has a newer 'since'
-      const localV=lo[k];
-      if(localV===undefined){merged[k]=v;ovrChanged=true;}
-      else if(typeof v==='object'&&typeof localV==='object'){
-        // Both are anchor objects — newer 'since' wins
-        if((v.since||'')>(localV.since||'')){merged[k]=v;ovrChanged=true;}
-      }
-    });
-    if(ovrChanged){
-      STATE.streakOverrides=merged;
+    if(JSON.stringify(ro)!==JSON.stringify(STATE.streakOverrides||{})){
+      STATE.streakOverrides=ro;
       S.set(K.STREAK_OVR,STATE.streakOverrides);
       changed=true;
     }
