@@ -645,11 +645,11 @@ function commit(){
 }
 
 function applyStreakOverrides(skRaw){
-  // Offset logic: base = days you already had before the app knew.
-  // effective = natural===0 ? 0 : base + natural
-  // → natural counts your real consecutive days from today onward.
-  // → base shifts the count to reflect your true history.
-  // If you miss a day (natural=0), the override dies — streak broke.
+  // Offset logic: at seed time we store offset = base - naturalAtSeed.
+  // effective = natural===0 ? 0 : offset + natural
+  // → on seed day: offset + naturalAtSeed = base (exactly what user typed)
+  // → next day they earn it: offset + (naturalAtSeed+1) = base+1
+  // → miss a day: natural=0 → show 0, kill override
   const ovr=STATE.streakOverrides||{};
   const sk={...skRaw};
   let changed=false;
@@ -657,16 +657,14 @@ function applyStreakOverrides(skRaw){
   Object.keys(ovr).forEach(k=>{
     const o=ovr[k];
     if(o===undefined||o===null) return;
-    // Support both plain number and legacy {base,since} object
-    const base=typeof o==='object'?(o.base||0):o;
+    const offset=typeof o==='object'?(o.offset!==undefined?o.offset:(o.base||0)):o;
     const natural=skRaw[k]||0;
 
     if(natural===0){
-      // Streak broke (or not yet earned today) — kill override, show 0
+      // Not earned today (or streak broke) — show 0, kill override
       delete ovr[k]; changed=true; sk[k]=0;
     } else {
-      // Alive — offset by base
-      sk[k]=base+natural;
+      sk[k]=offset+natural;
     }
   });
 
@@ -1856,36 +1854,32 @@ function renderStreakPanel(){
       i.min=0;i.style.cssText='width:80px;flex:0 0 auto;text-align:center';
       i.placeholder='auto';
       inputRefs[k]=i;
-      i.onkeydown=e=>{
-        if(e.key==='Enter'){
-          const v=parseInt(i.value);
-          if(!isNaN(v)&&v>=0){
-            if(v===0){
-              // 0 = clear, use calculated value
-              delete STATE.streakOverrides[k];
-              i.value='';
-              i.placeholder='auto';
-              S.set(K.STREAK_OVR,STATE.streakOverrides);
-              SB.push(STATE.history,STATE.today,STATE.diary,STATE.streakOverrides).catch(()=>{});
-              refresh();
-            } else {
-              // Seed an anchor: base value as of today. From now on it grows
-              // naturally each qualifying day and resets when the streak breaks.
-              STATE.streakOverrides[k]={base:v,since:todayKey()};
-              const opposite=mutuallyExclusive[k];
-              if(opposite){
-                delete STATE.streakOverrides[opposite];
-                if(inputRefs[opposite]){inputRefs[opposite].value='';inputRefs[opposite].placeholder='auto';}
-              }
-              S.set(K.STREAK_OVR,STATE.streakOverrides);
-              i.value='';
-              i.placeholder='✓ seeded as '+v;
-              SB.push(STATE.history,STATE.today,STATE.diary,STATE.streakOverrides).catch(()=>{});
-              refresh();
+      function commitStreakInput(){
+        const v=parseInt(i.value);
+        if(!isNaN(v)&&v>=0){
+          if(v===0){
+            delete STATE.streakOverrides[k];
+            i.value='';i.placeholder='auto';
+            S.set(K.STREAK_OVR,STATE.streakOverrides);
+            SB.push(STATE.history,STATE.today,STATE.diary,STATE.streakOverrides).catch(()=>{});
+            refresh();
+          } else {
+            const naturalNow=CALC.streaks(STATE.history,STATE.today)[k]||0;
+            STATE.streakOverrides[k]={base:v,offset:v-naturalNow};
+            const opposite=mutuallyExclusive[k];
+            if(opposite){
+              delete STATE.streakOverrides[opposite];
+              if(inputRefs[opposite]){inputRefs[opposite].value='';inputRefs[opposite].placeholder='auto';}
             }
+            S.set(K.STREAK_OVR,STATE.streakOverrides);
+            i.value='';i.placeholder='✓ seeded as '+v;
+            SB.push(STATE.history,STATE.today,STATE.diary,STATE.streakOverrides).catch(()=>{});
+            refresh();
           }
         }
-      };
+      }
+      i.onkeydown=e=>{if(e.key==='Enter'){i.blur();}};
+      i.onblur=()=>commitStreakInput();
       row.appendChild(lbl2);row.appendChild(i);g.appendChild(row);
     });
     wrap.appendChild(g);return wrap;
