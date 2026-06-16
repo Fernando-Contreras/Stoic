@@ -1536,7 +1536,9 @@ function renderStats(total,sc){
   tog.onclick=()=>{open=!open;body.style.display=open?'':'none';document.getElementById('st-a').textContent=open?'▲':'▼';};
   wrap.appendChild(tog);
 
-  // ── All computed values ──────────────────────────────────────────────────
+  const isEs=STATE.lang==='es';
+
+  // ── Computed values ──────────────────────────────────────────────────────
   const allPts=STATE.history.filter(d=>!d._gap).map(d=>CALC.liveScore(d));
   const last7=STATE.history.filter(d=>!d._gap).slice(0,7).map(d=>CALC.liveScore(d));
   const best=allPts.length?Math.max(...allPts):0;
@@ -1545,10 +1547,11 @@ function renderStats(total,sc){
   const avg7=last7.length?Math.round(last7.reduce((a,b)=>a+b,0)/last7.length):0;
   const totalTracked=STATE.history.filter(d=>!d._gap).length;
   const sortedH=[...STATE.history].sort((a,b)=>new Date(a.date)-new Date(b.date));
+  const momentum=avg>0?Math.round((avg7-avg)/avg*100):0;
 
   // Streaks
   let bStrk=0,curStrk=0;sortedH.forEach(d=>{if(d.status!=='red'&&!d._gap){curStrk++;bStrk=Math.max(bStrk,curStrk);}else curStrk=0;});
-  let pfStrk=0;for(let i=0;i<sortedH.length;i++){if(!sortedH[sortedH.length-1-i].penalties?.length&&!sortedH[sortedH.length-1-i]._gap)pfStrk++;else break;}
+  let pfStrk=0;for(let k=0;k<sortedH.length;k++){if(!sortedH[sortedH.length-1-k].penalties?.length&&!sortedH[sortedH.length-1-k]._gap)pfStrk++;else break;}
   let bestMornStrk=0,curMorn=0;sortedH.forEach(d=>{if(d.morningCompleted&&!d._gap){curMorn++;bestMornStrk=Math.max(bestMornStrk,curMorn);}else curMorn=0;});
   let bestDFStrk=0,curDF=0;sortedH.forEach(d=>{if(!d.penalties?.some(p=>p.type==='drugs')&&!d._gap){curDF++;bestDFStrk=Math.max(bestDFStrk,curDF);}else curDF=0;});
 
@@ -1558,8 +1561,9 @@ function renderStats(total,sc){
   const workDays=STATE.history.filter(d=>!d._gap&&(d.workDuration||0)>0).length;
   const workPct=totalTracked>0?Math.round(workDays/totalTracked*100):0;
   const pomPerDay=totalTracked>0?Math.round(totalPoms/totalTracked*10)/10:0;
+  const totalProcMin=STATE.history.reduce((s,d)=>s+(d.penalties?.filter(p=>p.type==='internet').reduce((a,p)=>a+(p.duration||0),0)||0),0);
 
-  // Sleep & lifestyle
+  // Sleep
   const totalSleepMin=STATE.history.reduce((s,d)=>s+(d.sleepDuration||0),0)+(STATE.today.sleep?.sleepDuration||0);
   const avgSleepMin=totalTracked>0?Math.round(STATE.history.filter(d=>!d._gap).reduce((s,d)=>s+(d.sleepDuration||0),0)/totalTracked):0;
   const earlyNights=STATE.history.filter(d=>d.sleptEarly).length;
@@ -1572,49 +1576,57 @@ function renderStats(total,sc){
   const procFreePct=totalTracked?Math.round(procFreeDays/totalTracked*100):100;
   const orgFreeDays=STATE.history.filter(d=>!d.penalties?.some(p=>p.type==='macanazo')&&!d._gap).length;
   const orgFreePct=totalTracked?Math.round(orgFreeDays/totalTracked*100):100;
-
-  // Totals
-  const totalIndulgences=STATE.history.reduce((s,d)=>s+(d.penalties?.filter(p=>p.type==='drugs').reduce((a,p)=>a+(p.count||1),0)||0),0);
   const totalOrgasms=STATE.history.reduce((s,d)=>s+(d.penalties?.filter(p=>p.type==='macanazo').length||0),0);
-  const totalProcMin=STATE.history.reduce((s,d)=>s+(d.penalties?.filter(p=>p.type==='internet').reduce((a,p)=>a+(p.duration||0),0)||0),0);
+  const totalIndulgences=STATE.history.reduce((s,d)=>s+(d.penalties?.filter(p=>p.type==='drugs').reduce((a,p)=>a+(p.count||1),0)||0),0);
 
   // Day color counts
   const counts={purple:0,green:0,yellow:0,red:0};STATE.history.forEach(d=>counts[d.status]=(counts[d.status]||0)+1);
   const purplePct=totalTracked?Math.round((counts.purple/totalTracked)*100):0;
-  const momentum=avg>0?Math.round((avg7-avg)/avg*100):0;
 
-  // Day-of-week: most productive & horniest (needs just 1 data point per day)
-  const dowNames=STATE.lang==='es'?['Dom','Lun','Mar','Mié','Jue','Vie','Sáb']:['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  // Most productive day EVER (highest workDuration)
+  let bestWorkDay=null,bestWorkMin=0;
+  sortedH.filter(d=>!d._gap).forEach(d=>{if((d.workDuration||0)>bestWorkMin){bestWorkMin=d.workDuration;bestWorkDay=d.date;}});
+  const prodEverStr=bestWorkDay?bestWorkDay.slice(5):'—'; // MM-DD
+  const prodEverSub=bestWorkDay?fmtDur(bestWorkMin):(isEs?'Sin datos':'No data');
+
+  // Horniest day EVER (most orgasms in one day)
+  let bestOrgDay=null,bestOrgCount=0;
+  sortedH.filter(d=>!d._gap).forEach(d=>{const c=d.penalties?.filter(p=>p.type==='macanazo').length||0;if(c>bestOrgCount){bestOrgCount=c;bestOrgDay=d.date;}});
+  const hornEverStr=bestOrgDay?bestOrgDay.slice(5):'—';
+  const hornEverSub=bestOrgDay?(bestOrgCount+' '+(isEs?'orgasmo(s)':'orgasm(s)')):(isEs?'Sin datos':'No data');
+
+  // Most productive & horniest day OF THE WEEK (by average)
+  const dowNames=isEs?['Dom','Lun','Mar','Mié','Jue','Vie','Sáb']:['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
   const dowWork=[],dowOrg=[];for(let k=0;k<7;k++){dowWork.push([]);dowOrg.push([]);}
   sortedH.filter(d=>!d._gap).forEach(d=>{
     const dow=new Date(d.date+'T12:00:00').getDay();
     dowWork[dow].push(d.workDuration||0);
     dowOrg[dow].push(d.penalties?.filter(p=>p.type==='macanazo').length||0);
   });
-  // Best day of week by average (min 1 entry)
   let prodDay=-1,prodAvg=0;
   dowWork.forEach((arr,k)=>{if(!arr.length)return;const a=arr.reduce((x,y)=>x+y,0)/arr.length;if(a>prodAvg){prodAvg=a;prodDay=k;}});
-  let hornDay=-1,hornMax=0;
-  dowOrg.forEach((arr,k)=>{if(!arr.length)return;const a=arr.reduce((x,y)=>x+y,0)/arr.length;if(a>hornMax){hornMax=a;hornDay=k;}});
+  let hornDay=-1,hornAvg=0;
+  dowOrg.forEach((arr,k)=>{if(!arr.length)return;const a=arr.reduce((x,y)=>x+y,0)/arr.length;if(a>hornAvg){hornAvg=a;hornDay=k;}});
   const prodDayStr=prodDay>=0?dowNames[prodDay]:'—';
+  const prodDaySub=prodDay>=0?('⌀ '+fmtDur(Math.round(prodAvg))):(isEs?'Sin datos':'No data');
   const hornDayStr=hornDay>=0?dowNames[hornDay]:'—';
-  const prodSub=prodDay>=0?('⌀ '+fmtDur(Math.round(prodAvg))+' / '+(STATE.lang==='es'?'día':'day')):(STATE.lang==='es'?'Sin datos aún':'No data yet');
-  const hornSub=hornDay>=0?(STATE.lang==='es'?`⌀ ${hornMax.toFixed(1)} por día`:`⌀ ${hornMax.toFixed(1)} per day`):(STATE.lang==='es'?'Sin datos aún':'No data yet');
+  const hornDaySub=hornDay>=0?('⌀ '+hornAvg.toFixed(1)):(isEs?'Sin datos':'No data');
 
   // Insight
   let insight='';
-  if(totalTracked<3)insight=STATE.lang==='es'?'Sigue registrando días para ver estadísticas personalizadas.':'Keep logging days to see personalized insights.';
-  else if(momentum>20)insight=`🚀 Momentum +${momentum}% — your last 7 days beat your all-time average.`;
-  else if(momentum<-20)insight=`📉 Semana difícil (${momentum}%). Progress isn't linear. Tomorrow is a new day.`;
-  else if(dfPct===100)insight=STATE.lang==='es'?'🌟 100% de días sin estimulantes. Disciplina consistente.':'🌟 100% stimulant-free days. Consistent discipline.';
-  else if(pfStrk>7)insight=STATE.lang==='es'?`✨ ${pfStrk} días consecutivos sin penalizaciones. ¡Racha limpia!`:`✨ ${pfStrk} consecutive days with no rewards. Clean streak!`;
-  else if(totalPoms>50)insight=STATE.lang==='es'?`🍅 ${totalPoms} pomodoros = ${Math.round(totalPoms*25/60)}h de trabajo enfocado.`:`🍅 ${totalPoms} pomodoros = ${Math.round(totalPoms*25/60)}h of focused work.`;
-  else insight=STATE.lang==='es'?'📊 Construyendo historial. Más datos = mejores estadísticas.':'📊 Building history. More data = better insights.';
+  if(totalTracked<3)insight=isEs?'Sigue registrando días para ver estadísticas personalizadas.':'Keep logging days to see personalized insights.';
+  else if(momentum>20)insight=`🚀 Momentum +${momentum}% — tu última semana supera tu promedio histórico.`;
+  else if(momentum<-20)insight=`📉 ${isEs?'Semana difícil':'Tough week'} (${momentum}%). Progress isn't linear.`;
+  else if(dfPct===100)insight=isEs?'🌟 100% de días sin estimulantes. Disciplina consistente.':'🌟 100% stimulant-free days. Consistent discipline.';
+  else if(pfStrk>7)insight=isEs?`✨ ${pfStrk} días sin penalizaciones. ¡Racha limpia!`:`✨ ${pfStrk} days with no rewards. Clean streak!`;
+  else if(totalPoms>50)insight=isEs?`🍅 ${totalPoms} pomodoros = ${Math.round(totalPoms*25/60)}h de trabajo enfocado.`:`🍅 ${totalPoms} pomodoros = ${Math.round(totalPoms*25/60)}h of focused work.`;
+  else insight=isEs?'📊 Construyendo historial. Más datos = mejores estadísticas.':'📊 Building history. More data = better insights.';
 
   function statCard(label,value,color,sub,size='xl'){
     const s=dv('card2 ctr');const n=dv(size+' w7 mo');n.style.color=color;n.textContent=value;
     s.appendChild(n);s.appendChild(dv('xs dimmer mt4',label));if(sub)s.appendChild(dv('xs dimmer',sub));return s;
   }
+  function grid4(...cards){const g=dv('g4 mb10');g.style.gap='8px';cards.forEach(c=>g.appendChild(c));return g;}
 
   // ── 1. Score highlights ──────────────────────────────────────────────────
   const gA=dv('g4 mb10');gA.style.gap='8px';
@@ -1625,75 +1637,59 @@ function renderStats(total,sc){
   });body.appendChild(gA);
 
   // ── 2. Overview ──────────────────────────────────────────────────────────
-  const gB=dv('g4 mb10');gB.style.gap='8px';
-  [
-    [t('total-days-lbl'),String(totalTracked),'var(--ac)',null],
-    [t('best-streak'),bStrk+'d','var(--cp)',t('non-red')],
-    [t('clean-streak'),pfStrk+'d','var(--ac)',t('rf-sub')],
-    [STATE.lang==='es'?'Días morados':t('purple-days'),purplePct+'%','var(--cp)',counts.purple+'d'],
-  ].forEach(([l,v,c,sub])=>gB.appendChild(statCard(l,v,c,sub)));
-  body.appendChild(gB);
+  body.appendChild(grid4(
+    statCard(t('total-days-lbl'),String(totalTracked),'var(--ac)',null),
+    statCard(t('best-streak'),bStrk+'d','var(--cp)',isEs?'sin rojo':'non-red'),
+    statCard(t('clean-streak'),pfStrk+'d','var(--ac)',isEs?'sin penalizaciones':'no rewards'),
+    statCard(isEs?'Días morados':t('purple-days'),purplePct+'%','var(--cp)',counts.purple+'d')
+  ));
 
-  // ── 3. Day-of-week insights ──────────────────────────────────────────────
-  const gC=dv('g2 mb10');gC.style.gap='8px';
-  const prodCard=dv('card2 ctr');
-  prodCard.appendChild(dv('xl w7 mo ac',prodDayStr));
-  prodCard.appendChild(dv('xs dimmer mt4',t('prod-day')));
-  prodCard.appendChild(dv('xs dimmer',prodSub));
-  gC.appendChild(prodCard);
-  const hornCard=dv('card2 ctr');
-  hornCard.appendChild(dv('xl w7 mo ng',hornDayStr));
-  hornCard.appendChild(dv('xs dimmer mt4',t('horniest-day')));
-  hornCard.appendChild(dv('xs dimmer',hornSub));
-  gC.appendChild(hornCard);
-  body.appendChild(gC);
+  // ── 3. Work: Best days ───────────────────────────────────────────────────
+  body.appendChild(grid4(
+    statCard(isEs?'Día más productivo (ever)':'Most productive day',prodEverStr,'var(--ac)',prodEverSub),
+    statCard(isEs?'Día más productivo (semana)':'Most productive day of week',prodDayStr,'var(--ac)',prodDaySub),
+    statCard(t('work-total'),fmtDur(totalWorkMin),'var(--ac)',null),
+    statCard(t('work-days-lbl'),workPct+'%','var(--ac)',workDays+'d')
+  ));
 
-  // ── 4. Work & Focus ──────────────────────────────────────────────────────
-  const gD=dv('g4 mb10');gD.style.gap='8px';
-  [
-    [t('work-total'),fmtDur(totalWorkMin),'var(--ac)',t('worked-sub')],
-    [t('total-poms'),String(totalPoms),'var(--ac)',t('poms-sub')],
-    [t('poms-day'),String(pomPerDay),'var(--ac)',t('focused-sub')],
-    [t('work-days-lbl'),workPct+'%','var(--ac)',t('of-logged')],
-  ].forEach(([l,v,c,sub])=>gD.appendChild(statCard(l,v,c,sub)));
-  body.appendChild(gD);
+  // ── 4. Work: Focus & Routine ─────────────────────────────────────────────
+  body.appendChild(grid4(
+    statCard(t('total-poms'),String(totalPoms),'var(--ac)',null),
+    statCard(t('poms-day'),String(pomPerDay),'var(--ac)',null),
+    statCard(t('best-morn-lbl'),bestMornStrk+'d','var(--ac)',null),
+    statCard(t('total-proc-lbl'),fmtDur(totalProcMin),'var(--ng)',null)
+  ));
 
-  // ── 5. Best streaks ───────────────────────────────────────────────────────
-  const gE=dv('g4 mb10');gE.style.gap='8px';
-  [
-    [t('best-morn-lbl'),bestMornStrk+'d','var(--ac)',t('streak-lbl')],
-    [t('best-drug-free'),bestDFStrk+'d','var(--cg)',t('streak-lbl')],
-    [t('early-nights'),earlyNights+'d','var(--cg)',t('se-sub')],
-    [t('late-nights-lbl'),lateNights+'d','var(--ng)',t('stayed-up')],
-  ].forEach(([l,v,c,sub])=>gE.appendChild(statCard(l,v,c,sub)));
-  body.appendChild(gE);
+  // ── 5. Orgasms ───────────────────────────────────────────────────────────
+  body.appendChild(grid4(
+    statCard(isEs?'Día más cachondo (ever)':'Horniest day',hornEverStr,'var(--ng)',hornEverSub),
+    statCard(isEs?'Día más cachondo (semana)':'Horniest day of week',hornDayStr,'var(--ng)',hornDaySub),
+    statCard(isEs?'Total orgasmos':'Total orgasms',String(totalOrgasms),'var(--ng)',null),
+    statCard(t('clean-org'),orgFreePct+'%','var(--ac)',orgFreeDays+'d')
+  ));
 
-  // ── 6. Discipline % ───────────────────────────────────────────────────────
-  const gF=dv('g4 mb10');gF.style.gap='8px';
-  [
-    [t('clean-drugs'),dfPct+'%','var(--ac)',t('no-subs')],
-    [t('clean-proc'),procFreePct+'%','var(--ac)',t('no-proc')],
-    [t('clean-org'),orgFreePct+'%','var(--ac)',t('no-org')],
-    [STATE.lang==='es'?'Días morados':t('purple-days'),purplePct+'%','var(--cp)',counts.purple+'d'],
-  ].forEach(([l,v,c,sub])=>gF.appendChild(statCard(l,v,c,sub)));
-  body.appendChild(gF);
+  // ── 6. Discipline ────────────────────────────────────────────────────────
+  body.appendChild(grid4(
+    statCard(t('clean-drugs'),dfPct+'%','var(--ac)',drugFreeDays+'d'),
+    statCard(t('best-drug-free'),bestDFStrk+'d','var(--cg)',null),
+    statCard(isEs?'Total estimulantes':'Total stimulants',String(totalIndulgences),'var(--ng)',null),
+    statCard(t('clean-proc'),procFreePct+'%','var(--ac)',procFreeDays+'d')
+  ));
 
-  // ── 7. Totals & Sleep ─────────────────────────────────────────────────────
-  const gG=dv('g4 mb10');gG.style.gap='8px';
-  [
-    [t('sleep-total'),fmtDur(totalSleepMin),'var(--ac)',t('rested-sub')],
-    [t('avg-sleep'),fmtDur(avgSleepMin),'var(--ac)',t('per-night')],
-    [t('total-proc-lbl'),fmtDur(totalProcMin),'var(--ng)',t('total-logged')],
-    [t('pen-org').replace('💦 ','')+'s',String(totalOrgasms),'var(--ng)',t('total-logged')],
-  ].forEach(([l,v,c,sub])=>gG.appendChild(statCard(l,v,c,sub)));
-  body.appendChild(gG);
+  // ── 7. Sleep ─────────────────────────────────────────────────────────────
+  body.appendChild(grid4(
+    statCard(t('sleep-total'),fmtDur(totalSleepMin),'var(--ac)',null),
+    statCard(t('avg-sleep'),fmtDur(avgSleepMin),'var(--ac)',isEs?'por noche':'per night'),
+    statCard(t('early-nights'),earlyNights+'d','var(--cg)',null),
+    statCard(t('late-nights-lbl'),lateNights+'d','var(--ng)',null)
+  ));
 
   // ── 8. Day color counts ───────────────────────────────────────────────────
   const dr=dv('row gap8 mb10');
   [['purple','🟣'],['green','🟢'],['yellow','🟡'],['red','🔴']].forEach(([s,e])=>dr.appendChild(sp(`badge s-${s}`,`${e} ${counts[s]}d`)));
   body.appendChild(dr);
 
-  // ── 9. Insight box ────────────────────────────────────────────────────────
+  // ── 9. Insight ────────────────────────────────────────────────────────────
   const ib=dv('card2 s-ac fi');ib.appendChild(sp('sm dim',insight));body.appendChild(ib);
 
   wrap.appendChild(body);return wrap;
