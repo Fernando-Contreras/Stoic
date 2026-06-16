@@ -1656,12 +1656,12 @@ function renderRules(){
   <div>
     <div class="md up ls dimmer w7 mb10">📊 Estado del día — tu color diario</div>
     <div class="s6">
-      <div>Tu día recibe un color basado en cuántas tareas completaste de tu meta:</div>
+      <div>Tu día recibe un color basado en cuántas tareas completaste de tu objetivo:</div>
       <div><span class="cp w6">🟣 Morado</span> — 100% completado. Día perfecto.</div>
       <div><span class="cg w6">🟢 Verde</span> — 85% o más. Día excelente.</div>
       <div><span class="cy w6">🟡 Amarillo</span> — 50% o más. Día decente.</div>
       <div><span class="cr w6">🔴 Rojo</span> — menos del 50%. Día difícil.</div>
-      <div class="xs dimmer">Bonus: <strong>Exterminar tus Metas</strong> sube tu color un nivel — Rojo→Amarillo, Amarillo→Verde, Verde→Morado.</div>
+      <div class="xs dimmer">Bonus: <strong>Exterminar tus Metas alv</strong> sube tu color un nivel — Rojo→Amarillo, Amarillo→Verde, Verde→Morado.</div>
     </div>
   </div>
   <hr class="dv">
@@ -1670,7 +1670,7 @@ function renderRules(){
     <div class="s6">
       <div><span class="ac w6">✅ Tareas</span> — +1 pt por tarea completada.</div>
       <div><span class="ac w6">🌅 Rutina Matutina</span> — ¿hiciste tu rutina hoy? Márcala por +25 pts. Cuanto más larga tu racha, mayor el bonus.</div>
-      <div><span class="ac w6">🏅 Metas Exterminadas alv</span> — ¿aplastaste tus tareas clave? +100 pts × tu racha.</div>
+      <div><span class="ac w6">🏅 Metas Exterminadas alv</span> — ¿acabaste tus 3 tareas más importantes? +100 pts × tu racha.</div>
       <div><span class="ac w6">🍅 Pomodoros</span> — cada sesión de trabajo enfocado = +25 pts.</div>
       <div><span class="ac w6">💼 Trabajo</span> — registra tu tiempo de trabajo. +1 pt por minuto, multiplicado por tu racha de días trabajados consecutivos.</div>
       <div><span class="ac w6">😴 Sueño</span> — registra tu sueño y siestas. +1 pt por minuto. Dormir temprano da un bonus multiplicado por racha.</div>
@@ -1685,7 +1685,7 @@ function renderRules(){
       <div><span class="ng w6">💊 Estimulantes</span> — comida chatarra, sustancias (azúcar, café, mota, alcohol; todo cuenta) y cualquier mal hábito que quieras reducir. Cuesta puntos × cuántos días seguidos llevas.</div>
       <div><span class="ng w6">🌐 Procrastinación</span> — registra cuántos minutos desperdiciaste. Después de 30 min, el multiplicador de racha aplica.</div>
       <div><span class="ng w6">💦 Orgasmo</span> — cuesta bastante × días consecutivos.</div>
-      <div><span class="ng w6">🌙 Trasnoché</span> — quedarse despierto tarde cuesta 100 pts × tu racha de desvelo.</div>
+      <div><span class="ng w6">🌙 Trasnoché</span> — quedarse despierto tarde cuesta bastante × tu racha de desvelo.</div>
       <div class="xs dimmer">Los costos exactos dependen de tu modo de dificultad — ver abajo.</div>
     </div>
   </div>
@@ -1696,7 +1696,7 @@ function renderRules(){
       <div>Cambia la dificultad en la barra superior. Escala qué tan duro pegan las <em>Recompensas</em>. Los puntos positivos son iguales en todos los modos.</div>
       <div><span class="w6" style="color:var(--cg)">🌱 Fácil</span> — para principiantes o formación de hábitos. Estimulantes −25 · Procrastinación −10/min · Orgasmo −100.</div>
       <div><span class="w6" style="color:var(--cy)">⚖️ Medio</span> — balanceado. Estimulantes −125 · Procrastinación −50/min · Orgasmo −500.</div>
-      <div><span class="w6" style="color:var(--cr)">💪 Difícil</span> — modo disciplina total (predeterminado). Estimulantes −250 · Procrastinación −100/min · Orgasmo −1,000.</div>
+      <div><span class="w6" style="color:var(--cr)">💪 Difícil</span> — modo disciplina total. Estimulantes −250 · Procrastinación −100/min · Orgasmo −1,000.</div>
     </div>
   </div>
   <hr class="dv">
@@ -1756,7 +1756,7 @@ function renderRules(){
       <div><span class="ng w6">💊 Stimulants</span> — junk food, substances (sugar, coffee, weed, alcohol; all counts), and any bad habit you want to cut back on. Costs points × how many days in a row you indulged.</div>
       <div><span class="ng w6">🌐 Procrastination</span> — log how many minutes you wasted. After 30 min, the streak multiplier kicks in.</div>
       <div><span class="ng w6">💦 Orgasm</span> — costs a lot × consecutive days.</div>
-      <div><span class="ng w6">🌙 Slept Late</span> — staying up late costs 100 pts × your late-night streak.</div>
+      <div><span class="ng w6">🌙 Slept Late</span> — staying up late costs a lot × your late-night streak.</div>
       <div class="xs dimmer">Exact costs depend on your difficulty mode — see below.</div>
     </div>
   </div>
@@ -1767,7 +1767,7 @@ function renderRules(){
       <div>Switch difficulty in the top bar. It scales how hard the <em>Rewards</em> hit. Positive points stay the same in all modes.</div>
       <div><span class="w6" style="color:var(--cg)">🌱 Easy</span> — good for beginners or habit formation. Stimulants −25 · Procrastination −10/min · Orgasm −100.</div>
       <div><span class="w6" style="color:var(--cy)">⚖️ Medium</span> — balanced. Stimulants −125 · Procrastination −50/min · Orgasm −500.</div>
-      <div><span class="w6" style="color:var(--cr)">💪 Hard</span> — full discipline mode (default). Stimulants −250 · Procrastination −100/min · Orgasm −1,000.</div>
+      <div><span class="w6" style="color:var(--cr)">💪 Hard</span> — full discipline mode. Stimulants −250 · Procrastination −100/min · Orgasm −1,000.</div>
     </div>
   </div>
   <hr class="dv">
