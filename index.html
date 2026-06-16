@@ -1895,7 +1895,23 @@ setInterval(()=>{
   const cl=document.getElementById('clk');
   if(cl)cl.textContent=new Date().toLocaleTimeString(STATE.lang==='es'?'es-MX':'en-US',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
   const nd=todayKey();
-  if(nd!==_lastDay){_lastDay=nd;refresh();}
+  if(nd!==_lastDay){
+    _lastDay=nd;
+    // New day — save yesterday, reset today, then render
+    const sk=CALC.streaks(STATE.history,STATE.today);
+    upsertHist(CALC.buildEntry(STATE.today,sk,STATE.today._date||nd),STATE.today._date||nd);
+    // Reset today to zero
+    STATE.today={
+      completed:0,target:0,morningCompleted:false,flagCompleted:false,
+      pomodoros:0,penalties:[],
+      sleep:{sleepDuration:0,napDuration:0,sleptEarly:false,earlyBedStreak:STATE.today.sleep?.earlyBedStreak||0},
+      work:{workDuration:0},_date:nd,_ts:Date.now()
+    };
+    S.set(K.TODAY,STATE.today);
+    S.set(K.HIST,STATE.history);
+    SB.push(STATE.history,STATE.today,STATE.diary,STATE.streakOverrides).catch(()=>{});
+    render();
+  }
 },1000);
 </script>
 </body>
