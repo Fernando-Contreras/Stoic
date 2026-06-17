@@ -228,11 +228,41 @@ const SB={
     }catch(e){console.warn('Supabase pull failed',e);return null;}
   },
   userId(){
-    // Extract user_id from JWT token without external library
     try{
       const payload=this.token.split('.')[1];
       const decoded=JSON.parse(atob(payload.replace(/-/g,'+').replace(/_/g,'/')));
       return decoded.sub||null;
+    }catch{return null;}
+  },
+  async saveBackup(history,today,diary,streakOverrides){
+    if(!this.init()) return;
+    try{
+      await fetch(`${this.url}/rest/v1/stoic_backups`,{
+        method:'POST',
+        headers:{...this.headers(),'Prefer':'resolution=merge-duplicates,return=minimal'},
+        body:JSON.stringify({
+          user_id:this.userId(),
+          backup_date:todayKey(),
+          history,today,diary,streak_overrides:streakOverrides
+        })
+      });
+    }catch(e){console.warn('Backup failed',e);}
+  },
+  async listBackups(){
+    if(!this.init()) return [];
+    try{
+      const r=await fetch(`${this.url}/rest/v1/stoic_backups?select=backup_date,created_at&order=backup_date.desc&limit=30`,{headers:this.headers()});
+      if(!r.ok) return [];
+      return await r.json();
+    }catch{return [];}
+  },
+  async restoreBackup(date){
+    if(!this.init()) return null;
+    try{
+      const r=await fetch(`${this.url}/rest/v1/stoic_backups?backup_date=eq.${date}&limit=1`,{headers:this.headers()});
+      if(!r.ok) return null;
+      const rows=await r.json();
+      return rows&&rows.length?rows[0]:null;
     }catch{return null;}
   },
   async login(email,password){
@@ -720,87 +750,99 @@ function toggleTheme(){
    ══════════════════════════════════════════════════════════ */
 
 function applyRemote(remote){
-  // Called on boot and every bgSync — remote is always Supabase
   if(!remote) return false;
   let changed=false;
   const tk=todayKey();
 
-  // TODAY: smart merge — newer _ts wins per field, penalties are unioned by id
+  // TODAY merge
   if(remote.today){
     const R=remote.today, L=STATE.today||{};
     const Rts=R._ts||0, Lts=L._ts||0;
-    if(Rts!==Lts){ // only process if different
-      let todayChanged=false;
-      const merged={...L};
-      // For scalar fields: remote wins if it has newer _ts
-      if(Rts>Lts){
-        // Remote is newer overall — take scalar fields from remote
-        const scalars=['completed','target','morningCompleted','flagCompleted','pomodoros',
-          'work','sleep','_date','_penType','_difficulty','_lang'];
-        scalars.forEach(k=>{if(R[k]!==undefined&&JSON.stringify(R[k])!==JSON.stringify(L[k])){merged[k]=R[k];todayChanged=true;}});
-      }
-      // Penalties: UNION by id — keep all unique penalties from both devices
-      const localPens=L.penalties||[];
-      const remotePens=R.penalties||[];
-      const penMap=new Map(localPens.map(p=>[p.id,p]));
-      remotePens.forEach(p=>{
-        if(!penMap.has(p.id)){penMap.set(p.id,p);todayChanged=true;}
-      });
-      merged.penalties=[...penMap.values()];
-      // Keep highest _ts
-      merged._ts=Math.max(Rts,Lts);
-      if(todayChanged){
-        STATE.today=merged;
-        if(R._difficulty){STATE.difficulty=R._difficulty;localStorage.setItem('st_difficulty',R._difficulty);}
-        if(R._theme&&R._theme!==STATE.theme){STATE.theme=R._theme;S.set(K.THEME,R._theme);applyTheme();}
-        // Sync timezone — use the timezone of whichever device first saved
-        if(R._tzOffset!==undefined&&!localStorage.getItem('st_tz_offset')){
-          localStorage.setItem('st_tz_offset',R._tzOffset);
-        }
-        if(R._lang){STATE.lang=R._lang;localStorage.setItem('st_lang',R._lang);}
-                if(R._penType&&Rts>Lts)STATE.penType=R._penType;
-        S.set(K.TODAY,STATE.today);
+    const Rdate=R._date||'', Ldate=L._date||tk;
+
+    // Always apply settings from remote regardless of _ts
+    if(R._difficulty&&R._difficulty!==STATE.difficulty){STATE.difficulty=R._difficulty;localStorage.setItem('st_difficulty',R._difficulty);}
+    if(R._theme&&R._theme!==STATE.theme){STATE.theme=R._theme;S.set(K.THEME,R._theme);applyTheme();}
+    if(R._lang&&R._lang!==STATE.lang){STATE.lang=R._lang;localStorage.setItem('st_lang',R._lang);}
+    if(R._tzOffset!==undefined&&!localStorage.getItem('st_tz_offset')){localStorage.setItem('st_tz_offset',R._tzOffset);}
+
+    // If remote is from a different (past) date, it belongs in history not today
+    if(Rdate&&Rdate!==tk&&Rdate<tk){
+      // Remote today is yesterday — it should be in history
+      const existingHist=STATE.history.find(h=>h.date===Rdate);
+      if(!existingHist||(R._ts||0)>(existingHist._ts||0)){
+        // Build a history entry from remote today
+        const sk=CALC.streaks(STATE.history,R);
+        const entry=CALC.buildEntry(R,sk,Rdate);
+        upsertHist(entry,Rdate);
+        S.set(K.HIST,STATE.history);
         changed=true;
       }
+      // Local today is already reset — keep it
+    } else {
+      // Same date — merge
+      let todayChanged=false;
+      const merged={...L};
+
+      if(Rts>Lts){
+        // Remote is newer — take scalar fields
+        const scalars=['completed','target','morningCompleted','flagCompleted','pomodoros','work','sleep','_date','_penType'];
+        scalars.forEach(k=>{
+          if(R[k]!==undefined&&JSON.stringify(R[k])!==JSON.stringify(L[k])){merged[k]=R[k];todayChanged=true;}
+        });
+      } else if(Lts===0&&Rts===0&&Rdate===tk){
+        // Both have no timestamp — take remote if it has more data
+        const Rdata=R.completed||0+R.pomodoros||0+(R.penalties||[]).length;
+        const Ldata=L.completed||0+L.pomodoros||0+(L.penalties||[]).length;
+        if(Rdata>Ldata){
+          const scalars=['completed','target','morningCompleted','flagCompleted','pomodoros','work','sleep','_date','_penType'];
+          scalars.forEach(k=>{if(R[k]!==undefined){merged[k]=R[k];todayChanged=true;}});
+        }
+      }
+
+      // Penalties: always union by id
+      const penMap=new Map((L.penalties||[]).map(p=>[p.id,p]));
+      (R.penalties||[]).forEach(p=>{if(!penMap.has(p.id)){penMap.set(p.id,p);todayChanged=true;}});
+      merged.penalties=[...penMap.values()];
+      merged._ts=Math.max(Rts,Lts);
+
+      if(todayChanged){STATE.today=merged;S.set(K.TODAY,STATE.today);changed=true;}
     }
   }
 
-  // HISTORY: per-day, remote entry wins if its _ts is newer
+  // HISTORY: per-day, remote wins if newer _ts OR local has no entry
   if(Array.isArray(remote.history)&&remote.history.length){
     const localMap=new Map((STATE.history||[]).map(d=>[d.date,d]));
     let hChanged=false;
     remote.history.forEach(re=>{
       const le=localMap.get(re.date);
-      if(!le||(re._ts||0)>(le._ts||0)){
+      if(!le||(re._ts||0)>=(le._ts||0)){
         localMap.set(re.date,{...re});
         hChanged=true;
       }
     });
     if(hChanged){
       STATE.history=[...localMap.values()].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,200);
-      S.set(K.HIST,STATE.history);
-      changed=true;
+      S.set(K.HIST,STATE.history);changed=true;
     }
   }
 
-  // DIARY: remote wins if it has more keys or different content
+  // DIARY: union
   if(remote.diary){
     const merged={...STATE.diary,...remote.diary};
-    if(JSON.stringify(merged)!==JSON.stringify(STATE.diary)){
-      STATE.diary=merged;
-      S.set(K.DIARY,STATE.diary);
-      changed=true;
-    }
+    if(JSON.stringify(merged)!==JSON.stringify(STATE.diary)){STATE.diary=merged;S.set(K.DIARY,STATE.diary);changed=true;}
   }
 
-  // STREAK OVERRIDES: remote wins
+  // STREAK OVERRIDES: merge — remote wins per key, never deletes local keys
   if(remote.streak_overrides){
-    const ro=remote.streak_overrides;
-    if(JSON.stringify(ro)!==JSON.stringify(STATE.streakOverrides||{})){
-      STATE.streakOverrides=ro;
-      S.set(K.STREAK_OVR,STATE.streakOverrides);
-      changed=true;
-    }
+    const ro=remote.streak_overrides, lo=STATE.streakOverrides||{};
+    const merged={...lo};
+    let ovrChanged=false;
+    Object.entries(ro).forEach(([k,v])=>{
+      if(lo[k]===undefined){merged[k]=v;ovrChanged=true;}
+      else if(typeof v==='object'&&typeof lo[k]==='object'&&(v.since||'')>(lo[k].since||'')){merged[k]=v;ovrChanged=true;}
+    });
+    if(ovrChanged){STATE.streakOverrides=merged;S.set(K.STREAK_OVR,STATE.streakOverrides);changed=true;}
   }
 
   return changed;
@@ -1030,10 +1072,34 @@ function renderApp(){
     ban.appendChild(bb);resetWrap.appendChild(ban);
   }
   wrap.appendChild(resetWrap);
-  // Logout button — below danger zone
-  const logoutWrap=dv('ctr mt8 mb16');
-  logoutWrap.appendChild(bt('btn-ghost btn-sm',t('logout'),()=>{S.set(K.AUTH,false);STATE.authed=false;render();}));
-  wrap.appendChild(logoutWrap);
+  // Bottom — note + restore + logout
+  const bottomWrap=dv('s8 mt12 mb16');bottomWrap.style.textAlign='center';
+
+  bottomWrap.appendChild(dv('xs dimmer ctr',STATE.lang==='es'?'Los backups se guardan automáticamente cada medianoche. Máximo 30 días.':'Backups are saved automatically at midnight. Up to 30 days.'));
+
+  const restoreBtn=bt('btn-ghost btn-sm',t('restore-from'),async()=>{
+    restoreBtn.disabled=true;restoreBtn.textContent='...';
+    const list=await SB.listBackups();
+    restoreBtn.disabled=false;restoreBtn.textContent=t('restore-from');
+    if(!list.length){alert(t('backup-empty'));return;}
+    const opts=list.map(b=>`${b.backup_date} (${new Date(b.created_at).toLocaleDateString()})`).join('\n');
+    const choice=prompt(`${t('restore-from')}:\n${opts}\n\nType the date (YYYY-MM-DD):`);
+    if(!choice) return;
+    const bk=await SB.restoreBackup(choice.trim());
+    if(!bk){alert('Not found');return;}
+    if(bk.history) STATE.history=bk.history;
+    if(bk.today) STATE.today=bk.today;
+    if(bk.diary) STATE.diary=bk.diary;
+    if(bk.streak_overrides) STATE.streakOverrides=bk.streak_overrides;
+    S.set(K.HIST,STATE.history);S.set(K.TODAY,STATE.today);
+    S.set(K.DIARY,STATE.diary);S.set(K.STREAK_OVR,STATE.streakOverrides);
+    SB.push(STATE.history,STATE.today,STATE.diary,STATE.streakOverrides).catch(()=>{});
+    alert(t('backup-restored'));refresh();
+  });
+  bottomWrap.appendChild(restoreBtn);
+
+  bottomWrap.appendChild(bt('btn-ghost btn-sm',t('logout'),()=>{S.set(K.AUTH,false);STATE.authed=false;render();}));
+  wrap.appendChild(bottomWrap);
   return wrap;
 }
 
@@ -1970,6 +2036,8 @@ setInterval(()=>{
     S.set(K.TODAY,STATE.today);
     S.set(K.HIST,STATE.history);
     SB.push(STATE.history,STATE.today,STATE.diary,STATE.streakOverrides).catch(()=>{});
+    // Auto-save daily backup at midnight
+    SB.saveBackup(STATE.history,STATE.today,STATE.diary,STATE.streakOverrides).catch(()=>{});
     render();
   }
 },1000);
