@@ -625,6 +625,7 @@ let STATE={
   showStreakPanel:false,
   editingStreaks:false,
   showSyncPanel:false,
+  _lastSavedAt:0,
   penType:'drugs', // #3: persist penalty type selection
   difficulty: localStorage.getItem('st_difficulty')||'easy',
   lang: localStorage.getItem('st_lang')||'en',
@@ -679,7 +680,9 @@ function upsertHist(entry,dk){
 /* save: local + push to Supabase if logged in */
 // commit() = user changed something real → bump _ts, push to cloud
 function commit(){
-  STATE.today._ts=Date.now(); // only bump when user actually changed data
+  const now=Date.now();
+  STATE.today._ts=now;
+  STATE._lastSavedAt=now; // we're the writer now — prevent echoing our own push back
   save();
 }
 
@@ -754,73 +757,64 @@ function toggleTheme(){
    ══════════════════════════════════════════════════════════ */
 
 function applyRemote(remote){
+  /* ── SYNC PHILOSOPHY ──────────────────────────────────────────────
+     Supabase is the SINGLE source of truth.
+     Conflict resolution: whoever pushed most recently wins.
+     We use remote.saved_at (set by the pushing device at push time)
+     vs STATE._lastSavedAt (set locally when WE pushed).
+     If remote.saved_at > our last push → remote is newer → take it.
+     No complex per-field merging. Simple. Predictable.
+     ──────────────────────────────────────────────────────────────── */
   if(!remote) return false;
   let changed=false;
   const tk=todayKey();
+  const remoteSavedAt=remote.saved_at||0;
+  const localSavedAt=STATE._lastSavedAt||0;
+  const remoteIsNewer=remoteSavedAt>localSavedAt;
 
-  // TODAY merge
+  // TODAY: remote wins if it was pushed more recently than our last push
   if(remote.today){
-    const R=remote.today, L=STATE.today||{};
-    const Rts=R._ts||0, Lts=L._ts||0;
-    const Rdate=R._date||'', Ldate=L._date||tk;
+    const R=remote.today;
+    // Settings always sync regardless of who is newer
+    if(R._difficulty&&R._difficulty!==STATE.difficulty){STATE.difficulty=R._difficulty;localStorage.setItem('st_difficulty',R._difficulty);changed=true;}
+    if(R._theme&&R._theme!==STATE.theme){STATE.theme=R._theme;S.set(K.THEME,R._theme);applyTheme();changed=true;}
+    if(R._lang&&R._lang!==STATE.lang){STATE.lang=R._lang;localStorage.setItem('st_lang',R._lang);changed=true;}
 
-    // Always apply settings from remote regardless of _ts
-    if(R._difficulty&&R._difficulty!==STATE.difficulty){STATE.difficulty=R._difficulty;localStorage.setItem('st_difficulty',R._difficulty);}
-    if(R._theme&&R._theme!==STATE.theme){STATE.theme=R._theme;S.set(K.THEME,R._theme);applyTheme();}
-    if(R._lang&&R._lang!==STATE.lang){STATE.lang=R._lang;localStorage.setItem('st_lang',R._lang);}
-    if(R._tzOffset!==undefined&&!localStorage.getItem('st_tz_offset')){localStorage.setItem('st_tz_offset',R._tzOffset);}
-
-    // If remote is from a different (past) date, it belongs in history not today
-    if(Rdate&&Rdate!==tk&&Rdate<tk){
-      // Remote today is yesterday — it should be in history
-      const existingHist=STATE.history.find(h=>h.date===Rdate);
-      if(!existingHist||(R._ts||0)>(existingHist._ts||0)){
-        // Build a history entry from remote today
-        const sk=CALC.streaks(STATE.history,R);
-        const entry=CALC.buildEntry(R,sk,Rdate);
-        upsertHist(entry,Rdate);
-        S.set(K.HIST,STATE.history);
-        changed=true;
-      }
-      // Local today is already reset — keep it
-    } else {
-      // Same date — merge
-      let todayChanged=false;
-      const merged={...L};
-
-      if(Rts>Lts){
-        // Remote is newer — take scalar fields
-        const scalars=['completed','target','morningCompleted','flagCompleted','pomodoros','work','sleep','_date','_penType'];
-        scalars.forEach(k=>{
-          if(R[k]!==undefined&&JSON.stringify(R[k])!==JSON.stringify(L[k])){merged[k]=R[k];todayChanged=true;}
-        });
-      } else if(Lts===0&&Rts===0&&Rdate===tk){
-        // Both have no timestamp — take remote if it has more data
-        const Rdata=R.completed||0+R.pomodoros||0+(R.penalties||[]).length;
-        const Ldata=L.completed||0+L.pomodoros||0+(L.penalties||[]).length;
-        if(Rdata>Ldata){
-          const scalars=['completed','target','morningCompleted','flagCompleted','pomodoros','work','sleep','_date','_penType'];
-          scalars.forEach(k=>{if(R[k]!==undefined){merged[k]=R[k];todayChanged=true;}});
+    if(remoteIsNewer){
+      const Rdate=R._date||'';
+      if(Rdate&&Rdate<tk){
+        // Remote today is from a past date — put it in history
+        const existingHist=STATE.history.find(h=>h.date===Rdate);
+        if(!existingHist||(R._ts||0)>(existingHist._ts||0)){
+          const sk=CALC.streaks(STATE.history,R);
+          const entry=CALC.buildEntry(R,sk,Rdate);
+          upsertHist(entry,Rdate);
+          S.set(K.HIST,STATE.history);
+          changed=true;
+        }
+        // Local today is current date — keep it
+      } else {
+        // Remote today is current date (or no date) — remote wins entirely
+        const merged={...STATE.today,...R};
+        // Always union penalties by id so no entry is lost
+        const penMap=new Map((STATE.today.penalties||[]).map(p=>[p.id,p]));
+        (R.penalties||[]).forEach(p=>{penMap.set(p.id,p);});
+        merged.penalties=[...penMap.values()];
+        if(JSON.stringify(merged)!==JSON.stringify(STATE.today)){
+          STATE.today=merged;S.set(K.TODAY,STATE.today);changed=true;
         }
       }
-
-      // Penalties: always union by id
-      const penMap=new Map((L.penalties||[]).map(p=>[p.id,p]));
-      (R.penalties||[]).forEach(p=>{if(!penMap.has(p.id)){penMap.set(p.id,p);todayChanged=true;}});
-      merged.penalties=[...penMap.values()];
-      merged._ts=Math.max(Rts,Lts);
-
-      if(todayChanged){STATE.today=merged;S.set(K.TODAY,STATE.today);changed=true;}
+      // Update our knowledge of what remote has
+      STATE._lastSavedAt=remoteSavedAt;
     }
   }
 
-  // HISTORY: per-day, remote wins if newer _ts OR local has no entry
+  // HISTORY: per-day merge — remote wins if strictly newer _ts or we have no entry
   if(Array.isArray(remote.history)&&remote.history.length){
     const localMap=new Map((STATE.history||[]).map(d=>[d.date,d]));
     let hChanged=false;
     remote.history.forEach(re=>{
       const le=localMap.get(re.date);
-      // Remote wins only if strictly newer; equal timestamps → keep local (avoid phantom overwrites)
       if(!le||(re._ts||0)>(le._ts||0)){
         localMap.set(re.date,{...re});
         hChanged=true;
@@ -832,13 +826,13 @@ function applyRemote(remote){
     }
   }
 
-  // DIARY: union
+  // DIARY: union (both devices keep entries, no deletion)
   if(remote.diary){
     const merged={...STATE.diary,...remote.diary};
     if(JSON.stringify(merged)!==JSON.stringify(STATE.diary)){STATE.diary=merged;S.set(K.DIARY,STATE.diary);changed=true;}
   }
 
-  // STREAK OVERRIDES: merge — remote wins per key, never deletes local keys
+  // STREAK OVERRIDES: remote wins per key if newer
   if(remote.streak_overrides){
     const ro=remote.streak_overrides, lo=STATE.streakOverrides||{};
     const merged={...lo};
@@ -860,7 +854,7 @@ async function bgSync(){
     if(applyRemote(remote)) render();
   }catch(e){/* silent — will retry next cycle */}
 }
-setInterval(bgSync,8000); // every 8s
+setInterval(bgSync,5000); // every 5s for fast cross-device sync // every 8s
 /* ═══ DOM HELPERS ═══ */
 function el(t,c,h){const e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e}
 function dv(c,h){return el('div',c,h)}
