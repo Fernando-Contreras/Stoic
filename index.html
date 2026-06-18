@@ -652,7 +652,7 @@ function loadToday(){
       if(!STATE.history.find(h=>h.date===gk)){
         upsertHist({date:gk,_ts:Date.now(),todayPoints:-1000,status:'red',completedTasks:0,totalTasks:0,pomodoros:0,penalties:[],streaks:[],workDuration:0,sleepDuration:0,napDuration:0,sleptEarly:false,_gap:true},gk);
         S.set(K.HIST,STATE.history);
-        SB.push(STATE.history,STATE.today,STATE.diary,STATE.streakOverrides).catch(()=>{});
+        // NOTE: do NOT push here — boot will pull from Supabase first, then push merged result
       }
     }
     // reset today
@@ -816,7 +816,8 @@ function applyRemote(remote){
     let hChanged=false;
     remote.history.forEach(re=>{
       const le=localMap.get(re.date);
-      if(!le||(re._ts||0)>=(le._ts||0)){
+      // Remote wins only if strictly newer; equal timestamps → keep local (avoid phantom overwrites)
+      if(!le||(re._ts||0)>(le._ts||0)){
         localMap.set(re.date,{...re});
         hChanged=true;
       }
@@ -1937,11 +1938,11 @@ function renderSyncPanel(){
     row.appendChild(bt('btn-ac btn-sm',t('pull-cloud'),async()=>{
       const remote=await SB.pull();
       if(remote){
-        // Force-apply remote — remote is the source of truth for manual pull
-        // Temporarily bump remote _ts so applyRemote accepts everything
-        if(remote.today) remote.today._ts=(remote.today._ts||0)+1;
-        if(remote.history) remote.history=remote.history.map(d=>({...d,_ts:(d._ts||0)+1}));
-        applyRemote(remote);
+        // FORCE pull — Supabase is the truth. Replace local state entirely.
+        if(remote.history&&remote.history.length) STATE.history=remote.history.slice(0,200).sort((a,b)=>b.date.localeCompare(a.date));
+        if(remote.today) STATE.today={...STATE.today,...remote.today};
+        if(remote.diary) STATE.diary=remote.diary;
+        if(remote.streak_overrides) STATE.streakOverrides=remote.streak_overrides;
         S.set(K.HIST,STATE.history);S.set(K.TODAY,STATE.today);
         S.set(K.DIARY,STATE.diary);S.set(K.STREAK_OVR,STATE.streakOverrides);
         refresh();alert('✅ Synced from cloud!');
@@ -2005,13 +2006,22 @@ function renderDiaryFor(dateKey){
 /* ═══ BOOT ═══ */
 initTimezone();loadToday();applyTheme();
 
-// On boot: if token exists, pull from cloud before first render
+// On boot: PULL from Supabase first (before pushing ANYTHING).
+// Supabase is the single source of truth.
+// 1. Load localStorage (local cache / fallback)
+// 2. Pull from Supabase — Supabase wins for any day where it has newer data
+// 3. Push the merged result back (includes any gap days)
+// 4. Render
 (async()=>{
   if(SB.init()){
-    const remote=await SB.pull();
-    applyRemote(remote);
-    // Push any gap days created by loadToday() so both devices stay in sync
-    SB.push(STATE.history,STATE.today,STATE.diary,STATE.streakOverrides).catch(()=>{});
+    try{
+      const remote=await SB.pull();
+      if(remote){
+        applyRemote(remote);
+        // Push merged result (local + remote, newest wins) so Supabase stays up to date
+        await SB.push(STATE.history,STATE.today,STATE.diary,STATE.streakOverrides);
+      }
+    }catch(e){/* Supabase unreachable — use localStorage fallback, will retry on bgSync */}
   }
   render();
 })();
