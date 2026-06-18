@@ -189,17 +189,12 @@ const K={TODAY:'st_today',HIST:'st_hist',AUTH:'st_auth',DIARY:'st_diary',THEME:'
 const SB={
   url: null, key: null, token: null,
   init(){
-    const raw=window._SUPABASE_URL||'';
-    this.url=raw.replace(/\/rest\/v1\/?$/,'').replace(/\/+$/,'');
-    this.key=window._SUPABASE_KEY||'';
-    this.token=localStorage.getItem('AUTH_TOKEN')||'';
-    // Auto-clear expired tokens so the login screen appears instead of silent failures
-    if(this.token&&!this.isTokenValid()){
-      localStorage.removeItem('AUTH_TOKEN');
-      this.token='';
-      if(typeof STATE!=='undefined'){STATE.authed=!!localStorage.getItem('st_guest');}
-    }
-    return !!(this.url&&this.key&&this.token);
+    // Accept URL with or without trailing /rest/v1/
+    const raw = window._SUPABASE_URL||'';
+    this.url = raw.replace(/\/rest\/v1\/?$/,'').replace(/\/+$/,'');
+    this.key = window._SUPABASE_KEY||'';
+    this.token = localStorage.getItem('AUTH_TOKEN')||'';
+    return !!(this.url && this.key && this.token);
   },
   headers(){
     return {'Content-Type':'application/json','apikey':this.key,'Authorization':`Bearer ${this.token}`};
@@ -220,18 +215,7 @@ const SB={
           updated_at: new Date().toISOString()
         })
       });
-      if(!res.ok){
-        const t=await res.text();
-        console.warn('Push failed:',res.status,t);
-        if(res.status===401||res.status===403){
-          // Token expired — clear it so next render shows login
-          localStorage.removeItem('AUTH_TOKEN');this.token='';
-          if(typeof STATE!=='undefined'&&STATE.authed&&!localStorage.getItem('st_guest')){
-            STATE.authed=false;
-            if(typeof render==='function')render();
-          }
-        }
-      }
+      if(!res.ok){const t=await res.text();console.warn('Push failed:',res.status,t);}
     }catch(e){console.warn('Supabase push failed',e);}
   },
   async pull(){
@@ -280,13 +264,6 @@ const SB={
       const rows=await r.json();
       return rows&&rows.length?rows[0]:null;
     }catch{return null;}
-  },
-  isTokenValid(){
-    try{
-      const payload=this.token.split('.')[1];
-      const decoded=JSON.parse(atob(payload.replace(/-/g,'+').replace(/_/g,'/')));
-      return(decoded.exp||0)>Date.now()/1000+60;// valid if at least 1 min left
-    }catch{return false;}
   },
   async login(email,password){
     this.url=(window._SUPABASE_URL||'').replace(/\/rest\/v1\/?$/,'').replace(/\/+$/,'');
@@ -379,6 +356,7 @@ en:{
   'horniest-day':'Horniest day','prod-day':'Most productive day','day-of-week':'day of week','not-enough':'Need more data','no-day':'—',
   'show-more-stats':'Show more stats ▼','show-less-stats':'Show less ▲',
   'clean-proc':'No procrastination','clean-org':'No orgasms',
+  'restore-from':'Restore from backup','backup-empty':'No backups found.','backup-restored':'✅ Backup restored!',
   'danger-zone':'Danger Zone','erase-warn':'This will erase all your data permanently.',
   'reset-all-btn':'Reset All','del-warn':'⚠ Delete everything? This cannot be undone.',
   'yes-delete':'Yes, delete','cancel':'Cancel',
@@ -447,6 +425,7 @@ es:{
   'horniest-day':'Día más caliente','prod-day':'Día más productivo','day-of-week':'día de la semana','not-enough':'Faltan datos','no-day':'—',
   'show-more-stats':'Ver más estadísticas ▼','show-less-stats':'Ver menos ▲',
   'clean-proc':'Sin procrastinación','clean-org':'Sin orgasmos',
+  'restore-from':'Restaurar backup','backup-empty':'No hay backups.','backup-restored':'✅ Backup restaurado!',
   'danger-zone':'Zona de Peligro','erase-warn':'Esto borrará todos tus datos permanentemente.',
   'reset-all-btn':'Borrar Todo','del-warn':'⚠ ¿Borrar todo? No se puede deshacer.',
   'yes-delete':'Sí, borrar','cancel':'Cancelar',
@@ -636,7 +615,7 @@ let STATE={
   diary:S.get(K.DIARY,{}),
   theme:S.get(K.THEME,'dark'),
   streakOverrides:S.get(K.STREAK_OVR,{}),
-  authed:!!localStorage.getItem('AUTH_TOKEN')||!!localStorage.getItem('st_guest'),
+  authed:true,
   history:S.get(K.HIST,[]),
   today:{completed:0,target:0,morningCompleted:false,flagCompleted:false,
     pomodoros:0,penalties:[],
@@ -665,15 +644,17 @@ function loadToday(){
     const savedDate=new Date(saved);
     const nowDate=new Date(tk);
     const daysDiff=Math.round((nowDate-savedDate)/(1000*60*60*24));
-    // save the actual last-used day
+    // save the actual last-used day — keep ORIGINAL _ts so Supabase data always wins
     const sk=CALC.streaks(STATE.history,STATE.today);
-    upsertHist(CALC.buildEntry(STATE.today,sk,saved),saved);
+    const prevEntry=CALC.buildEntry(STATE.today,sk,saved);
+    prevEntry._ts=STATE.today._ts||0; // preserve original ts — prevents overwriting real cloud data
+    upsertHist(prevEntry,saved);
     // fill any days between saved and today as gap days
     for(let i=1;i<daysDiff;i++){
       const gapDate=new Date(savedDate);gapDate.setDate(gapDate.getDate()+i);
       const gk=gapDate.getFullYear()+'-'+String(gapDate.getMonth()+1).padStart(2,'0')+'-'+String(gapDate.getDate()).padStart(2,'0');
       if(!STATE.history.find(h=>h.date===gk)){
-        upsertHist({date:gk,_ts:Date.now(),todayPoints:-1000,status:'red',completedTasks:0,totalTasks:0,pomodoros:0,penalties:[],streaks:[],workDuration:0,sleepDuration:0,napDuration:0,sleptEarly:false,_gap:true},gk);
+        upsertHist({date:gk,_ts:0,todayPoints:-1000,status:'red',completedTasks:0,totalTasks:0,pomodoros:0,penalties:[],streaks:[],workDuration:0,sleepDuration:0,napDuration:0,sleptEarly:false,_gap:true},gk);
         S.set(K.HIST,STATE.history);
         // NOTE: do NOT push here — boot will pull from Supabase first, then push merged result
       }
@@ -876,17 +857,7 @@ async function bgSync(){
   if(!STATE.authed||!SB.init()) return;
   try{
     const remote=await SB.pull();
-    if(!remote) return;
-    const localTs=STATE.today?._ts||0;
-    const remoteTs=remote.today?._ts||remote.saved_at||0;
-    // Only apply remote during bgSync if it's clearly newer (someone else saved more recently)
-    if(remoteTs>localTs+5000){
-      if(applyRemote(remote)) render();
-    }
-    // If local is newer, push it (covers the case where a previous push silently failed)
-    else if(localTs>remoteTs+5000){
-      SB.push(STATE.history,STATE.today,STATE.diary,STATE.streakOverrides).catch(()=>{});
-    }
+    if(applyRemote(remote)) render();
   }catch(e){/* silent — will retry next cycle */}
 }
 setInterval(bgSync,8000); // every 8s
@@ -950,6 +921,7 @@ function renderLogin(){
   card.appendChild(actionBtn);
 
   function syncTabs(){
+    err.textContent='';succ.textContent='';
     if(mode==='login'){
       loginTab.className='btn-ac btn-sm f1';
       signupTab.className='btn-ghost btn-sm f1';
@@ -1014,13 +986,36 @@ function renderLogin(){
   async function afterLogin(){
     actionBtn.textContent=t('syncing');
     const remote=await SB.pull();
-    applyRemote(remote);
+    if(remote){
+      // On login: Supabase is THE truth — replace local state entirely.
+      // This prevents stale localStorage from ever overwriting cloud data.
+      if(remote.history&&remote.history.length){
+        STATE.history=remote.history.slice(0,200).sort((a,b)=>b.date.localeCompare(a.date));
+        S.set(K.HIST,STATE.history);
+      }
+      if(remote.today&&remote.today._date){
+        STATE.today={...STATE.today,...remote.today};
+        S.set(K.TODAY,STATE.today);
+        if(remote.today._difficulty){STATE.difficulty=remote.today._difficulty;localStorage.setItem('st_difficulty',remote.today._difficulty);}
+        if(remote.today._lang){STATE.lang=remote.today._lang;localStorage.setItem('st_lang',remote.today._lang);}
+        if(remote.today._theme){STATE.theme=remote.today._theme;S.set(K.THEME,remote.today._theme);applyTheme();}
+      }
+      if(remote.diary){STATE.diary=remote.diary;S.set(K.DIARY,STATE.diary);}
+      if(remote.streak_overrides){STATE.streakOverrides=remote.streak_overrides;S.set(K.STREAK_OVR,STATE.streakOverrides);}
+      // Save daily backup on login (once per day)
+      const _bkKey='st_last_backup';
+      if(localStorage.getItem(_bkKey)!==todayKey()){
+        SB.saveBackup(STATE.history,STATE.today,STATE.diary,STATE.streakOverrides).then(()=>{
+          localStorage.setItem(_bkKey,todayKey());
+        }).catch(()=>{});
+      }
+    }
     S.set(K.AUTH,true);STATE.authed=true;render();
   }
 
   pi.onkeydown=e=>{if(e.key==='Enter')doAction();};
   card.appendChild(hr());
-  const gb=bt('btn-ghost',t('guest-btn'),()=>{localStorage.setItem('st_guest','1');STATE.authed=true;render();});
+  const gb=bt('btn-ghost',t('guest-btn'),()=>{S.set(K.AUTH,true);STATE.authed=true;render();});
   gb.style.width='100%';card.appendChild(gb);
   card.appendChild(dv('xs dimmer ctr mt8',t('guest-note')));
   wrap.appendChild(card);return wrap;
@@ -1131,7 +1126,7 @@ function renderApp(){
   });
   bottomWrap.appendChild(restoreBtn);
 
-  bottomWrap.appendChild(bt('btn-ghost btn-sm',t('logout'),()=>{localStorage.removeItem('AUTH_TOKEN');localStorage.removeItem('st_guest');SB.token='';STATE.authed=false;render();}));
+  bottomWrap.appendChild(bt('btn-ghost btn-sm',t('logout'),()=>{S.set(K.AUTH,false);STATE.authed=false;render();}));
   wrap.appendChild(bottomWrap);
   return wrap;
 }
@@ -1984,8 +1979,7 @@ function renderSyncPanel(){
       await SB.push(STATE.history,STATE.today,STATE.diary,STATE.streakOverrides);alert('Pushed to cloud!');
     }));
     row.appendChild(bt('btn-ng btn-sm',t('log-out'),()=>{
-      localStorage.removeItem('AUTH_TOKEN');localStorage.removeItem('st_guest');
-      SB.token='';STATE.authed=false;STATE.showSyncPanel=false;render();
+      localStorage.removeItem('AUTH_TOKEN');STATE.showSyncPanel=false;refresh();
     }));
     card.appendChild(row);
     return card;
@@ -2050,26 +2044,15 @@ initTimezone();loadToday();applyTheme();
     try{
       const remote=await SB.pull();
       if(remote){
-        const localTs=STATE.today?._ts||0;
-        const remoteTs=remote.today?._ts||remote.saved_at||0;
-        const localHistCount=STATE.history.filter(h=>!h._gap).length;
-        const remoteHistCount=(remote.history||[]).filter(h=>!h._gap).length;
-        // Decide winner: local wins if it has a newer _ts OR (same era but more history)
-        const localNewer=localTs>remoteTs+30000||(Math.abs(localTs-remoteTs)<=30000&&localHistCount>remoteHistCount);
-        if(localNewer){
-          // Local has the truth — still pick up remote-only history days, then push
-          applyRemote(remote);
-          await SB.push(STATE.history,STATE.today,STATE.diary,STATE.streakOverrides);
-        }else{
-          // Remote is newer — apply it
-          applyRemote(remote);
-          // Push merged result back so Supabase is complete
-          await SB.push(STATE.history,STATE.today,STATE.diary,STATE.streakOverrides);
-        }
-      }else{
-        // Supabase is empty for this user — initialize it with local data
-        if(STATE.history.length||(STATE.today?._ts||0)>0){
-          await SB.push(STATE.history,STATE.today,STATE.diary,STATE.streakOverrides);
+        // On boot: Supabase is the single source of truth — only pull, NEVER push.
+        // Pushing on boot can overwrite good cloud data with stale/empty local data.
+        applyRemote(remote);
+        // Save a daily backup on first boot of each day (if logged in)
+        const _bkKey='st_last_backup';
+        if(localStorage.getItem(_bkKey)!==todayKey()){
+          SB.saveBackup(STATE.history,STATE.today,STATE.diary,STATE.streakOverrides).then(()=>{
+            localStorage.setItem(_bkKey,todayKey());
+          }).catch(()=>{});
         }
       }
     }catch(e){/* Supabase unreachable — use localStorage fallback, will retry on bgSync */}
