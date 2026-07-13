@@ -530,7 +530,8 @@ const CALC={
     const fB=flagCompleted?100*Math.max(1,s.flagStreak):0;
     const pom=pomodoros*25;
     const wrk=(work.workDuration||0)*Math.max(1,s.workStreak);
-    const slp=(sleep.sleepDuration||0)+(sleep.napDuration||0)+(sleep.sleptEarly?(sleep.sleepDuration||0)*(sleep.earlyBedStreak||1):0);
+    const earlyBedStreak=Math.max(1,s.earlyBedStreak||1);
+    const slp=(sleep.sleepDuration||0)+(sleep.napDuration||0)+(sleep.sleptEarly?(sleep.sleepDuration||0)*earlyBedStreak:0);
     const latePen=sleep.sleptLate?-100*this.diffMult()*Math.max(1,s.lateStreak||1):0;
     const procMins=penalties.filter(p=>p.type==='internet').reduce((a,p)=>a+(p.details?.minutes||0),0);
     const procActive=procMins>30;
@@ -550,36 +551,85 @@ const CALC={
   // #2 FIX: histTotal must exclude today to avoid double-count
   histTotal(history){
     const tk=todayKey();
-    return history.filter(h=>h.date!==tk).reduce((s,d)=>s+this.liveScore(d),0);
+    return history.filter(h=>h.date!==tk).reduce((s,d)=>s+this.liveScore(d,history),0);
   },
   /* recompute a stored day's score using CURRENT difficulty (penalties scale with mode) */
-  liveScore(e){
+  // Count consecutive qualifying REGISTERED days ending at idx (inclusive).
+  // Only looks at real, registered history entries — never invents or assumes anything
+  // about unregistered days. resetStatuses = day colors that break the chain.
+  streakAtDay(sortedHist, idx, checkFn, resetStatuses){
+    let count=0;
+    for(let i=idx;i>=0;i--){
+      const d=sortedHist[i];
+      if(resetStatuses && resetStatuses.includes(d.status)) break;
+      if(!checkFn(d)) break;
+      count++;
+    }
+    return count;
+  },
+  liveScore(e, allHistory){
     if(e._gap)return e.todayPoints||-1000;
     const st=e.status||'red';
-    // Streak resets by day color — same rules as CALC.streaks()
     const subsReset  =['yellow','green','purple'].includes(st);
     const procReset  =['green','purple'].includes(st);
     const macReset   = st==='purple';
     const lateReset  = st==='purple';
-    // Positive components
+
+    // Default to the streak that was saved at the time (fallback if no history array given)
+    let morningStreak=e.streaksUsed?.morningStreak||1;
+    let flagStreak=e.streaksUsed?.flagStreak||1;
+    let workStreak=e.streaksUsed?.workStreak||1;
+    let earlyBedStreak=e.streaksUsed?.earlyBedStreak||1;
+    let lateStreak=e.streaksUsed?.lateStreak||1;
+    let subsStreak=e.streaksUsed?.substancesPenaltyStreak||1;
+    let procStreak=e.streaksUsed?.procrastinationPenaltyStreak||1;
+    let macStreak=e.streaksUsed?.macanazoPenaltyStreak||1;
+
+    // If we have the full history, recompute the REAL streak at this exact day
+    // by counting backward through REGISTERED days only (no invented days, no gaps assumed).
+    if(allHistory && allHistory.length){
+      const sorted=[...allHistory].filter(d=>!d._gap).sort((a,b)=>a.date.localeCompare(b.date));
+      const idx=sorted.findIndex(d=>d.date===e.date);
+      if(idx>=0){
+        morningStreak=this.streakAtDay(sorted,idx,d=>d.streaks?.some(s=>s.type==='morning'&&s.active))||1;
+        flagStreak=this.streakAtDay(sorted,idx,d=>d.streaks?.some(s=>s.type==='flags'&&s.active))||1;
+        workStreak=this.streakAtDay(sorted,idx,d=>(d.workDuration||0)>0,['red'])||1;
+        earlyBedStreak=this.streakAtDay(sorted,idx,d=>d.sleptEarly)||1;
+        lateStreak=this.streakAtDay(sorted,idx,d=>d.sleptLate,['purple'])||1;
+        subsStreak=this.streakAtDay(sorted,idx,d=>d.penalties?.some(p=>p.type==='drugs'),['yellow','green','purple'])||1;
+        procStreak=this.streakAtDay(sorted,idx,d=>d.penalties?.some(p=>p.type==='internet'),['green','purple'])||1;
+        macStreak=this.streakAtDay(sorted,idx,d=>d.penalties?.some(p=>p.type==='macanazo'),['purple'])||1;
+        // Apply streakOverrides offset so historical days reflect the real streak
+        // e.g. if user set goals=8 (offset=4), yesterday shows ×8 not ×4
+        const _ovr=(typeof STATE!=='undefined'?STATE.streakOverrides:{})||{};
+        function _applyOvr(key,val){const o=_ovr[key];if(o===undefined||o===null)return val;const off=typeof o==='object'?(o.offset!==undefined?o.offset:0):o;return val>0?Math.max(1,val+off):val;}
+        morningStreak=_applyOvr('morningStreak',morningStreak);
+        flagStreak=_applyOvr('flagStreak',flagStreak);
+        workStreak=_applyOvr('workStreak',workStreak);
+        earlyBedStreak=_applyOvr('earlyBedStreak',earlyBedStreak);
+        lateStreak=_applyOvr('lateStreak',lateStreak);
+        subsStreak=_applyOvr('substancesPenaltyStreak',subsStreak);
+        procStreak=_applyOvr('procrastinationPenaltyStreak',procStreak);
+        macStreak=_applyOvr('macanazoPenaltyStreak',macStreak);
+      }
+    }
+
     const pos=(e.completedTasks||0)
-      +((e.streaks?.some(s=>s.type==='morning'&&s.active))?25*(e.streaksUsed?.morningStreak||1):0)
-      +((e.streaks?.some(s=>s.type==='flags'&&s.active))?100*(e.streaksUsed?.flagStreak||1):0)
+      +((e.streaks?.some(s=>s.type==='morning'&&s.active))?25*morningStreak:0)
+      +((e.streaks?.some(s=>s.type==='flags'&&s.active))?100*flagStreak:0)
       +((e.pomodoros||0)*25)
-      +((e.workDuration||0)*(e.streaksUsed?.workStreak||1))
-      +((e.sleepDuration||0)+(e.napDuration||0)+(e.sleptEarly?(e.sleepDuration||0)*(e.streaksUsed?.earlyBedStreak||1):0))
+      +((e.workDuration||0)*workStreak)
+      +((e.sleepDuration||0)+(e.napDuration||0)+(e.sleptEarly?(e.sleepDuration||0)*earlyBedStreak:0))
       +(this.colorBonus(e.status))
-      // slept late: if day was purple, streak resets to 0 so no penalty
-      +(e.sleptLate&&!lateReset?-100*this.diffMult()*(e.streaksUsed?.lateStreak||1):0);
-    // Penalties: recompute with current difficulty, but reset streak if day color resets it
+      +(e.sleptLate&&!lateReset?-100*this.diffMult()*lateStreak:0);
+
     const pen=(e.penalties||[]).reduce((sum,p)=>{
       const det=p.type==='drugs'?{substances:p.count}:p.type==='internet'?{minutes:p.count}:{isPositive:false};
       const b=this.penBase({type:p.type,details:det});
-      // If day color resets this penalty streak, cost is base×1 only (first day streak)
       let mult=1;
-      if(p.type==='drugs'&&!subsReset) mult=p.streak||1;
-      else if(p.type==='internet'&&!procReset) mult=p.streak||1;
-      else if(p.type==='macanazo'&&!macReset) mult=p.streak||1;
+      if(p.type==='drugs'&&!subsReset) mult=subsStreak;
+      else if(p.type==='internet'&&!procReset) mult=procStreak;
+      else if(p.type==='macanazo'&&!macReset) mult=macStreak;
       return sum+b*mult;
     },0);
     return pos+pen;
@@ -687,11 +737,13 @@ function commit(){
 }
 
 function applyStreakOverrides(skRaw){
-  // Offset logic: at seed time we store offset = base - naturalAtSeed.
-  // effective = natural===0 ? 0 : offset + natural
-  // → on seed day: offset + naturalAtSeed = base (exactly what user typed)
-  // → next day they earn it: offset + (naturalAtSeed+1) = base+1
-  // → miss a day: natural=0 → show 0, kill override
+  // The override stores an OFFSET captured once, at the moment of editing:
+  //   offset = (typed value) - (natural value at that exact moment)
+  // From then on, every day: displayed = natural(today) + offset.
+  // This makes it grow/shrink in lockstep with natural — true streak behavior —
+  // while keeping the typed number exact on the day it was set.
+  // If natural drops to 0 (streak broke — user skipped the activity), the
+  // override is retired immediately: a broken streak is 0, no exceptions.
   const ovr=STATE.streakOverrides||{};
   const sk={...skRaw};
   let changed=false;
@@ -699,14 +751,13 @@ function applyStreakOverrides(skRaw){
   Object.keys(ovr).forEach(k=>{
     const o=ovr[k];
     if(o===undefined||o===null) return;
-    const offset=typeof o==='object'?(o.offset!==undefined?o.offset:(o.base||0)):o;
+    const offset=typeof o==='object'?(o.offset!==undefined?o.offset:0):o;
     const natural=skRaw[k]||0;
 
     if(natural===0){
-      // Not earned today (or streak broke) — show 0, kill override
       delete ovr[k]; changed=true; sk[k]=0;
     } else {
-      sk[k]=offset+natural;
+      sk[k]=natural+offset;
     }
   });
 
@@ -1291,10 +1342,11 @@ function renderSleepCard(sk_){
   card.appendChild(sleepRow(t('main-sleep'),sl.sleepDuration,v=>STATE.today.sleep.sleepDuration=v));
   card.appendChild(sleepRow(t('nap-lbl'),sl.napDuration,v=>STATE.today.sleep.napDuration=v));
   card.appendChild(hr());
-  const earlyStreak=sk_?sk_.earlyBedStreak:sl.earlyBedStreak||1;
-  const eb=sl.sleptEarly?sl.sleepDuration*(earlyStreak):0;
+  const earlyStreak=Math.max(1,sk_?.earlyBedStreak||sl.earlyBedStreak||1);
+  const earlyBase=sl.sleepDuration||0;
+  const eb=sl.sleptEarly?earlyBase*earlyStreak:0;
   const et=dv(`tog ${sl.sleptEarly?'on':''}`);const ec=ip('checkbox','');ec.checked=sl.sleptEarly;ec.readOnly=true;
-  const ei=dv('f1');ei.innerHTML=`<div class="tt">${t('slept-early')}</div>${sl.sleptEarly?`<div class="ts">+${eb} pts · ×${sl.earlyBedStreak||1} streak`:''}`;
+  const ei=dv('f1');ei.innerHTML=`<div class="tt">${t('slept-early')}</div>${sl.sleptEarly?`<div class="ts">+${earlyBase} pts · ×${earlyStreak} streak`:''}`;
   et.appendChild(ec);et.appendChild(ei);
   et.onclick=()=>{
     STATE.today.sleep.sleptEarly=!sl.sleptEarly;
@@ -1343,30 +1395,86 @@ function renderStreaks(sk_){
       inp.min=0;inp.style.cssText='width:54px;text-align:center;font-size:1.3rem;font-weight:700;background:transparent;border:none;border-bottom:2px solid var(--ac);color:var(--ac);padding:2px 0;outline:none;';
       const lbl=dv('skl');lbl.textContent=item.l;
       c.appendChild(inp);c.appendChild(lbl);
+      let committed=false;
       function commit(){
+        if(committed) return;
+        committed=true;
         const raw=inp.value.trim();
-        if(raw===''){
-          // blank = clear override
-          delete STATE.streakOverrides[item.k];
-          S.set(K.STREAK_OVR,STATE.streakOverrides);
-          SB.push(STATE.history,STATE.today,STATE.diary,STATE.streakOverrides).catch(()=>{});
-          refresh(); return;
-        }
+        if(raw===''){ refresh(); return; }
         const v=parseInt(raw);
-        if(isNaN(v)||v<0) return;
-        if(v===0){
-          delete STATE.streakOverrides[item.k];
-        } else {
-          const naturalNow=CALC.streaks(STATE.history,STATE.today)[item.k]||0;
-          STATE.streakOverrides[item.k]={base:v,offset:v-naturalNow};
-          const opp=mutuallyExclusive[item.k];
-          if(opp) delete STATE.streakOverrides[opp];
+        if(isNaN(v)||v<0){ refresh(); return; }
+
+        const fieldMap={
+          morningStreak:'morning', flagStreak:'flags',
+          workStreak:'work', earlyBedStreak:'early', lateStreak:'late',
+          substancesPenaltyStreak:'drugs', procrastinationPenaltyStreak:'internet', macanazoPenaltyStreak:'macanazo',
+        };
+        const field=fieldMap[item.k];
+        const tk=todayKey();
+
+        if(field){
+          if(v===0){
+            delete STATE.streakOverrides[item.k];
+            if(field==='morning') STATE.today.morningCompleted=false;
+            else if(field==='flags') STATE.today.flagCompleted=false;
+            else if(field==='work'){ if(STATE.today.work) STATE.today.work.workDuration=0; }
+            else if(field==='early'){ if(STATE.today.sleep) STATE.today.sleep.sleptEarly=false; }
+            else if(field==='late'){ if(STATE.today.sleep) STATE.today.sleep.sleptLate=false; }
+            else if(field==='drugs'||field==='internet'||field==='macanazo'){
+              STATE.today.penalties=(STATE.today.penalties||[]).filter(p=>p.type!==field);
+            }
+          } else {
+            // STEP 1+2 — mark TODAY so natural includes it; offset is computed afterward (STEP 4 below)
+            if(field==='morning') STATE.today.morningCompleted=true;
+            else if(field==='flags') STATE.today.flagCompleted=true;
+            else if(field==='work'){ if(!STATE.today.work) STATE.today.work={}; if(!STATE.today.work.workDuration||STATE.today.work.workDuration<=0) STATE.today.work.workDuration=1; }
+            else if(field==='early'){ if(!STATE.today.sleep) STATE.today.sleep={}; STATE.today.sleep.sleptEarly=true; if(!STATE.today.sleep.sleepDuration) STATE.today.sleep.sleepDuration=1; }
+            else if(field==='late'){ if(!STATE.today.sleep) STATE.today.sleep={}; STATE.today.sleep.sleptLate=true; }
+            else if(field==='drugs'||field==='internet'||field==='macanazo'){
+              if(!STATE.today.penalties) STATE.today.penalties=[];
+              const has=STATE.today.penalties.some(p=>p.type===field);
+              if(!has) STATE.today.penalties.push({id:'streak-seed-'+Date.now(),type:field,count:field==='internet'?35:1,details:field==='drugs'?{substances:1}:field==='internet'?{minutes:35}:{isPositive:false},timestamp:new Date().toISOString()});
+            }
+
+            // STEP 3 — propagate backward ONLY into already-registered days (never invented)
+            const sorted=[...STATE.history].filter(h=>!h._gap&&h.date!==tk).sort((a,b)=>a.date.localeCompare(b.date));
+            const daysToMark=Math.min(Math.max(0,v-1), sorted.length);
+            const startIdx=sorted.length-daysToMark;
+            for(let i=startIdx;i<sorted.length;i++){
+              const d=sorted[i];
+              if(field==='morning'){
+                if(!d.streaks) d.streaks=[{type:'morning',count:0,active:false},{type:'flags',count:0,active:false}];
+                const ms=d.streaks.find(s=>s.type==='morning'); if(ms){ms.active=true;ms.count=1;}
+              } else if(field==='flags'){
+                if(!d.streaks) d.streaks=[{type:'morning',count:0,active:false},{type:'flags',count:0,active:false}];
+                const fs=d.streaks.find(s=>s.type==='flags'); if(fs){fs.active=true;fs.count=1;}
+              } else if(field==='work'){
+                if(!d.workDuration||d.workDuration<=0) d.workDuration=1;
+              } else if(field==='early'){
+                d.sleptEarly=true; if(!d.sleepDuration) d.sleepDuration=1;
+              } else if(field==='late'){
+                d.sleptLate=true;
+              } else if(field==='drugs'||field==='internet'||field==='macanazo'){
+                if(!d.penalties) d.penalties=[];
+                const has=d.penalties.some(p=>p.type===field);
+                if(!has) d.penalties.push({type:field,count:field==='internet'?35:1,points:0,streak:1});
+              }
+            }
+          }
+          if(v>0){
+            // Compute offset using the natural value AFTER today is marked + history propagated
+            const naturalAfter=(CALC.streaks(STATE.history,STATE.today)[item.k])||0;
+            STATE.streakOverrides[item.k]=v-naturalAfter;
+          }
+          S.set(K.HIST,STATE.history);
         }
         S.set(K.STREAK_OVR,STATE.streakOverrides);
-        SB.push(STATE.history,STATE.today,STATE.diary,STATE.streakOverrides).catch(()=>{});
-        refresh();
+        commitAndRefresh();
       }
-      inp.onkeydown=e=>{if(e.key==='Enter')inp.blur();};
+      inp.onkeydown=e=>{
+        if(e.key==='Enter'){commit();inp.blur();}
+        else if(e.key==='Escape'){committed=true;STATE.editingStreaks=false;refresh();}
+      };
       inp.onblur=()=>commit();
     } else {
       const n=dv('skn '+numCls);n.textContent=String(sk_[item.k]||0);
@@ -1379,6 +1487,7 @@ function renderStreaks(sk_){
   card.appendChild(dv('xs dimmer up ls mb8',t('pos-streaks')));
   const pg=dv('sk-g mb16');
   [{k:'morningStreak',l:t('sk-morning')},{k:'flagStreak',l:t('sk-goals')},{k:'workStreak',l:t('sk-work')},
+   {k:'earlyBedStreak',l:t('slept-early')},
    {k:'substancesStreak',l:t('sk-ci')},{k:'procrastinationStreak',l:t('sk-cp')},{k:'macanazoStreak',l:t('sk-co')}]
   .forEach(item=>pg.appendChild(makeStreakItem(item,'pos','ac')));
   card.appendChild(pg);
@@ -1436,7 +1545,7 @@ function renderCalendar(){
       }
       const num=sp('cal-num',String(d));num.style.color=bg.txt;cell.appendChild(num);
       // #5: always show pts if entry exists
-      if(entry){const pts=sp('cal-pts',String(CALC.liveScore(entry)));pts.style.color=bg.txt;cell.appendChild(pts);}
+      if(entry){const pts=sp('cal-pts',String(CALC.liveScore(entry,STATE.history)));pts.style.color=bg.txt;cell.appendChild(pts);}
       cell.onclick=()=>{selK=key===selK?null:key;build();};
       cg.appendChild(cell);
     }
@@ -1459,7 +1568,7 @@ function renderCalendar(){
       }
       if(entry){
         const det=dv(`card2 fi s-${entry.status}`);det.style.border='1px solid';
-        const dr=dv('rowb');dr.appendChild(sbadge(entry.status));dr.appendChild(sp('lg mo w7 ac',`${CALC.liveScore(entry)} pts`));det.appendChild(dr);
+        const dr=dv('rowb');dr.appendChild(sbadge(entry.status));dr.appendChild(sp('lg mo w7 ac',`${CALC.liveScore(entry,STATE.history)} pts`));det.appendChild(dr);
         // Format: Fri, Jun 12 2026 | 21/28 tasks | 20 🍅 | 🏅 ×37
         const fmtSelDate=new Date(selK+'T12:00:00').toLocaleDateString('en-US',{weekday:'short',year:'numeric',month:'short',day:'numeric'});
         const flagActive=entry.streaks?.some(s=>s.type==='flags'&&s.active);
@@ -1561,7 +1670,14 @@ function renderHistEd(sk_){
       }
       hd.appendChild(lft);
       const rgt=dv('row gap6');
-      if(entry)rgt.appendChild(sp('sm mo dimmer',`${CALC.liveScore(entry)}pt`));
+      if(isToday){
+        // Today isn't saved into history yet — use the live in-memory calculation
+        // (which already includes any streak override) instead of liveScore(entry).
+        const todayPts=CALC.score(STATE.today,sk_).total;
+        rgt.appendChild(sp('sm mo dimmer',`${todayPts}pt`));
+      } else if(entry){
+        rgt.appendChild(sp('sm mo dimmer',`${CALC.liveScore(entry,STATE.history)}pt`));
+      }
       const eb=bt('btn-icon',isEd?'✕':'✏',()=>{
         if(isEd){edKey=null;}
         else{
@@ -1627,8 +1743,8 @@ function renderStats(total,sc){
   const isEs=STATE.lang==='es';
 
   // ── Computed values ──────────────────────────────────────────────────────
-  const allPts=STATE.history.filter(d=>!d._gap).map(d=>CALC.liveScore(d));
-  const last7=STATE.history.filter(d=>!d._gap).slice(0,7).map(d=>CALC.liveScore(d));
+  const allPts=STATE.history.filter(d=>!d._gap).map(d=>CALC.liveScore(d,STATE.history));
+  const last7=STATE.history.filter(d=>!d._gap).slice(0,7).map(d=>CALC.liveScore(d,STATE.history));
   const best=allPts.length?Math.max(...allPts):0;
   const worst=allPts.length?Math.min(...allPts):0;
   const avg=allPts.length?Math.round(allPts.reduce((a,b)=>a+b,0)/allPts.length):0;
