@@ -474,6 +474,11 @@ const CALC={
     const diff=(typeof STATE!=='undefined'?STATE.difficulty:null)||'easy';
     return diff==='hard'?10:diff==='medium'?5:1;
   },
+  // single source of truth for the procrastination-penalty multiplier —
+  // was previously duplicated 3x with mismatched thresholds/fallbacks
+  procMult(procMins,streak){
+    return procMins>30?Math.max(1,streak||1):1;
+  },
   streaks(history,today){
     const tk=todayKey();
     // #1 FIX: exclude today from history scan entirely
@@ -534,11 +539,10 @@ const CALC={
     const slp=(sleep.sleepDuration||0)+(sleep.napDuration||0)+(sleep.sleptEarly?(sleep.sleepDuration||0)*earlyBedStreak:0);
     const latePen=sleep.sleptLate?-100*this.diffMult()*Math.max(1,s.lateStreak||1):0;
     const procMins=penalties.filter(p=>p.type==='internet').reduce((a,p)=>a+(p.details?.minutes||0),0);
-    const procActive=procMins>30;
     const pen=penalties.reduce((sum,p)=>{
       const b=this.penBase(p);let mult=1;
       if(p.type==='drugs')mult=Math.max(1,s.substancesPenaltyStreak);
-      else if(p.type==='internet')mult=procActive?Math.max(1,s.procrastinationPenaltyStreak):1;
+      else if(p.type==='internet')mult=this.procMult(procMins,s.procrastinationPenaltyStreak);
       else if(p.type==='macanazo')mult=Math.max(1,s.macanazoPenaltyStreak);
       return sum+b*mult;
     },0);
@@ -1082,14 +1086,15 @@ function renderApp(){
   // HEADER
   const hdr=dv('ctr');hdr.style.padding='20px 0 16px';
   const now=new Date();
+  const tz='America/Cancun';
   hdr.innerHTML=`<div class="xxxl w8 ac" style="letter-spacing:-.02em">Stoic</div>
-    <div class="sm dim mt4">${capFirst(now.toLocaleDateString(STATE.lang==='es'?'es-MX':'en-US',{weekday:'long',year:'numeric',month:'long',day:'numeric'}))}</div>
-    <div class="xs dimmer mt2 mo" id="clk">${now.toLocaleTimeString(STATE.lang==='es'?'es-MX':'en-US',{hour:'2-digit',minute:'2-digit',second:'2-digit'})}</div>`;
+    <div class="sm dim mt4">${capFirst(now.toLocaleDateString(STATE.lang==='es'?'es-MX':'en-US',{timeZone:tz,weekday:'long',year:'numeric',month:'long',day:'numeric'}))}</div>
+    <div class="xs dimmer mt2 mo" id="clk">${now.toLocaleTimeString(STATE.lang==='es'?'es-MX':'en-US',{timeZone:tz,hour:'2-digit',minute:'2-digit',second:'2-digit'})}</div>`;
 
   // clock update: interval is started once at boot level
   const sind=dv('row gap6 xs dim mt6');sind.style.justifyContent='center';
-  const lastSync=SB.init()?t('synced'):t('local');
-  sind.innerHTML=`<span class="sdot"></span><span>${t('auto-saved')} · ${lastSync}</span>`;
+  const lastSync=SB.init()?t('Synced'):t('Local');
+  sind.innerHTML=`<span class="sdot"></span><span>${t('Auto-saved')} · ${lastSync}</span>`;
   hdr.appendChild(sind);
   const acts=dv('row gap8 mt10');acts.style.justifyContent='center';
   const themeBtn=bt('btn-ghost btn-sm',STATE.theme==='light'?t('dark'):t('light'),toggleTheme);
@@ -1252,7 +1257,7 @@ function renderPenCard(sk_){
     const b=CALC.penBase(p);const procMins=STATE.today.penalties.filter(x=>x.type==='internet').reduce((s,x)=>s+(x.details?.minutes||0),0);
     let m=1;
     if(p.type==='drugs')m=Math.max(1,sk_.substancesPenaltyStreak);
-    else if(p.type==='internet')m=procMins>30?Math.max(1,sk_.procrastinationPenaltyStreak):0;
+    else if(p.type==='internet')m=CALC.procMult(procMins,sk_.procrastinationPenaltyStreak);
     else if(p.type==='macanazo')m=Math.max(1,sk_.macanazoPenaltyStreak);
     return sum+b*m;
   },0);
@@ -1300,7 +1305,7 @@ function renderPenCard(sk_){
       const base=CALC.penBase(p);
       let mult=1;
       if(p.type==='drugs') mult=Math.max(1,sk_.substancesPenaltyStreak);
-      else if(p.type==='internet') mult=procMinsTotal>=30?Math.max(1,sk_.procrastinationPenaltyStreak):1;
+      else if(p.type==='internet') mult=CALC.procMult(procMinsTotal,sk_.procrastinationPenaltyStreak);
       else if(p.type==='macanazo') mult=Math.max(1,sk_.macanazoPenaltyStreak);
       const actual=base*mult;
       const lbl=p.type==='drugs'?`${t('indulg-x')}${p.details?.substances||1}`:p.type==='internet'?`${t('procrast-s')} ${fmtDur(p.details?.minutes||0)}`:t('pen-org').replace('💦 ','');
@@ -1707,9 +1712,9 @@ function renderHistEd(sk_){
         cks.appendChild(ck(t('morning-routine'),fst.morningCompleted,v=>fst.morningCompleted=v));cks.appendChild(ck(t('goals-ann'),fst.flagCompleted,v=>fst.flagCompleted=v));cks.appendChild(ck(t('early-bed'),fst.sleptEarly,v=>fst.sleptEarly=v));cks.appendChild(ck(t('late-bed'),fst.sleptLate,v=>fst.sleptLate=v));form.appendChild(cks);
         const sb=bt('btn-ac btn-sm',t('save-btn'),()=>{
           const pens=[];
-          if(fst.substances>0)pens.push({type:'drugs',count:fst.substances,points:-250*fst.substances,streak:1});
-          if(fst.procMins>0)pens.push({type:'internet',count:fst.procMins,points:-10*fst.procMins,streak:1});
-          for(let i=0;i<fst.macanazoCount;i++)pens.push({type:'macanazo',count:1,points:-1000,streak:1});
+          if(fst.substances>0)pens.push({type:'drugs',count:fst.substances,points:CALC.penBase({type:'drugs',details:{substances:fst.substances}}),streak:1});
+          if(fst.procMins>0)pens.push({type:'internet',count:fst.procMins,points:CALC.penBase({type:'internet',details:{minutes:fst.procMins}}),streak:1});
+          for(let i=0;i<fst.macanazoCount;i++)pens.push({type:'macanazo',count:1,points:CALC.penBase({type:'macanazo',details:{isPositive:false}}),streak:1});
           const mockDay={completed:fst.completed,target:fst.target,morningCompleted:fst.morningCompleted,flagCompleted:fst.flagCompleted,pomodoros:fst.pomodoros,
             penalties:pens.map(p=>({type:p.type,count:p.count,details:p.type==='drugs'?{substances:p.count}:p.type==='internet'?{minutes:p.count}:{isPositive:false}})),
             sleep:{sleepDuration:fst.sleepDuration,napDuration:fst.napDuration,sleptEarly:fst.sleptEarly,sleptLate:fst.sleptLate||false,earlyBedStreak:1},work:{workDuration:fst.workDuration}};
@@ -2173,7 +2178,7 @@ initTimezone();loadToday();applyTheme();
 let _lastDay=todayKey();
 setInterval(()=>{
   const cl=document.getElementById('clk');
-  if(cl)cl.textContent=new Date().toLocaleTimeString(STATE.lang==='es'?'es-MX':'en-US',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  if(cl)cl.textContent=new Date().toLocaleTimeString(STATE.lang==='es'?'es-MX':'en-US',{timeZone:'America/Cancun',hour:'2-digit',minute:'2-digit',second:'2-digit'});
   const nd=todayKey();
   if(nd!==_lastDay){
     _lastDay=nd;
