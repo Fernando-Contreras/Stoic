@@ -603,18 +603,12 @@ const CALC={
         subsStreak=this.streakAtDay(sorted,idx,d=>d.penalties?.some(p=>p.type==='drugs'),['yellow','green','purple'])||1;
         procStreak=this.streakAtDay(sorted,idx,d=>d.penalties?.some(p=>p.type==='internet'),['green','purple'])||1;
         macStreak=this.streakAtDay(sorted,idx,d=>d.penalties?.some(p=>p.type==='macanazo'),['purple'])||1;
-        // Apply streakOverrides offset so historical days reflect the real streak
-        // e.g. if user set goals=8 (offset=4), yesterday shows ×8 not ×4
-        const _ovr=(typeof STATE!=='undefined'?STATE.streakOverrides:{})||{};
-        function _applyOvr(key,val){const o=_ovr[key];if(o===undefined||o===null)return val;const off=typeof o==='object'?(o.offset!==undefined?o.offset:0):o;return val>0?Math.max(1,val+off):val;}
-        morningStreak=_applyOvr('morningStreak',morningStreak);
-        flagStreak=_applyOvr('flagStreak',flagStreak);
-        workStreak=_applyOvr('workStreak',workStreak);
-        earlyBedStreak=_applyOvr('earlyBedStreak',earlyBedStreak);
-        lateStreak=_applyOvr('lateStreak',lateStreak);
-        subsStreak=_applyOvr('substancesPenaltyStreak',subsStreak);
-        procStreak=_applyOvr('procrastinationPenaltyStreak',procStreak);
-        macStreak=_applyOvr('macanazoPenaltyStreak',macStreak);
+        // NOTE: streakOverrides must NOT be applied here. This function scores
+        // already-closed HISTORICAL days. Overrides represent a manual correction
+        // to TODAY's current streak count (see applyStreakOverrides) — applying
+        // that offset to past days made old, already-earned points shift up and
+        // down (and vanish) whenever today's streak changed or reset. Historical
+        // days keep the points they actually earned, permanently.
       }
     }
 
