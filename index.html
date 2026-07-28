@@ -603,12 +603,28 @@ const CALC={
         subsStreak=this.streakAtDay(sorted,idx,d=>d.penalties?.some(p=>p.type==='drugs'),['yellow','green','purple'])||1;
         procStreak=this.streakAtDay(sorted,idx,d=>d.penalties?.some(p=>p.type==='internet'),['green','purple'])||1;
         macStreak=this.streakAtDay(sorted,idx,d=>d.penalties?.some(p=>p.type==='macanazo'),['purple'])||1;
-        // NOTE: streakOverrides must NOT be applied here. This function scores
-        // already-closed HISTORICAL days. Overrides represent a manual correction
-        // to TODAY's current streak count (see applyStreakOverrides) — applying
-        // that offset to past days made old, already-earned points shift up and
-        // down (and vanish) whenever today's streak changed or reset. Historical
-        // days keep the points they actually earned, permanently.
+        // Apply streakOverrides offset so historical days reflect the real streak
+        // e.g. if user set goals=8 (offset=4), yesterday shows ×8 not ×4.
+        // IMPORTANT: once a streak breaks it is RETIRED with a date (see
+        // applyStreakOverrides) rather than deleted. Days BEFORE that date keep
+        // the offset forever — points already earned are never taken away — while
+        // days after it score naturally, since they belong to a brand new streak.
+        const _ovr=(typeof STATE!=='undefined'?STATE.streakOverrides:{})||{};
+        function _applyOvr(key,val){
+          const o=_ovr[key];if(o===undefined||o===null)return val;
+          const off=typeof o==='object'?(o.offset!==undefined?o.offset:0):o;
+          const retiredAt=typeof o==='object'?o.retiredAt:null;
+          if(retiredAt&&e.date>=retiredAt)return val; // new streak — no offset
+          return val>0?Math.max(1,val+off):val;
+        }
+        morningStreak=_applyOvr('morningStreak',morningStreak);
+        flagStreak=_applyOvr('flagStreak',flagStreak);
+        workStreak=_applyOvr('workStreak',workStreak);
+        earlyBedStreak=_applyOvr('earlyBedStreak',earlyBedStreak);
+        lateStreak=_applyOvr('lateStreak',lateStreak);
+        subsStreak=_applyOvr('substancesPenaltyStreak',subsStreak);
+        procStreak=_applyOvr('procrastinationPenaltyStreak',procStreak);
+        macStreak=_applyOvr('macanazoPenaltyStreak',macStreak);
       }
     }
 
@@ -740,8 +756,11 @@ function applyStreakOverrides(skRaw){
   // From then on, every day: displayed = natural(today) + offset.
   // This makes it grow/shrink in lockstep with natural — true streak behavior —
   // while keeping the typed number exact on the day it was set.
-  // If natural drops to 0 (streak broke — user skipped the activity), the
-  // override is retired immediately: a broken streak is 0, no exceptions.
+  // If natural drops to 0 (streak broke — user skipped the activity), TODAY's
+  // streak becomes 0: a broken streak is 0, no exceptions. But the override is
+  // RETIRED with a date, never deleted — the days it already applied to keep
+  // their points forever (see liveScore). Deleting it used to retroactively
+  // strip points from history the moment a streak broke.
   const ovr=STATE.streakOverrides||{};
   const sk={...skRaw};
   let changed=false;
@@ -750,10 +769,13 @@ function applyStreakOverrides(skRaw){
     const o=ovr[k];
     if(o===undefined||o===null) return;
     const offset=typeof o==='object'?(o.offset!==undefined?o.offset:0):o;
+    const retiredAt=typeof o==='object'?o.retiredAt:null;
     const natural=skRaw[k]||0;
 
-    if(natural===0){
-      delete ovr[k]; changed=true; sk[k]=0;
+    if(retiredAt){
+      sk[k]=natural; // already retired — today runs on the new, natural streak
+    } else if(natural===0){
+      ovr[k]={offset,retiredAt:todayKey()}; changed=true; sk[k]=0;
     } else {
       sk[k]=natural+offset;
     }
