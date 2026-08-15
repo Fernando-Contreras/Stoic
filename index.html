@@ -508,6 +508,9 @@ en:{
   'rem-del-warn':'Delete "{t}"?','rem-del-warn-kids':'Delete "{t}" and its {n} subtask(s)?',
   'rem-tag-ph':'Tag (yours to invent: work, home, gym…)',
   'rem-subtask':'subtask','rem-subtask-ask':'Subtask of "{t}":',
+  'rem-notes-ph':'Note (optional)','rem-edit':'Edit','rem-no-parent':'↳ Not a subtask',
+  'rem-has-kids':'This one has subtasks of its own, so it cannot become one. Two levels is the limit.',
+  'rem-bad-parent':'That cannot be its parent.','rem-sub-no-rep':'A subtask follows its parent',
   'use-dur':'Use: 5h, 300m, 2h30m or number (minutes)',
   'ej-dur':'ej. 2h30m','indulg-x':'Stimulants ×',
 },
@@ -596,6 +599,9 @@ es:{
   'rem-del-warn':'¿Borrar "{t}"?','rem-del-warn-kids':'¿Borrar "{t}" y sus {n} subtarea(s)?',
   'rem-tag-ph':'Etiqueta (la que tú quieras: trabajo, casa, gym…)',
   'rem-subtask':'subtarea','rem-subtask-ask':'Subtarea de "{t}":',
+  'rem-notes-ph':'Nota (opcional)','rem-edit':'Editar','rem-no-parent':'↳ No es subtarea',
+  'rem-has-kids':'Esta ya tiene subtareas, así que no puede volverse una. El límite son 2 niveles.',
+  'rem-bad-parent':'Esa no puede ser su tarea padre.','rem-sub-no-rep':'Una subtarea sigue a su padre',
   'use-dur':'Usa: 5h, 300m, 2h30m o número (minutos)',
   'ej-dur':'ej. 2h30m','indulg-x':'Estimulantes ×',
 }};
@@ -845,6 +851,7 @@ let STATE={
   // Tab 1 (planner) feeds tab 2 (score). Never the other way around.
   tab: localStorage.getItem('st_tab')||'score',
   planner: S.get(K.PLANNER,{reminders:[],_ts:0}),
+  editingRem: null, // which reminder has its editor open (view-only, never saved)
 };
 
 /* ═══ #1 FIX: loadToday checks for missed days, fills all gaps ═══ */
@@ -1198,7 +1205,7 @@ function addReminder(data){
   const parent=data.parent||null;
   const p=parent?reminders().find(x=>x.id===parent):null;
   reminders().unshift({
-    id:uid(),title:data.title,
+    id:uid(),title:data.title,notes:(data.notes||'').trim(),
     due:p?p.due:(data.due||todayKey()),
     priority:data.priority||0,flagged:!!data.flagged,
     tag:(data.tag||(p?p.tag:'')||'').trim(), // a subtask belongs where its parent does
@@ -1208,6 +1215,29 @@ function addReminder(data){
     created:Date.now(),_ts:Date.now()
   });
   savePlanner();
+}
+/* Everything about a reminder stays editable. Re-parenting is the only move
+   with rules attached: two levels is the cap, so something that already has
+   subtasks cannot become one, and nothing can be its own parent. A reminder
+   that becomes a subtask adopts its parent's date and drops its own repeat,
+   since the parent's rhythm is what drives the pair. */
+function updateReminder(id,patch){
+  const r=reminders().find(x=>x.id===id);if(!r)return{ok:true};
+  let warn='';
+  if('parent' in patch){
+    const np=patch.parent||null;
+    if(np){
+      const p=reminders().find(x=>x.id===np);
+      if(subtasksOf(r.id).length){delete patch.parent;warn='sub-has-kids';}
+      else if(!p||p.id===r.id||p.parent){delete patch.parent;warn='sub-bad-parent';}
+      else{patch.due=p.due;patch.repeat=null;}
+    }
+  }
+  Object.assign(r,patch);
+  r._ts=Date.now();
+  if(!r.parent)subtasksOf(r.id).forEach(c=>{c.due=r.due;c._ts=Date.now();});
+  savePlanner();
+  return{ok:!warn,warn};
 }
 function deleteReminder(id){
   // Deleting a parent takes its subtasks, otherwise they are orphaned and
@@ -1289,7 +1319,8 @@ function renderPlanner(){
   const form=dv('card mb12');
   form.appendChild(sp('ctit',t('rem-new')));
   const ti=ip('text','','',t('rem-what'));
-  form.appendChild(ti);
+  const noi=ip('text','','',t('rem-notes-ph'));noi.style.marginTop='6px';
+  form.appendChild(ti);form.appendChild(noi);
   const row2=dv('row gap8 mt8');row2.style.flexWrap='wrap';
   const di=ip('date','',todayKey(),'');di.style.flex='1';di.style.minWidth='150px';
   const pi=sk('',PRIO.map(([v,l])=>[v,`${t('rem-prio')} ${l}`]),'0');pi.style.flex='1';pi.style.minWidth='120px';
@@ -1327,7 +1358,7 @@ function renderPlanner(){
     const title=ti.value.trim();
     if(!title){err.textContent=t('rem-need-title');ti.focus();return;}
     err.textContent='';
-    addReminder({title,due:di.value||todayKey(),priority:parseInt(pi.value)||0,
+    addReminder({title,notes:noi.value,due:di.value||todayKey(),priority:parseInt(pi.value)||0,
       flagged:fc.checked,tag:gi.value,
       repeat:ri.value?{unit:ri.value,every:Math.max(1,parseInt(ni.value)||1)}:null});
     render();
@@ -1390,6 +1421,60 @@ function renderPlanner(){
   return wrap;
 }
 
+function renderReminderEditor(r){
+  const box=dv('fi mt8');
+  box.style.cssText='background:var(--sur3);border:1px solid var(--b2);border-radius:8px;padding:10px';
+  const ti=ip('text','',r.title,t('rem-what'));
+  const no=ip('text','',r.notes||'',t('rem-notes-ph'));no.style.marginTop='6px';
+  box.appendChild(ti);box.appendChild(no);
+
+  const r2=dv('row gap6 mt6');r2.style.flexWrap='wrap';
+  const gi=ip('text','',r.tag||'',t('rem-tag-ph'));gi.setAttribute('list','st-tags');gi.style.flex='1';gi.style.minWidth='110px';
+  const di=ip('date','',r.due,'');di.style.flex='1';di.style.minWidth='130px';
+  r2.appendChild(gi);r2.appendChild(di);box.appendChild(r2);
+
+  const r3=dv('row gap6 mt6');r3.style.flexWrap='wrap';
+  const pi=sk('',PRIO.map(([v,l])=>[v,`${t('rem-prio')} ${l}`]),String(r.priority||0));pi.style.flex='1';pi.style.minWidth='110px';
+  // Only top-level reminders can be parents, and never itself.
+  const cands=reminders().filter(x=>!x.parent&&x.id!==r.id);
+  const canMove=subtasksOf(r.id).length===0;
+  const pa=sk('',[['',t('rem-no-parent')],...cands.map(x=>[x.id,'↳ '+x.title.slice(0,28)])],r.parent||'');
+  pa.style.flex='1';pa.style.minWidth='130px';
+  if(!canMove){pa.disabled=true;pa.title=t('rem-has-kids');}
+  r3.appendChild(pi);r3.appendChild(pa);box.appendChild(r3);
+
+  const r4=dv('row gap6 mt6');r4.style.flexWrap='wrap';
+  const ri=sk('',[['','🔁 '+t('rep-none')],['day',t('rep-day')],['week',t('rep-week')],['month',t('rep-month')],['year',t('rep-year')]],r.repeat?r.repeat.unit:'');
+  ri.style.flex='1';ri.style.minWidth='110px';
+  const ni=ip('number','',r.repeat?r.repeat.every:1,'');ni.min=1;ni.style.width='64px';
+  // A subtask follows its parent, so its own repeat is meaningless.
+  if(r.parent){ri.disabled=true;ni.disabled=true;ri.title=t('rem-sub-no-rep');}
+  const fl=dv(`tog ${r.flagged?'on':''}`);fl.style.flex='1';fl.style.minWidth='130px';
+  const fc=ip('checkbox','');fc.checked=!!r.flagged;
+  const fw=dv('f1');fw.innerHTML=`<div class="tt">🏁 ${t('rem-flag')}</div>`;
+  fl.appendChild(fc);fl.appendChild(fw);
+  fl.onclick=e=>{if(e.target!==fc)fc.checked=!fc.checked;fl.classList.toggle('on',fc.checked);};
+  r4.appendChild(ri);r4.appendChild(ni);r4.appendChild(fl);box.appendChild(r4);
+
+  const err=dv('xs ng mt6');box.appendChild(err);
+  const acts=dv('row gap8 mt8');
+  acts.appendChild(bt('btn-ac btn-sm f1',t('save-btn'),()=>{
+    if(!ti.value.trim()){err.textContent=t('rem-need-title');return;}
+    const res=updateReminder(r.id,{
+      title:ti.value.trim(),notes:no.value.trim(),tag:gi.value.trim(),
+      due:di.value||r.due,priority:parseInt(pi.value)||0,flagged:fc.checked,
+      parent:pa.disabled?r.parent:(pa.value||null),
+      repeat:(r.parent||!ri.value)?null:{unit:ri.value,every:Math.max(1,parseInt(ni.value)||1)}
+    });
+    if(!res.ok){err.textContent=res.warn==='sub-has-kids'?t('rem-has-kids'):t('rem-bad-parent');return;}
+    STATE.editingRem=null;render();
+  }));
+  acts.appendChild(bt('btn-ghost btn-sm',t('cancel'),()=>{STATE.editingRem=null;render();}));
+  box.appendChild(acts);
+  ti.onkeydown=e=>{if(e.key==='Escape'){STATE.editingRem=null;render();}};
+  return box;
+}
+
 function renderReminderRow(r,tk){
   const doneToday=r.completedOn===tk;
   const late=!doneToday&&r.due<tk;
@@ -1410,6 +1495,11 @@ function renderReminderRow(r,tk){
   mid.appendChild(titleLine);
 
   if(r.tag){const tg=sp('tagchip',r.tag);tg.style.marginLeft='2px';titleLine.appendChild(tg);}
+  if(r.notes){
+    const nt=dv('sm dim mt2');nt.style.whiteSpace='pre-wrap';nt.textContent=r.notes;
+    if(doneToday)nt.style.color='var(--t3)';
+    mid.appendChild(nt);
+  }
 
   const meta=[];
   meta.push(late?`<span class="cr w6">${t('rem-was-due')} ${r.due}</span>`:r.due);
@@ -1427,13 +1517,24 @@ function renderReminderRow(r,tk){
   }
   row.appendChild(mid);
 
-  const del=bt('btn-icon','✕',()=>{
+  const tools=dv('row gap4');
+  const ed=bt('btn-icon','✏️',()=>{STATE.editingRem=STATE.editingRem===r.id?null:r.id;render();});
+  ed.title=t('rem-edit');
+  tools.appendChild(ed);
+  tools.appendChild(bt('btn-icon','✕',()=>{
     const kids=r.parent?0:subtasksOf(r.id).length;
     const msg=kids?t('rem-del-warn-kids').replace('{t}',r.title).replace('{n}',kids)
                   :t('rem-del-warn').replace('{t}',r.title);
     if(confirm(msg)){deleteReminder(r.id);render();}
-  });
-  row.appendChild(del);
+  }));
+  row.appendChild(tools);
+
+  if(STATE.editingRem===r.id){
+    const outer=dv('');outer.appendChild(row);outer.appendChild(renderReminderEditor(r));
+    outer.style.cssText='background:var(--sur2);border:1px solid var(--acb);border-radius:10px;padding:0 0 10px';
+    row.style.border='none';row.style.background='none';
+    return outer;
+  }
   return row;
 }
 
