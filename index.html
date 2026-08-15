@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>Stoic</title>
+<!-- Browser-tab icon: inline SVG emoji, so it stays single-file and works offline -->
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🏛️%3C/text%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
@@ -235,9 +237,12 @@ const SB={
     }catch{return null;}
   },
   async saveBackup(history,today,diary,streakOverrides){
-    if(!this.init()) return;
+    if(!this.init()) return false;
     try{
-      await fetch(`${this.url}/rest/v1/stoic_backups`,{
+      // on_conflict MUST match the real unique constraint (user_id, backup_date) —
+      // the table's primary key is a random id, so without this the upsert
+      // silently fails (409) whenever a backup for today already exists.
+      const res=await fetch(`${this.url}/rest/v1/stoic_backups?on_conflict=user_id,backup_date`,{
         method:'POST',
         headers:{...this.headers(),'Prefer':'resolution=merge-duplicates,return=minimal'},
         body:JSON.stringify({
@@ -246,7 +251,13 @@ const SB={
           history,today,diary,streak_overrides:streakOverrides
         })
       });
-    }catch(e){console.warn('Backup failed',e);}
+      if(!res.ok){
+        const t=await res.text();
+        console.error('Backup save failed:',res.status,t);
+        return false;
+      }
+      return true;
+    }catch(e){console.error('Backup save failed',e);return false;}
   },
   async listBackups(){
     if(!this.init()) return [];
@@ -1067,11 +1078,11 @@ function renderLogin(){
       }
       if(remote.diary){STATE.diary=remote.diary;S.set(K.DIARY,STATE.diary);}
       if(remote.streak_overrides){STATE.streakOverrides=remote.streak_overrides;S.set(K.STREAK_OVR,STATE.streakOverrides);}
-      // Save daily backup on login (once per day)
+      // Save daily backup on login (once per day) — only mark done if it truly succeeded
       const _bkKey='st_last_backup';
       if(localStorage.getItem(_bkKey)!==todayKey()){
-        SB.saveBackup(STATE.history,STATE.today,STATE.diary,STATE.streakOverrides).then(()=>{
-          localStorage.setItem(_bkKey,todayKey());
+        SB.saveBackup(STATE.history,STATE.today,STATE.diary,STATE.streakOverrides).then(ok=>{
+          if(ok) localStorage.setItem(_bkKey,todayKey());
         }).catch(()=>{});
       }
     }
@@ -1171,6 +1182,22 @@ function renderApp(){
 
   bottomWrap.appendChild(dv('xs dimmer ctr',STATE.lang==='es'?'Los backups se guardan automáticamente cada medianoche. Máximo 30 días.':'Backups are saved automatically at midnight. Up to 30 days.'));
 
+  const backupRow=dv('row gap8');backupRow.style.justifyContent='center';
+
+  const backupNowBtn=bt('btn-ghost btn-sm',STATE.lang==='es'?'💾 Backup ahora':'💾 Backup now',async()=>{
+    backupNowBtn.disabled=true;backupNowBtn.textContent='...';
+    const ok=await SB.saveBackup(STATE.history,STATE.today,STATE.diary,STATE.streakOverrides);
+    backupNowBtn.disabled=false;
+    backupNowBtn.textContent=STATE.lang==='es'?'💾 Backup ahora':'💾 Backup now';
+    if(ok){
+      localStorage.setItem('st_last_backup',todayKey());
+      alert(STATE.lang==='es'?'✅ Backup guardado en la nube.':'✅ Backup saved to the cloud.');
+    } else {
+      alert(STATE.lang==='es'?'❌ Falló el backup. Revisa que la tabla stoic_backups exista en Supabase con RLS correcto.':'❌ Backup failed. Check that the stoic_backups table exists in Supabase with correct RLS.');
+    }
+  });
+  backupRow.appendChild(backupNowBtn);
+
   const restoreBtn=bt('btn-ghost btn-sm',t('restore-from'),async()=>{
     restoreBtn.disabled=true;restoreBtn.textContent='...';
     const list=await SB.listBackups();
@@ -1190,7 +1217,8 @@ function renderApp(){
     SB.push(STATE.history,STATE.today,STATE.diary,STATE.streakOverrides).catch(()=>{});
     alert(t('backup-restored'));refresh();
   });
-  bottomWrap.appendChild(restoreBtn);
+  backupRow.appendChild(restoreBtn);
+  bottomWrap.appendChild(backupRow);
 
   bottomWrap.appendChild(bt('btn-ghost btn-sm',t('logout'),()=>{S.set(K.AUTH,false);STATE.authed=false;render();}));
   wrap.appendChild(bottomWrap);
@@ -2178,11 +2206,11 @@ initTimezone();loadToday();applyTheme();
         // On boot: Supabase is the single source of truth — only pull, NEVER push.
         // Pushing on boot can overwrite good cloud data with stale/empty local data.
         applyRemote(remote);
-        // Save a daily backup on first boot of each day (if logged in)
+        // Save a daily backup on first boot of each day (if logged in) — only mark done if it truly succeeded
         const _bkKey='st_last_backup';
         if(localStorage.getItem(_bkKey)!==todayKey()){
-          SB.saveBackup(STATE.history,STATE.today,STATE.diary,STATE.streakOverrides).then(()=>{
-            localStorage.setItem(_bkKey,todayKey());
+          SB.saveBackup(STATE.history,STATE.today,STATE.diary,STATE.streakOverrides).then(ok=>{
+            if(ok) localStorage.setItem(_bkKey,todayKey());
           }).catch(()=>{});
         }
       }
