@@ -511,6 +511,10 @@ en:{
   'rem-notes-ph':'Note (optional)','rem-edit':'Edit','rem-no-parent':'↳ Not a subtask',
   'rem-has-kids':'This one has subtasks of its own, so it cannot become one. Two levels is the limit.',
   'rem-bad-parent':'That cannot be its parent.','rem-sub-no-rep':'A subtask follows its parent',
+  'goals-title':'Goals','goal-week':'🗓 Weekly','goal-quarter':'📈 Quarterly','goal-year':'🏆 Yearly',
+  'goal-new':'A goal worth chasing','goal-add':'+ Add goal','goal-day':'day left','goal-days':'days left',
+  'goal-full':'That is the limit for this kind.','goal-carried':'⚠ carried over from last period',
+  'goal-note':'Finish early, earn more: base × days still left in the period. These add to your total score, not to the day.',
   'rem-subtasks':'subtasks','rem-collapse':'Hide subtasks','rem-expand':'Show subtasks',
   'rem-indent':'Make it a subtask of the one above','rem-outdent':'Lift out of its parent',
   'pomo-title':'Pomodoro','pomo-focus':'Focus','pomo-short':'Short break','pomo-long':'Long break',
@@ -608,6 +612,10 @@ es:{
   'rem-notes-ph':'Nota (opcional)','rem-edit':'Editar','rem-no-parent':'↳ No es subtarea',
   'rem-has-kids':'Esta ya tiene subtareas, así que no puede volverse una. El límite son 2 niveles.',
   'rem-bad-parent':'Esa no puede ser su tarea padre.','rem-sub-no-rep':'Una subtarea sigue a su padre',
+  'goals-title':'Metas','goal-week':'🗓 Semanales','goal-quarter':'📈 Trimestrales','goal-year':'🏆 Anuales',
+  'goal-new':'Una meta que valga la pena','goal-add':'+ Agregar meta','goal-day':'día restante','goal-days':'días restantes',
+  'goal-full':'Ese es el límite para este tipo.','goal-carried':'⚠ arrastrada del periodo anterior',
+  'goal-note':'Termínalas temprano, valen más: base × días que quedan del periodo. Suman a tu puntaje total, no al día.',
   'rem-subtasks':'subtareas','rem-collapse':'Ocultar subtareas','rem-expand':'Ver subtareas',
   'rem-indent':'Volverla subtarea de la de arriba','rem-outdent':'Sacarla de su tarea madre',
   'pomo-title':'Pomodoro','pomo-focus':'Enfoque','pomo-short':'Descanso corto','pomo-long':'Descanso largo',
@@ -1417,6 +1425,80 @@ function pomoBeep(){
   }catch(e){/* audio blocked — the visual change is enough */}
 }
 
+/* ═══ GOALS ═══════════════════════════════════════════════════════════════
+   Weekly, quarterly and yearly goals cannot build streaks, so their reward
+   comes from finishing early instead: base × the days still left in the
+   period. Finish a weekly goal on Sunday and it pays ×7; leave it to
+   Saturday and it pays ×1.
+
+   Their points are kept in a separate total. They are large enough that
+   landing them on a single day would make that day permanently the best one
+   on record and drag every average with it, so the day's own score and the
+   daily stats stay untouched.
+
+   The week starts on Sunday, matching the calendar in the score tab.
+   ═══════════════════════════════════════════════════════════════════════ */
+const GOAL_KINDS=['week','quarter','year'];
+const GOAL_BASE={week:1000,quarter:10000,year:100000};
+const GOAL_MAX={week:5,quarter:5,year:10};
+
+function periodBounds(kind,dateStr){
+  const d=new Date(dateStr+'T12:00:00');
+  let start,end;
+  if(kind==='week'){
+    start=new Date(d);start.setDate(d.getDate()-d.getDay());        // Sunday
+    end=new Date(start);end.setDate(start.getDate()+6);
+  }else if(kind==='quarter'){
+    const q=Math.floor(d.getMonth()/3);
+    start=new Date(d.getFullYear(),q*3,1);
+    end=new Date(d.getFullYear(),q*3+3,0);
+  }else{
+    start=new Date(d.getFullYear(),0,1);
+    end=new Date(d.getFullYear(),11,31);
+  }
+  return{id:kind+':'+isoDate(start),start:isoDate(start),end:isoDate(end)};
+}
+/* Days left counting today, so finishing on the first day of a week pays ×7
+   and finishing on the last pays ×1. */
+function daysLeftIn(kind,dateStr){
+  const{end}=periodBounds(kind,dateStr);
+  const a=new Date(dateStr+'T12:00:00'),b=new Date(end+'T12:00:00');
+  return Math.max(1,Math.round((b-a)/86400000)+1);
+}
+function goals(){return STATE.planner.goals||(STATE.planner.goals=[]);}
+function goalsOf(kind){
+  const now=periodBounds(kind,todayKey()).id;
+  // A goal left unfinished follows you into the next period and is paid by
+  // what is left of the NEW one, so the clock genuinely restarts.
+  return goals().filter(g=>g.kind===kind&&(!g.doneOn||g.period===now));
+}
+function goalPoints(g){
+  return GOAL_BASE[g.kind]*daysLeftIn(g.kind,g.doneOn||todayKey());
+}
+function goalsTotal(){
+  return goals().filter(g=>g.doneOn).reduce((s,g)=>s+(g.points||0),0);
+}
+function addGoal(kind,title){
+  if(goalsOf(kind).length>=GOAL_MAX[kind])return false;
+  goals().unshift({id:uid(),kind,title,period:periodBounds(kind,todayKey()).id,
+    doneOn:null,points:0,created:Date.now(),_ts:Date.now()});
+  savePlanner();return true;
+}
+function toggleGoal(id){
+  const g=goals().find(x=>x.id===id);if(!g)return;
+  const tk=todayKey();
+  if(g.doneOn){g.doneOn=null;g.points=0;}
+  else{
+    g.doneOn=tk;
+    g.period=periodBounds(g.kind,tk).id;   // paid by the period it was finished in
+    g.points=goalPoints(g);
+  }
+  g._ts=Date.now();savePlanner();
+}
+function deleteGoal(id){
+  STATE.planner.goals=goals().filter(g=>g.id!==id);savePlanner();
+}
+
 const PRIO=[['0','—'],['1','!'],['2','!!'],['3','!!!']];
 function prioColor(p){return p>=3?'var(--cr)':p==2?'var(--cy)':p==1?'var(--cp)':'var(--t3)';}
 function repeatLabel(rep){
@@ -1555,6 +1637,70 @@ function renderPlanner(){
   }
 
   if(!list.length)wrap.appendChild(dv('card ctr dim sm mt12',t('rem-empty')));
+  wrap.appendChild(renderGoals());
+  return wrap;
+}
+
+function renderGoals(){
+  const wrap=dv('mt12');
+  const tk=todayKey();
+  const head=dv('rowb mb10');
+  head.appendChild(sp('ctit',t('goals-title')));
+  const tot=goalsTotal();
+  if(tot)head.appendChild(sp('md mo ac w7','+'+tot.toLocaleString()));
+  wrap.appendChild(head);
+
+  const grid=dv('g3');
+  GOAL_KINDS.forEach(kind=>{
+    const card=dv('card');
+    const list=goalsOf(kind);
+    const max=GOAL_MAX[kind];
+    const left=daysLeftIn(kind,tk);
+    const h=dv('rowb mb6');
+    h.appendChild(sp('ctit',t('goal-'+kind)));
+    h.appendChild(sp('xs dimmer',`${list.length}/${max}`));
+    card.appendChild(h);
+    // What one finished right now would be worth — the incentive, in numbers.
+    card.appendChild(dv('xs dim mb10',
+      `${GOAL_BASE[kind].toLocaleString()} × ${left} ${left===1?t('goal-day'):t('goal-days')} = <span class="ac w6">${(GOAL_BASE[kind]*left).toLocaleString()}</span>`));
+
+    if(!list.length)card.appendChild(dv('xs dimmer ctr','—'));
+    const box=dv('s6');
+    list.forEach(g=>{
+      const row=dv('row gap8');
+      row.style.cssText='background:var(--sur2);border:1px solid '+(g.doneOn?'var(--gb)':'var(--b1)')+';border-radius:10px;padding:9px 11px;align-items:flex-start';
+      const cb=ip('checkbox','');cb.checked=!!g.doneOn;cb.style.marginTop='2px';
+      cb.onchange=()=>{toggleGoal(g.id);render();};
+      row.appendChild(cb);
+      const mid=dv('f1');
+      const tt=sp('sm',g.title);
+      if(g.doneOn){tt.style.textDecoration='line-through';tt.style.color='var(--t3)';}
+      mid.appendChild(tt);
+      if(g.doneOn)mid.appendChild(dv('xs cg mt2',`+${g.points.toLocaleString()} · ${g.doneOn}`));
+      else if(g.period!==periodBounds(kind,tk).id)mid.appendChild(dv('xs cy mt2',t('goal-carried')));
+      row.appendChild(mid);
+      row.appendChild(bt('btn-icon','✕',()=>{
+        if(confirm(t('rem-del-warn').replace('{t}',g.title))){deleteGoal(g.id);render();}
+      }));
+      box.appendChild(row);
+    });
+    card.appendChild(box);
+
+    if(list.length<max){
+      const gi=ip('text','','',t('goal-new'));gi.style.marginTop='8px';
+      const add=()=>{
+        const v=gi.value.trim();if(!v)return;
+        addGoal(kind,v);render();
+      };
+      gi.onkeydown=e=>{if(e.key==='Enter')add();};
+      card.appendChild(gi);
+      const b=bt('btn-ghost btn-sm w100 mt6',t('goal-add'),add);b.style.width='100%';
+      card.appendChild(b);
+    }else card.appendChild(dv('xs dimmer ctr mt8',t('goal-full')));
+    grid.appendChild(card);
+  });
+  wrap.appendChild(grid);
+  wrap.appendChild(dv('xs dimmer ctr mt8',t('goal-note')));
   return wrap;
 }
 
@@ -1938,8 +2084,10 @@ function renderApp(){
   const sk_=applyStreakOverrides(sk_raw);
   // earlyBedStreak for display only — read from sk_ but don't mutate STATE here
   const sc=CALC.score(STATE.today,sk_);
-  // #2: histTotal excludes today, score.total is today — no double count
-  const total=CALC.histTotal(STATE.history)+sc.total;
+  // #2: histTotal excludes today, score.total is today — no double count.
+  // Long-goal points ride on the grand total only: they are big enough that
+  // landing them on a day would own "best day" forever and skew every average.
+  const total=CALC.histTotal(STATE.history)+sc.total+goalsTotal();
 
   const wrap=dv('');
   // HEADER
@@ -2904,6 +3052,20 @@ function renderRules(){
       <div>Ponles <span class="cp w6">etiquetas</span> (las que tú inventes) y <span class="cp w6">subtareas</span> en 2 niveles. Palomear el padre palomea sus subtareas.</div>
       <div>Las <span class="ac w6">repeticiones</span> siguen su propio ritmo: una tarea cada 5 días que completas tarde vuelve en su fecha, no 5 días después de que la palomeaste.</div>
       <div>Un día <strong>sin ninguna bandera</strong> no cuenta como Metas Exterminadas — si no, un día que ni planeaste te regalaría los puntos.</div>
+      <div>El <span class="ac w6">🍅 pomodoro</span> vive en Plan. 1 minuto enfocado = 1 punto, los descansos no pagan, y cada 25 min enfocados cuenta como un pomodoro (50 min = 2). El timer <strong>solo suma</strong> a Puntaje: nunca te baja lo que pusiste a mano.</div>
+    </div>
+  </div>
+  <hr class="dv">
+  <div>
+    <div class="md up ls dimmer w7 mb10">🏆 Metas semanales, trimestrales y anuales</div>
+    <div class="s6">
+      <div>Estas no pueden generar racha, así que su premio es <span class="ac w6">terminarlas temprano</span>: valen su base × los días que <em>queden</em> del periodo.</div>
+      <div><span class="w6">🗓 Semanal</span> — 1,000 por día restante. Máximo 5. La semana empieza en <strong>domingo</strong>, así que cerrarla el domingo paga ×7 y el sábado ×1.</div>
+      <div><span class="w6">📈 Trimestral</span> — 10,000 por día restante. Máximo 5.</div>
+      <div><span class="w6">🏆 Anual</span> — 100,000 por día restante. Máximo 10.</div>
+      <div>Las metas <strong>diarias</strong> son tus banderas 🏁 en los recordatorios. Se recomiendan 3 al día.</div>
+      <div>Una meta que no cumpliste <span class="cy w6">se arrastra</span> al periodo siguiente, y ahí paga según los días que queden del periodo <em>nuevo</em>.</div>
+      <div>Sus puntos van a tu <span class="ac w6">puntaje total</span>, no al día. Así una meta anual no se vuelve tu "mejor día" para siempre ni descuadra tus promedios.</div>
     </div>
   </div>
   <hr class="dv">
@@ -2990,6 +3152,20 @@ function renderRules(){
       <div>Give them <span class="cp w6">tags</span> (invent your own) and <span class="cp w6">subtasks</span>, two levels deep. Ticking a parent ticks everything under it.</div>
       <div><span class="ac w6">Repeats</span> keep their own rhythm: a task every 5 days completed late comes back on its date, not 5 days after you ticked it.</div>
       <div>A day with <strong>no flags at all</strong> does not count as Goals Annihilated — otherwise a day you never planned would hand you the points.</div>
+      <div>The <span class="ac w6">🍅 pomodoro</span> lives in Plan. One focused minute is one point, breaks pay nothing, and every 25 focused minutes counts as one pomodoro (50 min = 2). The timer <strong>only ever adds</strong> to Score: it can never reduce a count you typed by hand.</div>
+    </div>
+  </div>
+  <hr class="dv">
+  <div>
+    <div class="md up ls dimmer w7 mb10">🏆 Weekly, quarterly and yearly goals</div>
+    <div class="s6">
+      <div>These cannot build streaks, so the reward is <span class="ac w6">finishing early</span>: base × the days still <em>left</em> in the period.</div>
+      <div><span class="w6">🗓 Weekly</span> — 1,000 per day left. Up to 5. The week starts on <strong>Sunday</strong>, so closing one on Sunday pays ×7 and Saturday pays ×1.</div>
+      <div><span class="w6">📈 Quarterly</span> — 10,000 per day left. Up to 5.</div>
+      <div><span class="w6">🏆 Yearly</span> — 100,000 per day left. Up to 10.</div>
+      <div><strong>Daily</strong> goals are your 🏁 flags on reminders. Three a day is the sweet spot.</div>
+      <div>A goal you did not finish <span class="cy w6">carries over</span> to the next period, where it pays by what is left of the <em>new</em> one.</div>
+      <div>Their points go to your <span class="ac w6">total score</span>, not to the day — so a yearly goal never becomes your "best day" forever or skews your averages.</div>
     </div>
   </div>
   <hr class="dv">
