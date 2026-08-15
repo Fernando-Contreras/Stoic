@@ -207,9 +207,25 @@ const SB={
   headers(){
     return {'Content-Type':'application/json','apikey':this.key,'Authorization':`Bearer ${this.token}`};
   },
-  async push(history, today, diary, streakOverrides){
+  /* A push replaces the cloud row outright — there is no merging on the server.
+     So a device holding a stale or partial copy can wipe good data for every
+     other device just by being used. Two rules stop that:
+       1. Never push before this session has successfully pulled. If we could not
+          read the cloud, we have no idea what we would be destroying.
+       2. Never silently push fewer days than the cloud last had.
+     Deliberate acts — the Push button, restoring a file — pass force:true. */
+  pulledOk:false,
+  cloudDays:0,
+  blocked:'',
+  async push(history, today, diary, streakOverrides, opts){
+    opts=opts||{};
     if(!this.init()) return;
     if(!await this.ensureFresh()) return;
+    if(!opts.force){
+      if(!this.pulledOk){this.status='error';this.blocked='never-pulled';return;}
+      if((history||[]).length<this.cloudDays){this.status='error';this.blocked='would-shrink';return;}
+    }
+    this.blocked='';
     try{
       const res=await fetch(`${this.url}/rest/v1/stoic_data`, {
         method:'POST',
@@ -225,7 +241,7 @@ const SB={
         })
       });
       if(!res.ok){const t=await res.text();console.warn('Push failed:',res.status,t);this.status='error';}
-      else this.status='ok';
+      else {this.status='ok';this.cloudDays=(history||[]).length;}
     }catch(e){console.warn('Supabase push failed',e);this.status='error';}
   },
   async pull(){
@@ -236,6 +252,9 @@ const SB={
       if(!r.ok){console.warn('Pull failed:',r.status);this.status='error';return null;}
       const rows=await r.json();
       this.status='ok';
+      // We have now read the cloud, so pushing is safe and we know its size.
+      this.pulledOk=true;
+      this.cloudDays=(rows&&rows.length&&Array.isArray(rows[0].history))?rows[0].history.length:0;
       return rows&&rows.length?rows[0]:null;
     }catch(e){console.warn('Supabase pull failed',e);this.status='error';return null;}
   },
@@ -388,6 +407,9 @@ const T={
 en:{
   'lang-btn':'🇲🇽 ES','Auto-saved':'Saved','Synced':'☁️ Synced','Local':'💾 Local',
   'sync-broken':'⚠️ NOT SYNCING — this browser only','sync-fix':'Log out and back in to reconnect',
+  'sync-held':'🛑 UPLOAD ON HOLD — this device looks out of date','sync-held-fix':'This device has fewer days than the cloud, so uploading was stopped to protect your data. Open this panel and use Pull from cloud to get the good copy.',
+  'push-warn':'You are about to REPLACE the cloud with what is in this browser.\n\nThis browser: {local} days\nCloud: {cloud} days\n\nThe cloud has more. Continue anyway?',
+  'push-ok':'✅ Uploaded to the cloud.','push-fail':'❌ Upload failed. Check the sync status.',
   'export-btn':'⬇️ Export data','import-btn':'⬆️ Import data',
   'import-warn':'This REPLACES every bit of data in this browser with the file contents.\n\nCurrent: {n} days logged.\n\nContinue?',
   'import-bad':'That file does not look like a Stoic backup.','import-ok':'✅ Restored: {n} days. Reloading.',
@@ -411,7 +433,7 @@ en:{
   'sk-morning':'Morning Routine','sk-goals':'Goals','sk-work':'Work',
   'sk-ci':'No Stimulants','sk-cp':'No Procrastination','sk-co':'No Orgasm :(',
   'sk-i':'Stimulants 💊','sk-p':'Procrastination 🌐','sk-o':'Orgasm 💦','sk-l':'Late Nights 🌙',
-  'edit-note':'Edit note','add-note':'Add note','no-data':'No data logged for this day.',
+  'edit-note':'Edit note','add-note':'Add note','save-note':'Save note','no-data':'No data logged for this day.',
   'ver-mas':'Ver más','ver-menos':'Ver menos',
   'edit-hist':'Edit History','show-more':'Show more','save-btn':'Save',
   'early-bed':'Early bed','late-bed':'Late bed',
@@ -463,6 +485,9 @@ en:{
 es:{
   'lang-btn':'🇺🇸 EN','Auto-saved':'Guardado','Synced':'☁️ Sincronizado','Local':'💾 Local',
   'sync-broken':'⚠️ SIN SINCRONIZAR — solo en este navegador','sync-fix':'Cierra sesión y vuelve a entrar para reconectar',
+  'sync-held':'🛑 SUBIDA DETENIDA — este dispositivo se ve desactualizado','sync-held-fix':'Este dispositivo tiene menos días que la nube, así que se detuvo la subida para proteger tus datos. Abre este panel y usa Traer de la nube para bajar la copia buena.',
+  'push-warn':'Estás a punto de REEMPLAZAR la nube con lo que hay en este navegador.\n\nEste navegador: {local} días\nNube: {cloud} días\n\nLa nube tiene más. ¿Continuar de todos modos?',
+  'push-ok':'✅ Subido a la nube.','push-fail':'❌ Falló la subida. Revisa el estado de sincronización.',
   'export-btn':'⬇️ Exportar datos','import-btn':'⬆️ Importar datos',
   'import-warn':'Esto REEMPLAZA todos los datos de este navegador con los del archivo.\n\nAhorita tienes: {n} días registrados.\n\n¿Continuar?',
   'import-bad':'Ese archivo no parece un respaldo de Stoic.','import-ok':'✅ Restaurado: {n} días. Se recarga la página.',
@@ -486,7 +511,7 @@ es:{
   'sk-morning':'Rutina Matutina','sk-goals':'Metas','sk-work':'Trabajo',
   'sk-ci':'Sin Estimulantes','sk-cp':'Sin Procrastinación','sk-co':'Sin Orgasmo (¿todo bien?)',
   'sk-i':'Estimulantes 💊','sk-p':'Procrastinación 🌐','sk-o':'Orgasmo 💦','sk-l':'Trasnoche 🌙',
-  'edit-note':'Editar nota','add-note':'Agregar nota','no-data':'Sin datos para este día.',
+  'edit-note':'Editar nota','add-note':'Agregar nota','save-note':'Guardar nota','no-data':'Sin datos para este día.',
   'ver-mas':'Ver más','ver-menos':'Ver menos',
   'edit-hist':'Editar Historial','show-more':'Ver más','save-btn':'Guardar',
   'early-bed':'Dormí temprano','late-bed':'Dormí tarde',
@@ -1192,17 +1217,21 @@ function renderApp(){
   // Tell the truth about sync. This used to print "Synced" whenever a token
   // merely existed, so a dead session looked perfectly healthy for two months.
   const cloudOn=SB.init();
-  const broken=cloudOn&&SB.status==='error';
-  const lastSync=!cloudOn?t('Local'):broken?t('sync-broken'):t('Synced');
+  // "Held" is its own state: the connection works, but uploading was stopped
+  // because this device is behind. Saying only "not syncing" would hide the
+  // fact that the good copy is safe in the cloud and can be pulled down.
+  const held=cloudOn&&SB.blocked==='would-shrink';
+  const broken=cloudOn&&SB.status==='error'&&!held;
+  const lastSync=!cloudOn?t('Local'):held?t('sync-held'):broken?t('sync-broken'):t('Synced');
   sind.innerHTML=`<span class="sdot"></span><span>${t('Auto-saved')} · ${lastSync}</span>`;
   // The indicator IS the control: clicking it opens the sync panel. A separate
   // cloud button next to a cloud indicator was one cloud too many.
   sind.style.cursor='pointer';
-  sind.title=broken?t('sync-fix'):t('sync-title');
+  sind.title=held?t('sync-held-fix'):broken?t('sync-fix'):t('sync-title');
   sind.onclick=()=>{STATE.showSyncPanel=!STATE.showSyncPanel;refresh();};
-  if(broken){
-    sind.style.color='var(--cr)';
-    sind.querySelector('.sdot').style.background='var(--cr)';
+  if(broken||held){
+    sind.style.color=held?'var(--cy)':'var(--cr)';
+    sind.querySelector('.sdot').style.background=held?'var(--cy)':'var(--cr)';
   }
   hdr.appendChild(sind);
   const acts=dv('row gap8 mt10');acts.style.justifyContent='center';
@@ -1735,9 +1764,7 @@ function renderCalendar(){
         det.appendChild(sp('xs dim',selK));
         det.appendChild(sp('xs dimmer mt4',t('no-data')));
         const diaryToggle=bt('btn-ghost btn-sm','📝 '+(STATE.diary[selK]?t('edit-note'):t('add-note')),()=>{
-          const existing=det.querySelector('.diary-wrap');
-          if(existing){existing.remove();}
-          else{const dw=renderDiaryFor(selK);dw.className='diary-wrap fi';det.appendChild(dw);det.querySelector('.diary-area')?.focus();}
+          toggleDiaryEditor(det,selK,diaryToggle);
         });
         diaryToggle.style.marginTop='8px';det.appendChild(diaryToggle);
         if(STATE.diary[selK]){const pv=dv('xs dim mt6');pv.style.cssText='white-space:pre-wrap;max-height:60px;overflow:hidden';pv.textContent=STATE.diary[selK].slice(0,120);pv.onclick=()=>diaryToggle.click();det.appendChild(pv);}
@@ -1760,10 +1787,7 @@ function renderCalendar(){
         if(entry._gap)det.appendChild(sp('xs ng mt4',t('day-not-logged')));
         // Diary entry
         const diaryToggle=bt('btn-ghost btn-sm','📝 '+(STATE.diary[selK]?t('edit-note'):t('add-note')),()=>{
-          const existing=det.querySelector('.diary-wrap');
-          if(existing){existing.remove();}
-          else{const dw=renderDiaryFor(selK);dw.className='diary-wrap fi';det.appendChild(dw);det.querySelector('.diary-area')?.focus();}
-          diaryToggle.textContent='📝 '+(STATE.diary[selK]?t('edit-note'):t('add-note'));
+          toggleDiaryEditor(det,selK,diaryToggle);
         });
         diaryToggle.style.marginTop='10px';
         det.appendChild(diaryToggle);
@@ -2268,7 +2292,14 @@ function renderSyncPanel(){
       } else alert('Pull failed or no data.');
     }));
     row.appendChild(bt('btn-ghost btn-sm',t('push-cloud'),async()=>{
-      await SB.push(STATE.history,STATE.today,STATE.diary,STATE.streakOverrides);alert('Pushed to cloud!');
+      // Deliberate: show what is being replaced before overwriting the cloud.
+      const local=(STATE.history||[]).length;
+      if(SB.pulledOk&&local<SB.cloudDays){
+        if(!confirm(t('push-warn').replace('{local}',local).replace('{cloud}',SB.cloudDays)))return;
+      }
+      await SB.push(STATE.history,STATE.today,STATE.diary,STATE.streakOverrides,{force:true});
+      alert(SB.status==='ok'?t('push-ok'):t('push-fail'));
+      refresh();
     }));
     row.appendChild(bt('btn-ng btn-sm',t('log-out'),()=>{
       localStorage.removeItem('AUTH_TOKEN');
@@ -2297,6 +2328,32 @@ function renderSyncPanel(){
   return card;
 }
 
+
+/* Opens and closes the note editor for a day.
+   Closing it means saving: the typed text is written straight away instead of
+   waiting on the 600ms input timer (which could still be pending), and the view
+   is re-rendered so the note preview and the button label update on the spot.
+   Before this, a saved note only appeared after leaving the day and coming back. */
+function toggleDiaryEditor(container,dateKey,button){
+  const open=container.querySelector('.diary-wrap');
+  if(open){
+    const ta=open.querySelector('.diary-area');
+    if(ta){
+      const val=ta.value;
+      if(val.trim())STATE.diary[dateKey]=val; else delete STATE.diary[dateKey];
+      S.set(K.DIARY,STATE.diary);
+      SB.push(STATE.history,STATE.today,STATE.diary,STATE.streakOverrides).catch(()=>{});
+    }
+    open.remove();
+    refresh();
+    return;
+  }
+  const dw=renderDiaryFor(dateKey);
+  dw.className='diary-wrap fi';
+  container.appendChild(dw);
+  container.querySelector('.diary-area')?.focus();
+  if(button)button.textContent='💾 '+t('save-note');
+}
 
 /* ═══ DIARY (used inside calendar) ═══ */
 function renderDiaryFor(dateKey){
@@ -2342,7 +2399,8 @@ initTimezone();loadToday();applyTheme();
   if(restoring){
     localStorage.removeItem('st_restore_pending');
     if(SB.init()){
-      try{await SB.push(STATE.history,STATE.today,STATE.diary,STATE.streakOverrides);}catch(e){}
+      // The restored file is the truth here, even if it holds fewer days.
+      try{await SB.push(STATE.history,STATE.today,STATE.diary,STATE.streakOverrides,{force:true});}catch(e){}
     }
     render();
     return;
