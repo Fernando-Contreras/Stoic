@@ -512,6 +512,10 @@ en:{
   'rem-has-kids':'This one has subtasks of its own, so it cannot become one. Two levels is the limit.',
   'rem-bad-parent':'That cannot be its parent.','rem-sub-no-rep':'A subtask follows its parent',
   'rem-part-of':'part of',
+  'pomo-title':'Pomodoro','pomo-focus':'Focus','pomo-short':'Short break','pomo-long':'Long break',
+  'pomo-start':'Start','pomo-pause':'Pause','pomo-reset':'Reset','pomo-skip':'Finish',
+  'pomo-done':'Session finished. Take a break.','pomo-from-timer':'from the timer today',
+  'pomo-note':'1 focused minute = 1 point. Breaks pay nothing. Every 25 focused minutes counts as one 🍅, so a 50-minute session reads as 2.',
   'use-dur':'Use: 5h, 300m, 2h30m or number (minutes)',
   'ej-dur':'ej. 2h30m','indulg-x':'Stimulants ×',
 },
@@ -604,6 +608,10 @@ es:{
   'rem-has-kids':'Esta ya tiene subtareas, así que no puede volverse una. El límite son 2 niveles.',
   'rem-bad-parent':'Esa no puede ser su tarea padre.','rem-sub-no-rep':'Una subtarea sigue a su padre',
   'rem-part-of':'parte de',
+  'pomo-title':'Pomodoro','pomo-focus':'Enfoque','pomo-short':'Descanso corto','pomo-long':'Descanso largo',
+  'pomo-start':'Iniciar','pomo-pause':'Pausar','pomo-reset':'Reiniciar','pomo-skip':'Terminar',
+  'pomo-done':'Sesión terminada. Tómate un descanso.','pomo-from-timer':'del timer hoy',
+  'pomo-note':'1 minuto enfocado = 1 punto. Los descansos no pagan. Cada 25 minutos enfocados cuenta como un 🍅, así que una sesión de 50 min cuenta como 2.',
   'use-dur':'Usa: 5h, 300m, 2h30m o número (minutos)',
   'ej-dur':'ej. 2h30m','indulg-x':'Estimulantes ×',
 }};
@@ -853,6 +861,17 @@ let STATE={
   // Tab 1 (planner) feeds tab 2 (score). Never the other way around.
   tab: localStorage.getItem('st_tab')||'score',
   planner: S.get(K.PLANNER,{reminders:[],_ts:0}),
+  /* Pomodoro. Durations are yours to set; the classic 25-5 with a longer
+     fourth break is just the default. The timer stores when the current leg
+     started rather than counting ticks, so closing the tab or locking the
+     phone does not lose time. Focused minutes are what score — breaks pay
+     nothing — and every 25 focused minutes counts as one pomodoro no matter
+     how long you set a session, so 50 minutes reads as 2 and 190 as 7.6. */
+  pomo: S.get('st_pomo',{
+    focus:25,brk:5,longBrk:15,cycle:4,
+    running:false,phase:'focus',startedAt:0,elapsed:0,doneInCycle:0,
+    minutesToday:0,day:''
+  }),
   editingRem: null, // which reminder has its editor open (view-only, never saved)
 };
 
@@ -1293,6 +1312,94 @@ function syncPlannerToToday(){
   return changed;
 }
 
+/* ═══ POMODORO ═══════════════════════════════════════════════════════════
+   One focused minute is one point, so the timer's only job is to measure
+   real focused minutes honestly and hand them to tab 2. It only ever adds:
+   nothing here can take away pomodoros you logged by hand.
+   ═══════════════════════════════════════════════════════════════════════ */
+const POMO_UNIT=25; // minutes that make up one pomodoro, whatever your session length
+function savePomo(){S.set('st_pomo',STATE.pomo);}
+function pomoPhaseLen(p){
+  if(p.phase==='focus')return Math.max(1,p.focus)*60;
+  if(p.phase==='long')return Math.max(1,p.longBrk)*60;
+  return Math.max(1,p.brk)*60;
+}
+/* Seconds elapsed in the current leg, measured from the wall clock so a
+   backgrounded tab or a locked phone keeps counting correctly. */
+function pomoElapsed(p){
+  return p.running?p.elapsed+Math.floor((Date.now()-p.startedAt)/1000):p.elapsed;
+}
+function pomoRemaining(p){return Math.max(0,pomoPhaseLen(p)-pomoElapsed(p));}
+function pomoRollDay(){
+  const p=STATE.pomo,tk=todayKey();
+  if(p.day!==tk){p.day=tk;p.minutesToday=0;p.doneInCycle=0;savePomo();}
+}
+function pomoStart(){
+  const p=STATE.pomo;
+  if(p.running)return;
+  p.running=true;p.startedAt=Date.now();savePomo();
+}
+function pomoPause(){
+  const p=STATE.pomo;
+  if(!p.running)return;
+  p.elapsed=pomoElapsed(p);p.running=false;p.startedAt=0;
+  // Bank the focused minutes done so far, so pausing never loses real work.
+  savePomo();
+}
+function pomoReset(){
+  const p=STATE.pomo;
+  p.running=false;p.startedAt=0;p.elapsed=0;savePomo();
+}
+/* Ends the current leg. Focused minutes are banked and pushed to tab 2;
+   breaks simply hand back to the next focus session. */
+function pomoFinishPhase(auto){
+  const p=STATE.pomo;
+  pomoRollDay();
+  const secs=pomoElapsed(p);
+  if(p.phase==='focus'){
+    const mins=auto?Math.max(1,p.focus):Math.floor(secs/60);
+    if(mins>0){
+      p.minutesToday+=mins;
+      addPomodoroMinutes(mins);
+    }
+    p.doneInCycle=(p.doneInCycle+1)%Math.max(1,p.cycle);
+    p.phase=p.doneInCycle===0?'long':'short';
+  }else{
+    p.phase='focus';
+  }
+  p.running=false;p.startedAt=0;p.elapsed=0;
+  savePomo();
+}
+/* Tab 1 only ever ADDS to tab 2's pomodoro count — it can never subtract,
+   so a number you typed by hand in tab 2 is never reduced by the timer. */
+function addPomodoroMinutes(mins){
+  const add=mins/POMO_UNIT;
+  const now=Math.max(0,STATE.today.pomodoros||0);
+  STATE.today.pomodoros=Math.round((now+add)*10)/10; // one decimal, never more
+  markManual('pomodoros'); // the sum is the truth from here on
+  commit();
+}
+function fmtClock(secs){
+  const m=Math.floor(secs/60),s=secs%60;
+  return String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');
+}
+/* A short two-tone chime, built in code so the app stays a single file. */
+function pomoBeep(){
+  try{
+    const AC=window.AudioContext||window.webkitAudioContext;if(!AC)return;
+    const ctx=new AC();
+    [[880,0],[1320,.18]].forEach(([f,at])=>{
+      const o=ctx.createOscillator(),g=ctx.createGain();
+      o.frequency.value=f;o.type='sine';o.connect(g);g.connect(ctx.destination);
+      g.gain.setValueAtTime(.0001,ctx.currentTime+at);
+      g.gain.exponentialRampToValueAtTime(.35,ctx.currentTime+at+.02);
+      g.gain.exponentialRampToValueAtTime(.0001,ctx.currentTime+at+.35);
+      o.start(ctx.currentTime+at);o.stop(ctx.currentTime+at+.4);
+    });
+    setTimeout(()=>{try{ctx.close();}catch{}},1200);
+  }catch(e){/* audio blocked — the visual change is enough */}
+}
+
 const PRIO=[['0','—'],['1','!'],['2','!!'],['3','!!!']];
 function prioColor(p){return p>=3?'var(--cr)':p==2?'var(--cy)':p==1?'var(--cp)':'var(--t3)';}
 function repeatLabel(rep){
@@ -1305,7 +1412,8 @@ function renderPlanner(){
   const wrap=dv('');
   const s=plannerTodayStats();
 
-  const sum=dv('card mb12');
+  const top=dv('g2 mb12');
+  const sum=dv('card');
   const sr=dv('rowb');
   sr.appendChild(sp('ctit',t('rem-title')));
   sr.appendChild(sp('md mo ac w7',`${s.done}/${s.total}`));
@@ -1315,7 +1423,12 @@ function renderPlanner(){
   if(s.flagsTotal)bits.push(`🏁 ${s.flagsDone}/${s.flagsTotal}`);
   sum.appendChild(dv('xs dim mt4',bits.join(' · ')));
   if(s.annihilated)sum.appendChild(dv('xs ac mt4 w6',t('goals-ann-badge')));
-  wrap.appendChild(sum);
+  const prog=dv('prog mt10');const pf=dv('prog-f');
+  pf.style.cssText=`width:${s.total?Math.round(s.done/s.total*100):0}%;background:var(--ac)`;
+  prog.appendChild(pf);sum.appendChild(prog);
+  top.appendChild(sum);
+  top.appendChild(renderPomoCard());
+  wrap.appendChild(top);
 
   /* ── add form ── */
   const form=dv('card mb12');
@@ -1431,6 +1544,65 @@ function renderPlanner(){
 
   if(!list.length)wrap.appendChild(dv('card ctr dim sm mt12',t('rem-empty')));
   return wrap;
+}
+
+function renderPomoCard(){
+  pomoRollDay();
+  const p=STATE.pomo;
+  const card=dv('card');
+  const focusing=p.phase==='focus';
+  const head=dv('rowb mb6');
+  head.appendChild(sp('ctit',t('pomo-title')));
+  head.appendChild(sp('xs dimmer',`${(p.minutesToday/POMO_UNIT).toFixed(1)} 🍅 · ${p.minutesToday} min`));
+  card.appendChild(head);
+
+  const phaseLbl=focusing?t('pomo-focus'):(p.phase==='long'?t('pomo-long'):t('pomo-short'));
+  const ph=dv('ctr');
+  ph.innerHTML=`<div class="xs up ls" style="color:${focusing?'var(--ac)':'var(--cg)'}">${phaseLbl}</div>`;
+  card.appendChild(ph);
+
+  const clock=dv('ctr xxxl w8 mo');
+  clock.id='pomo-clock';
+  clock.style.color=focusing?'var(--ac)':'var(--cg)';
+  clock.textContent=fmtClock(pomoRemaining(p));
+  card.appendChild(clock);
+
+  const bar=dv('prog mt8');const fill=dv('prog-f');
+  const pct=100-Math.round(pomoRemaining(p)/pomoPhaseLen(p)*100);
+  fill.style.cssText=`width:${pct}%;background:${focusing?'var(--ac)':'var(--cg)'}`;
+  bar.appendChild(fill);card.appendChild(bar);
+
+  const dots=dv('row gap4 mt8');dots.style.justifyContent='center';
+  for(let i=0;i<Math.max(1,p.cycle);i++){
+    const d=dv('');
+    d.style.cssText=`width:8px;height:8px;border-radius:50%;background:${i<p.doneInCycle?'var(--ac)':'var(--b2)'}`;
+    dots.appendChild(d);
+  }
+  card.appendChild(dots);
+
+  const ctr=dv('row gap8 mt10');
+  ctr.appendChild(bt(p.running?'btn-ghost btn-sm f1':'btn-ac btn-sm f1',p.running?'⏸ '+t('pomo-pause'):'▶ '+t('pomo-start'),()=>{
+    p.running?pomoPause():pomoStart();render();
+  }));
+  ctr.appendChild(bt('btn-ghost btn-sm',t('pomo-reset'),()=>{pomoReset();render();}));
+  ctr.appendChild(bt('btn-ghost btn-sm',t('pomo-skip'),()=>{
+    // Ends the leg early. A focus leg still banks the minutes truly worked.
+    pomoFinishPhase(false);render();
+  }));
+  card.appendChild(ctr);
+
+  /* durations */
+  const cfg=dv('row gap6 mt10');cfg.style.flexWrap='wrap';
+  [['focus',t('pomo-focus'),'var(--ac)'],['brk',t('pomo-short'),'var(--cg)'],['longBrk',t('pomo-long'),'var(--cg)']].forEach(([key,lbl,col])=>{
+    const w=dv('s4');w.style.flex='1';w.style.minWidth='72px';
+    w.innerHTML=`<div class="xs dimmer up ls" style="color:${col}">${lbl}</div>`;
+    const i=ip('number','',p[key],'');i.min=1;i.max=180;
+    i.onchange=()=>{p[key]=Math.min(180,Math.max(1,parseInt(i.value)||1));savePomo();render();};
+    w.appendChild(i);cfg.appendChild(w);
+  });
+  card.appendChild(cfg);
+  card.appendChild(dv('xs dimmer mt6',t('pomo-note')));
+  return card;
 }
 
 function renderReminderEditor(r){
@@ -1974,13 +2146,25 @@ function renderTasksCard(sc,sk_){
 /* ═══ POMODORO ═══ */
 function renderPomCard(){
   const card=dv('card');
-  const tr=dv('rowb mb8');tr.appendChild(sp('ctit',t('pom-lbl')));tr.appendChild(sp('xxl w7 ac mo',String(STATE.today.pomodoros)));card.appendChild(tr);
-  card.appendChild(sp('xs dim',`+${STATE.today.pomodoros*25} ${t('pts-each')}`));
+  // The timer can bank part of a pomodoro, so this shows one decimal and the
+  // buttons step by whole ones without ever rounding the fraction away.
+  const val=Math.round((STATE.today.pomodoros||0)*10)/10;
+  const shown=Number.isInteger(val)?String(val):val.toFixed(1);
+  const tr=dv('rowb mb8');tr.appendChild(sp('ctit',t('pom-lbl')));tr.appendChild(sp('xxl w7 ac mo',shown));card.appendChild(tr);
+  card.appendChild(sp('xs dim',`+${Math.round(val*25)} ${t('pts-each')}`));
+  const step=d=>{
+    STATE.today.pomodoros=Math.max(0,Math.round(((STATE.today.pomodoros||0)+d)*10)/10);
+    markManual('pomodoros');commitAndRefresh();
+  };
   const ct=dv('row gap8 mt10');
-  ct.appendChild(bt('btn-ghost btn-sm f1','−',()=>{STATE.today.pomodoros=Math.max(0,STATE.today.pomodoros-1);commitAndRefresh();}));
-  const n=dv('f1 ctr xl w7 mo');n.textContent=String(STATE.today.pomodoros);ct.appendChild(n);
-  ct.appendChild(bt('btn-ac btn-sm f1','+',()=>{STATE.today.pomodoros++;commitAndRefresh();}));
-  card.appendChild(ct);return card;
+  ct.appendChild(bt('btn-ghost btn-sm f1','−',()=>step(-1)));
+  const n=dv('f1 ctr xl w7 mo');n.textContent=shown;ct.appendChild(n);
+  ct.appendChild(bt('btn-ac btn-sm f1','+',()=>step(1)));
+  card.appendChild(ct);
+  if(STATE.pomo&&STATE.pomo.minutesToday>0){
+    card.appendChild(dv('xs dimmer mt6',`⏱ ${STATE.pomo.minutesToday} min ${t('pomo-from-timer')}`));
+  }
+  return card;
 }
 
 /* ═══ PENALTY CARD — #3 keep type, #4 enter = add ═══ */
@@ -2992,6 +3176,23 @@ let _lastDay=todayKey();
 setInterval(()=>{
   const cl=document.getElementById('clk');
   if(cl)cl.textContent=new Date().toLocaleTimeString(STATE.lang==='es'?'es-MX':'en-US',{timeZone:'America/Cancun',hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  // Pomodoro tick. The clock text is patched in place rather than re-rendering
+  // the whole app every second, which would fight anything you are typing.
+  const p=STATE.pomo;
+  if(p&&p.running){
+    const left=pomoRemaining(p);
+    const cl2=document.getElementById('pomo-clock');
+    if(cl2)cl2.textContent=fmtClock(left);
+    if(left<=0){
+      const wasFocus=p.phase==='focus';
+      pomoFinishPhase(true);
+      pomoBeep();
+      if(wasFocus&&'Notification' in window&&Notification.permission==='granted'){
+        try{new Notification('Stoic',{body:t('pomo-done')});}catch(e){}
+      }
+      render();
+    }
+  }
   const nd=todayKey();
   if(nd!==_lastDay){
     _lastDay=nd;
