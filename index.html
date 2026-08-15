@@ -181,7 +181,7 @@ const S={
   get(k,fb=null){try{const v=localStorage.getItem(k);return v?JSON.parse(v):fb}catch{return fb}},
   set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch{}}
 };
-const K={TODAY:'st_today',HIST:'st_hist',AUTH:'st_auth',DIARY:'st_diary',THEME:'st_theme',STREAK_OVR:'st_streak_ovr'};
+const K={TODAY:'st_today',HIST:'st_hist',AUTH:'st_auth',DIARY:'st_diary',THEME:'st_theme',STREAK_OVR:'st_streak_ovr',PLANNER:'st_planner'};
 /* History cap. This used to be 200 days (~6.5 months) and it did not just hide
    older days — it deleted them from localStorage AND pushed the truncated list
    back to Supabase, destroying them in both places. This app is meant to be kept
@@ -236,6 +236,11 @@ const SB={
           today: today,
           diary: diary||{},
           streak_overrides: streakOverrides||{},
+          // The planner rides inside streak_overrides' sibling column only if the
+          // database has it. Sending an unknown column makes PostgREST reject the
+          // whole write, which would take the rest of the save down with it — so
+          // it is added conditionally, and its absence is reported, never hidden.
+          ...(SB.hasPlannerColumn?{planner:STATE.planner||{reminders:[]}}:{}),
           saved_at: Date.now(),
           updated_at: new Date().toISOString()
         })
@@ -244,11 +249,22 @@ const SB={
       else {this.status='ok';this.cloudDays=(history||[]).length;}
     }catch(e){console.warn('Supabase push failed',e);this.status='error';}
   },
+  // null = we have not asked yet. Set on the first pull, so a database that
+  // predates the planner keeps working instead of failing every write.
+  hasPlannerColumn:null,
   async pull(){
     if(!this.init()) return null;
     if(!await this.ensureFresh()) return null;
+    const base='history,today,diary,streak_overrides,saved_at';
     try{
-      const r=await fetch(`${this.url}/rest/v1/stoic_data?select=history,today,diary,streak_overrides,saved_at&limit=1`,{headers:this.headers()});
+      const tryPlanner=this.hasPlannerColumn!==false;
+      let r=await fetch(`${this.url}/rest/v1/stoic_data?select=${tryPlanner?base+',planner':base}&limit=1`,{headers:this.headers()});
+      if(!r.ok&&tryPlanner&&r.status===400){
+        // A missing column is a schema gap, not a broken connection. Remember it
+        // and carry on with everything else rather than reporting a sync failure.
+        this.hasPlannerColumn=false;
+        r=await fetch(`${this.url}/rest/v1/stoic_data?select=${base}&limit=1`,{headers:this.headers()});
+      }else if(r.ok&&tryPlanner)this.hasPlannerColumn=true;
       if(!r.ok){console.warn('Pull failed:',r.status);this.status='error';return null;}
       const rows=await r.json();
       this.status='ok';
@@ -479,6 +495,14 @@ en:{
   'cloud-active':'☁️ Cloud sync active — data syncs across devices.',
   'guest-only':'Guest mode only — no Supabase credentials found.',
   'daily-tracker':'daily habit tracker · by JuanFer',
+  'tab-plan':'Plan','tab-score':'Score','made-by':'Stoic · Made by JuanFer',
+  'rem-title':'Reminders','rem-new':'New reminder','rem-what':'What needs doing?',
+  'rem-add':'+ Add reminder','rem-need-title':'Give it a name first',
+  'rem-prio':'Priority','rem-flag':'Goal of the day','rem-every':'Every',
+  'rep-none':'Does not repeat','rep-day':'Daily','rep-week':'Weekly','rep-month':'Monthly','rep-year':'Yearly',
+  'rem-overdue':'overdue','rem-overdue-1':'overdue','rem-overdue-h':'Overdue','rem-today-h':'Today','rem-soon-h':'Coming up','rem-done-h':'Done today',
+  'rem-was-due':'was due','rem-empty':'Nothing here yet. Add your first reminder above.',
+  'rem-del-warn':'Delete "{t}"?',
   'use-dur':'Use: 5h, 300m, 2h30m or number (minutes)',
   'ej-dur':'ej. 2h30m','indulg-x':'Stimulants ×',
 },
@@ -557,6 +581,14 @@ es:{
   'cloud-active':'☁️ Sincronización activa — datos entre dispositivos.',
   'guest-only':'Solo modo invitado — sin credenciales Supabase.',
   'daily-tracker':'rastreador diario · por JuanFer',
+  'tab-plan':'Plan','tab-score':'Puntaje','made-by':'Stoic · Hecho por JuanFer',
+  'rem-title':'Recordatorios','rem-new':'Nuevo recordatorio','rem-what':'¿Qué hay que hacer?',
+  'rem-add':'+ Agregar recordatorio','rem-need-title':'Ponle nombre primero',
+  'rem-prio':'Prioridad','rem-flag':'Meta del día','rem-every':'Cada',
+  'rep-none':'No se repite','rep-day':'Diario','rep-week':'Semanal','rep-month':'Mensual','rep-year':'Anual',
+  'rem-overdue':'atrasados','rem-overdue-1':'atrasado','rem-overdue-h':'Atrasados','rem-today-h':'Hoy','rem-soon-h':'Próximos','rem-done-h':'Hechos hoy',
+  'rem-was-due':'era para','rem-empty':'Nada por aquí. Agrega tu primer recordatorio arriba.',
+  'rem-del-warn':'¿Borrar "{t}"?',
   'use-dur':'Usa: 5h, 300m, 2h30m o número (minutos)',
   'ej-dur':'ej. 2h30m','indulg-x':'Estimulantes ×',
 }};
@@ -803,6 +835,9 @@ let STATE={
   penType:'drugs', // #3: persist penalty type selection
   difficulty: localStorage.getItem('st_difficulty')||'easy',
   lang: localStorage.getItem('st_lang')||'en',
+  // Tab 1 (planner) feeds tab 2 (score). Never the other way around.
+  tab: localStorage.getItem('st_tab')||'score',
+  planner: S.get(K.PLANNER,{reminders:[],_ts:0}),
 };
 
 /* ═══ #1 FIX: loadToday checks for missed days, fills all gaps ═══ */
@@ -1023,6 +1058,17 @@ function applyRemote(remote){
      They are small and global, like the settings above, so the newer side wins
      outright. When we are the newer side we still adopt keys we simply do not
      have, so nothing is ever lost. */
+  /* PLANNER: whichever device edited the list most recently wins it whole.
+     Per-item union sounds safer but silently resurrects anything you delete,
+     and _ts is bumped on every planner change, so this stays predictable. */
+  if(remote.planner&&typeof remote.planner==='object'){
+    const lp=STATE.planner||{reminders:[],_ts:0};
+    if((remote.planner._ts||0)>(lp._ts||0)){
+      STATE.planner={reminders:[],...remote.planner};
+      S.set(K.PLANNER,STATE.planner);changed=true;
+    }
+  }
+
   if(remote.streak_overrides){
     const ro=remote.streak_overrides, lo=STATE.streakOverrides||{};
     let merged;
@@ -1057,6 +1103,223 @@ function sk(c,opts,v){const s=document.createElement('select');s.className=c;opt
 function sp(c,t){const s=el('span',c);if(t!==undefined)s.textContent=t;return s}
 function hr(){const h=document.createElement('hr');h.className='dv';return h}
 function sbadge(status){const lb={red:t('Red'),yellow:t('Yellow'),green:t('Green'),purple:t('Purple')};return sp(`badge s-${status}`,lb[status]||status)}
+
+/* ═══ PLANNER (TAB 1) — REMINDERS ══════════════════════════════════════
+   Tab 1 owns what you plan; tab 2 owns what you score. Tab 1 feeds tab 2,
+   and tab 2 never writes back here — a manual edit over there is a scoring
+   decision, not a claim about this list.
+   ═══════════════════════════════════════════════════════════════════════ */
+function isoDate(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+
+function savePlanner(){
+  STATE.planner._ts=Date.now();
+  S.set(K.PLANNER,STATE.planner);
+  commit();
+}
+function reminders(){return STATE.planner.reminders||(STATE.planner.reminders=[]);}
+
+/* Repeats stay anchored to the original due dates rather than to when you
+   actually ticked it, so a task every 5 days keeps landing on its own rhythm
+   even if you complete one late. Advancing stops at the first date that is not
+   already past, so finishing a long-neglected daily task does not resurrect it
+   dozens of times. */
+function advanceDue(due,rep,tk){
+  const unit=rep.unit||'day',every=Math.max(1,rep.every||1);
+  const d=new Date(due+'T12:00:00'),today=new Date(tk+'T12:00:00');
+  let guard=0;
+  do{
+    if(unit==='day')d.setDate(d.getDate()+every);
+    else if(unit==='week')d.setDate(d.getDate()+7*every);
+    else if(unit==='month')d.setMonth(d.getMonth()+every);
+    else if(unit==='year')d.setFullYear(d.getFullYear()+every);
+    guard++;
+  }while(d<today&&guard<1000);
+  return isoDate(d);
+}
+
+/* What tab 2 sees. An unfinished reminder keeps its original date and keeps
+   counting, exactly like Apple's — so a pile of overdue tasks does weigh on
+   today's numbers, which is what was asked for. */
+function plannerTodayStats(){
+  const tk=todayKey(),list=reminders();
+  const relevant=list.filter(r=>{
+    if(r.completedOn===tk)return true;   // ticked today
+    if(r.done)return false;              // finished on some other day
+    return !!r.due&&r.due<=tk;           // still open, due today or overdue
+  });
+  const flagged=relevant.filter(r=>r.flagged);
+  return{
+    total:relevant.length,
+    done:relevant.filter(r=>r.completedOn===tk).length,
+    overdue:relevant.filter(r=>!r.completedOn&&r.due<tk).length,
+    flagsTotal:flagged.length,
+    flagsDone:flagged.filter(r=>r.completedOn===tk).length,
+    // A day with no flags at all is not an annihilated day — otherwise an
+    // unplanned day would hand over 100 points times the streak for free.
+    annihilated:flagged.length>0&&flagged.every(r=>r.completedOn===tk)
+  };
+}
+
+function toggleReminder(id){
+  const r=reminders().find(x=>x.id===id);if(!r)return;
+  const tk=todayKey();
+  if(r.completedOn===tk){
+    r.completedOn=null;r.done=false;
+    if(r.repeat&&r._prevDue){r.due=r._prevDue;delete r._prevDue;}
+  }else{
+    r.completedOn=tk;
+    if(r.repeat){r._prevDue=r.due;r.due=advanceDue(r.due,r.repeat,tk);r.done=false;}
+    else r.done=true;
+  }
+  r._ts=Date.now();savePlanner();
+}
+function addReminder(data){
+  reminders().unshift({
+    id:uid(),title:data.title,due:data.due||todayKey(),
+    priority:data.priority||0,flagged:!!data.flagged,
+    repeat:data.repeat||null,done:false,completedOn:null,
+    created:Date.now(),_ts:Date.now()
+  });
+  savePlanner();
+}
+function deleteReminder(id){
+  STATE.planner.reminders=reminders().filter(r=>r.id!==id);
+  savePlanner();
+}
+
+/* Push tab 1's numbers into tab 2 — but never over something you set by hand.
+   Any field you touch in tab 2 is frozen for the rest of the day; tomorrow the
+   planner feeds it again from scratch. */
+function syncPlannerToToday(){
+  const m=STATE.today._manual||{};
+  const s=plannerTodayStats();
+  let changed=false;
+  if(!m.target&&STATE.today.target!==s.total){STATE.today.target=s.total;changed=true;}
+  if(!m.completed&&STATE.today.completed!==s.done){STATE.today.completed=s.done;changed=true;}
+  if(!m.flagCompleted&&STATE.today.flagCompleted!==s.annihilated){STATE.today.flagCompleted=s.annihilated;changed=true;}
+  if(changed)S.set(K.TODAY,STATE.today);
+  return changed;
+}
+function markManual(field){
+  STATE.today._manual=STATE.today._manual||{};
+  STATE.today._manual[field]=true;
+}
+
+const PRIO=[['0','—'],['1','!'],['2','!!'],['3','!!!']];
+function prioColor(p){return p>=3?'var(--cr)':p==2?'var(--cy)':p==1?'var(--cp)':'var(--t3)';}
+function repeatLabel(rep){
+  if(!rep)return'';
+  const u={day:t('rep-day'),week:t('rep-week'),month:t('rep-month'),year:t('rep-year')}[rep.unit]||rep.unit;
+  return rep.every>1?`🔁 ${rep.every} ${u}`:`🔁 ${u}`;
+}
+
+function renderPlanner(){
+  const wrap=dv('');
+  const s=plannerTodayStats();
+
+  const sum=dv('card mb12');
+  const sr=dv('rowb');
+  sr.appendChild(sp('ctit',t('rem-title')));
+  sr.appendChild(sp('md mo ac w7',`${s.done}/${s.total}`));
+  sum.appendChild(sr);
+  const bits=[`${s.total} ${t('tasks-lbl')}`];
+  if(s.overdue)bits.push(`<span class="cr">${s.overdue} ${s.overdue===1?t('rem-overdue-1'):t('rem-overdue')}</span>`);
+  if(s.flagsTotal)bits.push(`🏁 ${s.flagsDone}/${s.flagsTotal}`);
+  sum.appendChild(dv('xs dim mt4',bits.join(' · ')));
+  if(s.annihilated)sum.appendChild(dv('xs ac mt4 w6',t('goals-ann-badge')));
+  wrap.appendChild(sum);
+
+  /* ── add form ── */
+  const form=dv('card mb12');
+  form.appendChild(sp('ctit',t('rem-new')));
+  const ti=ip('text','','',t('rem-what'));
+  form.appendChild(ti);
+  const row2=dv('row gap8 mt8');row2.style.flexWrap='wrap';
+  const di=ip('date','',todayKey(),'');di.style.flex='1';di.style.minWidth='150px';
+  const pi=sk('',PRIO.map(([v,l])=>[v,`${t('rem-prio')} ${l}`]),'0');pi.style.flex='1';pi.style.minWidth='120px';
+  row2.appendChild(di);row2.appendChild(pi);form.appendChild(row2);
+  const row3=dv('row gap8 mt8');row3.style.flexWrap='wrap';
+  const ri=sk('',[['','🔁 '+t('rep-none')],['day',t('rep-day')],['week',t('rep-week')],['month',t('rep-month')],['year',t('rep-year')]],'');
+  ri.style.flex='1';ri.style.minWidth='120px';
+  const ni=ip('number','',1,'');ni.min=1;ni.style.width='70px';ni.title=t('rem-every');
+  row3.appendChild(ri);row3.appendChild(ni);
+  const fl=dv('tog');fl.style.flex='1';fl.style.minWidth='140px';
+  const fc=ip('checkbox','');fc.checked=false;
+  const fi_=dv('f1');fi_.innerHTML=`<div class="tt">🏁 ${t('rem-flag')}</div>`;
+  fl.appendChild(fc);fl.appendChild(fi_);
+  fl.onclick=e=>{if(e.target!==fc)fc.checked=!fc.checked;fl.classList.toggle('on',fc.checked);};
+  row3.appendChild(fl);form.appendChild(row3);
+  const err=dv('xs ng mt6');form.appendChild(err);
+  function doAdd(){
+    const title=ti.value.trim();
+    if(!title){err.textContent=t('rem-need-title');ti.focus();return;}
+    err.textContent='';
+    addReminder({title,due:di.value||todayKey(),priority:parseInt(pi.value)||0,
+      flagged:fc.checked,repeat:ri.value?{unit:ri.value,every:Math.max(1,parseInt(ni.value)||1)}:null});
+    render();
+  }
+  ti.onkeydown=e=>{if(e.key==='Enter')doAdd();};
+  const ab=bt('btn-ac btn-sm w100 mt8',t('rem-add'),doAdd);ab.style.width='100%';
+  form.appendChild(ab);
+  wrap.appendChild(form);
+
+  /* ── the list ── */
+  const tk=todayKey(),list=reminders();
+  const open=list.filter(r=>!r.done&&r.completedOn!==tk);
+  const groups=[
+    [t('rem-overdue-h'),open.filter(r=>r.due<tk).sort((a,b)=>a.due.localeCompare(b.due)),'cr'],
+    [t('rem-today-h'),open.filter(r=>r.due===tk).sort((a,b)=>b.priority-a.priority),'ac'],
+    [t('rem-soon-h'),open.filter(r=>r.due>tk).sort((a,b)=>a.due.localeCompare(b.due)),'dim'],
+    [t('rem-done-h'),list.filter(r=>r.completedOn===tk),'cg'],
+  ];
+  groups.forEach(([title,items,cls])=>{
+    if(!items.length)return;
+    const card=dv('card mb12');
+    const h=dv('rowb mb10');
+    h.appendChild(sp(`ctit ${cls}`,title));
+    h.appendChild(sp('xs dimmer',String(items.length)));
+    card.appendChild(h);
+    const box=dv('s6');
+    items.forEach(r=>box.appendChild(renderReminderRow(r,tk)));
+    card.appendChild(box);
+    wrap.appendChild(card);
+  });
+
+  if(!list.length)wrap.appendChild(dv('card ctr dim sm',t('rem-empty')));
+  return wrap;
+}
+
+function renderReminderRow(r,tk){
+  const doneToday=r.completedOn===tk;
+  const late=!doneToday&&r.due<tk;
+  const row=dv('row gap10');
+  row.style.cssText='background:var(--sur2);border:1px solid '+(late?'var(--rb)':'var(--b1)')+';border-radius:10px;padding:10px 12px;align-items:flex-start';
+
+  const cb=ip('checkbox','');cb.checked=doneToday;cb.style.marginTop='3px';
+  cb.onchange=()=>{toggleReminder(r.id);render();};
+  row.appendChild(cb);
+
+  const mid=dv('f1');
+  const titleLine=dv('row gap6');titleLine.style.flexWrap='wrap';
+  const tt=sp('md',r.title);
+  if(doneToday){tt.style.textDecoration='line-through';tt.style.color='var(--t3)';}
+  titleLine.appendChild(tt);
+  if(r.flagged)titleLine.appendChild(sp('sm','🏁'));
+  if(r.priority>0){const p=sp('sm w7',PRIO[r.priority][1]);p.style.color=prioColor(r.priority);titleLine.appendChild(p);}
+  mid.appendChild(titleLine);
+
+  const meta=[];
+  meta.push(late?`<span class="cr w6">${t('rem-was-due')} ${r.due}</span>`:r.due);
+  if(r.repeat)meta.push(repeatLabel(r.repeat));
+  mid.appendChild(dv('xs dimmer mt2',meta.join(' · ')));
+  row.appendChild(mid);
+
+  const del=bt('btn-icon','✕',()=>{
+    if(confirm(t('rem-del-warn').replace('{t}',r.title))){deleteReminder(r.id);render();}
+  });
+  row.appendChild(del);
+  return row;
+}
 
 /* ═══ RENDER ═══ */
 function render(){
@@ -1207,6 +1470,9 @@ function renderLogin(){
 function renderApp(){
   /* loadToday already called at boot and after save */
   const tk=todayKey();
+  // Tab 1 fills tab 2's numbers before anything is scored, skipping any field
+  // already set by hand today.
+  syncPlannerToToday();
   const sk_raw=CALC.streaks(STATE.history,STATE.today);
   // Apply manual overrides for TODAY only — does NOT affect history liveScore
   const sk_=applyStreakOverrides(sk_raw);
@@ -1266,6 +1532,28 @@ function renderApp(){
 
   if(STATE.showSyncPanel){
     wrap.appendChild(renderSyncPanel());
+  }
+
+  /* ── TABS ── */
+  const st=plannerTodayStats();
+  const tabs=dv('row gap6 mt4 mb4');
+  tabs.style.cssText='justify-content:center;border:1px solid var(--b2);border-radius:11px;padding:3px;background:var(--sur2);max-width:420px;margin-left:auto;margin-right:auto';
+  [['plan',`📋 ${t('tab-plan')}`,st.total?`${st.done}/${st.total}`:''],
+   ['score',`🏛️ ${t('tab-score')}`,'']].forEach(([id,label,badge])=>{
+    const active=STATE.tab===id;
+    const b=bt(active?'btn-ac btn-sm f1':'btn-sm f1',label+(badge?`  ${badge}`:''),()=>{
+      STATE.tab=id;localStorage.setItem('st_tab',id);render();
+    });
+    if(!active)b.style.cssText='background:none;border:none;color:var(--t3);flex:1';
+    else b.style.flex='1';
+    tabs.appendChild(b);
+  });
+  wrap.appendChild(tabs);
+
+  if(STATE.tab==='plan'){
+    wrap.appendChild(renderPlanner());
+    wrap.appendChild(dv('xs dimmer ctr mt16 mb16',t('made-by')));
+    return wrap;
   }
 
   const grid=dv('g4 mt4');
@@ -1429,12 +1717,14 @@ function renderTasksCard(sc,sk_){
   ci.oninput=()=>{
     const n=Math.min(Math.max(0,parseInt(ci.value)||0),STATE.today.target||9999);
     STATE.today.completed=n;
+    markManual('completed'); // your hand wins here for the rest of today
   };
   ci.onkeydown=e=>{if(e.key==='Enter'){ci.blur();}};
   ci.onblur=()=>{commitAndRefresh();};
   ti.oninput=()=>{
     const n=Math.max(1,parseInt(ti.value)||1);
     STATE.today.target=n;
+    markManual('target');
   };
   ti.onkeydown=e=>{if(e.key==='Enter'){ti.blur();}};
   ti.onblur=()=>{commitAndRefresh();};
@@ -1446,7 +1736,7 @@ function renderTasksCard(sc,sk_){
   const ft=dv(`tog ${STATE.today.flagCompleted?'on':''}`);
   const fc=ip('checkbox','');fc.checked=STATE.today.flagCompleted;fc.readOnly=true;
   const fi_=dv('f1');fi_.innerHTML=`<div class="tt">${t('goals-ann')}</div><div class="ts">+100 ${t('pts-s')} × ${t('streak-lbl')} (${sk_.flagStreak}d)</div>`;
-  ft.appendChild(fc);ft.appendChild(fi_);ft.onclick=()=>{STATE.today.flagCompleted=!STATE.today.flagCompleted;commitAndRefresh();};card.appendChild(ft);
+  ft.appendChild(fc);ft.appendChild(fi_);ft.onclick=()=>{STATE.today.flagCompleted=!STATE.today.flagCompleted;markManual('flagCompleted');commitAndRefresh();};card.appendChild(ft);
   return card;
 }
 
