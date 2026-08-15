@@ -41,7 +41,10 @@ html,body{background:var(--bg);color:var(--t1);font-family:var(--ff);font-size:2
 
 /* ── LAYOUT ── */
 .g4{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+.g3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;align-items:start}
 .g2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.rem-sub{margin-left:22px;border-left:2px solid var(--b2);padding-left:8px}
+.tagchip{display:inline-flex;align-items:center;padding:1px 7px;border-radius:99px;font-size:10px;font-weight:700;letter-spacing:.04em;background:var(--pd);color:var(--cp);border:1px solid var(--pb);text-transform:uppercase}
 .row{display:flex;align-items:center}
 .rowb{display:flex;align-items:center;justify-content:space-between}
 .col{display:flex;flex-direction:column}
@@ -151,7 +154,7 @@ button{cursor:pointer;font-family:var(--ff);font-size:15px;font-weight:600;borde
 ::-webkit-scrollbar-track{background:var(--bg)}
 ::-webkit-scrollbar-thumb{background:var(--b2);border-radius:3px}
 
-@media(max-width:900px){.g4{grid-template-columns:repeat(2,1fr)}.sk-g{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:900px){.g4{grid-template-columns:repeat(2,1fr)}.g3{grid-template-columns:1fr}.sk-g{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:580px){.g4{grid-template-columns:1fr}.g2{grid-template-columns:1fr}.xxxl{font-size:30px}.xxl{font-size:24px}}
 
 /* ── LIGHT MODE ── */
@@ -502,7 +505,9 @@ en:{
   'rep-none':'Does not repeat','rep-day':'Daily','rep-week':'Weekly','rep-month':'Monthly','rep-year':'Yearly',
   'rem-overdue':'overdue','rem-overdue-1':'overdue','rem-overdue-h':'Overdue','rem-today-h':'Today','rem-soon-h':'Coming up','rem-done-h':'Done today',
   'rem-was-due':'was due','rem-empty':'Nothing here yet. Add your first reminder above.',
-  'rem-del-warn':'Delete "{t}"?',
+  'rem-del-warn':'Delete "{t}"?','rem-del-warn-kids':'Delete "{t}" and its {n} subtask(s)?',
+  'rem-tag-ph':'Tag (yours to invent: work, home, gym…)',
+  'rem-subtask':'subtask','rem-subtask-ask':'Subtask of "{t}":',
   'use-dur':'Use: 5h, 300m, 2h30m or number (minutes)',
   'ej-dur':'ej. 2h30m','indulg-x':'Stimulants ×',
 },
@@ -588,7 +593,9 @@ es:{
   'rep-none':'No se repite','rep-day':'Diario','rep-week':'Semanal','rep-month':'Mensual','rep-year':'Anual',
   'rem-overdue':'atrasados','rem-overdue-1':'atrasado','rem-overdue-h':'Atrasados','rem-today-h':'Hoy','rem-soon-h':'Próximos','rem-done-h':'Hechos hoy',
   'rem-was-due':'era para','rem-empty':'Nada por aquí. Agrega tu primer recordatorio arriba.',
-  'rem-del-warn':'¿Borrar "{t}"?',
+  'rem-del-warn':'¿Borrar "{t}"?','rem-del-warn-kids':'¿Borrar "{t}" y sus {n} subtarea(s)?',
+  'rem-tag-ph':'Etiqueta (la que tú quieras: trabajo, casa, gym…)',
+  'rem-subtask':'subtarea','rem-subtask-ask':'Subtarea de "{t}":',
   'use-dur':'Usa: 5h, 300m, 2h30m o número (minutos)',
   'ej-dur':'ej. 2h30m','indulg-x':'Estimulantes ×',
 }};
@@ -1160,49 +1167,98 @@ function plannerTodayStats(){
   };
 }
 
-function toggleReminder(id){
-  const r=reminders().find(x=>x.id===id);if(!r)return;
-  const tk=todayKey();
-  if(r.completedOn===tk){
-    r.completedOn=null;r.done=false;
-    if(r.repeat&&r._prevDue){r.due=r._prevDue;delete r._prevDue;}
-  }else{
+/* Subtasks are ordinary reminders that point at a parent, capped at two levels.
+   They ride on the parent's date so they always sit with it in the same group,
+   and ticking a parent ticks everything under it, the way Apple's do. */
+function subtasksOf(id){return reminders().filter(r=>r.parent===id);}
+function allTags(){
+  return [...new Set(reminders().map(r=>(r.tag||'').trim()).filter(Boolean))].sort();
+}
+function setDone(r,tk,on){
+  if(on){
     r.completedOn=tk;
     if(r.repeat){r._prevDue=r.due;r.due=advanceDue(r.due,r.repeat,tk);r.done=false;}
     else r.done=true;
+  }else{
+    r.completedOn=null;r.done=false;
+    if(r.repeat&&r._prevDue){r.due=r._prevDue;delete r._prevDue;}
   }
-  r._ts=Date.now();savePlanner();
+  r._ts=Date.now();
+}
+function toggleReminder(id){
+  const r=reminders().find(x=>x.id===id);if(!r)return;
+  const tk=todayKey();
+  const on=r.completedOn!==tk;
+  setDone(r,tk,on);
+  // Parent carries its children with it, and keeps them on its own date.
+  subtasksOf(r.id).forEach(c=>{setDone(c,tk,on);c.due=r.due;});
+  savePlanner();
 }
 function addReminder(data){
+  const parent=data.parent||null;
+  const p=parent?reminders().find(x=>x.id===parent):null;
   reminders().unshift({
-    id:uid(),title:data.title,due:data.due||todayKey(),
+    id:uid(),title:data.title,
+    due:p?p.due:(data.due||todayKey()),
     priority:data.priority||0,flagged:!!data.flagged,
-    repeat:data.repeat||null,done:false,completedOn:null,
+    tag:(data.tag||(p?p.tag:'')||'').trim(), // a subtask belongs where its parent does
+    parent:p?p.id:null,
+    repeat:parent?null:(data.repeat||null), // a subtask follows its parent's rhythm
+    done:false,completedOn:null,
     created:Date.now(),_ts:Date.now()
   });
   savePlanner();
 }
 function deleteReminder(id){
-  STATE.planner.reminders=reminders().filter(r=>r.id!==id);
+  // Deleting a parent takes its subtasks, otherwise they are orphaned and
+  // invisible while still counting toward the day.
+  STATE.planner.reminders=reminders().filter(r=>r.id!==id&&r.parent!==id);
   savePlanner();
 }
 
-/* Push tab 1's numbers into tab 2 — but never over something you set by hand.
-   Any field you touch in tab 2 is frozen for the rest of the day; tomorrow the
-   planner feeds it again from scratch. */
-function syncPlannerToToday(){
-  const m=STATE.today._manual||{};
-  const s=plannerTodayStats();
-  let changed=false;
-  if(!m.target&&STATE.today.target!==s.total){STATE.today.target=s.total;changed=true;}
-  if(!m.completed&&STATE.today.completed!==s.done){STATE.today.completed=s.done;changed=true;}
-  if(!m.flagCompleted&&STATE.today.flagCompleted!==s.annihilated){STATE.today.flagCompleted=s.annihilated;changed=true;}
-  if(changed)S.set(K.TODAY,STATE.today);
-  return changed;
+/* ── HOW TAB 1 FEEDS TAB 2 ──────────────────────────────────────────────
+   Your hand still wins, but only until the list itself changes. Each manual
+   edit is stamped with the time it was made; the moment the planner is edited
+   after that, the planner takes the field back. So a number typed while the
+   list was half-written is respected, and editing the list afterwards is
+   respected too, without either silently outranking the other forever.
+
+   On top of that the app refuses to help you undercount. It will not report
+   fewer tasks than are actually on today's list, will not report fewer done
+   than you have actually ticked, and will never let completed exceed the
+   target — which is where the 200% came from.
+
+   Typing 0 in the target is the explicit way to say "go back to automatic".
+   ──────────────────────────────────────────────────────────────────────── */
+function manualHolds(field){
+  const at=(STATE.today._manual||{})[field]||0;
+  return at>0&&at>=(STATE.planner._ts||0);
 }
 function markManual(field){
   STATE.today._manual=STATE.today._manual||{};
-  STATE.today._manual[field]=true;
+  STATE.today._manual[field]=Date.now();
+}
+function syncPlannerToToday(){
+  const s=plannerTodayStats();
+  const before=JSON.stringify([STATE.today.target,STATE.today.completed,STATE.today.flagCompleted]);
+
+  // TARGET — a manual 0 means "hand it back to the planner"
+  let target=(manualHolds('target')&&STATE.today.target>0)?STATE.today.target:s.total;
+  if(target<s.total)target=s.total;
+  STATE.today.target=target;
+
+  // COMPLETED — the planner can only ever raise this, never hide work you did
+  let done=manualHolds('completed')?(STATE.today.completed||0):s.done;
+  if(done<s.done)done=s.done;
+  if(done>target)done=target;
+  STATE.today.completed=done;
+
+  // FLAGS — adding a new unfinished flagged reminder un-annihilates the day
+  STATE.today.flagCompleted=manualHolds('flagCompleted')?!!STATE.today.flagCompleted:s.annihilated;
+
+  const changed=before!==JSON.stringify([STATE.today.target,STATE.today.completed,STATE.today.flagCompleted]);
+  if(changed)S.set(K.TODAY,STATE.today);
+  return changed;
 }
 
 const PRIO=[['0','—'],['1','!'],['2','!!'],['3','!!!']];
@@ -1238,6 +1294,23 @@ function renderPlanner(){
   const di=ip('date','',todayKey(),'');di.style.flex='1';di.style.minWidth='150px';
   const pi=sk('',PRIO.map(([v,l])=>[v,`${t('rem-prio')} ${l}`]),'0');pi.style.flex='1';pi.style.minWidth='120px';
   row2.appendChild(di);row2.appendChild(pi);form.appendChild(row2);
+  // Tags are yours to invent; the list just remembers the ones already in use.
+  const tagRow=dv('row gap8 mt8');
+  const gi=ip('text','','',t('rem-tag-ph'));gi.setAttribute('list','st-tags');
+  const dl=document.createElement('datalist');dl.id='st-tags';
+  allTags().forEach(tg=>{const o=document.createElement('option');o.value=tg;dl.appendChild(o);});
+  tagRow.appendChild(gi);tagRow.appendChild(dl);
+  form.appendChild(tagRow);
+  const existing=allTags();
+  if(existing.length){
+    const chips=dv('row gap6 mt6');chips.style.flexWrap='wrap';
+    existing.slice(0,8).forEach(tg=>{
+      const c=bt('tagchip',tg,()=>{gi.value=tg;});
+      c.style.cursor='pointer';chips.appendChild(c);
+    });
+    form.appendChild(chips);
+  }
+
   const row3=dv('row gap8 mt8');row3.style.flexWrap='wrap';
   const ri=sk('',[['','🔁 '+t('rep-none')],['day',t('rep-day')],['week',t('rep-week')],['month',t('rep-month')],['year',t('rep-year')]],'');
   ri.style.flex='1';ri.style.minWidth='120px';
@@ -1255,7 +1328,8 @@ function renderPlanner(){
     if(!title){err.textContent=t('rem-need-title');ti.focus();return;}
     err.textContent='';
     addReminder({title,due:di.value||todayKey(),priority:parseInt(pi.value)||0,
-      flagged:fc.checked,repeat:ri.value?{unit:ri.value,every:Math.max(1,parseInt(ni.value)||1)}:null});
+      flagged:fc.checked,tag:gi.value,
+      repeat:ri.value?{unit:ri.value,every:Math.max(1,parseInt(ni.value)||1)}:null});
     render();
   }
   ti.onkeydown=e=>{if(e.key==='Enter')doAdd();};
@@ -1263,29 +1337,56 @@ function renderPlanner(){
   form.appendChild(ab);
   wrap.appendChild(form);
 
-  /* ── the list ── */
+  /* ── the list: three columns so the day fits on one screen ── */
   const tk=todayKey(),list=reminders();
   const open=list.filter(r=>!r.done&&r.completedOn!==tk);
-  const groups=[
-    [t('rem-overdue-h'),open.filter(r=>r.due<tk).sort((a,b)=>a.due.localeCompare(b.due)),'cr'],
-    [t('rem-today-h'),open.filter(r=>r.due===tk).sort((a,b)=>b.priority-a.priority),'ac'],
-    [t('rem-soon-h'),open.filter(r=>r.due>tk).sort((a,b)=>a.due.localeCompare(b.due)),'dim'],
-    [t('rem-done-h'),list.filter(r=>r.completedOn===tk),'cg'],
+  // Only parents drive the grouping; subtasks are drawn beneath their own
+  // parent so a pair never gets split across two columns.
+  const tops=arr=>arr.filter(r=>!r.parent);
+  const cols=[
+    [t('rem-overdue-h'),tops(open.filter(r=>r.due<tk)).sort((a,b)=>a.due.localeCompare(b.due)),'cr'],
+    [t('rem-today-h'),tops(open.filter(r=>r.due===tk)).sort((a,b)=>b.priority-a.priority),'ac'],
+    [t('rem-soon-h'),tops(open.filter(r=>r.due>tk)).sort((a,b)=>a.due.localeCompare(b.due)),'dim'],
   ];
-  groups.forEach(([title,items,cls])=>{
-    if(!items.length)return;
-    const card=dv('card mb12');
+  const grid=dv('g3');
+  cols.forEach(([title,items,cls])=>{
+    const card=dv('card');
     const h=dv('rowb mb10');
     h.appendChild(sp(`ctit ${cls}`,title));
-    h.appendChild(sp('xs dimmer',String(items.length)));
+    h.appendChild(sp('xs dimmer',String(items.reduce((n,r)=>n+1+subtasksOf(r.id).length,0))));
+    card.appendChild(h);
+    if(!items.length){card.appendChild(dv('xs dimmer ctr','—'));}
+    else{
+      const box=dv('s6');
+      items.forEach(r=>{
+        box.appendChild(renderReminderRow(r,tk));
+        subtasksOf(r.id).forEach(c=>{
+          const w=dv('rem-sub');w.appendChild(renderReminderRow(c,tk));box.appendChild(w);
+        });
+      });
+      card.appendChild(box);
+    }
+    grid.appendChild(card);
+  });
+  wrap.appendChild(grid);
+
+  const doneToday=tops(list.filter(r=>r.completedOn===tk));
+  if(doneToday.length){
+    const card=dv('card mt12');
+    const h=dv('rowb mb10');
+    h.appendChild(sp('ctit cg',t('rem-done-h')));
+    h.appendChild(sp('xs dimmer',String(list.filter(r=>r.completedOn===tk).length)));
     card.appendChild(h);
     const box=dv('s6');
-    items.forEach(r=>box.appendChild(renderReminderRow(r,tk)));
+    doneToday.forEach(r=>{
+      box.appendChild(renderReminderRow(r,tk));
+      subtasksOf(r.id).forEach(c=>{const w=dv('rem-sub');w.appendChild(renderReminderRow(c,tk));box.appendChild(w);});
+    });
     card.appendChild(box);
     wrap.appendChild(card);
-  });
+  }
 
-  if(!list.length)wrap.appendChild(dv('card ctr dim sm',t('rem-empty')));
+  if(!list.length)wrap.appendChild(dv('card ctr dim sm mt12',t('rem-empty')));
   return wrap;
 }
 
@@ -1308,14 +1409,29 @@ function renderReminderRow(r,tk){
   if(r.priority>0){const p=sp('sm w7',PRIO[r.priority][1]);p.style.color=prioColor(r.priority);titleLine.appendChild(p);}
   mid.appendChild(titleLine);
 
+  if(r.tag){const tg=sp('tagchip',r.tag);tg.style.marginLeft='2px';titleLine.appendChild(tg);}
+
   const meta=[];
   meta.push(late?`<span class="cr w6">${t('rem-was-due')} ${r.due}</span>`:r.due);
   if(r.repeat)meta.push(repeatLabel(r.repeat));
   mid.appendChild(dv('xs dimmer mt2',meta.join(' · ')));
+
+  // Two levels only, so a subtask cannot spawn its own.
+  if(!r.parent&&!doneToday){
+    const addSub=bt('btn-icon xs','＋ '+t('rem-subtask'),()=>{
+      const title=prompt(t('rem-subtask-ask').replace('{t}',r.title));
+      if(title&&title.trim()){addReminder({title:title.trim(),parent:r.id,tag:r.tag});render();}
+    });
+    addSub.style.cssText='padding:2px 0;font-size:11px;color:var(--t3)';
+    mid.appendChild(addSub);
+  }
   row.appendChild(mid);
 
   const del=bt('btn-icon','✕',()=>{
-    if(confirm(t('rem-del-warn').replace('{t}',r.title))){deleteReminder(r.id);render();}
+    const kids=r.parent?0:subtasksOf(r.id).length;
+    const msg=kids?t('rem-del-warn-kids').replace('{t}',r.title).replace('{n}',kids)
+                  :t('rem-del-warn').replace('{t}',r.title);
+    if(confirm(msg)){deleteReminder(r.id);render();}
   });
   row.appendChild(del);
   return row;
@@ -1539,7 +1655,7 @@ function renderApp(){
   const tabs=dv('row gap6 mt4 mb4');
   tabs.style.cssText='justify-content:center;border:1px solid var(--b2);border-radius:11px;padding:3px;background:var(--sur2);max-width:420px;margin-left:auto;margin-right:auto';
   [['plan',`📋 ${t('tab-plan')}`,st.total?`${st.done}/${st.total}`:''],
-   ['score',`🏛️ ${t('tab-score')}`,'']].forEach(([id,label,badge])=>{
+   ['score',`📊 ${t('tab-score')}`,'']].forEach(([id,label,badge])=>{
     const active=STATE.tab===id;
     const b=bt(active?'btn-ac btn-sm f1':'btn-sm f1',label+(badge?`  ${badge}`:''),()=>{
       STATE.tab=id;localStorage.setItem('st_tab',id);render();
@@ -2414,9 +2530,24 @@ function renderRules(){
   <div>
     <div class="md up ls dimmer w7 mb10">📋 Cómo funciona esta app</div>
     <div class="s6">
-      <div>Stoic es <span class="ac w6">productividad gamificada</span>. Funciona mejor junto a una lista de tareas (Notion, Apple Reminders, papel — lo que uses).</div>
-      <div>Cada día: <strong>1)</strong> haz tu lista de tareas en algún lado, <strong>2)</strong> trabaja en ella, <strong>3)</strong> vuelve aquí y registra cómo te fue.</div>
+      <div>Stoic es <span class="ac w6">productividad gamificada</span>. Tiene dos pestañas: <strong>📋 Plan</strong>, donde vive tu lista de pendientes, y <strong>📊 Puntaje</strong>, donde esa lista se convierte en puntos.</div>
+      <div>Cada día: <strong>1)</strong> arma tu lista en Plan, <strong>2)</strong> trabájala y ve palomeando, <strong>3)</strong> en Puntaje registra lo demás (sueño, trabajo, recompensas).</div>
       <div>La app convierte tu día en un puntaje y un color. Con el tiempo ves tus patrones — qué ayuda, qué perjudica, qué tan consistente eres realmente, qué necesita cambiar.</div>
+    </div>
+  </div>
+  <hr class="dv">
+  <div>
+    <div class="md up ls dimmer w7 mb10">🔗 Cómo se hablan las dos pestañas</div>
+    <div class="s6">
+      <div><span class="ac w6">Plan alimenta a Puntaje.</span> Tus recordatorios llenan solos tu meta del día, tus tareas completadas y tus Metas Exterminadas.</div>
+      <div><span class="ac w6">Puntaje nunca toca a Plan.</span> Lo que edites allá no marca ni borra nada de tu lista.</div>
+      <div><span class="ac w6">Tu mano manda</span> — si escribes un número a mano en Puntaje, se respeta. Pero en cuanto edites tu lista en Plan, Plan retoma el control de ese número.</div>
+      <div>Escribe <span class="ac w6">0</span> en la meta para devolverle el control a Plan de inmediato.</div>
+      <div>La app no te deja subreportar: tu meta nunca puede ser menor que las tareas que realmente tienes hoy, y las completadas nunca pasan de la meta.</div>
+      <div><span class="cr w6">Los atrasados sí cuentan.</span> Un recordatorio que no completaste conserva su fecha original y sigue sumando a tu meta de hoy, igual que en Apple Reminders.</div>
+      <div>Ponles <span class="cp w6">etiquetas</span> (las que tú inventes) y <span class="cp w6">subtareas</span> en 2 niveles. Palomear el padre palomea sus subtareas.</div>
+      <div>Las <span class="ac w6">repeticiones</span> siguen su propio ritmo: una tarea cada 5 días que completas tarde vuelve en su fecha, no 5 días después de que la palomeaste.</div>
+      <div>Un día <strong>sin ninguna bandera</strong> no cuenta como Metas Exterminadas — si no, un día que ni planeaste te regalaría los puntos.</div>
     </div>
   </div>
   <hr class="dv">
@@ -2485,9 +2616,24 @@ function renderRules(){
   <div>
     <div class="md up ls dimmer w7 mb10">📋 How this app works</div>
     <div class="s6">
-      <div>Stoic is a <span class="ac w6">daily accountability tracker</span>. It works best alongside a to-do list (Notion, Apple Reminders, paper — whatever you use).</div>
-      <div>Every day: <strong>1)</strong> make your task list somewhere, <strong>2)</strong> work through it, <strong>3)</strong> come back here and log how it went.</div>
+      <div>Stoic is a <span class="ac w6">daily accountability tracker</span> with two tabs: <strong>📋 Plan</strong>, where your to-do list lives, and <strong>📊 Score</strong>, where that list turns into points.</div>
+      <div>Every day: <strong>1)</strong> build your list in Plan, <strong>2)</strong> work through it, ticking as you go, <strong>3)</strong> log everything else in Score (sleep, work, rewards).</div>
       <div>The app turns your day into a score and a color. Over time you see your patterns — what helps, what hurts, how consistent you really are, what needs to change.</div>
+    </div>
+  </div>
+  <hr class="dv">
+  <div>
+    <div class="md up ls dimmer w7 mb10">🔗 How the two tabs talk</div>
+    <div class="s6">
+      <div><span class="ac w6">Plan feeds Score.</span> Your reminders fill in the day's target, your completed count, and Goals Annihilated on their own.</div>
+      <div><span class="ac w6">Score never touches Plan.</span> Nothing you edit there ticks or deletes anything on your list.</div>
+      <div><span class="ac w6">Your hand wins</span> — a number you type in Score is respected. But the moment you edit your list in Plan, Plan takes that number back.</div>
+      <div>Type <span class="ac w6">0</span> in the target to hand control back to Plan straight away.</div>
+      <div>The app will not let you undercount: your target can never be lower than the tasks you actually have today, and completed can never exceed the target.</div>
+      <div><span class="cr w6">Overdue still counts.</span> A reminder you did not finish keeps its original date and goes on adding to today's target, just like Apple Reminders.</div>
+      <div>Give them <span class="cp w6">tags</span> (invent your own) and <span class="cp w6">subtasks</span>, two levels deep. Ticking a parent ticks everything under it.</div>
+      <div><span class="ac w6">Repeats</span> keep their own rhythm: a task every 5 days completed late comes back on its date, not 5 days after you ticked it.</div>
+      <div>A day with <strong>no flags at all</strong> does not count as Goals Annihilated — otherwise a day you never planned would hand you the points.</div>
     </div>
   </div>
   <hr class="dv">
