@@ -1013,16 +1013,28 @@ function applyRemote(remote){
     if(JSON.stringify(merged)!==JSON.stringify(STATE.diary)){STATE.diary=merged;S.set(K.DIARY,STATE.diary);changed=true;}
   }
 
-  // STREAK OVERRIDES: remote wins per key if newer
+  /* STREAK OVERRIDES.
+     These decide how historical days are scored, so a device holding a stale
+     set reports a wildly different grand total off the very same history — the
+     same 76 days swing from -419,819 to +273,169 depending only on these.
+     The old merge compared a `since` field that nothing ever writes, so
+     ('' > '') was always false and any key already present locally could never
+     be corrected from the cloud. A device kept its stale overrides forever.
+     They are small and global, like the settings above, so the newer side wins
+     outright. When we are the newer side we still adopt keys we simply do not
+     have, so nothing is ever lost. */
   if(remote.streak_overrides){
     const ro=remote.streak_overrides, lo=STATE.streakOverrides||{};
-    const merged={...lo};
-    let ovrChanged=false;
-    Object.entries(ro).forEach(([k,v])=>{
-      if(lo[k]===undefined){merged[k]=v;ovrChanged=true;}
-      else if(typeof v==='object'&&typeof lo[k]==='object'&&(v.since||'')>(lo[k].since||'')){merged[k]=v;ovrChanged=true;}
-    });
-    if(ovrChanged){STATE.streakOverrides=merged;S.set(K.STREAK_OVR,STATE.streakOverrides);changed=true;}
+    let merged;
+    if(remoteIsNewer){
+      merged={...ro};
+    } else {
+      merged={...lo};
+      Object.entries(ro).forEach(([k,v])=>{if(lo[k]===undefined)merged[k]=v;});
+    }
+    if(JSON.stringify(merged)!==JSON.stringify(lo)){
+      STATE.streakOverrides=merged;S.set(K.STREAK_OVR,STATE.streakOverrides);changed=true;
+    }
   }
 
   return changed;
