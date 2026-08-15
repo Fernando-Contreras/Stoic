@@ -386,8 +386,8 @@ function initTimezone(){
 /* ═══ TRANSLATIONS i18n ═══ */
 const T={
 en:{
-  'lang-btn':'🇲🇽 ES','Auto-saved':'Guardado','Synced':'☁️ Sincronizado','Local':'💾 Local',
-  'sync-broken':'⚠️ SIN SINCRONIZAR — solo en este navegador','sync-fix':'Log out and back in to reconnect',
+  'lang-btn':'🇲🇽 ES','Auto-saved':'Saved','Synced':'☁️ Synced','Local':'💾 Local',
+  'sync-broken':'⚠️ NOT SYNCING — this browser only','sync-fix':'Log out and back in to reconnect',
   'export-btn':'⬇️ Export data','import-btn':'⬆️ Import data',
   'import-warn':'This REPLACES every bit of data in this browser with the file contents.\n\nCurrent: {n} days logged.\n\nContinue?',
   'import-bad':'That file does not look like a Stoic backup.','import-ok':'✅ Restored: {n} days. Reloading.',
@@ -435,7 +435,7 @@ en:{
   'show-more-stats':'Show more stats ▼','show-less-stats':'Show less ▲',
   'clean-proc':'No procrastination','clean-org':'No orgasms',
   'restore-from':'☁️ Restore backup','backup-empty':'No backups found.','backup-restored':'✅ Backup restored!',
-  'backup-note':'Cloud: one snapshot a day, last 30 restorable. File: a full copy you keep yourself — store it outside this project folder.',
+  'backup-note':'Backup: one copy a day, you can restore the last 30. Data: a full copy you keep yourself; store it outside the project folder.',
   'danger-zone':'Danger Zone','erase-warn':'This will erase all your data permanently.',
   'reset-all-btn':'Reset All','del-warn':'⚠ Delete everything? This cannot be undone.',
   'yes-delete':'Yes, delete','cancel':'Cancel',
@@ -510,7 +510,7 @@ es:{
   'show-more-stats':'Ver más estadísticas ▼','show-less-stats':'Ver menos ▲',
   'clean-proc':'Sin procrastinación','clean-org':'Sin orgasmos',
   'restore-from':'☁️ Restaurar backup','backup-empty':'No hay backups.','backup-restored':'✅ Backup restaurado!',
-  'backup-note':'Nube: una copia al día, restauras las últimas 30. Archivo: copia completa que guardas tú — déjala fuera de la carpeta del proyecto.',
+  'backup-note':'Backup: una copia al día, puedes restaurar las últimas 30. Datos: copia completa que guardas tú; déjala fuera de la carpeta del proyecto.',
   'danger-zone':'Zona de Peligro','erase-warn':'Esto borrará todos tus datos permanentemente.',
   'reset-all-btn':'Borrar Todo','del-warn':'⚠ ¿Borrar todo? No se puede deshacer.',
   'yes-delete':'Sí, borrar','cancel':'Cancelar',
@@ -1195,10 +1195,14 @@ function renderApp(){
   const broken=cloudOn&&SB.status==='error';
   const lastSync=!cloudOn?t('Local'):broken?t('sync-broken'):t('Synced');
   sind.innerHTML=`<span class="sdot"></span><span>${t('Auto-saved')} · ${lastSync}</span>`;
+  // The indicator IS the control: clicking it opens the sync panel. A separate
+  // cloud button next to a cloud indicator was one cloud too many.
+  sind.style.cursor='pointer';
+  sind.title=broken?t('sync-fix'):t('sync-title');
+  sind.onclick=()=>{STATE.showSyncPanel=!STATE.showSyncPanel;refresh();};
   if(broken){
     sind.style.color='var(--cr)';
     sind.querySelector('.sdot').style.background='var(--cr)';
-    sind.title=t('sync-fix');
   }
   hdr.appendChild(sind);
   const acts=dv('row gap8 mt10');acts.style.justifyContent='center';
@@ -1215,14 +1219,6 @@ function renderApp(){
   });
   acts.appendChild(diffWrap);
   acts.appendChild(bt('btn-ghost btn-sm',t('lang-btn'),toggleLang));
-  // The sync panel (pull / push / log out) had no way to be opened: nothing in
-  // the app ever set showSyncPanel to true, so the whole panel was dead UI.
-  const syncBtn=bt('btn-ghost btn-sm',cloudOn?(broken?'⚠️':'☁️'):'💾',()=>{
-    STATE.showSyncPanel=!STATE.showSyncPanel;refresh();
-  });
-  syncBtn.title=t('sync-title');
-  if(broken)syncBtn.style.borderColor='var(--cr)';
-  acts.appendChild(syncBtn);
   hdr.appendChild(acts);wrap.appendChild(hdr);
 
 
