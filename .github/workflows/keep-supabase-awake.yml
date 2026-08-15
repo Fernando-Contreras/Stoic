@@ -1,0 +1,42 @@
+name: Keep Supabase awake
+
+# Supabase pauses free-tier projects after about 7 days without database
+# activity. That is exactly what happened here: the stored session token
+# lapsed, every request started failing, nothing touched the database for
+# weeks, the project got paused, and for two months the only copy of months
+# of history and diary entries lived in a single browser's localStorage.
+#
+# This job runs a small real query against the database on a schedule so the
+# project never sits idle long enough to be paused.
+#
+# The key below is the "anon public" key. It is already published inside
+# index.html on this same public repo, so keeping it here exposes nothing new.
+# It only grants what the row-level-security policies allow.
+
+on:
+  schedule:
+    - cron: '0 12 */3 * *'   # every 3 days at 12:00 UTC
+  workflow_dispatch:          # also runnable by hand from the Actions tab
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Query the database
+        env:
+          SUPABASE_URL: https://qupukwwpebnawbtdbibs.supabase.co
+          SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF1cHVrd3dwZWJuYXdidGRiaWJzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODExNDQ0MDgsImV4cCI6MjA5NjcyMDQwOH0.IuQgej-fGMIDVuXOR0jjH_YgrTJJtRZKsKRPfZScCZY
+        run: |
+          code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 30 \
+            "$SUPABASE_URL/rest/v1/stoic_data?select=user_id&limit=1" \
+            -H "apikey: $SUPABASE_ANON_KEY" || echo "000")
+
+          echo "Supabase answered HTTP $code"
+
+          # Any real HTTP answer means the database served the request and the
+          # project is awake. 000 means the host did not resolve or timed out,
+          # which is what a paused or deleted project looks like.
+          if [ "$code" = "000" ]; then
+            echo "::error::No answer from Supabase. The project may be paused or removed."
+            exit 1
+          fi

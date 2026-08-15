@@ -182,6 +182,12 @@ const S={
   set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch{}}
 };
 const K={TODAY:'st_today',HIST:'st_hist',AUTH:'st_auth',DIARY:'st_diary',THEME:'st_theme',STREAK_OVR:'st_streak_ovr'};
+/* History cap. This used to be 200 days (~6.5 months) and it did not just hide
+   older days — it deleted them from localStorage AND pushed the truncated list
+   back to Supabase, destroying them in both places. This app is meant to be kept
+   for years and doubles as a diary, so the cap is now a runaway-data guard only
+   (~54 years), never something a real user can reach. */
+const MAX_HIST=20000;
 
 /* ── SUPABASE SYNC ──────────────────────────────────────────────────
    Uses window._SUPABASE_URL and window._SUPABASE_KEY if set.
@@ -203,6 +209,7 @@ const SB={
   },
   async push(history, today, diary, streakOverrides){
     if(!this.init()) return;
+    if(!await this.ensureFresh()) return;
     try{
       const res=await fetch(`${this.url}/rest/v1/stoic_data`, {
         method:'POST',
@@ -217,17 +224,20 @@ const SB={
           updated_at: new Date().toISOString()
         })
       });
-      if(!res.ok){const t=await res.text();console.warn('Push failed:',res.status,t);}
-    }catch(e){console.warn('Supabase push failed',e);}
+      if(!res.ok){const t=await res.text();console.warn('Push failed:',res.status,t);this.status='error';}
+      else this.status='ok';
+    }catch(e){console.warn('Supabase push failed',e);this.status='error';}
   },
   async pull(){
     if(!this.init()) return null;
+    if(!await this.ensureFresh()) return null;
     try{
       const r=await fetch(`${this.url}/rest/v1/stoic_data?select=history,today,diary,streak_overrides,saved_at&limit=1`,{headers:this.headers()});
-      if(!r.ok) return null;
+      if(!r.ok){console.warn('Pull failed:',r.status);this.status='error';return null;}
       const rows=await r.json();
+      this.status='ok';
       return rows&&rows.length?rows[0]:null;
-    }catch(e){console.warn('Supabase pull failed',e);return null;}
+    }catch(e){console.warn('Supabase pull failed',e);this.status='error';return null;}
   },
   userId(){
     try{
@@ -236,8 +246,55 @@ const SB={
       return decoded.sub||null;
     }catch{return null;}
   },
+
+  /* ── SESSION HEALTH ─────────────────────────────────────────────────
+     Supabase access tokens expire. Nothing here ever renewed one, and the
+     header only checked that *some* token existed — so when it lapsed, every
+     request started failing with 401 while the UI kept happily reporting
+     "Synced". That went unnoticed for two months, the project got paused for
+     inactivity, and the only surviving copy of the data was one browser's
+     localStorage. Now: keep the refresh token, renew before each call, and
+     report what is actually true.
+     ────────────────────────────────────────────────────────────────── */
+  status:'local',   // 'local' = no cloud configured | 'ok' = synced | 'error' = broken
+  tokenExpiresAt(){
+    try{
+      const p=JSON.parse(atob(this.token.split('.')[1].replace(/-/g,'+').replace(/_/g,'/')));
+      return p.exp?p.exp*1000:0;
+    }catch{return 0;}
+  },
+  async refresh(){
+    const rt=localStorage.getItem('REFRESH_TOKEN')||'';
+    // Sessions created before refresh tokens were stored have none — the user
+    // has to log in once more, and from then on this keeps itself alive.
+    if(!rt){this.status='error';return false;}
+    try{
+      const r=await fetch(`${this.url}/auth/v1/token?grant_type=refresh_token`,{
+        method:'POST',
+        headers:{'Content-Type':'application/json','apikey':this.key},
+        body:JSON.stringify({refresh_token:rt})
+      });
+      const d=await r.json();
+      if(d.access_token){
+        this.token=d.access_token;
+        localStorage.setItem('AUTH_TOKEN',d.access_token);
+        if(d.refresh_token)localStorage.setItem('REFRESH_TOKEN',d.refresh_token);
+        return true;
+      }
+    }catch(e){/* offline — fall through */}
+    this.status='error';
+    return false;
+  },
+  /* Renew when the token is missing or within 2 minutes of lapsing. */
+  async ensureFresh(){
+    if(!this.url||!this.key||!this.token)return false;
+    const exp=this.tokenExpiresAt();
+    if(exp&&Date.now()<exp-120000)return true;
+    return await this.refresh();
+  },
   async saveBackup(history,today,diary,streakOverrides){
     if(!this.init()) return false;
+    if(!await this.ensureFresh()) return false;
     try{
       // on_conflict MUST match the real unique constraint (user_id, backup_date) —
       // the table's primary key is a random id, so without this the upsert
@@ -261,6 +318,7 @@ const SB={
   },
   async listBackups(){
     if(!this.init()) return [];
+    if(!await this.ensureFresh()) return [];
     try{
       const r=await fetch(`${this.url}/rest/v1/stoic_backups?select=backup_date,created_at&order=backup_date.desc&limit=30`,{headers:this.headers()});
       if(!r.ok) return [];
@@ -269,6 +327,7 @@ const SB={
   },
   async restoreBackup(date){
     if(!this.init()) return null;
+    if(!await this.ensureFresh()) return null;
     try{
       const r=await fetch(`${this.url}/rest/v1/stoic_backups?backup_date=eq.${date}&limit=1`,{headers:this.headers()});
       if(!r.ok) return null;
@@ -290,6 +349,9 @@ const SB={
       if(d.access_token){
         this.token=d.access_token;
         localStorage.setItem('AUTH_TOKEN',d.access_token);
+        // Keep the refresh token — without it the session dies for good in ~1h.
+        if(d.refresh_token)localStorage.setItem('REFRESH_TOKEN',d.refresh_token);
+        this.status='ok';
         return{ok:true};
       }
       return{error:d.error_description||d.msg||'Login failed'};
@@ -325,6 +387,11 @@ function initTimezone(){
 const T={
 en:{
   'lang-btn':'🇲🇽 ES','Auto-saved':'Guardado','Synced':'☁️ Sincronizado','Local':'💾 Local',
+  'sync-broken':'⚠️ SIN SINCRONIZAR — solo en este navegador','sync-fix':'Log out and back in to reconnect',
+  'export-btn':'⬇️ Export data','import-btn':'⬆️ Import data',
+  'import-warn':'This REPLACES every bit of data in this browser with the file contents.\n\nCurrent: {n} days logged.\n\nContinue?',
+  'import-bad':'That file does not look like a Stoic backup.','import-ok':'✅ Restored: {n} days. Reloading.',
+  'export-note':'Download a copy of everything (history + diary). Keep it somewhere outside this project folder.',
   'set-streaks':'⚡ Set Streaks','logout':'Logout','dark':'🌙 Dark','light':'☀️ Light',
   'easy':'🌱 Easy','medium':'⚖️ Medium','hard':'💪 Hard',
   'score':'Score','today-lbl':'Today','tasks-lbl':'tasks',
@@ -394,6 +461,11 @@ en:{
 },
 es:{
   'lang-btn':'🇺🇸 EN','Auto-saved':'Guardado','Synced':'☁️ Sincronizado','Local':'💾 Local',
+  'sync-broken':'⚠️ SIN SINCRONIZAR — solo en este navegador','sync-fix':'Cierra sesión y vuelve a entrar para reconectar',
+  'export-btn':'⬇️ Exportar datos','import-btn':'⬆️ Importar datos',
+  'import-warn':'Esto REEMPLAZA todos los datos de este navegador con los del archivo.\n\nAhorita tienes: {n} días registrados.\n\n¿Continuar?',
+  'import-bad':'Ese archivo no parece un respaldo de Stoic.','import-ok':'✅ Restaurado: {n} días. Se recarga la página.',
+  'export-note':'Baja una copia de todo (historial + diario). Guárdala fuera de la carpeta del proyecto.',
   'set-streaks':'⚡ Rachas','logout':'Salir','dark':'🌙 Oscuro','light':'☀️ Claro',
   'easy':'🌱 Fácil','medium':'⚖️ Medio','hard':'💪 Difícil',
   'score':'Puntaje','today-lbl':'Hoy','tasks-lbl':'tareas',
@@ -748,7 +820,7 @@ function upsertHist(entry,dk){
   const idx=STATE.history.findIndex(h=>h.date===dk);
   if(idx>=0)STATE.history[idx]={...STATE.history[idx],...entry};
   else STATE.history.unshift(entry);
-  STATE.history=STATE.history.slice(0,200);
+  STATE.history=STATE.history.slice(0,MAX_HIST);
   S.set(K.HIST,STATE.history); // always persist locally
 }
 
@@ -903,7 +975,7 @@ function applyRemote(remote){
       }
     });
     if(hChanged){
-      STATE.history=[...localMap.values()].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,200);
+      STATE.history=[...localMap.values()].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,MAX_HIST);
       S.set(K.HIST,STATE.history);changed=true;
     }
   }
@@ -1063,21 +1135,16 @@ function renderLogin(){
     actionBtn.textContent=t('syncing');
     const remote=await SB.pull();
     if(remote){
-      // On login: Supabase is THE truth — replace local state entirely.
-      // This prevents stale localStorage from ever overwriting cloud data.
-      if(remote.history&&remote.history.length){
-        STATE.history=remote.history.slice(0,200).sort((a,b)=>b.date.localeCompare(a.date));
-        S.set(K.HIST,STATE.history);
-      }
-      if(remote.today&&remote.today._date){
-        STATE.today={...STATE.today,...remote.today};
-        S.set(K.TODAY,STATE.today);
-        if(remote.today._difficulty){STATE.difficulty=remote.today._difficulty;localStorage.setItem('st_difficulty',remote.today._difficulty);}
-        if(remote.today._lang){STATE.lang=remote.today._lang;localStorage.setItem('st_lang',remote.today._lang);}
-        if(remote.today._theme){STATE.theme=remote.today._theme;S.set(K.THEME,remote.today._theme);applyTheme();}
-      }
-      if(remote.diary){STATE.diary=remote.diary;S.set(K.DIARY,STATE.diary);}
-      if(remote.streak_overrides){STATE.streakOverrides=remote.streak_overrides;S.set(K.STREAK_OVR,STATE.streakOverrides);}
+      // Logging in MERGES cloud into local — it must never replace it.
+      // This used to overwrite STATE.history/diary wholesale with whatever the
+      // cloud had. When cloud sync had been silently dead for weeks, logging in
+      // destroyed months of local days and diary entries in one shot.
+      // applyRemote() merges history per-day (newest _ts wins, nothing deleted)
+      // and unions the diary, so no entry can be lost from either side.
+      applyRemote(remote);
+      // Push the merged result straight back up, so anything the cloud was
+      // missing lands there immediately instead of waiting for the next change.
+      SB.push(STATE.history,STATE.today,STATE.diary,STATE.streakOverrides).catch(()=>{});
       // Save daily backup on login (once per day) — only mark done if it truly succeeded
       const _bkKey='st_last_backup';
       if(localStorage.getItem(_bkKey)!==todayKey()){
@@ -1120,8 +1187,17 @@ function renderApp(){
 
   // clock update: interval is started once at boot level
   const sind=dv('row gap6 xs dim mt6');sind.style.justifyContent='center';
-  const lastSync=SB.init()?t('Synced'):t('Local');
+  // Tell the truth about sync. This used to print "Synced" whenever a token
+  // merely existed, so a dead session looked perfectly healthy for two months.
+  const cloudOn=SB.init();
+  const broken=cloudOn&&SB.status==='error';
+  const lastSync=!cloudOn?t('Local'):broken?t('sync-broken'):t('Synced');
   sind.innerHTML=`<span class="sdot"></span><span>${t('Auto-saved')} · ${lastSync}</span>`;
+  if(broken){
+    sind.style.color='var(--cr)';
+    sind.querySelector('.sdot').style.background='var(--cr)';
+    sind.title=t('sync-fix');
+  }
   hdr.appendChild(sind);
   const acts=dv('row gap8 mt10');acts.style.justifyContent='center';
   const themeBtn=bt('btn-ghost btn-sm',STATE.theme==='light'?t('dark'):t('light'),toggleTheme);
@@ -1219,6 +1295,47 @@ function renderApp(){
   });
   backupRow.appendChild(restoreBtn);
   bottomWrap.appendChild(backupRow);
+
+  /* ── LOCAL EXPORT / IMPORT ──────────────────────────────────────────
+     The cloud is not a backup you control: the free tier keeps no database
+     backups, the project pauses itself when idle, and a lapsed session can
+     leave the browser holding the only copy. These two buttons give a real
+     file that survives all of that.
+     ────────────────────────────────────────────────────────────────── */
+  const fileRow=dv('row gap8 mt8');fileRow.style.justifyContent='center';
+
+  fileRow.appendChild(bt('btn-ghost btn-sm',t('export-btn'),()=>{
+    const dump={};
+    for(const k of Object.keys(localStorage))dump[k]=localStorage.getItem(k);
+    const blob=new Blob([JSON.stringify(dump,null,2)],{type:'application/json'});
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);
+    a.download=`stoic-respaldo-${todayKey()}.json`;
+    a.click();
+    setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+  }));
+
+  fileRow.appendChild(bt('btn-ghost btn-sm',t('import-btn'),()=>{
+    const picker=document.createElement('input');
+    picker.type='file';picker.accept='.json,application/json';
+    picker.onchange=async()=>{
+      const f=picker.files&&picker.files[0];if(!f)return;
+      let dump;
+      try{dump=JSON.parse(await f.text());}catch{alert(t('import-bad'));return;}
+      if(!dump||typeof dump!=='object'||!dump.st_hist){alert(t('import-bad'));return;}
+      let incoming=0;
+      try{incoming=(JSON.parse(dump.st_hist)||[]).length;}catch{alert(t('import-bad'));return;}
+      const current=(STATE.history||[]).length;
+      if(!confirm(t('import-warn').replace('{n}',current)))return;
+      Object.entries(dump).forEach(([k,v])=>{try{localStorage.setItem(k,v);}catch{}});
+      alert(t('import-ok').replace('{n}',incoming));
+      location.reload();
+    };
+    picker.click();
+  }));
+
+  bottomWrap.appendChild(fileRow);
+  bottomWrap.appendChild(dv('xs dimmer ctr',t('export-note')));
 
   bottomWrap.appendChild(bt('btn-ghost btn-sm',t('logout'),()=>{S.set(K.AUTH,false);STATE.authed=false;render();}));
   wrap.appendChild(bottomWrap);
@@ -2125,7 +2242,7 @@ function renderSyncPanel(){
       const remote=await SB.pull();
       if(remote){
         // FORCE pull — Supabase is the truth. Replace local state entirely.
-        if(remote.history&&remote.history.length) STATE.history=remote.history.slice(0,200).sort((a,b)=>b.date.localeCompare(a.date));
+        if(remote.history&&remote.history.length) STATE.history=remote.history.slice(0,MAX_HIST).sort((a,b)=>b.date.localeCompare(a.date));
         if(remote.today) STATE.today={...STATE.today,...remote.today};
         if(remote.diary) STATE.diary=remote.diary;
         if(remote.streak_overrides) STATE.streakOverrides=remote.streak_overrides;

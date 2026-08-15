@@ -1,0 +1,6 @@
+# Respaldos personales — NUNCA subir a GitHub.
+# Este repo es publico (GitHub Pages), y estos archivos traen
+# el diario completo y el token de sesion de Supabase.
+stoic-respaldo-*.json
+*-respaldo-*.json
+*backup*.json
