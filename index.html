@@ -511,7 +511,8 @@ en:{
   'rem-notes-ph':'Note (optional)','rem-edit':'Edit','rem-no-parent':'↳ Not a subtask',
   'rem-has-kids':'This one has subtasks of its own, so it cannot become one. Two levels is the limit.',
   'rem-bad-parent':'That cannot be its parent.','rem-sub-no-rep':'A subtask follows its parent',
-  'rem-part-of':'part of',
+  'rem-subtasks':'subtasks','rem-collapse':'Hide subtasks','rem-expand':'Show subtasks',
+  'rem-indent':'Make it a subtask of the one above','rem-outdent':'Lift out of its parent',
   'pomo-title':'Pomodoro','pomo-focus':'Focus','pomo-short':'Short break','pomo-long':'Long break',
   'pomo-start':'Start','pomo-pause':'Pause','pomo-reset':'Reset','pomo-skip':'Finish',
   'pomo-done':'Session finished. Take a break.','pomo-from-timer':'from the timer today',
@@ -607,7 +608,8 @@ es:{
   'rem-notes-ph':'Nota (opcional)','rem-edit':'Editar','rem-no-parent':'↳ No es subtarea',
   'rem-has-kids':'Esta ya tiene subtareas, así que no puede volverse una. El límite son 2 niveles.',
   'rem-bad-parent':'Esa no puede ser su tarea padre.','rem-sub-no-rep':'Una subtarea sigue a su padre',
-  'rem-part-of':'parte de',
+  'rem-subtasks':'subtareas','rem-collapse':'Ocultar subtareas','rem-expand':'Ver subtareas',
+  'rem-indent':'Volverla subtarea de la de arriba','rem-outdent':'Sacarla de su tarea madre',
   'pomo-title':'Pomodoro','pomo-focus':'Enfoque','pomo-short':'Descanso corto','pomo-long':'Descanso largo',
   'pomo-start':'Iniciar','pomo-pause':'Pausar','pomo-reset':'Reiniciar','pomo-skip':'Terminar',
   'pomo-done':'Sesión terminada. Tómate un descanso.','pomo-from-timer':'del timer hoy',
@@ -1199,6 +1201,21 @@ function plannerTodayStats(){
    They ride on the parent's date so they always sit with it in the same group,
    and ticking a parent ticks everything under it, the way Apple's do. */
 function subtasksOf(id){return reminders().filter(r=>r.parent===id);}
+function isCollapsed(id){return !!(STATE.planner.collapsed||{})[id];}
+function toggleCollapse(id){
+  STATE.planner.collapsed=STATE.planner.collapsed||{};
+  if(STATE.planner.collapsed[id])delete STATE.planner.collapsed[id];
+  else STATE.planner.collapsed[id]=true;
+  savePlanner();
+}
+/* Indent and outdent, the way Tab and Shift-Tab work in an outliner: a
+   reminder becomes a subtask of the one drawn directly above it. Picking a
+   parent from a dropdown was hopeless once the list held a hundred items. */
+function indentReminder(id,prevTopId){
+  if(!prevTopId)return{ok:false,warn:'no-prev'};
+  return updateReminder(id,{parent:prevTopId});
+}
+function outdentReminder(id){return updateReminder(id,{parent:null});}
 function allTags(){
   return [...new Set(reminders().map(r=>(r.tag||'').trim()).filter(Boolean))].sort();
 }
@@ -1486,59 +1503,54 @@ function renderPlanner(){
   /* ── the list: three columns so the day fits on one screen ── */
   const tk=todayKey(),list=reminders();
   const open=list.filter(r=>!r.done&&r.completedOn!==tk);
-  /* Every reminder is filed under its own date, subtasks included — indenting
-     one no longer drags its date to match the parent. So a subtask can land in
-     a different column than its parent: it still draws indented, and names the
-     parent it belongs to so the link is never lost. */
-  function layout(arr){
-    const here=new Set(arr.map(r=>r.id)),out=[];
-    arr.filter(r=>!r.parent).forEach(p=>{
-      out.push({r:p});
-      subtasksOf(p.id).filter(c=>here.has(c.id)).forEach(c=>out.push({r:c,sub:true}));
-    });
-    arr.filter(r=>r.parent&&!here.has(r.parent)).forEach(c=>{
-      const p=reminders().find(x=>x.id===c.parent);
-      out.push({r:c,sub:true,of:p?p.title:''});
-    });
-    return out;
-  }
-  function fillCard(card,arr){
-    if(!arr.length){card.appendChild(dv('xs dimmer ctr','—'));return;}
+  /* A subtask is drawn under its own parent, always — a column is chosen by the
+     parent's date, and the subtask keeps and shows its own. Nesting is
+     structure; the date it is due is written on the row and coloured when it is
+     overdue, so nothing has to be spelled out in words. */
+  function fillCard(card,tops){
+    if(!tops.length){card.appendChild(dv('xs dimmer ctr','—'));return;}
     const box=dv('s6');
-    layout(arr).forEach(({r,sub,of})=>{
-      const el_=renderReminderRow(r,tk,of);
-      if(sub){const w=dv('rem-sub');w.appendChild(el_);box.appendChild(w);}
-      else box.appendChild(el_);
+    tops.forEach((p,i)=>{
+      const kids=subtasksOf(p.id);
+      box.appendChild(renderReminderRow(p,tk,{prevTop:i>0?tops[i-1].id:null,kids:kids.length}));
+      if(kids.length&&!isCollapsed(p.id)){
+        kids.forEach(c=>{
+          const w=dv('rem-sub');
+          w.appendChild(renderReminderRow(c,tk,{prevTop:p.id}));
+          box.appendChild(w);
+        });
+      }
     });
     card.appendChild(box);
   }
   const byPrio=(a,b)=>b.priority-a.priority;
   const byDate=(a,b)=>a.due.localeCompare(b.due);
+  const tops=open.filter(r=>!r.parent);
   const cols=[
-    [t('rem-overdue-h'),open.filter(r=>r.due<tk).sort(byDate),'cr'],
-    [t('rem-today-h'),open.filter(r=>r.due===tk).sort(byPrio),'ac'],
-    [t('rem-soon-h'),open.filter(r=>r.due>tk).sort(byDate),'dim'],
+    [t('rem-overdue-h'),tops.filter(r=>r.due<tk).sort(byDate),'cr'],
+    [t('rem-today-h'),tops.filter(r=>r.due===tk).sort(byPrio),'ac'],
+    [t('rem-soon-h'),tops.filter(r=>r.due>tk).sort(byDate),'dim'],
   ];
   const grid=dv('g3');
   cols.forEach(([title,items,cls])=>{
     const card=dv('card');
     const h=dv('rowb mb10');
     h.appendChild(sp(`ctit ${cls}`,title));
-    h.appendChild(sp('xs dimmer',String(items.length)));
+    h.appendChild(sp('xs dimmer',String(items.reduce((n,r)=>n+1+subtasksOf(r.id).length,0))));
     card.appendChild(h);
     fillCard(card,items);
     grid.appendChild(card);
   });
   wrap.appendChild(grid);
 
-  const doneToday=list.filter(r=>r.completedOn===tk);
-  if(doneToday.length){
+  const doneTops=list.filter(r=>r.completedOn===tk&&!r.parent);
+  if(doneTops.length){
     const card=dv('card mt12');
     const h=dv('rowb mb10');
     h.appendChild(sp('ctit cg',t('rem-done-h')));
-    h.appendChild(sp('xs dimmer',String(doneToday.length)));
+    h.appendChild(sp('xs dimmer',String(list.filter(r=>r.completedOn===tk).length)));
     card.appendChild(h);
-    fillCard(card,doneToday);
+    fillCard(card,doneTops);
     wrap.appendChild(card);
   }
 
@@ -1619,13 +1631,14 @@ function renderReminderEditor(r){
 
   const r3=dv('row gap6 mt6');r3.style.flexWrap='wrap';
   const pi=sk('',PRIO.map(([v,l])=>[v,`${t('rem-prio')} ${l}`]),String(r.priority||0));pi.style.flex='1';pi.style.minWidth='110px';
-  // Only top-level reminders can be parents, and never itself.
-  const cands=reminders().filter(x=>!x.parent&&x.id!==r.id);
-  const canMove=subtasksOf(r.id).length===0;
-  const pa=sk('',[['',t('rem-no-parent')],...cands.map(x=>[x.id,'↳ '+x.title.slice(0,28)])],r.parent||'');
-  pa.style.flex='1';pa.style.minWidth='130px';
-  if(!canMove){pa.disabled=true;pa.title=t('rem-has-kids');}
-  r3.appendChild(pi);r3.appendChild(pa);box.appendChild(r3);
+  r3.appendChild(pi);
+  // Nesting lives on the row itself now — drag one onto another, or use the
+  // indent arrows. A dropdown listing every task was unusable past a handful.
+  if(r.parent){
+    const b=bt('btn-ghost btn-sm','⤴ '+t('rem-outdent'),()=>{outdentReminder(r.id);STATE.editingRem=null;render();});
+    b.style.flex='1';b.style.minWidth='130px';r3.appendChild(b);
+  }
+  box.appendChild(r3);
 
   const r4=dv('row gap6 mt6');r4.style.flexWrap='wrap';
   const ri=sk('',[['','🔁 '+t('rep-none')],['day',t('rep-day')],['week',t('rep-week')],['month',t('rep-month')],['year',t('rep-year')]],r.repeat?r.repeat.unit:'');
@@ -1647,7 +1660,6 @@ function renderReminderEditor(r){
     const res=updateReminder(r.id,{
       title:ti.value.trim(),notes:no.value.trim(),tag:gi.value.trim(),
       due:di.value||r.due,priority:parseInt(pi.value)||0,flagged:fc.checked,
-      parent:pa.disabled?r.parent:(pa.value||null),
       repeat:(r.parent||!ri.value)?null:{unit:ri.value,every:Math.max(1,parseInt(ni.value)||1)}
     });
     if(!res.ok){err.textContent=res.warn==='sub-has-kids'?t('rem-has-kids'):t('rem-bad-parent');return;}
@@ -1659,11 +1671,41 @@ function renderReminderEditor(r){
   return box;
 }
 
-function renderReminderRow(r,tk,parentAway){
+function renderReminderRow(r,tk,opts){
+  opts=opts||{};
   const doneToday=r.completedOn===tk;
   const late=!doneToday&&r.due<tk;
+  const kids=opts.kids||0;
   const row=dv('row gap10');
   row.style.cssText='background:var(--sur2);border:1px solid '+(late?'var(--rb)':'var(--b1)')+';border-radius:10px;padding:10px 12px;align-items:flex-start';
+
+  /* Drag to nest, on anything with a pointer. The buttons below do the same
+     job for touch, so this is an accelerator and never the only way. */
+  row.draggable=true;
+  row.ondragstart=e=>{e.dataTransfer.setData('text/plain',r.id);e.dataTransfer.effectAllowed='move';row.style.opacity='.4';};
+  row.ondragend=()=>{row.style.opacity='';row.style.outline='';};
+  row.ondragover=e=>{
+    const id=STATE._dragId;
+    if(id&&id!==r.id&&!r.parent){e.preventDefault();row.style.outline='2px solid var(--ac)';}
+  };
+  row.ondragleave=()=>{row.style.outline='';};
+  row.ondrop=e=>{
+    e.preventDefault();row.style.outline='';
+    const id=e.dataTransfer.getData('text/plain');
+    if(!id||id===r.id||r.parent)return;
+    const res=updateReminder(id,{parent:r.id});
+    if(!res.ok)alert(res.warn==='sub-has-kids'?t('rem-has-kids'):t('rem-bad-parent'));
+    render();
+  };
+  row.addEventListener('dragstart',()=>{STATE._dragId=r.id;});
+
+  // Collapse arrow — only where there is something to hide.
+  if(kids){
+    const ar=bt('btn-icon',isCollapsed(r.id)?'▶':'▼',()=>{toggleCollapse(r.id);render();});
+    ar.style.cssText='padding:2px 4px;font-size:11px;color:var(--t3)';
+    ar.title=isCollapsed(r.id)?t('rem-expand'):t('rem-collapse');
+    row.appendChild(ar);
+  }
 
   const cb=ip('checkbox','');cb.checked=doneToday;cb.style.marginTop='3px';
   cb.onchange=()=>{toggleReminder(r.id);render();};
@@ -1686,10 +1728,12 @@ function renderReminderRow(r,tk,parentAway){
   }
 
   const meta=[];
-  meta.push(late?`<span class="cr w6">${t('rem-was-due')} ${r.due}</span>`:r.due);
+  // A subtask sits in its parent's column but keeps its own date, so the date
+  // is coloured to say where it really falls: red overdue, amber due today.
+  const dueCls=late?'cr w6':(r.due===tk?'ac w6':'');
+  meta.push(`<span class="${dueCls}">${late?t('rem-was-due')+' ':''}${r.due}</span>`);
   if(r.repeat)meta.push(repeatLabel(r.repeat));
-  // Its parent sits in another column, so say whose it is.
-  if(parentAway)meta.push(`<span class="cp">↳ ${t('rem-part-of')} ${parentAway}</span>`);
+  if(kids)meta.push(`<span class="cp">${kids} ${kids===1?t('rem-subtask'):t('rem-subtasks')}</span>`);
   mid.appendChild(dv('xs dimmer mt2',meta.join(' · ')));
 
   // Two levels only, so a subtask cannot spawn its own.
@@ -1704,6 +1748,19 @@ function renderReminderRow(r,tk,parentAway){
   row.appendChild(mid);
 
   const tools=dv('row gap4');
+  // Indent under the row above / lift back out — the touch-friendly twin of
+  // dragging, and the reason no dropdown of every task is needed.
+  if(r.parent){
+    const out_=bt('btn-icon','⤴',()=>{outdentReminder(r.id);render();});
+    out_.title=t('rem-outdent');tools.appendChild(out_);
+  }else if(opts.prevTop&&!kids){
+    const in_=bt('btn-icon','⤵',()=>{
+      const res=indentReminder(r.id,opts.prevTop);
+      if(!res.ok&&res.warn==='sub-has-kids')alert(t('rem-has-kids'));
+      render();
+    });
+    in_.title=t('rem-indent');tools.appendChild(in_);
+  }
   const ed=bt('btn-icon','✏️',()=>{STATE.editingRem=STATE.editingRem===r.id?null:r.id;render();});
   ed.title=t('rem-edit');
   tools.appendChild(ed);
