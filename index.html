@@ -391,7 +391,6 @@ en:{
   'export-btn':'⬇️ Export data','import-btn':'⬆️ Import data',
   'import-warn':'This REPLACES every bit of data in this browser with the file contents.\n\nCurrent: {n} days logged.\n\nContinue?',
   'import-bad':'That file does not look like a Stoic backup.','import-ok':'✅ Restored: {n} days. Reloading.',
-  'export-note':'Download a copy of everything (history + diary). Keep it somewhere outside this project folder.',
   'pull-warn':'This THROWS AWAY what is in this browser and takes the cloud copy instead.\n\nThis browser: {local} days\nCloud: {cloud} days\n\nIf the cloud number is smaller, you are about to lose days. Continue?',
   'set-streaks':'⚡ Set Streaks','logout':'Logout','dark':'🌙 Dark','light':'☀️ Light',
   'easy':'🌱 Easy','medium':'⚖️ Medium','hard':'💪 Hard',
@@ -435,7 +434,8 @@ en:{
   'horniest-day':'Horniest day','prod-day':'Most productive day','day-of-week':'day of week','not-enough':'Need more data','no-day':'—',
   'show-more-stats':'Show more stats ▼','show-less-stats':'Show less ▲',
   'clean-proc':'No procrastination','clean-org':'No orgasms',
-  'restore-from':'Restore from backup','backup-empty':'No backups found.','backup-restored':'✅ Backup restored!',
+  'restore-from':'☁️ Restore backup','backup-empty':'No backups found.','backup-restored':'✅ Backup restored!',
+  'backup-note':'Cloud: one snapshot a day, last 30 restorable. File: a full copy you keep yourself — store it outside this project folder.',
   'danger-zone':'Danger Zone','erase-warn':'This will erase all your data permanently.',
   'reset-all-btn':'Reset All','del-warn':'⚠ Delete everything? This cannot be undone.',
   'yes-delete':'Yes, delete','cancel':'Cancel',
@@ -466,7 +466,6 @@ es:{
   'export-btn':'⬇️ Exportar datos','import-btn':'⬆️ Importar datos',
   'import-warn':'Esto REEMPLAZA todos los datos de este navegador con los del archivo.\n\nAhorita tienes: {n} días registrados.\n\n¿Continuar?',
   'import-bad':'Ese archivo no parece un respaldo de Stoic.','import-ok':'✅ Restaurado: {n} días. Se recarga la página.',
-  'export-note':'Baja una copia de todo (historial + diario). Guárdala fuera de la carpeta del proyecto.',
   'pull-warn':'Esto TIRA lo que hay en este navegador y se queda con lo de la nube.\n\nEste navegador: {local} días\nNube: {cloud} días\n\nSi el número de la nube es menor, estás a punto de perder días. ¿Continuar?',
   'set-streaks':'⚡ Rachas','logout':'Salir','dark':'🌙 Oscuro','light':'☀️ Claro',
   'easy':'🌱 Fácil','medium':'⚖️ Medio','hard':'💪 Difícil',
@@ -510,7 +509,8 @@ es:{
   'horniest-day':'Día más caliente','prod-day':'Día más productivo','day-of-week':'día de la semana','not-enough':'Faltan datos','no-day':'—',
   'show-more-stats':'Ver más estadísticas ▼','show-less-stats':'Ver menos ▲',
   'clean-proc':'Sin procrastinación','clean-org':'Sin orgasmos',
-  'restore-from':'Restaurar backup','backup-empty':'No hay backups.','backup-restored':'✅ Backup restaurado!',
+  'restore-from':'☁️ Restaurar backup','backup-empty':'No hay backups.','backup-restored':'✅ Backup restaurado!',
+  'backup-note':'Nube: una copia al día, restauras las últimas 30. Archivo: copia completa que guardas tú — déjala fuera de la carpeta del proyecto.',
   'danger-zone':'Zona de Peligro','erase-warn':'Esto borrará todos tus datos permanentemente.',
   'reset-all-btn':'Borrar Todo','del-warn':'⚠ ¿Borrar todo? No se puede deshacer.',
   'yes-delete':'Sí, borrar','cancel':'Cancelar',
@@ -1266,9 +1266,7 @@ function renderApp(){
   // Bottom — note + restore + logout
   const bottomWrap=dv('s8 mt12 mb16');bottomWrap.style.textAlign='center';
 
-  bottomWrap.appendChild(dv('xs dimmer ctr',STATE.lang==='es'?'Los backups se guardan automáticamente cada medianoche. Máximo 30 días.':'Backups are saved automatically at midnight. Up to 30 days.'));
-
-  const backupRow=dv('row gap8');backupRow.style.justifyContent='center';
+  const backupRow=dv('row gap8');backupRow.style.justifyContent='center';backupRow.style.flexWrap='wrap';
 
   const backupNowBtn=bt('btn-ghost btn-sm',STATE.lang==='es'?'💾 Backup ahora':'💾 Backup now',async()=>{
     backupNowBtn.disabled=true;backupNowBtn.textContent='...';
@@ -1312,7 +1310,7 @@ function renderApp(){
      leave the browser holding the only copy. These two buttons give a real
      file that survives all of that.
      ────────────────────────────────────────────────────────────────── */
-  const fileRow=dv('row gap8 mt8');fileRow.style.justifyContent='center';
+  const fileRow=backupRow;
 
   fileRow.appendChild(bt('btn-ghost btn-sm',t('export-btn'),()=>{
     const dump={};
@@ -1337,15 +1335,22 @@ function renderApp(){
       try{incoming=(JSON.parse(dump.st_hist)||[]).length;}catch{alert(t('import-bad'));return;}
       const current=(STATE.history||[]).length;
       if(!confirm(t('import-warn').replace('{n}',current)))return;
+      // A restore must be exact. Writing the file's keys over the existing ones
+      // left anything not present in the file behind, so the result was a blend
+      // of two states rather than the file.
+      try{localStorage.clear();}catch{}
       Object.entries(dump).forEach(([k,v])=>{try{localStorage.setItem(k,v);}catch{}});
+      // The reload right after used to pull from the cloud and merge those days
+      // straight back in, quietly undoing the restore. This flag tells the next
+      // boot that this file is the truth: push it up instead of pulling down.
+      localStorage.setItem('st_restore_pending','1');
       alert(t('import-ok').replace('{n}',incoming));
       location.reload();
     };
     picker.click();
   }));
 
-  bottomWrap.appendChild(fileRow);
-  bottomWrap.appendChild(dv('xs dimmer ctr',t('export-note')));
+  bottomWrap.appendChild(dv('xs dimmer ctr',t('backup-note')));
 
   bottomWrap.appendChild(bt('btn-ghost btn-sm',t('logout'),()=>{S.set(K.AUTH,false);STATE.authed=false;render();}));
   wrap.appendChild(bottomWrap);
@@ -2334,6 +2339,18 @@ initTimezone();loadToday();applyTheme();
 // 3. Push the merged result back (includes any gap days)
 // 4. Render
 (async()=>{
+  // A restore that just happened wins over whatever the cloud is holding —
+  // otherwise the boot pull merges the old cloud days straight back in and the
+  // restore silently undoes itself.
+  const restoring=localStorage.getItem('st_restore_pending')==='1';
+  if(restoring){
+    localStorage.removeItem('st_restore_pending');
+    if(SB.init()){
+      try{await SB.push(STATE.history,STATE.today,STATE.diary,STATE.streakOverrides);}catch(e){}
+    }
+    render();
+    return;
+  }
   if(SB.init()){
     try{
       const remote=await SB.pull();
