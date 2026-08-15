@@ -392,6 +392,7 @@ en:{
   'import-warn':'This REPLACES every bit of data in this browser with the file contents.\n\nCurrent: {n} days logged.\n\nContinue?',
   'import-bad':'That file does not look like a Stoic backup.','import-ok':'✅ Restored: {n} days. Reloading.',
   'export-note':'Download a copy of everything (history + diary). Keep it somewhere outside this project folder.',
+  'pull-warn':'This THROWS AWAY what is in this browser and takes the cloud copy instead.\n\nThis browser: {local} days\nCloud: {cloud} days\n\nIf the cloud number is smaller, you are about to lose days. Continue?',
   'set-streaks':'⚡ Set Streaks','logout':'Logout','dark':'🌙 Dark','light':'☀️ Light',
   'easy':'🌱 Easy','medium':'⚖️ Medium','hard':'💪 Hard',
   'score':'Score','today-lbl':'Today','tasks-lbl':'tasks',
@@ -466,6 +467,7 @@ es:{
   'import-warn':'Esto REEMPLAZA todos los datos de este navegador con los del archivo.\n\nAhorita tienes: {n} días registrados.\n\n¿Continuar?',
   'import-bad':'Ese archivo no parece un respaldo de Stoic.','import-ok':'✅ Restaurado: {n} días. Se recarga la página.',
   'export-note':'Baja una copia de todo (historial + diario). Guárdala fuera de la carpeta del proyecto.',
+  'pull-warn':'Esto TIRA lo que hay en este navegador y se queda con lo de la nube.\n\nEste navegador: {local} días\nNube: {cloud} días\n\nSi el número de la nube es menor, estás a punto de perder días. ¿Continuar?',
   'set-streaks':'⚡ Rachas','logout':'Salir','dark':'🌙 Oscuro','light':'☀️ Claro',
   'easy':'🌱 Fácil','medium':'⚖️ Medio','hard':'💪 Difícil',
   'score':'Puntaje','today-lbl':'Hoy','tasks-lbl':'tareas',
@@ -1032,7 +1034,7 @@ function commitAndRefresh(){commit();render();}  // user action: bump _ts then r
 function renderLogin(){
   const wrap=dv('login-wrap');
   const card=dv('card fi s12');card.style.cssText='max-width:400px;width:100%';
-  card.innerHTML=`<div class="xxxl w8 ac ctr" style="letter-spacing:-.02em">Stoic</div><div class="sm dim ctr mt4">${t('daily-tracker')}</div>`;
+  card.innerHTML=`<div class="xxxl w8 ac ctr" style="letter-spacing:-.02em">🏛️ Stoic</div><div class="sm dim ctr mt4">${t('daily-tracker')}</div>`;
 
   const sbConfigured=!!(window._SUPABASE_URL&&window._SUPABASE_KEY);
   const info=dv('card2 mt12 sm');
@@ -1181,7 +1183,7 @@ function renderApp(){
   const hdr=dv('ctr');hdr.style.padding='20px 0 16px';
   const now=new Date();
   const tz='America/Cancun';
-  hdr.innerHTML=`<div class="xxxl w8 ac" style="letter-spacing:-.02em">Stoic</div>
+  hdr.innerHTML=`<div class="xxxl w8 ac" style="letter-spacing:-.02em">🏛️ Stoic</div>
     <div class="sm dim mt4">${capFirst(now.toLocaleDateString(STATE.lang==='es'?'es-MX':'en-US',{timeZone:tz,weekday:'long',year:'numeric',month:'long',day:'numeric'}))}</div>
     <div class="xs dimmer mt2 mo" id="clk">${now.toLocaleTimeString(STATE.lang==='es'?'es-MX':'en-US',{timeZone:tz,hour:'2-digit',minute:'2-digit',second:'2-digit'})}</div>`;
 
@@ -1213,6 +1215,14 @@ function renderApp(){
   });
   acts.appendChild(diffWrap);
   acts.appendChild(bt('btn-ghost btn-sm',t('lang-btn'),toggleLang));
+  // The sync panel (pull / push / log out) had no way to be opened: nothing in
+  // the app ever set showSyncPanel to true, so the whole panel was dead UI.
+  const syncBtn=bt('btn-ghost btn-sm',cloudOn?(broken?'⚠️':'☁️'):'💾',()=>{
+    STATE.showSyncPanel=!STATE.showSyncPanel;refresh();
+  });
+  syncBtn.title=t('sync-title');
+  if(broken)syncBtn.style.borderColor='var(--cr)';
+  acts.appendChild(syncBtn);
   hdr.appendChild(acts);wrap.appendChild(hdr);
 
 
@@ -2239,9 +2249,14 @@ function renderSyncPanel(){
     const info=dv('sm cg mb8');info.textContent=t('logged-in');card.appendChild(info);
     const row=dv('row gap8');
     row.appendChild(bt('btn-ac btn-sm',t('pull-cloud'),async()=>{
+      // This is a deliberate FORCE pull: it throws local data away and takes the
+      // cloud copy instead. That is destructive enough to require a yes, since
+      // a cloud copy can easily be older than what is in this browser.
       const remote=await SB.pull();
       if(remote){
-        // FORCE pull — Supabase is the truth. Replace local state entirely.
+        const localDays=(STATE.history||[]).length;
+        const cloudDays=(remote.history||[]).length;
+        if(!confirm(t('pull-warn').replace('{local}',localDays).replace('{cloud}',cloudDays)))return;
         if(remote.history&&remote.history.length) STATE.history=remote.history.slice(0,MAX_HIST).sort((a,b)=>b.date.localeCompare(a.date));
         if(remote.today) STATE.today={...STATE.today,...remote.today};
         if(remote.diary) STATE.diary=remote.diary;
@@ -2255,7 +2270,10 @@ function renderSyncPanel(){
       await SB.push(STATE.history,STATE.today,STATE.diary,STATE.streakOverrides);alert('Pushed to cloud!');
     }));
     row.appendChild(bt('btn-ng btn-sm',t('log-out'),()=>{
-      localStorage.removeItem('AUTH_TOKEN');STATE.showSyncPanel=false;refresh();
+      localStorage.removeItem('AUTH_TOKEN');
+      localStorage.removeItem('REFRESH_TOKEN'); // leave no half-session behind
+      SB.token='';SB.status='local';
+      STATE.showSyncPanel=false;refresh();
     }));
     card.appendChild(row);
     return card;
