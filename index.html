@@ -511,6 +511,7 @@ en:{
   'rem-notes-ph':'Note (optional)','rem-edit':'Edit','rem-no-parent':'↳ Not a subtask',
   'rem-has-kids':'This one has subtasks of its own, so it cannot become one. Two levels is the limit.',
   'rem-bad-parent':'That cannot be its parent.','rem-sub-no-rep':'A subtask follows its parent',
+  'rem-part-of':'part of',
   'use-dur':'Use: 5h, 300m, 2h30m or number (minutes)',
   'ej-dur':'ej. 2h30m','indulg-x':'Stimulants ×',
 },
@@ -602,6 +603,7 @@ es:{
   'rem-notes-ph':'Nota (opcional)','rem-edit':'Editar','rem-no-parent':'↳ No es subtarea',
   'rem-has-kids':'Esta ya tiene subtareas, así que no puede volverse una. El límite son 2 niveles.',
   'rem-bad-parent':'Esa no puede ser su tarea padre.','rem-sub-no-rep':'Una subtarea sigue a su padre',
+  'rem-part-of':'parte de',
   'use-dur':'Usa: 5h, 300m, 2h30m o número (minutos)',
   'ej-dur':'ej. 2h30m','indulg-x':'Estimulantes ×',
 }};
@@ -1197,8 +1199,8 @@ function toggleReminder(id){
   const tk=todayKey();
   const on=r.completedOn!==tk;
   setDone(r,tk,on);
-  // Parent carries its children with it, and keeps them on its own date.
-  subtasksOf(r.id).forEach(c=>{setDone(c,tk,on);c.due=r.due;});
+  // Ticking a parent ticks what is under it, but never touches their dates.
+  subtasksOf(r.id).forEach(c=>setDone(c,tk,on));
   savePlanner();
 }
 function addReminder(data){
@@ -1230,12 +1232,12 @@ function updateReminder(id,patch){
       const p=reminders().find(x=>x.id===np);
       if(subtasksOf(r.id).length){delete patch.parent;warn='sub-has-kids';}
       else if(!p||p.id===r.id||p.parent){delete patch.parent;warn='sub-bad-parent';}
-      else{patch.due=p.due;patch.repeat=null;}
+      // Indenting must not move anything. A subtask keeps its own date, the way
+      // dragging one under another in Apple's app leaves its date alone.
     }
   }
   Object.assign(r,patch);
   r._ts=Date.now();
-  if(!r.parent)subtasksOf(r.id).forEach(c=>{c.due=r.due;c._ts=Date.now();});
   savePlanner();
   return{ok:!warn,warn};
 }
@@ -1371,49 +1373,59 @@ function renderPlanner(){
   /* ── the list: three columns so the day fits on one screen ── */
   const tk=todayKey(),list=reminders();
   const open=list.filter(r=>!r.done&&r.completedOn!==tk);
-  // Only parents drive the grouping; subtasks are drawn beneath their own
-  // parent so a pair never gets split across two columns.
-  const tops=arr=>arr.filter(r=>!r.parent);
+  /* Every reminder is filed under its own date, subtasks included — indenting
+     one no longer drags its date to match the parent. So a subtask can land in
+     a different column than its parent: it still draws indented, and names the
+     parent it belongs to so the link is never lost. */
+  function layout(arr){
+    const here=new Set(arr.map(r=>r.id)),out=[];
+    arr.filter(r=>!r.parent).forEach(p=>{
+      out.push({r:p});
+      subtasksOf(p.id).filter(c=>here.has(c.id)).forEach(c=>out.push({r:c,sub:true}));
+    });
+    arr.filter(r=>r.parent&&!here.has(r.parent)).forEach(c=>{
+      const p=reminders().find(x=>x.id===c.parent);
+      out.push({r:c,sub:true,of:p?p.title:''});
+    });
+    return out;
+  }
+  function fillCard(card,arr){
+    if(!arr.length){card.appendChild(dv('xs dimmer ctr','—'));return;}
+    const box=dv('s6');
+    layout(arr).forEach(({r,sub,of})=>{
+      const el_=renderReminderRow(r,tk,of);
+      if(sub){const w=dv('rem-sub');w.appendChild(el_);box.appendChild(w);}
+      else box.appendChild(el_);
+    });
+    card.appendChild(box);
+  }
+  const byPrio=(a,b)=>b.priority-a.priority;
+  const byDate=(a,b)=>a.due.localeCompare(b.due);
   const cols=[
-    [t('rem-overdue-h'),tops(open.filter(r=>r.due<tk)).sort((a,b)=>a.due.localeCompare(b.due)),'cr'],
-    [t('rem-today-h'),tops(open.filter(r=>r.due===tk)).sort((a,b)=>b.priority-a.priority),'ac'],
-    [t('rem-soon-h'),tops(open.filter(r=>r.due>tk)).sort((a,b)=>a.due.localeCompare(b.due)),'dim'],
+    [t('rem-overdue-h'),open.filter(r=>r.due<tk).sort(byDate),'cr'],
+    [t('rem-today-h'),open.filter(r=>r.due===tk).sort(byPrio),'ac'],
+    [t('rem-soon-h'),open.filter(r=>r.due>tk).sort(byDate),'dim'],
   ];
   const grid=dv('g3');
   cols.forEach(([title,items,cls])=>{
     const card=dv('card');
     const h=dv('rowb mb10');
     h.appendChild(sp(`ctit ${cls}`,title));
-    h.appendChild(sp('xs dimmer',String(items.reduce((n,r)=>n+1+subtasksOf(r.id).length,0))));
+    h.appendChild(sp('xs dimmer',String(items.length)));
     card.appendChild(h);
-    if(!items.length){card.appendChild(dv('xs dimmer ctr','—'));}
-    else{
-      const box=dv('s6');
-      items.forEach(r=>{
-        box.appendChild(renderReminderRow(r,tk));
-        subtasksOf(r.id).forEach(c=>{
-          const w=dv('rem-sub');w.appendChild(renderReminderRow(c,tk));box.appendChild(w);
-        });
-      });
-      card.appendChild(box);
-    }
+    fillCard(card,items);
     grid.appendChild(card);
   });
   wrap.appendChild(grid);
 
-  const doneToday=tops(list.filter(r=>r.completedOn===tk));
+  const doneToday=list.filter(r=>r.completedOn===tk);
   if(doneToday.length){
     const card=dv('card mt12');
     const h=dv('rowb mb10');
     h.appendChild(sp('ctit cg',t('rem-done-h')));
-    h.appendChild(sp('xs dimmer',String(list.filter(r=>r.completedOn===tk).length)));
+    h.appendChild(sp('xs dimmer',String(doneToday.length)));
     card.appendChild(h);
-    const box=dv('s6');
-    doneToday.forEach(r=>{
-      box.appendChild(renderReminderRow(r,tk));
-      subtasksOf(r.id).forEach(c=>{const w=dv('rem-sub');w.appendChild(renderReminderRow(c,tk));box.appendChild(w);});
-    });
-    card.appendChild(box);
+    fillCard(card,doneToday);
     wrap.appendChild(card);
   }
 
@@ -1475,7 +1487,7 @@ function renderReminderEditor(r){
   return box;
 }
 
-function renderReminderRow(r,tk){
+function renderReminderRow(r,tk,parentAway){
   const doneToday=r.completedOn===tk;
   const late=!doneToday&&r.due<tk;
   const row=dv('row gap10');
@@ -1504,6 +1516,8 @@ function renderReminderRow(r,tk){
   const meta=[];
   meta.push(late?`<span class="cr w6">${t('rem-was-due')} ${r.due}</span>`:r.due);
   if(r.repeat)meta.push(repeatLabel(r.repeat));
+  // Its parent sits in another column, so say whose it is.
+  if(parentAway)meta.push(`<span class="cp">↳ ${t('rem-part-of')} ${parentAway}</span>`);
   mid.appendChild(dv('xs dimmer mt2',meta.join(' · ')));
 
   // Two levels only, so a subtask cannot spawn its own.
