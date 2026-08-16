@@ -1439,7 +1439,12 @@ function pomoBeep(){
    The week starts on Sunday, matching the calendar in the score tab.
    ═══════════════════════════════════════════════════════════════════════ */
 const GOAL_KINDS=['week','quarter','year'];
-const GOAL_BASE={week:1000,quarter:10000,year:100000};
+/* One base for all three: the length of the period does the ranking on its
+   own. A weekly tops out around 7,000, a quarterly around 92,000, a yearly at
+   365,000 — a real hierarchy without a single goal dwarfing months of daily
+   scoring. Bases of 10,000 and 100,000 put a yearly goal finished in August at
+   13.9 million, which drowned everything else in the app. */
+const GOAL_BASE={week:1000,quarter:1000,year:1000};
 const GOAL_MAX={week:5,quarter:5,year:10};
 
 function periodBounds(kind,dateStr){
@@ -1475,8 +1480,11 @@ function goalsOf(kind){
 function goalPoints(g){
   return GOAL_BASE[g.kind]*daysLeftIn(g.kind,g.doneOn||todayKey());
 }
+/* Recomputed from the completion date rather than read back from what was
+   stored, so changing a base re-values past goals instead of leaving a mix of
+   old and new rates on the total forever. */
 function goalsTotal(){
-  return goals().filter(g=>g.doneOn).reduce((s,g)=>s+(g.points||0),0);
+  return goals().filter(g=>g.doneOn).reduce((s,g)=>s+goalPoints(g),0);
 }
 function addGoal(kind,title){
   if(goalsOf(kind).length>=GOAL_MAX[kind])return false;
@@ -1676,7 +1684,7 @@ function renderGoals(){
       const tt=sp('sm',g.title);
       if(g.doneOn){tt.style.textDecoration='line-through';tt.style.color='var(--t3)';}
       mid.appendChild(tt);
-      if(g.doneOn)mid.appendChild(dv('xs cg mt2',`+${g.points.toLocaleString()} · ${g.doneOn}`));
+      if(g.doneOn)mid.appendChild(dv('xs cg mt2',`+${goalPoints(g).toLocaleString()} · ${g.doneOn}`));
       else if(g.period!==periodBounds(kind,tk).id)mid.appendChild(dv('xs cy mt2',t('goal-carried')));
       row.appendChild(mid);
       row.appendChild(bt('btn-icon','✕',()=>{
@@ -3060,9 +3068,10 @@ function renderRules(){
     <div class="md up ls dimmer w7 mb10">🏆 Metas semanales, trimestrales y anuales</div>
     <div class="s6">
       <div>Estas no pueden generar racha, así que su premio es <span class="ac w6">terminarlas temprano</span>: valen su base × los días que <em>queden</em> del periodo.</div>
-      <div><span class="w6">🗓 Semanal</span> — 1,000 por día restante. Máximo 5. La semana empieza en <strong>domingo</strong>, así que cerrarla el domingo paga ×7 y el sábado ×1.</div>
-      <div><span class="w6">📈 Trimestral</span> — 10,000 por día restante. Máximo 5.</div>
-      <div><span class="w6">🏆 Anual</span> — 100,000 por día restante. Máximo 10.</div>
+      <div>Las tres valen <span class="ac w6">1,000 por día restante</span>. El largo del periodo hace la jerarquía solo: una semanal llega a 7,000, una trimestral a ~92,000 y una anual a 365,000.</div>
+      <div><span class="w6">🗓 Semanal</span> — máximo 5. La semana empieza en <strong>domingo</strong>, así que cerrarla el domingo paga ×7 y el sábado ×1.</div>
+      <div><span class="w6">📈 Trimestral</span> — máximo 5.</div>
+      <div><span class="w6">🏆 Anual</span> — máximo 10. Terminar una en agosto son ~139,000; el 1 de enero serían 365,000.</div>
       <div>Las metas <strong>diarias</strong> son tus banderas 🏁 en los recordatorios. Se recomiendan 3 al día.</div>
       <div>Una meta que no cumpliste <span class="cy w6">se arrastra</span> al periodo siguiente, y ahí paga según los días que queden del periodo <em>nuevo</em>.</div>
       <div>Sus puntos van a tu <span class="ac w6">puntaje total</span>, no al día. Así una meta anual no se vuelve tu "mejor día" para siempre ni descuadra tus promedios.</div>
@@ -3160,9 +3169,10 @@ function renderRules(){
     <div class="md up ls dimmer w7 mb10">🏆 Weekly, quarterly and yearly goals</div>
     <div class="s6">
       <div>These cannot build streaks, so the reward is <span class="ac w6">finishing early</span>: base × the days still <em>left</em> in the period.</div>
-      <div><span class="w6">🗓 Weekly</span> — 1,000 per day left. Up to 5. The week starts on <strong>Sunday</strong>, so closing one on Sunday pays ×7 and Saturday pays ×1.</div>
-      <div><span class="w6">📈 Quarterly</span> — 10,000 per day left. Up to 5.</div>
-      <div><span class="w6">🏆 Yearly</span> — 100,000 per day left. Up to 10.</div>
+      <div>All three pay <span class="ac w6">1,000 per day left</span>. The length of the period does the ranking on its own: a weekly tops out at 7,000, a quarterly around 92,000, a yearly at 365,000.</div>
+      <div><span class="w6">🗓 Weekly</span> — up to 5. The week starts on <strong>Sunday</strong>, so closing one on Sunday pays ×7 and Saturday pays ×1.</div>
+      <div><span class="w6">📈 Quarterly</span> — up to 5.</div>
+      <div><span class="w6">🏆 Yearly</span> — up to 10. Finishing one in August is about 139,000; on 1 January it would be 365,000.</div>
       <div><strong>Daily</strong> goals are your 🏁 flags on reminders. Three a day is the sweet spot.</div>
       <div>A goal you did not finish <span class="cy w6">carries over</span> to the next period, where it pays by what is left of the <em>new</em> one.</div>
       <div>Their points go to your <span class="ac w6">total score</span>, not to the day — so a yearly goal never becomes your "best day" forever or skews your averages.</div>
