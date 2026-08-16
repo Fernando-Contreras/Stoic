@@ -513,6 +513,7 @@ en:{
   'rem-bad-parent':'That cannot be its parent.','rem-sub-no-rep':'A subtask follows its parent',
   'goals-title':'Goals','goal-week':'🗓 Weekly','goal-quarter':'📈 Quarterly','goal-year':'🏆 Yearly',
   'goal-new':'A goal worth chasing','goal-add':'+ Add goal','goal-day':'day left','goal-days':'days left',
+  'goal-earned':'earned from goals',
   'goal-full':'That is the limit for this kind.','goal-carried':'⚠ carried over from last period',
   'goal-note':'Finish early, earn more: base × days still left in the period. These add to your total score, not to the day.',
   'rem-subtasks':'subtasks','rem-collapse':'Hide subtasks','rem-expand':'Show subtasks',
@@ -614,6 +615,7 @@ es:{
   'rem-bad-parent':'Esa no puede ser su tarea padre.','rem-sub-no-rep':'Una subtarea sigue a su padre',
   'goals-title':'Metas','goal-week':'🗓 Semanales','goal-quarter':'📈 Trimestrales','goal-year':'🏆 Anuales',
   'goal-new':'Una meta que valga la pena','goal-add':'+ Agregar meta','goal-day':'día restante','goal-days':'días restantes',
+  'goal-earned':'ganados en metas',
   'goal-full':'Ese es el límite para este tipo.','goal-carried':'⚠ arrastrada del periodo anterior',
   'goal-note':'Termínalas temprano, valen más: base × días que quedan del periodo. Suman a tu puntaje total, no al día.',
   'rem-subtasks':'subtareas','rem-collapse':'Ocultar subtareas','rem-expand':'Ver subtareas',
@@ -1533,6 +1535,27 @@ function renderPlanner(){
   const prog=dv('prog mt10');const pf=dv('prog-f');
   pf.style.cssText=`width:${s.total?Math.round(s.done/s.total*100):0}%;background:var(--ac)`;
   prog.appendChild(pf);sum.appendChild(prog);
+
+  /* The long goals live further down the page, so their standing is repeated
+     here where the day is summarised — otherwise you have to scroll to learn
+     whether this week's goals are still open. */
+  const gstats=dv('row gap6 mt10');
+  GOAL_KINDS.forEach(kind=>{
+    const list=goalsOf(kind);
+    const done=list.filter(g=>g.doneOn).length;
+    const all=done&&done===list.length;
+    const tile=dv('ctr');
+    tile.style.cssText=`flex:1;border:1px solid ${all?'var(--gb)':'var(--b1)'};background:${all?'var(--gd)':'var(--sur2)'};border-radius:10px;padding:8px 4px`;
+    tile.title=t('goal-'+kind).replace(/^\S+\s/,'');
+    const icon={week:'🗓',quarter:'📈',year:'🏆'}[kind];
+    tile.innerHTML=`<div class="sm">${icon}</div>`+
+      `<div class="md mo w7 ${list.length?(all?'cg':'ac'):'dimmer'}">${done}/${list.length}</div>`;
+    gstats.appendChild(tile);
+  });
+  sum.appendChild(gstats);
+  const gt=goalsTotal();
+  if(gt)sum.appendChild(dv('xs cg ctr mt6 w6',`+${gt.toLocaleString()} ${t('goal-earned')}`));
+
   top.appendChild(sum);
   top.appendChild(renderPomoCard());
   wrap.appendChild(top);
