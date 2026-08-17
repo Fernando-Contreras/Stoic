@@ -1908,17 +1908,18 @@ function renderPlanner(){
      A parent is shown when it passes on its own OR still has a subtask that
      does — so a matching subtask is never stranded out of reach — and only
      the subtasks that pass are drawn beneath it. */
-  const F=STATE.tagFilters||[];
-  const passes=r=>(V.scope==='all'||r.due<=tk)&&
-                  (!F.length||tagsOf(r).some(tg=>F.includes(tg)));
-  const openKids=p=>subtasksOf(p.id).filter(c=>!c.done&&c.completedOn!==tk);
-  const shownKids=p=>openKids(p).filter(passes);
-  const inScope=r=>passes(r)||shownKids(r).length>0;
+  // The chosen order applies to subtasks as well, sorted within their parent.
   const order={
     'date-asc':(a,b)=>a.due===b.due?(b.priority-a.priority):a.due.localeCompare(b.due),
     'date-desc':(a,b)=>a.due===b.due?(b.priority-a.priority):b.due.localeCompare(a.due),
     'prio':(a,b)=>b.priority-a.priority||a.due.localeCompare(b.due),
   }[V.sort]||((a,b)=>a.due.localeCompare(b.due));
+  const F=STATE.tagFilters||[];
+  const passes=r=>(V.scope==='all'||r.due<=tk)&&
+                  (!F.length||tagsOf(r).some(tg=>F.includes(tg)));
+  const openKids=p=>subtasksOf(p.id).filter(c=>!c.done&&c.completedOn!==tk);
+  const shownKids=p=>openKids(p).filter(passes).sort(order);
+  const inScope=r=>passes(r)||shownKids(r).length>0;
   const tops=open.filter(r=>!r.parent).filter(inScope).sort(order);
   // Everything the filters are keeping out of sight — subtasks included.
   const shownIds=new Set();
@@ -1949,9 +1950,9 @@ function renderPlanner(){
   // Same rule for what was finished today: the tag filter applies per row here
   // too. Scope is not applied — anything ticked today belongs to today.
   const tagOk=r=>!(STATE.tagFilters||[]).length||tagsOf(r).some(tg=>STATE.tagFilters.includes(tg));
-  const doneKids=p=>subtasksOf(p.id).filter(c=>c.completedOn===tk&&tagOk(c));
+  const doneKids=p=>subtasksOf(p.id).filter(c=>c.completedOn===tk&&tagOk(c)).sort(order);
   const doneTops=list.filter(r=>r.completedOn===tk&&!r.parent)
-                     .filter(r=>tagOk(r)||doneKids(r).length>0);
+                     .filter(r=>tagOk(r)||doneKids(r).length>0).sort(order);
   if(doneTops.length){
     const card=dv('card mt12');
     const h=dv('rowb mb10');
