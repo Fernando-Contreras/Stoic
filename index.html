@@ -1978,11 +1978,18 @@ function renderPlanner(){
                   (!F.length||tagsOf(r).some(tg=>F.includes(tg)));
   const openKids=p=>subtasksOf(p.id).filter(c=>!c.done&&c.completedOn!==tk);
   const shownKids=p=>openKids(p).filter(passes).sort(order);
-  const inScope=r=>passes(r)||shownKids(r).length>0;
-  const tops=open.filter(r=>!r.parent).filter(inScope).sort(order);
+  /* A parent earns its place on its own merit only. It used to be pulled onto
+     the screen by any subtask that passed, so a project dated 2027 sat at the
+     top of a list scoped to today just because one daily step lived under it.
+     Now a subtask whose parent is filtered out simply stands on its own row. */
+  const topRows=open.filter(r=>!r.parent&&passes(r));
+  const topIds=new Set(topRows.map(r=>r.id));
+  const loose=open.filter(r=>r.parent&&passes(r)&&!topIds.has(r.parent));
+  const tops=[...topRows,...loose].sort(order);
+  const kidsFor=r=>topIds.has(r.id)?shownKids(r):[];
   // Everything the filters are keeping out of sight — subtasks included.
   const shownIds=new Set();
-  tops.forEach(p=>{shownIds.add(p.id);shownKids(p).forEach(c=>shownIds.add(c.id));});
+  tops.forEach(p=>{shownIds.add(p.id);kidsFor(p).forEach(c=>shownIds.add(c.id));});
   const hidden=open.length-shownIds.size;
   const card=dv('card');
   const h=dv('rowb mb10');
@@ -2001,7 +2008,7 @@ function renderPlanner(){
   card.appendChild(ctrl);
   if(tagBar)card.appendChild(tagBar);
   if(STATE.showAddForm)card.appendChild(form);
-  fillCard(card,tops,shownKids);
+  fillCard(card,tops,kidsFor);
   if(hidden>0)card.appendChild(dv('xs dimmer ctr mt8',
     `${hidden} ${hidden===1?t('view-hidden-1'):t('view-hidden')}`));
   wrap.appendChild(card);
@@ -2009,9 +2016,16 @@ function renderPlanner(){
   // Same rule for what was finished today: the tag filter applies per row here
   // too. Scope is not applied — anything ticked today belongs to today.
   const tagOk=r=>!(STATE.tagFilters||[]).length||tagsOf(r).some(tg=>STATE.tagFilters.includes(tg));
-  const doneKids=p=>subtasksOf(p.id).filter(c=>c.completedOn===tk&&tagOk(c)).sort(order);
-  const doneTops=list.filter(r=>r.completedOn===tk&&!r.parent)
-                     .filter(r=>tagOk(r)||doneKids(r).length>0).sort(order);
+  // Same rule here: a subtask ticked today shows up even when its parent is
+  // not done, standing on its own row instead of going missing.
+  const doneAll=list.filter(r=>r.completedOn===tk&&tagOk(r));
+  const doneTopIds=new Set(doneAll.filter(r=>!r.parent).map(r=>r.id));
+  const doneKids=p=>doneTopIds.has(p.id)
+    ? subtasksOf(p.id).filter(c=>c.completedOn===tk&&tagOk(c)).sort(order) : [];
+  const doneTops=[
+    ...doneAll.filter(r=>!r.parent),
+    ...doneAll.filter(r=>r.parent&&!doneTopIds.has(r.parent))
+  ].sort(order);
   if(doneTops.length){
     const card=dv('card mt12');
     const h=dv('rowb mb10');
