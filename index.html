@@ -509,6 +509,7 @@ en:{
   'view-today':'Today','view-all':'All',
   'sort-date-asc':'earliest first','sort-date-desc':'latest first','sort-prio':'by priority','sort-alpha':'alphabetical',
   'view-hidden':'later ones hidden','view-hidden-1':'later one hidden',
+  'view-flat':'flat list','view-grouped':'grouped under parents',
   'rep-none':'Does not repeat','rep-day':'Daily','rep-week':'Weekly','rep-month':'Monthly','rep-year':'Yearly',
   'rem-overdue':'overdue','rem-overdue-1':'overdue','rem-overdue-h':'Overdue','rem-open-h':'To do','rem-today-h':'Today','rem-soon-h':'Coming up','rem-done-h':'Done today',
   'rem-was-due':'was due','rem-empty':'Nothing here yet. Add your first reminder above.',
@@ -619,6 +620,7 @@ es:{
   'view-today':'Hoy','view-all':'Todos',
   'sort-date-asc':'más temprano primero','sort-date-desc':'más tarde primero','sort-prio':'por prioridad','sort-alpha':'alfabético',
   'view-hidden':'de más adelante, ocultos','view-hidden-1':'de más adelante, oculto',
+  'view-flat':'lista plana','view-grouped':'agrupadas por madre',
   'rep-none':'No se repite','rep-day':'Diario','rep-week':'Semanal','rep-month':'Mensual','rep-year':'Anual',
   'rem-overdue':'atrasados','rem-overdue-1':'atrasado','rem-overdue-h':'Atrasados','rem-open-h':'Pendientes','rem-today-h':'Hoy','rem-soon-h':'Próximos','rem-done-h':'Hechos hoy',
   'rem-was-due':'era para','rem-empty':'Nada por aquí. Agrega tu primer recordatorio arriba.',
@@ -908,7 +910,7 @@ let STATE={
   showAddForm: false,
   // How the planner list is drawn. Remembered, but purely a view: none of this
   // can change a number that scores.
-  view: S.get('st_view',{scope:'all',sort:'date-asc'}),
+  view: S.get('st_view',{scope:'all',sort:'date-asc',flat:false}),
 };
 
 /* ═══ #1 FIX: loadToday checks for missed days, fills all gaps ═══ */
@@ -1298,14 +1300,19 @@ function advanceDue(due,rep,tk,time){
 function plannerTodayStats(){
   const tk=todayKey();
   let total=0,done=0,overdue=0,flagsTotal=0,flagsDone=0;
+  /* Every reminder is worth exactly one task a day, however many times it
+     comes round inside it. Counting each turn separately pushed an hourly
+     habit done ten times to 10/1 — more numerator than denominator, and a
+     percentage over 100. Doing it once counts it as done; the tally on the
+     row is where the repetitions are recorded. */
   reminders().forEach(r=>{
     const n=doneCount(r,tk);                                  // times ticked today
     const openNow=(!r.done&&r.due&&r.due<=tk)?1:0;            // still pending
-    const contrib=n+openNow;
-    if(!contrib)return;                                       // finished another day
-    total+=contrib;done+=n;
+    if(!n&&!openNow)return;                                   // finished another day
+    total+=1;
+    if(n)done+=1;
     if(openNow&&r.due<tk)overdue++;
-    if(r.flagged){flagsTotal+=contrib;flagsDone+=n;}
+    if(r.flagged){flagsTotal+=1;if(n)flagsDone+=1;}
   });
   return{total,done,overdue,flagsTotal,flagsDone,
     // A day with no flags at all is not an annihilated day — otherwise an
@@ -1927,10 +1934,25 @@ function renderPlanner(){
   ctrl.appendChild(seg([['today',t('view-today')],['all',t('view-all')]],V.scope,v=>{
     V.scope=v;saveView();render();
   }));
-  ctrl.appendChild(seg([['date-asc','📅 ↑'],['date-desc','📅 ↓'],['prio','❗'],['alpha','A→Z']],V.sort,v=>{
-    V.sort=v;saveView();render();
-  }));
-  ctrl.appendChild(sp('xs dimmer',t('sort-'+V.sort)));
+  /* The sort buttons double as a flat/grouped switch. Pressed, the list is
+     strictly sorted and nesting is dropped, so a subtask due sooner sits above
+     the parent it belongs to instead of being dragged down beneath it. Press
+     the active one again and the same order returns with parents back in
+     charge of their subtasks. */
+  const sortSeg=dv('row gap4');
+  sortSeg.style.cssText='border:1px solid var(--b2);border-radius:9px;padding:2px;background:var(--sur2)';
+  [['date-asc','📅 ↑'],['date-desc','📅 ↓'],['prio','❗'],['alpha','A→Z']].forEach(([val,lbl])=>{
+    const on=V.sort===val&&V.flat;
+    const b=bt(on?'btn-ac btn-xs':'btn-xs',lbl,()=>{
+      if(V.sort===val&&V.flat)V.flat=false;
+      else{V.sort=val;V.flat=true;}
+      saveView();render();
+    });
+    if(!on)b.style.cssText='background:none;border:none;color:'+(V.sort===val?'var(--t2)':'var(--t3)');
+    sortSeg.appendChild(b);
+  });
+  ctrl.appendChild(sortSeg);
+  ctrl.appendChild(sp('xs dimmer',t('sort-'+V.sort)+' · '+(V.flat?t('view-flat'):t('view-grouped'))));
 
   const tags=allTags();
   let tagBar=null;
@@ -1957,7 +1979,9 @@ function renderPlanner(){
     const box=dv('s6');
     tops.forEach((p,i)=>{
       const kids=kidsFor(p);
-      box.appendChild(renderReminderRow(p,tk,{prevTop:i>0?tops[i-1].id:null,kids:kids.length}));
+      // In a flat list "the row above" is not a parent candidate, so the
+      // indent arrow is left out rather than nesting things at random.
+      box.appendChild(renderReminderRow(p,tk,{prevTop:V.flat?null:(i>0?tops[i-1].id:null),kids:kids.length}));
       if(kids.length&&!isCollapsed(p.id)){
         kids.forEach(c=>{
           const w=dv('rem-sub');
@@ -1997,11 +2021,18 @@ function renderPlanner(){
      the screen by any subtask that passed, so a project dated 2027 sat at the
      top of a list scoped to today just because one daily step lived under it.
      Now a subtask whose parent is filtered out simply stands on its own row. */
-  const topRows=open.filter(r=>!r.parent&&passes(r));
-  const topIds=new Set(topRows.map(r=>r.id));
-  const loose=open.filter(r=>r.parent&&passes(r)&&!topIds.has(r.parent));
-  const tops=[...topRows,...loose].sort(order);
-  const kidsFor=r=>topIds.has(r.id)?shownKids(r):[];
+  let tops,kidsFor;
+  if(V.flat){
+    // Flat: every row stands alone, judged and placed purely by the sort.
+    tops=open.filter(passes).sort(order);
+    kidsFor=()=>[];
+  }else{
+    const topRows=open.filter(r=>!r.parent&&passes(r));
+    const topIds=new Set(topRows.map(r=>r.id));
+    const loose=open.filter(r=>r.parent&&passes(r)&&!topIds.has(r.parent));
+    tops=[...topRows,...loose].sort(order);
+    kidsFor=r=>topIds.has(r.id)?shownKids(r):[];
+  }
   // Everything the filters are keeping out of sight — subtasks included.
   const shownIds=new Set();
   tops.forEach(p=>{shownIds.add(p.id);kidsFor(p).forEach(c=>shownIds.add(c.id));});
