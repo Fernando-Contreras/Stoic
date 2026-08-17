@@ -1197,6 +1197,14 @@ function reminders(){return STATE.planner.reminders||(STATE.planner.reminders=[]
    dozens of times. */
 function pad2(n){return String(n).padStart(2,'0');}
 function fmtTime(d){return pad2(d.getHours())+':'+pad2(d.getMinutes());}
+/* "Now" on the app's own clock. todayKey() decides the date in America/Cancun,
+   so anything comparing times against it has to use the same wall clock —
+   reading the browser's local time instead put the two an hour apart for most
+   of Mexico, and disagreeing about what day it is breaks hourly repeats near
+   the end of the day. */
+function appNow(){
+  return new Date(new Date().toLocaleString('en-US',{timeZone:'America/Cancun'}));
+}
 
 /* Advancing a repeat. Day-and-longer repeats move to the first date that is
    not already past. Hourly ones move to the first slot still ahead on the
@@ -1205,7 +1213,7 @@ function fmtTime(d){return pad2(d.getHours())+':'+pad2(d.getMinutes());}
 function advanceDue(due,rep,tk,time){
   const unit=rep.unit||'day',every=Math.max(1,rep.every||1);
   if(unit==='hour'){
-    const d=new Date(due+'T'+(time||'00:00')+':00'),now=new Date();
+    const d=new Date(due+'T'+(time||'00:00')+':00'),now=appNow();
     let guard=0;
     do{d.setHours(d.getHours()+every);guard++;}while(d<=now&&guard<1000);
     return{due:isoDate(d),time:fmtTime(d)};
@@ -1398,8 +1406,12 @@ function setDone(r,tk,on){
       const nx=advanceDue(r.due,r.repeat,tk,r.time);
       r.due=nx.due;r.time=nx.time;
       r.done=false;
-      // An hourly one due again later today is pending again, not ticked.
-      if(r.repeat.unit==='hour'&&r.due===tk)r.completedOn=null;
+      /* Something due again in a few hours is never "done for today" — it is
+         simply waiting for its next turn. Leaving it pending is what makes one
+         tick bring it straight back with the next slot, instead of parking it
+         in Done today and vanishing until tomorrow. The tally on the row is
+         what records the ones already finished. */
+      if(r.repeat.unit==='hour')r.completedOn=null;
     }else r.done=true;
   }else{
     r.completedOn=null;r.done=false;
@@ -2327,7 +2339,10 @@ function renderReminderRow(r,tk,opts){
   const meta=[];
   // A subtask sits in its parent's column but keeps its own date, so the date
   // is coloured to say where it really falls: red overdue, amber due today.
-  const dueCls=late?'cr w6':(r.due===tk?'ac w6':'');
+  // A slot due later today is not late; it turns red only once its hour passes.
+  const timePassed=!doneToday&&r.time&&r.due===tk&&
+                   (r.due+'T'+r.time)<(tk+'T'+fmtTime(appNow()));
+  const dueCls=late?'cr w6':(timePassed?'cr w6':(r.due===tk?'ac w6':''));
   meta.push(`<span class="${dueCls}">${late?t('rem-was-due')+' ':''}${r.due}${r.time?' · 🕐 '+r.time:''}</span>`);
   if(r.repeat)meta.push(repeatLabel(r.repeat));
   // Several times a day means the tally matters more than a tick.
