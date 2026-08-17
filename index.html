@@ -1386,9 +1386,11 @@ function toggleReminder(id){
   const r=reminders().find(x=>x.id===id);if(!r)return;
   const tk=todayKey();
   const on=r.completedOn!==tk;
+  // A parent is ticked on its own. It used to carry its subtasks with it,
+  // which breaks the way this is actually used: the parent is a bonus task in
+  // its own right — "finish the oldest thing under here" — and its subtasks
+  // repeat daily on their own schedule. Closing one must not close the rest.
   setDone(r,tk,on);
-  // Ticking a parent ticks what is under it, but never touches their dates.
-  subtasksOf(r.id).forEach(c=>setDone(c,tk,on));
   savePlanner();
 }
 function addReminder(data){
@@ -3421,9 +3423,9 @@ function renderRules(){
       <div>Escribe <span class="ac w6">0</span> en la meta para devolverle el control a Plan de inmediato.</div>
       <div>La app no te deja subreportar: tu meta nunca puede ser menor que las tareas que realmente tienes hoy, y las completadas nunca pasan de la meta.</div>
       <div><span class="cr w6">Los atrasados sí cuentan.</span> Un recordatorio que no completaste conserva su fecha original y sigue sumando a tu meta de hoy, igual que en Apple Reminders.</div>
-      <div>Ponles <span class="cp w6">etiquetas</span> (las que tú inventes) y <span class="cp w6">subtareas</span> en 2 niveles. Palomear el padre palomea sus subtareas.</div>
+      <div>Ponles <span class="cp w6">etiquetas</span> (las que tú inventes) y <span class="cp w6">subtareas</span> en 2 niveles. Cada una se paloma por su cuenta, así la tarea madre puede ser una tarea bonus en sí misma.</div>
       <div>Las <span class="ac w6">repeticiones</span> siguen su propio ritmo: una tarea cada 5 días que completas tarde vuelve en su fecha, no 5 días después de que la palomeaste.</div>
-      <div>Un día <strong>sin ninguna bandera</strong> no cuenta como Metas Exterminadas — si no, un día que ni planeaste te regalaría los puntos.</div>
+      <div>Un día <strong>sin ninguna bandera</strong> no cuenta como Metas Exterminadas.</div>
       <div>El <span class="ac w6">🍅 pomodoro</span> vive en Plan. 1 minuto enfocado = 1 punto, los descansos no pagan, y cada 25 min enfocados cuenta como un pomodoro (50 min = 2). El timer <strong>solo suma</strong> a Puntaje: nunca te baja lo que pusiste a mano.</div>
     </div>
   </div>
@@ -3433,7 +3435,7 @@ function renderRules(){
     <div class="s6">
       <div>Estas no pueden generar racha, así que su premio es <span class="ac w6">terminarlas temprano</span>: valen su base × los días que <em>queden</em> del periodo.</div>
       <div>Las tres valen <span class="ac w6">1,000 por día restante</span>. El largo del periodo hace la jerarquía solo: una semanal llega a 7,000, una trimestral a ~92,000 y una anual a 365,000.</div>
-      <div><span class="w6">🗓 Semanal</span> — máximo 5. La semana empieza en <strong>domingo</strong>, así que cerrarla el domingo paga ×7 y el sábado ×1.</div>
+      <div><span class="w6">📅 Semanal</span> — máximo 5. La semana empieza en <strong>domingo</strong>, así que cerrarla el domingo paga ×7 y el sábado ×1.</div>
       <div><span class="w6">📈 Trimestral</span> — máximo 5.</div>
       <div><span class="w6">🏆 Anual</span> — máximo 10. Terminar una en agosto son ~139,000; el 1 de enero serían 365,000.</div>
       <div>Las metas <strong>diarias</strong> son tus banderas 🏁 en los recordatorios. Se recomiendan 3 al día.</div>
@@ -3523,9 +3525,9 @@ function renderRules(){
       <div>Type <span class="ac w6">0</span> in the target to hand control back to Plan straight away.</div>
       <div>The app will not let you undercount: your target can never be lower than the tasks you actually have today, and completed can never exceed the target.</div>
       <div><span class="cr w6">Overdue still counts.</span> A reminder you did not finish keeps its original date and goes on adding to today's target, just like Apple Reminders.</div>
-      <div>Give them <span class="cp w6">tags</span> (invent your own) and <span class="cp w6">subtasks</span>, two levels deep. Ticking a parent ticks everything under it.</div>
+      <div>Give them <span class="cp w6">tags</span> (invent your own) and <span class="cp w6">subtasks</span>, two levels deep. Each is ticked on its own, so a parent can be a bonus task in its own right.</div>
       <div><span class="ac w6">Repeats</span> keep their own rhythm: a task every 5 days completed late comes back on its date, not 5 days after you ticked it.</div>
-      <div>A day with <strong>no flags at all</strong> does not count as Goals Annihilated — otherwise a day you never planned would hand you the points.</div>
+      <div>A day with <strong>no flags at all</strong> does not count as Goals Annihilated.</div>
       <div>The <span class="ac w6">🍅 pomodoro</span> lives in Plan. One focused minute is one point, breaks pay nothing, and every 25 focused minutes counts as one pomodoro (50 min = 2). The timer <strong>only ever adds</strong> to Score: it can never reduce a count you typed by hand.</div>
     </div>
   </div>
@@ -3535,7 +3537,7 @@ function renderRules(){
     <div class="s6">
       <div>These cannot build streaks, so the reward is <span class="ac w6">finishing early</span>: base × the days still <em>left</em> in the period.</div>
       <div>All three pay <span class="ac w6">1,000 per day left</span>. The length of the period does the ranking on its own: a weekly tops out at 7,000, a quarterly around 92,000, a yearly at 365,000.</div>
-      <div><span class="w6">🗓 Weekly</span> — up to 5. The week starts on <strong>Sunday</strong>, so closing one on Sunday pays ×7 and Saturday pays ×1.</div>
+      <div><span class="w6">📅 Weekly</span> — up to 5. The week starts on <strong>Sunday</strong>, so closing one on Sunday pays ×7 and Saturday pays ×1.</div>
       <div><span class="w6">📈 Quarterly</span> — up to 5.</div>
       <div><span class="w6">🏆 Yearly</span> — up to 10. Finishing one in August is about 139,000; on 1 January it would be 365,000.</div>
       <div><strong>Daily</strong> goals are your 🏁 flags on reminders. Three a day is the sweet spot.</div>
