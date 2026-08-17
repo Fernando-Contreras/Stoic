@@ -504,7 +504,7 @@ en:{
   'rem-prio':'Priority','rem-flag':'Goal of the day','rem-every':'Every',
   'rem-time':'Time (optional)','rep-hour':'Hourly',
   'rep-none':'Does not repeat','rep-day':'Daily','rep-week':'Weekly','rep-month':'Monthly','rep-year':'Yearly',
-  'rem-overdue':'overdue','rem-overdue-1':'overdue','rem-overdue-h':'Overdue','rem-today-h':'Today','rem-soon-h':'Coming up','rem-done-h':'Done today',
+  'rem-overdue':'overdue','rem-overdue-1':'overdue','rem-overdue-h':'Overdue','rem-open-h':'To do','rem-today-h':'Today','rem-soon-h':'Coming up','rem-done-h':'Done today',
   'rem-was-due':'was due','rem-empty':'Nothing here yet. Add your first reminder above.',
   'rem-del-warn':'Delete "{t}"?','rem-del-warn-kids':'Delete "{t}" and its {n} subtask(s)?',
   'rem-tag-ph':'New tag (work, home, gym…)','rem-filter':'Filter by tag','rem-filter-clear':'clear',
@@ -608,7 +608,7 @@ es:{
   'rem-prio':'Prioridad','rem-flag':'Meta del día','rem-every':'Cada',
   'rem-time':'Hora (opcional)','rep-hour':'Cada hora',
   'rep-none':'No se repite','rep-day':'Diario','rep-week':'Semanal','rep-month':'Mensual','rep-year':'Anual',
-  'rem-overdue':'atrasados','rem-overdue-1':'atrasado','rem-overdue-h':'Atrasados','rem-today-h':'Hoy','rem-soon-h':'Próximos','rem-done-h':'Hechos hoy',
+  'rem-overdue':'atrasados','rem-overdue-1':'atrasado','rem-overdue-h':'Atrasados','rem-open-h':'Pendientes','rem-today-h':'Hoy','rem-soon-h':'Próximos','rem-done-h':'Hechos hoy',
   'rem-was-due':'era para','rem-empty':'Nada por aquí. Agrega tu primer recordatorio arriba.',
   'rem-del-warn':'¿Borrar "{t}"?','rem-del-warn-kids':'¿Borrar "{t}" y sus {n} subtarea(s)?',
   'rem-tag-ph':'Etiqueta nueva (trabajo, casa, gym…)','rem-filter':'Filtrar por etiqueta','rem-filter-clear':'limpiar',
@@ -1773,25 +1773,23 @@ function renderPlanner(){
     });
     card.appendChild(box);
   }
-  const byPrio=(a,b)=>b.priority-a.priority;
-  const byDate=(a,b)=>a.due.localeCompare(b.due);
-  const tops=open.filter(r=>!r.parent);
-  const cols=[
-    [t('rem-overdue-h'),tops.filter(r=>r.due<tk).sort(byDate),'cr'],
-    [t('rem-today-h'),tops.filter(r=>r.due===tk).sort(byPrio),'ac'],
-    [t('rem-soon-h'),tops.filter(r=>r.due>tk).sort(byDate),'dim'],
-  ];
-  const grid=dv('g3');
-  cols.forEach(([title,items,cls])=>{
-    const card=dv('card');
-    const h=dv('rowb mb10');
-    h.appendChild(sp(`ctit ${cls}`,title));
-    h.appendChild(sp('xs dimmer',String(items.reduce((n,r)=>n+1+subtasksOf(r.id).length,0))));
-    card.appendChild(h);
-    fillCard(card,items);
-    grid.appendChild(card);
-  });
-  wrap.appendChild(grid);
+  /* One list rather than three columns. The date on each row already says
+     where it falls — red overdue, amber today — so splitting them apart only
+     scattered the day across three places. Oldest first, and within the same
+     date the higher priority leads. */
+  const tops=open.filter(r=>!r.parent).sort((a,b)=>
+    a.due===b.due?(b.priority-a.priority):a.due.localeCompare(b.due));
+  const card=dv('card');
+  const h=dv('rowb mb10');
+  h.appendChild(sp('ctit',t('rem-open-h')));
+  const nOver=tops.filter(r=>r.due<tk).length;
+  const cnt=dv('row gap8');
+  if(nOver)cnt.appendChild(sp('xs cr w6',`${nOver} ${nOver===1?t('rem-overdue-1'):t('rem-overdue')}`));
+  cnt.appendChild(sp('xs dimmer',String(tops.reduce((n,r)=>n+1+subtasksOf(r.id).length,0))));
+  h.appendChild(cnt);
+  card.appendChild(h);
+  fillCard(card,tops);
+  wrap.appendChild(card);
 
   const doneTops=list.filter(r=>r.completedOn===tk&&!r.parent).filter(matches);
   if(doneTops.length){
