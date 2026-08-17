@@ -897,7 +897,10 @@ let STATE={
     minutesToday:0,day:''
   }),
   editingRem: null, // which reminder has its editor open (view-only, never saved)
-  tagFilter: null,
+  // Several tags can be active at once; a reminder shows if it carries ANY of
+  // them. Requiring all of them would usually leave the list empty, which
+  // reads as broken rather than as a filter doing its job.
+  tagFilters: [],
   showAddForm: false,
   // How the planner list is drawn. Remembered, but purely a view: none of this
   // can change a number that scores.
@@ -1229,14 +1232,30 @@ function advanceDue(due,rep,tk,time){
     do{cur=next(cur);guard++;}while(cur<today&&guard<400);
     return{due:isoDate(cur),time:time||''};
   }
+  /* Monthly and yearly steps are clamped to the end of the target month.
+     Plain date arithmetic overflows instead: 31 August plus a month lands on
+     1 October, skipping September entirely, and 31 January lands on 3 March,
+     skipping February. The intended day of the month is remembered, so the
+     31st gives 30 September and then 31 October rather than drifting down to
+     the 30th forever — and asking for the 31st is exactly how you say "the
+     last day of the month". */
+  const dom=rep.dom||new Date(due+'T12:00:00').getDate();
+  const daysInMonth=(y,m)=>new Date(y,m+1,0).getDate();
+  const stepMonths=(dt,months)=>{
+    const tm=dt.getMonth()+months;
+    const ty=dt.getFullYear()+Math.floor(tm/12);
+    const tmm=((tm%12)+12)%12;
+    return new Date(ty,tmm,Math.min(dom,daysInMonth(ty,tmm)),12,0,0);
+  };
+  let cur=d;
   do{
-    if(unit==='day')d.setDate(d.getDate()+every);
-    else if(unit==='week')d.setDate(d.getDate()+7*every);
-    else if(unit==='month')d.setMonth(d.getMonth()+every);
-    else if(unit==='year')d.setFullYear(d.getFullYear()+every);
+    if(unit==='day')cur.setDate(cur.getDate()+every);
+    else if(unit==='week')cur.setDate(cur.getDate()+7*every);
+    else if(unit==='month')cur=stepMonths(cur,every);
+    else if(unit==='year')cur=stepMonths(cur,12*every);
     guard++;
-  }while(d<today&&guard<1000);
-  return{due:isoDate(d),time:time||''};
+  }while(cur<today&&guard<1000);
+  return{due:isoDate(cur),time:time||''};
 }
 
 /* What tab 2 sees. An unfinished reminder keeps its original date and keeps
@@ -1295,6 +1314,11 @@ function allTags(){
   return [...set].sort((a,b)=>a.localeCompare(b));
 }
 function hasTag(r,tg){return tagsOf(r).includes(tg);}
+function toggleTagFilter(tg){
+  const f=STATE.tagFilters||(STATE.tagFilters=[]);
+  const i=f.indexOf(tg);
+  if(i>=0)f.splice(i,1); else f.push(tg);
+}
 
 /* A tag box: type a new one, or click one you already use. Used by both the
    create form and the editor so they never drift apart. */
@@ -1799,7 +1823,11 @@ function renderPlanner(){
     addReminder({title,notes:noi.value,due:di.value||todayKey(),time:hi.value,priority:parseInt(pi.value)||0,
       flagged:fc.checked,tags:picker.get(),
       repeat:ri.value?{unit:ri.value,every:Math.max(1,parseInt(ni.value)||1),
-        ...(ri.value==='week'&&wd.get().length?{days:wd.get()}:{})}:null});
+        ...(ri.value==='week'&&wd.get().length?{days:wd.get()}:{}),
+        // Remember which day of the month was meant, so clamping short months
+        // never drags the date down permanently.
+        ...(ri.value==='month'||ri.value==='year'
+            ?{dom:new Date((di.value||todayKey())+'T12:00:00').getDate()}:{})}:null});
     render();
   }
   ti.onkeydown=e=>{if(e.key==='Enter')doAdd();};
@@ -1839,12 +1867,12 @@ function renderPlanner(){
     tagBar=dv('row gap6 mb10');tagBar.style.flexWrap='wrap';tagBar.style.alignItems='center';
     tagBar.appendChild(sp('xs dimmer up ls',t('rem-filter')));
     tags.forEach(tg=>{
-      const on=STATE.tagFilter===tg;
-      const c=bt('tagchip',tg,()=>{STATE.tagFilter=on?null:tg;render();});
+      const on=(STATE.tagFilters||[]).includes(tg);
+      const c=bt('tagchip',tg,()=>{toggleTagFilter(tg);render();});
       c.style.cssText+=';cursor:pointer'+(on?';outline:2px solid var(--ac)':';opacity:.55');
       tagBar.appendChild(c);
     });
-    if(STATE.tagFilter)tagBar.appendChild(bt('btn-icon xs','✕ '+t('rem-filter-clear'),()=>{STATE.tagFilter=null;render();}));
+    if((STATE.tagFilters||[]).length)tagBar.appendChild(bt('btn-icon xs','✕ '+t('rem-filter-clear'),()=>{STATE.tagFilters=[];render();}));
   }
   const open=list.filter(r=>!r.done&&r.completedOn!==tk);
   /* A subtask is drawn under its own parent, always — a column is chosen by the
@@ -1880,8 +1908,9 @@ function renderPlanner(){
      A parent is shown when it passes on its own OR still has a subtask that
      does — so a matching subtask is never stranded out of reach — and only
      the subtasks that pass are drawn beneath it. */
+  const F=STATE.tagFilters||[];
   const passes=r=>(V.scope==='all'||r.due<=tk)&&
-                  (!STATE.tagFilter||hasTag(r,STATE.tagFilter));
+                  (!F.length||tagsOf(r).some(tg=>F.includes(tg)));
   const openKids=p=>subtasksOf(p.id).filter(c=>!c.done&&c.completedOn!==tk);
   const shownKids=p=>openKids(p).filter(passes);
   const inScope=r=>passes(r)||shownKids(r).length>0;
@@ -1919,7 +1948,7 @@ function renderPlanner(){
 
   // Same rule for what was finished today: the tag filter applies per row here
   // too. Scope is not applied — anything ticked today belongs to today.
-  const tagOk=r=>!STATE.tagFilter||hasTag(r,STATE.tagFilter);
+  const tagOk=r=>!(STATE.tagFilters||[]).length||tagsOf(r).some(tg=>STATE.tagFilters.includes(tg));
   const doneKids=p=>subtasksOf(p.id).filter(c=>c.completedOn===tk&&tagOk(c));
   const doneTops=list.filter(r=>r.completedOn===tk&&!r.parent)
                      .filter(r=>tagOk(r)||doneKids(r).length>0);
@@ -2136,7 +2165,11 @@ function renderReminderEditor(r){
       title:ti.value.trim(),notes:no.value.replace(/\s+$/,''),tags:picker.get(),
       due:di.value||r.due,time:hi.value,priority:parseInt(pi.value)||0,flagged:fc.checked,
       repeat:ri.value?{unit:ri.value,every:Math.max(1,parseInt(ni.value)||1),
-        ...(ri.value==='week'&&wd.get().length?{days:wd.get()}:{})}:null
+        ...(ri.value==='week'&&wd.get().length?{days:wd.get()}:{}),
+        // Remember which day of the month was meant, so clamping short months
+        // never drags the date down permanently.
+        ...(ri.value==='month'||ri.value==='year'
+            ?{dom:new Date((di.value||r.due)+'T12:00:00').getDate()}:{})}:null
     });
     if(!res.ok){err.textContent=res.warn==='sub-has-kids'?t('rem-has-kids'):t('rem-bad-parent');return;}
     STATE.editingRem=null;render();
@@ -2198,7 +2231,7 @@ function renderReminderRow(r,tk,opts){
 
   tagsOf(r).forEach(tg=>{
     // Clicking a tag filters the board to it — the grouped view, one tap away.
-    const c=bt('tagchip',tg,e=>{e.stopPropagation();STATE.tagFilter=STATE.tagFilter===tg?null:tg;render();});
+    const c=bt('tagchip',tg,e=>{e.stopPropagation();toggleTagFilter(tg);render();});
     c.style.cssText+=';margin-left:2px;cursor:pointer';
     titleLine.appendChild(c);
   });
