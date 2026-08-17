@@ -1372,7 +1372,9 @@ function addReminder(data){
   const p=parent?reminders().find(x=>x.id===parent):null;
   reminders().unshift({
     id:uid(),title:data.title,notes:(data.notes||'').trim(),
-    due:p?p.due:(data.due||todayKey()),
+    // A date given wins; a subtask created without one starts on its parent's
+    // day as a convenience, never as a rule it cannot escape.
+    due:data.due||(p?p.due:todayKey()),
     time:data.time||'',
     priority:data.priority||0,flagged:!!data.flagged,
     // A subtask starts in its parent's groups unless it is given its own.
@@ -1844,17 +1846,18 @@ function renderPlanner(){
     });
     if(STATE.tagFilter)tagBar.appendChild(bt('btn-icon xs','✕ '+t('rem-filter-clear'),()=>{STATE.tagFilter=null;render();}));
   }
-  const matches=r=>!STATE.tagFilter||hasTag(r,STATE.tagFilter)||subtasksOf(r.id).some(c=>hasTag(c,STATE.tagFilter));
-  const open=list.filter(r=>!r.done&&r.completedOn!==tk).filter(matches);
+  const open=list.filter(r=>!r.done&&r.completedOn!==tk);
   /* A subtask is drawn under its own parent, always — a column is chosen by the
      parent's date, and the subtask keeps and shows its own. Nesting is
      structure; the date it is due is written on the row and coloured when it is
      overdue, so nothing has to be spelled out in words. */
-  function fillCard(card,tops){
+  // kidsFor decides which subtasks a row is allowed to show; the filters run
+  // through it so nothing can ride in on its parent's ticket.
+  function fillCard(card,tops,kidsFor){
     if(!tops.length){card.appendChild(dv('xs dimmer ctr','—'));return;}
     const box=dv('s6');
     tops.forEach((p,i)=>{
-      const kids=subtasksOf(p.id);
+      const kids=kidsFor(p);
       box.appendChild(renderReminderRow(p,tk,{prevTop:i>0?tops[i-1].id:null,kids:kids.length}));
       if(kids.length&&!isCollapsed(p.id)){
         kids.forEach(c=>{
@@ -1870,23 +1873,35 @@ function renderPlanner(){
      where it falls — red overdue, amber today — so splitting them apart only
      scattered the day across three places. Oldest first, and within the same
      date the higher priority leads. */
-  // "Today" hides anything dated later so it cannot steal focus — those tasks
-  // are only out of sight, never out of the list or out of the counts.
-  const inScope=r=>V.scope==='all'||r.due<=tk||subtasksOf(r.id).some(c=>c.due<=tk);
+  /* Filters are judged per reminder, subtasks included. A parent that passes
+     used to drag its whole brood on screen regardless of their own dates and
+     tags, so a December dentist appointment showed up under "Today" filtered
+     to "urgent" purely because its parent qualified.
+     A parent is shown when it passes on its own OR still has a subtask that
+     does — so a matching subtask is never stranded out of reach — and only
+     the subtasks that pass are drawn beneath it. */
+  const passes=r=>(V.scope==='all'||r.due<=tk)&&
+                  (!STATE.tagFilter||hasTag(r,STATE.tagFilter));
+  const openKids=p=>subtasksOf(p.id).filter(c=>!c.done&&c.completedOn!==tk);
+  const shownKids=p=>openKids(p).filter(passes);
+  const inScope=r=>passes(r)||shownKids(r).length>0;
   const order={
     'date-asc':(a,b)=>a.due===b.due?(b.priority-a.priority):a.due.localeCompare(b.due),
     'date-desc':(a,b)=>a.due===b.due?(b.priority-a.priority):b.due.localeCompare(a.due),
     'prio':(a,b)=>b.priority-a.priority||a.due.localeCompare(b.due),
   }[V.sort]||((a,b)=>a.due.localeCompare(b.due));
   const tops=open.filter(r=>!r.parent).filter(inScope).sort(order);
-  const hidden=open.filter(r=>!r.parent).length-tops.length;
+  // Everything the filters are keeping out of sight — subtasks included.
+  const shownIds=new Set();
+  tops.forEach(p=>{shownIds.add(p.id);shownKids(p).forEach(c=>shownIds.add(c.id));});
+  const hidden=open.length-shownIds.size;
   const card=dv('card');
   const h=dv('rowb mb10');
   const left=dv('row gap8');
   left.appendChild(sp('ctit',t('rem-open-h')));
   const nOver=tops.filter(r=>r.due<tk).length;
   if(nOver)left.appendChild(sp('xs cr w6',`${nOver} ${nOver===1?t('rem-overdue-1'):t('rem-overdue')}`));
-  left.appendChild(sp('xs dimmer',String(tops.reduce((n,r)=>n+1+subtasksOf(r.id).length,0))));
+  left.appendChild(sp('xs dimmer',String(shownIds.size)));
   h.appendChild(left);
   const addBtn=bt(STATE.showAddForm?'btn-ghost btn-sm':'btn-ac btn-sm',STATE.showAddForm?'✕':'＋',()=>{
     STATE.showAddForm=!STATE.showAddForm;render();
@@ -1897,19 +1912,26 @@ function renderPlanner(){
   card.appendChild(ctrl);
   if(tagBar)card.appendChild(tagBar);
   if(STATE.showAddForm)card.appendChild(form);
-  fillCard(card,tops);
+  fillCard(card,tops,shownKids);
   if(hidden>0)card.appendChild(dv('xs dimmer ctr mt8',
     `${hidden} ${hidden===1?t('view-hidden-1'):t('view-hidden')}`));
   wrap.appendChild(card);
 
-  const doneTops=list.filter(r=>r.completedOn===tk&&!r.parent).filter(matches);
+  // Same rule for what was finished today: the tag filter applies per row here
+  // too. Scope is not applied — anything ticked today belongs to today.
+  const tagOk=r=>!STATE.tagFilter||hasTag(r,STATE.tagFilter);
+  const doneKids=p=>subtasksOf(p.id).filter(c=>c.completedOn===tk&&tagOk(c));
+  const doneTops=list.filter(r=>r.completedOn===tk&&!r.parent)
+                     .filter(r=>tagOk(r)||doneKids(r).length>0);
   if(doneTops.length){
     const card=dv('card mt12');
     const h=dv('rowb mb10');
+    const shown=new Set();
+    doneTops.forEach(p=>{shown.add(p.id);doneKids(p).forEach(c=>shown.add(c.id));});
     h.appendChild(sp('ctit cg',t('rem-done-h')));
-    h.appendChild(sp('xs dimmer',String(list.filter(r=>r.completedOn===tk).length)));
+    h.appendChild(sp('xs dimmer',String(shown.size)));
     card.appendChild(h);
-    fillCard(card,doneTops);
+    fillCard(card,doneTops,doneKids);
     wrap.appendChild(card);
   }
 
