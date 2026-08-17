@@ -503,6 +503,10 @@ en:{
   'rem-add':'+ Add reminder','rem-need-title':'Give it a name first',
   'rem-prio':'Priority','rem-flag':'Goal of the day','rem-every':'Every',
   'rem-time':'Time (optional)','rep-hour':'Hourly',
+  'weekdays':'Sun,Mon,Tue,Wed,Thu,Fri,Sat',
+  'view-today':'Today','view-all':'All',
+  'sort-date-asc':'earliest first','sort-date-desc':'latest first','sort-prio':'by priority',
+  'view-hidden':'later ones hidden','view-hidden-1':'later one hidden',
   'rep-none':'Does not repeat','rep-day':'Daily','rep-week':'Weekly','rep-month':'Monthly','rep-year':'Yearly',
   'rem-overdue':'overdue','rem-overdue-1':'overdue','rem-overdue-h':'Overdue','rem-open-h':'To do','rem-today-h':'Today','rem-soon-h':'Coming up','rem-done-h':'Done today',
   'rem-was-due':'was due','rem-empty':'Nothing here yet. Add your first reminder above.',
@@ -607,6 +611,10 @@ es:{
   'rem-add':'+ Agregar recordatorio','rem-need-title':'Ponle nombre primero',
   'rem-prio':'Prioridad','rem-flag':'Meta del día','rem-every':'Cada',
   'rem-time':'Hora (opcional)','rep-hour':'Cada hora',
+  'weekdays':'Dom,Lun,Mar,Mié,Jue,Vie,Sáb',
+  'view-today':'Hoy','view-all':'Todos',
+  'sort-date-asc':'más temprano primero','sort-date-desc':'más tarde primero','sort-prio':'por prioridad',
+  'view-hidden':'de más adelante, ocultos','view-hidden-1':'de más adelante, oculto',
   'rep-none':'No se repite','rep-day':'Diario','rep-week':'Semanal','rep-month':'Mensual','rep-year':'Anual',
   'rem-overdue':'atrasados','rem-overdue-1':'atrasado','rem-overdue-h':'Atrasados','rem-open-h':'Pendientes','rem-today-h':'Hoy','rem-soon-h':'Próximos','rem-done-h':'Hechos hoy',
   'rem-was-due':'era para','rem-empty':'Nada por aquí. Agrega tu primer recordatorio arriba.',
@@ -889,6 +897,10 @@ let STATE={
     minutesToday:0,day:''
   }),
   editingRem: null, // which reminder has its editor open (view-only, never saved)
+  tagFilter: null,
+  // How the planner list is drawn. Remembered, but purely a view: none of this
+  // can change a number that scores.
+  view: S.get('st_view',{scope:'all',sort:'date-asc'}),
 };
 
 /* ═══ #1 FIX: loadToday checks for missed days, fills all gaps ═══ */
@@ -1162,6 +1174,7 @@ function sbadge(status){const lb={red:t('Red'),yellow:t('Yellow'),green:t('Green
    ═══════════════════════════════════════════════════════════════════════ */
 function isoDate(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
 
+function saveView(){S.set('st_view',STATE.view);}
 function savePlanner(){
   STATE.planner._ts=Date.now();
   S.set(K.PLANNER,STATE.planner);
@@ -1191,6 +1204,14 @@ function advanceDue(due,rep,tk,time){
   }
   const d=new Date(due+'T12:00:00'),today=new Date(tk+'T12:00:00');
   let guard=0;
+  // A weekly repeat pinned to particular weekdays walks forward a day at a
+  // time to the next one on the list, so "Tuesdays and Fridays" lands on both
+  // rather than on a fixed stride from whenever it was last done.
+  if(unit==='week'&&Array.isArray(rep.days)&&rep.days.length){
+    do{d.setDate(d.getDate()+1);guard++;}
+    while(guard<400&&(!rep.days.includes(d.getDay())||d<today));
+    return{due:isoDate(d),time:time||''};
+  }
   do{
     if(unit==='day')d.setDate(d.getDate()+every);
     else if(unit==='week')d.setDate(d.getDate()+7*every);
@@ -1612,10 +1633,36 @@ function deleteGoal(id){
 
 const PRIO=[['0','—'],['1','!'],['2','!!'],['3','!!!']];
 function prioColor(p){return p>=3?'var(--cr)':p==2?'var(--cy)':p==1?'var(--cp)':'var(--t3)';}
+function weekdayNames(){return t('weekdays').split(',');}
 function repeatLabel(rep){
   if(!rep)return'';
+  if(rep.unit==='week'&&Array.isArray(rep.days)&&rep.days.length){
+    const n=weekdayNames();
+    return '🔁 '+rep.days.slice().sort().map(i=>n[i]).join(', ');
+  }
   const u={hour:t('rep-hour'),day:t('rep-day'),week:t('rep-week'),month:t('rep-month'),year:t('rep-year')}[rep.unit]||rep.unit;
   return rep.every>1?`🔁 ${rep.every} ${u}`:`🔁 ${u}`;
+}
+/* Seven toggles for a weekly repeat. Empty means the plain "every N weeks"
+   stride; picking days switches it to those weekdays. */
+function weekdayPicker(initial){
+  const sel=new Set(initial||[]);
+  const wrap=dv('row gap4 mt6');wrap.style.flexWrap='wrap';
+  const names=weekdayNames();
+  names.forEach((nm,i)=>{
+    const b=bt('btn-xs',nm,()=>{
+      sel.has(i)?sel.delete(i):sel.add(i);
+      b.className=sel.has(i)?'btn-ac btn-xs':'btn-xs';
+      if(!sel.has(i))b.style.cssText='background:none;border:1px solid var(--b2);color:var(--t3)';
+      else b.style.cssText='';
+      b.style.minWidth='34px';
+    });
+    b.className=sel.has(i)?'btn-ac btn-xs':'btn-xs';
+    if(!sel.has(i))b.style.cssText='background:none;border:1px solid var(--b2);color:var(--t3)';
+    b.style.minWidth='34px';
+    wrap.appendChild(b);
+  });
+  return{el:wrap,get:()=>[...sel].sort()};
 }
 
 function renderPlanner(){
@@ -1719,6 +1766,10 @@ function renderPlanner(){
   fl.appendChild(fc);fl.appendChild(fi_);
   fl.onclick=e=>{if(e.target!==fc)fc.checked=!fc.checked;fl.classList.toggle('on',fc.checked);};
   row3.appendChild(fl);form.appendChild(row3);
+  const wd=weekdayPicker([]);
+  wd.el.style.display='none';
+  ri.addEventListener('change',()=>{wd.el.style.display=ri.value==='week'?'':'none';});
+  form.appendChild(wd.el);
   const err=dv('xs ng mt6');form.appendChild(err);
   function doAdd(){
     const title=ti.value.trim();
@@ -1726,7 +1777,8 @@ function renderPlanner(){
     err.textContent='';
     addReminder({title,notes:noi.value,due:di.value||todayKey(),time:hi.value,priority:parseInt(pi.value)||0,
       flagged:fc.checked,tags:picker.get(),
-      repeat:ri.value?{unit:ri.value,every:Math.max(1,parseInt(ni.value)||1)}:null});
+      repeat:ri.value?{unit:ri.value,every:Math.max(1,parseInt(ni.value)||1),
+        ...(ri.value==='week'&&wd.get().length?{days:wd.get()}:{})}:null});
     render();
   }
   ti.onkeydown=e=>{if(e.key==='Enter')doAdd();};
@@ -1738,6 +1790,30 @@ function renderPlanner(){
   const list=reminders();
   /* Filtering is a view, never a fact: the counts fed to the score tab are
      computed from the whole list, so hiding tasks here can never change them. */
+  /* View controls. Scope and order are yours to set and are remembered, but
+     they only ever change what is drawn — never what counts. */
+  const V=STATE.view;
+  const ctrl=dv('row gap8 mb10');ctrl.style.flexWrap='wrap';ctrl.style.alignItems='center';
+  const seg=(opts,cur,onPick)=>{
+    const g=dv('row gap4');
+    g.style.cssText='border:1px solid var(--b2);border-radius:9px;padding:2px;background:var(--sur2)';
+    opts.forEach(([val,lbl])=>{
+      const on=cur===val;
+      const b=bt(on?'btn-ac btn-xs':'btn-xs',lbl,()=>onPick(val));
+      if(!on)b.style.cssText='background:none;border:none;color:var(--t3)';
+      g.appendChild(b);
+    });
+    return g;
+  };
+  ctrl.appendChild(seg([['today',t('view-today')],['all',t('view-all')]],V.scope,v=>{
+    V.scope=v;saveView();render();
+  }));
+  ctrl.appendChild(seg([['date-asc','📅 ↑'],['date-desc','📅 ↓'],['prio','❗']],V.sort,v=>{
+    V.sort=v;saveView();render();
+  }));
+  ctrl.appendChild(sp('xs dimmer',t('sort-'+V.sort)));
+  wrap.appendChild(ctrl);
+
   const tags=allTags();
   if(tags.length){
     const bar=dv('row gap6 mb12');bar.style.flexWrap='wrap';bar.style.alignItems='center';
@@ -1777,8 +1853,16 @@ function renderPlanner(){
      where it falls — red overdue, amber today — so splitting them apart only
      scattered the day across three places. Oldest first, and within the same
      date the higher priority leads. */
-  const tops=open.filter(r=>!r.parent).sort((a,b)=>
-    a.due===b.due?(b.priority-a.priority):a.due.localeCompare(b.due));
+  // "Today" hides anything dated later so it cannot steal focus — those tasks
+  // are only out of sight, never out of the list or out of the counts.
+  const inScope=r=>V.scope==='all'||r.due<=tk||subtasksOf(r.id).some(c=>c.due<=tk);
+  const order={
+    'date-asc':(a,b)=>a.due===b.due?(b.priority-a.priority):a.due.localeCompare(b.due),
+    'date-desc':(a,b)=>a.due===b.due?(b.priority-a.priority):b.due.localeCompare(a.due),
+    'prio':(a,b)=>b.priority-a.priority||a.due.localeCompare(b.due),
+  }[V.sort]||((a,b)=>a.due.localeCompare(b.due));
+  const tops=open.filter(r=>!r.parent).filter(inScope).sort(order);
+  const hidden=open.filter(r=>!r.parent).length-tops.length;
   const card=dv('card');
   const h=dv('rowb mb10');
   h.appendChild(sp('ctit',t('rem-open-h')));
@@ -1789,6 +1873,8 @@ function renderPlanner(){
   h.appendChild(cnt);
   card.appendChild(h);
   fillCard(card,tops);
+  if(hidden>0)card.appendChild(dv('xs dimmer ctr mt8',
+    `${hidden} ${hidden===1?t('view-hidden-1'):t('view-hidden')}`));
   wrap.appendChild(card);
 
   const doneTops=list.filter(r=>r.completedOn===tk&&!r.parent).filter(matches);
@@ -1990,6 +2076,10 @@ function renderReminderEditor(r){
   fl.appendChild(fc);fl.appendChild(fw);
   fl.onclick=e=>{if(e.target!==fc)fc.checked=!fc.checked;fl.classList.toggle('on',fc.checked);};
   r4.appendChild(ri);r4.appendChild(ni);r4.appendChild(fl);box.appendChild(r4);
+  const wd=weekdayPicker(r.repeat&&r.repeat.days||[]);
+  wd.el.style.display=(r.repeat&&r.repeat.unit==='week')?'':'none';
+  ri.addEventListener('change',()=>{wd.el.style.display=ri.value==='week'?'':'none';});
+  box.appendChild(wd.el);
 
   const err=dv('xs ng mt6');box.appendChild(err);
   const acts=dv('row gap8 mt8');
@@ -1998,7 +2088,8 @@ function renderReminderEditor(r){
     const res=updateReminder(r.id,{
       title:ti.value.trim(),notes:no.value.replace(/\s+$/,''),tags:picker.get(),
       due:di.value||r.due,time:hi.value,priority:parseInt(pi.value)||0,flagged:fc.checked,
-      repeat:ri.value?{unit:ri.value,every:Math.max(1,parseInt(ni.value)||1)}:null
+      repeat:ri.value?{unit:ri.value,every:Math.max(1,parseInt(ni.value)||1),
+        ...(ri.value==='week'&&wd.get().length?{days:wd.get()}:{})}:null
     });
     if(!res.ok){err.textContent=res.warn==='sub-has-kids'?t('rem-has-kids'):t('rem-bad-parent');return;}
     STATE.editingRem=null;render();
