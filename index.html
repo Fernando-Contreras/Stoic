@@ -898,6 +898,7 @@ let STATE={
   }),
   editingRem: null, // which reminder has its editor open (view-only, never saved)
   tagFilter: null,
+  showAddForm: false,
   // How the planner list is drawn. Remembered, but purely a view: none of this
   // can change a number that scores.
   view: S.get('st_view',{scope:'all',sort:'date-asc'}),
@@ -1208,9 +1209,25 @@ function advanceDue(due,rep,tk,time){
   // time to the next one on the list, so "Tuesdays and Fridays" lands on both
   // rather than on a fixed stride from whenever it was last done.
   if(unit==='week'&&Array.isArray(rep.days)&&rep.days.length){
-    do{d.setDate(d.getDate()+1);guard++;}
-    while(guard<400&&(!rep.days.includes(d.getDay())||d<today));
-    return{due:isoDate(d),time:time||''};
+    /* Weekly on chosen weekdays, honouring the "every N weeks" stride: inside
+       an active week it hits each listed day in turn, and only once that week
+       is spent does it skip ahead N weeks. So Tue+Fri every 4 weeks means both
+       days of one week, then nothing for four weeks. */
+    const next=from=>{
+      const ws=new Date(from);ws.setDate(from.getDate()-from.getDay()); // Sunday
+      let best=null;
+      rep.days.forEach(dow=>{
+        const c=new Date(ws);c.setDate(ws.getDate()+dow);
+        if(c>from&&(!best||c<best))best=c;
+      });
+      if(best)return best;
+      const ns=new Date(ws);ns.setDate(ws.getDate()+7*every);
+      const c=new Date(ns);c.setDate(ns.getDate()+Math.min(...rep.days));
+      return c;
+    };
+    let cur=d;
+    do{cur=next(cur);guard++;}while(cur<today&&guard<400);
+    return{due:isoDate(cur),time:time||''};
   }
   do{
     if(unit==='day')d.setDate(d.getDate()+every);
@@ -1737,8 +1754,10 @@ function renderPlanner(){
   top.appendChild(renderPomoCard());
   wrap.appendChild(top);
 
-  /* ── add form ── */
-  const form=dv('card mb12');
+  /* ── add form — folded away behind the + in the list header, so the page is
+     the list by default rather than a form you have to scroll past ── */
+  const form=dv('fi mt10 mb4');
+  form.style.cssText='background:var(--sur3);border:1px solid var(--b2);border-radius:10px;padding:12px';
   form.appendChild(sp('ctit',t('rem-new')));
   const ti=ip('text','','',t('rem-what'));
   const noi=taEl('',t('rem-notes-ph'));noi.style.marginTop='6px';
@@ -1784,7 +1803,6 @@ function renderPlanner(){
   ti.onkeydown=e=>{if(e.key==='Enter')doAdd();};
   const ab=bt('btn-ac btn-sm w100 mt8',t('rem-add'),doAdd);ab.style.width='100%';
   form.appendChild(ab);
-  wrap.appendChild(form);
 
   /* ── the list: three columns so the day fits on one screen ── */
   const list=reminders();
@@ -1812,20 +1830,19 @@ function renderPlanner(){
     V.sort=v;saveView();render();
   }));
   ctrl.appendChild(sp('xs dimmer',t('sort-'+V.sort)));
-  wrap.appendChild(ctrl);
 
   const tags=allTags();
+  let tagBar=null;
   if(tags.length){
-    const bar=dv('row gap6 mb12');bar.style.flexWrap='wrap';bar.style.alignItems='center';
-    bar.appendChild(sp('xs dimmer up ls',t('rem-filter')));
+    tagBar=dv('row gap6 mb10');tagBar.style.flexWrap='wrap';tagBar.style.alignItems='center';
+    tagBar.appendChild(sp('xs dimmer up ls',t('rem-filter')));
     tags.forEach(tg=>{
       const on=STATE.tagFilter===tg;
       const c=bt('tagchip',tg,()=>{STATE.tagFilter=on?null:tg;render();});
       c.style.cssText+=';cursor:pointer'+(on?';outline:2px solid var(--ac)':';opacity:.55');
-      bar.appendChild(c);
+      tagBar.appendChild(c);
     });
-    if(STATE.tagFilter)bar.appendChild(bt('btn-icon xs','✕ '+t('rem-filter-clear'),()=>{STATE.tagFilter=null;render();}));
-    wrap.appendChild(bar);
+    if(STATE.tagFilter)tagBar.appendChild(bt('btn-icon xs','✕ '+t('rem-filter-clear'),()=>{STATE.tagFilter=null;render();}));
   }
   const matches=r=>!STATE.tagFilter||hasTag(r,STATE.tagFilter)||subtasksOf(r.id).some(c=>hasTag(c,STATE.tagFilter));
   const open=list.filter(r=>!r.done&&r.completedOn!==tk).filter(matches);
@@ -1865,13 +1882,21 @@ function renderPlanner(){
   const hidden=open.filter(r=>!r.parent).length-tops.length;
   const card=dv('card');
   const h=dv('rowb mb10');
-  h.appendChild(sp('ctit',t('rem-open-h')));
+  const left=dv('row gap8');
+  left.appendChild(sp('ctit',t('rem-open-h')));
   const nOver=tops.filter(r=>r.due<tk).length;
-  const cnt=dv('row gap8');
-  if(nOver)cnt.appendChild(sp('xs cr w6',`${nOver} ${nOver===1?t('rem-overdue-1'):t('rem-overdue')}`));
-  cnt.appendChild(sp('xs dimmer',String(tops.reduce((n,r)=>n+1+subtasksOf(r.id).length,0))));
-  h.appendChild(cnt);
+  if(nOver)left.appendChild(sp('xs cr w6',`${nOver} ${nOver===1?t('rem-overdue-1'):t('rem-overdue')}`));
+  left.appendChild(sp('xs dimmer',String(tops.reduce((n,r)=>n+1+subtasksOf(r.id).length,0))));
+  h.appendChild(left);
+  const addBtn=bt(STATE.showAddForm?'btn-ghost btn-sm':'btn-ac btn-sm',STATE.showAddForm?'✕':'＋',()=>{
+    STATE.showAddForm=!STATE.showAddForm;render();
+  });
+  addBtn.title=t('rem-new');
+  h.appendChild(addBtn);
   card.appendChild(h);
+  card.appendChild(ctrl);
+  if(tagBar)card.appendChild(tagBar);
+  if(STATE.showAddForm)card.appendChild(form);
   fillCard(card,tops);
   if(hidden>0)card.appendChild(dv('xs dimmer ctr mt8',
     `${hidden} ${hidden===1?t('view-hidden-1'):t('view-hidden')}`));
