@@ -1805,13 +1805,15 @@ function renderPlanner(){
   /* The long goals live further down the page, so their standing is repeated
      here where the day is summarised — otherwise you have to scroll to learn
      whether this week's goals are still open. */
+  // The three tiles are the way into the goals panel — a separate button next
+  // to a summary that already says the same thing was one control too many.
   const gstats=dv('row gap6 mt10');
   GOAL_KINDS.forEach(kind=>{
     const list=goalsOf(kind);
     const done=list.filter(g=>g.doneOn).length;
     const all=done&&done===list.length;
-    const tile=dv('ctr');
-    tile.style.cssText=`flex:1;border:1px solid ${all?'var(--gb)':'var(--b1)'};background:${all?'var(--gd)':'var(--sur2)'};border-radius:10px;padding:8px 4px`;
+    const tile=bt('','',()=>{STATE.showGoals=true;render();});
+    tile.style.cssText=`flex:1;border:1px solid ${all?'var(--gb)':'var(--b1)'};background:${all?'var(--gd)':'var(--sur2)'};border-radius:10px;padding:8px 4px;cursor:pointer;text-align:center`;
     tile.title=t('goal-'+kind).replace(/^\S+\s/,'');
     const icon={week:'📅',quarter:'📈',year:'🏆'}[kind];
     tile.innerHTML=`<div class="sm">${icon}</div>`+
@@ -1820,34 +1822,26 @@ function renderPlanner(){
   });
   sum.appendChild(gstats);
   const gt=goalsTotal();
-  if(gt)sum.appendChild(dv('xs cg ctr mt6 w6',`+${gt.toLocaleString()} ${t('goal-earned')}`));
+  if(gt)sum.appendChild(dv('xs ac ctr mt6 w6',`+${gt.toLocaleString()} ${t('goal-earned')}`));
 
   /* The day's goals are the flagged reminders, so they live here rather than
      with the long goals — foldable, since on a busy day the list is long. */
   const flags=reminders().filter(r=>r.flagged&&(r.completedOn===tk||(!r.done&&r.due<=tk)));
   if(flags.length){
-    const open_=!STATE.planner.dayGoalsClosed;
-    const tgl=bt('sec-t mt10',`🏁 ${t('goal-daily')} (${s.flagsDone}/${s.flagsTotal})`,()=>{
-      STATE.planner.dayGoalsClosed=open_;savePlanner();render();
+    sum.appendChild(dv('xs dimmer up ls mt10 mb6',`🏁 ${t('goal-daily')} (${s.flagsDone}/${s.flagsTotal})`));
+    const box=dv('s4');
+    flags.forEach(r=>{
+      const row=dv('row gap8');
+      row.style.cssText='background:var(--sur2);border:1px solid var(--b1);border-radius:8px;padding:6px 9px';
+      const cb=ip('checkbox','');cb.checked=r.completedOn===tk;
+      cb.onchange=()=>{toggleReminder(r.id);render();};
+      row.appendChild(cb);
+      const tt=sp('sm f1',r.title);
+      if(r.completedOn===tk){tt.style.textDecoration='line-through';tt.style.color='var(--t3)';}
+      row.appendChild(tt);
+      box.appendChild(row);
     });
-    tgl.innerHTML=`<span>🏁 ${t('goal-daily')} (${s.flagsDone}/${s.flagsTotal})</span><span>${open_?'▲':'▼'}</span>`;
-    tgl.style.paddingBottom='6px';
-    sum.appendChild(tgl);
-    if(open_){
-      const box=dv('s4 fi');
-      flags.forEach(r=>{
-        const row=dv('row gap8');
-        row.style.cssText='background:var(--sur2);border:1px solid var(--b1);border-radius:8px;padding:6px 9px';
-        const cb=ip('checkbox','');cb.checked=r.completedOn===tk;
-        cb.onchange=()=>{toggleReminder(r.id);render();};
-        row.appendChild(cb);
-        const tt=sp('sm f1',r.title);
-        if(r.completedOn===tk){tt.style.textDecoration='line-through';tt.style.color='var(--t3)';}
-        row.appendChild(tt);
-        box.appendChild(row);
-      });
-      sum.appendChild(box);
-    }
+    sum.appendChild(box);
   }
 
   top.appendChild(sum);
@@ -2051,21 +2045,11 @@ function renderPlanner(){
   if(nOver)left.appendChild(sp('xs cr w6',`${nOver} ${nOver===1?t('rem-overdue-1'):t('rem-overdue')}`));
   left.appendChild(sp('xs dimmer',String(shownIds.size)));
   h.appendChild(left);
-  const tools=dv('row gap6');
-  // Goals live behind a button rather than filling the page under the list.
-  const gDone=GOAL_KINDS.reduce((n,k)=>n+goalsOf(k).filter(g=>g.doneOn).length,0);
-  const gAll=GOAL_KINDS.reduce((n,k)=>n+goalsOf(k).length,0);
-  const goalsBtn=bt('btn-ghost btn-sm',`🏆 ${gAll?gDone+'/'+gAll:''}`.trim(),()=>{
-    STATE.showGoals=true;render();
-  });
-  goalsBtn.title=t('goals-title');
-  tools.appendChild(goalsBtn);
   const addBtn=bt(STATE.showAddForm?'btn-ghost btn-sm':'btn-ac btn-sm',STATE.showAddForm?'✕':'＋',()=>{
     STATE.showAddForm=!STATE.showAddForm;render();
   });
   addBtn.title=t('rem-new');
-  tools.appendChild(addBtn);
-  h.appendChild(tools);
+  h.appendChild(addBtn);
   card.appendChild(h);
   if(!V.closedOpen){
     card.appendChild(ctrl);
