@@ -504,6 +504,8 @@ en:{
   'rem-prio':'Priority','rem-flag':'Goal of the day','rem-every':'Every',
   'rem-time':'Time (optional)','rep-hour':'Hourly',
   'weekdays':'Sun,Mon,Tue,Wed,Thu,Fri,Sat',
+  'rep-pick-days':'Days of the month','rep-on-days':'on the',
+  'rep-31-note':'Leave empty to repeat on the same day each month. Day 31 means the last day, whatever the month.',
   'view-today':'Today','view-all':'All',
   'sort-date-asc':'earliest first','sort-date-desc':'latest first','sort-prio':'by priority',
   'view-hidden':'later ones hidden','view-hidden-1':'later one hidden',
@@ -612,6 +614,8 @@ es:{
   'rem-prio':'Prioridad','rem-flag':'Meta del día','rem-every':'Cada',
   'rem-time':'Hora (opcional)','rep-hour':'Cada hora',
   'weekdays':'Dom,Lun,Mar,Mié,Jue,Vie,Sáb',
+  'rep-pick-days':'Días del mes','rep-on-days':'los días',
+  'rep-31-note':'Déjalo vacío para repetir el mismo día cada mes. El día 31 significa el último, sea cual sea el mes.',
   'view-today':'Hoy','view-all':'Todos',
   'sort-date-asc':'más temprano primero','sort-date-desc':'más tarde primero','sort-prio':'por prioridad',
   'view-hidden':'de más adelante, ocultos','view-hidden-1':'de más adelante, oculto',
@@ -1241,6 +1245,28 @@ function advanceDue(due,rep,tk,time){
      last day of the month". */
   const dom=rep.dom||new Date(due+'T12:00:00').getDate();
   const daysInMonth=(y,m)=>new Date(y,m+1,0).getDate();
+
+  /* Monthly pinned to particular days of the month — the 14th and the 28th,
+     say. It takes the next listed day still ahead in the current month, and
+     only once they are spent does it skip forward N months. Days past the end
+     of a short month clamp to its last day, so the 31st still fires in
+     February. */
+  if(unit==='month'&&Array.isArray(rep.doms)&&rep.doms.length){
+    const days=[...new Set(rep.doms)].sort((a,b)=>a-b);
+    const clamp=(y,m,dd)=>Math.min(dd,daysInMonth(y,m));
+    const next=from=>{
+      const y=from.getFullYear(),m=from.getMonth(),cur=from.getDate();
+      for(const dd of days){
+        const c=clamp(y,m,dd);
+        if(c>cur)return new Date(y,m,c,12,0,0);
+      }
+      const tm=m+every,ty=y+Math.floor(tm/12),tmm=((tm%12)+12)%12;
+      return new Date(ty,tmm,clamp(ty,tmm,days[0]),12,0,0);
+    };
+    let cur=d;
+    do{cur=next(cur);guard++;}while(cur<today&&guard<400);
+    return{due:isoDate(cur),time:time||''};
+  }
   const stepMonths=(dt,months)=>{
     const tm=dt.getMonth()+months;
     const ty=dt.getFullYear()+Math.floor(tm/12);
@@ -1685,6 +1711,9 @@ function repeatLabel(rep){
     const n=weekdayNames();
     return '🔁 '+rep.days.slice().sort().map(i=>n[i]).join(', ');
   }
+  if(rep.unit==='month'&&Array.isArray(rep.doms)&&rep.doms.length){
+    return '🔁 '+t('rep-on-days')+' '+rep.doms.slice().sort((a,b)=>a-b).join(', ');
+  }
   const u={hour:t('rep-hour'),day:t('rep-day'),week:t('rep-week'),month:t('rep-month'),year:t('rep-year')}[rep.unit]||rep.unit;
   return rep.every>1?`🔁 ${rep.every} ${u}`:`🔁 ${u}`;
 }
@@ -1708,6 +1737,29 @@ function weekdayPicker(initial){
     wrap.appendChild(b);
   });
   return{el:wrap,get:()=>[...sel].sort()};
+}
+/* The same idea for monthly: pick days of the month. Empty keeps the plain
+   "every N months on the same day" behaviour. */
+function monthdayPicker(initial){
+  const sel=new Set(initial||[]);
+  const wrap=dv('mt6');
+  wrap.appendChild(dv('xs dimmer up ls mb4',t('rep-pick-days')));
+  const grid=dv('row gap4');grid.style.flexWrap='wrap';
+  for(let i=1;i<=31;i++){
+    const b=bt('btn-xs',String(i),()=>{
+      sel.has(i)?sel.delete(i):sel.add(i);
+      paint(b,sel.has(i));
+    });
+    paint(b,sel.has(i));
+    grid.appendChild(b);
+  }
+  function paint(b,on){
+    b.className=on?'btn-ac btn-xs':'btn-xs';
+    b.style.cssText=(on?'':'background:none;border:1px solid var(--b2);color:var(--t3);')+'min-width:30px;padding:3px 4px';
+  }
+  wrap.appendChild(grid);
+  wrap.appendChild(dv('xs dimmer mt4',t('rep-31-note')));
+  return{el:wrap,get:()=>[...sel].sort((a,b)=>a-b)};
 }
 
 function renderPlanner(){
@@ -1814,9 +1866,13 @@ function renderPlanner(){
   fl.onclick=e=>{if(e.target!==fc)fc.checked=!fc.checked;fl.classList.toggle('on',fc.checked);};
   row3.appendChild(fl);form.appendChild(row3);
   const wd=weekdayPicker([]);
-  wd.el.style.display='none';
-  ri.addEventListener('change',()=>{wd.el.style.display=ri.value==='week'?'':'none';});
-  form.appendChild(wd.el);
+  const md=monthdayPicker([]);
+  wd.el.style.display='none';md.el.style.display='none';
+  ri.addEventListener('change',()=>{
+    wd.el.style.display=ri.value==='week'?'':'none';
+    md.el.style.display=ri.value==='month'?'':'none';
+  });
+  form.appendChild(wd.el);form.appendChild(md.el);
   const err=dv('xs ng mt6');form.appendChild(err);
   function doAdd(){
     const title=ti.value.trim();
@@ -1826,6 +1882,7 @@ function renderPlanner(){
       flagged:fc.checked,tags:picker.get(),
       repeat:ri.value?{unit:ri.value,every:Math.max(1,parseInt(ni.value)||1),
         ...(ri.value==='week'&&wd.get().length?{days:wd.get()}:{}),
+        ...(ri.value==='month'&&md.get().length?{doms:md.get()}:{}),
         // Remember which day of the month was meant, so clamping short months
         // never drags the date down permanently.
         ...(ri.value==='month'||ri.value==='year'
@@ -2156,9 +2213,14 @@ function renderReminderEditor(r){
   fl.onclick=e=>{if(e.target!==fc)fc.checked=!fc.checked;fl.classList.toggle('on',fc.checked);};
   r4.appendChild(ri);r4.appendChild(ni);r4.appendChild(fl);box.appendChild(r4);
   const wd=weekdayPicker(r.repeat&&r.repeat.days||[]);
+  const md=monthdayPicker(r.repeat&&r.repeat.doms||[]);
   wd.el.style.display=(r.repeat&&r.repeat.unit==='week')?'':'none';
-  ri.addEventListener('change',()=>{wd.el.style.display=ri.value==='week'?'':'none';});
-  box.appendChild(wd.el);
+  md.el.style.display=(r.repeat&&r.repeat.unit==='month')?'':'none';
+  ri.addEventListener('change',()=>{
+    wd.el.style.display=ri.value==='week'?'':'none';
+    md.el.style.display=ri.value==='month'?'':'none';
+  });
+  box.appendChild(wd.el);box.appendChild(md.el);
 
   const err=dv('xs ng mt6');box.appendChild(err);
   const acts=dv('row gap8 mt8');
@@ -2169,6 +2231,7 @@ function renderReminderEditor(r){
       due:di.value||r.due,time:hi.value,priority:parseInt(pi.value)||0,flagged:fc.checked,
       repeat:ri.value?{unit:ri.value,every:Math.max(1,parseInt(ni.value)||1),
         ...(ri.value==='week'&&wd.get().length?{days:wd.get()}:{}),
+        ...(ri.value==='month'&&md.get().length?{doms:md.get()}:{}),
         // Remember which day of the month was meant, so clamping short months
         // never drags the date down permanently.
         ...(ri.value==='month'||ri.value==='year'
