@@ -507,7 +507,7 @@ en:{
   'rep-pick-days':'Days of the month','rep-on-days':'on the',
   'rep-31-note':'Leave empty to repeat on the same day each month. Day 31 means the last day, whatever the month.',
   'view-today':'Today','view-all':'All',
-  'sort-date-asc':'earliest first','sort-date-desc':'latest first','sort-prio':'by priority',
+  'sort-date-asc':'earliest first','sort-date-desc':'latest first','sort-prio':'by priority','sort-alpha':'alphabetical',
   'view-hidden':'later ones hidden','view-hidden-1':'later one hidden',
   'rep-none':'Does not repeat','rep-day':'Daily','rep-week':'Weekly','rep-month':'Monthly','rep-year':'Yearly',
   'rem-overdue':'overdue','rem-overdue-1':'overdue','rem-overdue-h':'Overdue','rem-open-h':'To do','rem-today-h':'Today','rem-soon-h':'Coming up','rem-done-h':'Done today',
@@ -617,7 +617,7 @@ es:{
   'rep-pick-days':'Días del mes','rep-on-days':'los días',
   'rep-31-note':'Déjalo vacío para repetir el mismo día cada mes. El día 31 significa el último, sea cual sea el mes.',
   'view-today':'Hoy','view-all':'Todos',
-  'sort-date-asc':'más temprano primero','sort-date-desc':'más tarde primero','sort-prio':'por prioridad',
+  'sort-date-asc':'más temprano primero','sort-date-desc':'más tarde primero','sort-prio':'por prioridad','sort-alpha':'alfabético',
   'view-hidden':'de más adelante, ocultos','view-hidden-1':'de más adelante, oculto',
   'rep-none':'No se repite','rep-day':'Diario','rep-week':'Semanal','rep-month':'Mensual','rep-year':'Anual',
   'rem-overdue':'atrasados','rem-overdue-1':'atrasado','rem-overdue-h':'Atrasados','rem-open-h':'Pendientes','rem-today-h':'Hoy','rem-soon-h':'Próximos','rem-done-h':'Hechos hoy',
@@ -1915,7 +1915,7 @@ function renderPlanner(){
   ctrl.appendChild(seg([['today',t('view-today')],['all',t('view-all')]],V.scope,v=>{
     V.scope=v;saveView();render();
   }));
-  ctrl.appendChild(seg([['date-asc','📅 ↑'],['date-desc','📅 ↓'],['prio','❗']],V.sort,v=>{
+  ctrl.appendChild(seg([['date-asc','📅 ↑'],['date-desc','📅 ↓'],['prio','❗'],['alpha','A→Z']],V.sort,v=>{
     V.sort=v;saveView();render();
   }));
   ctrl.appendChild(sp('xs dimmer',t('sort-'+V.sort)));
@@ -1972,6 +1972,9 @@ function renderPlanner(){
     'date-asc':(a,b)=>a.due===b.due?(b.priority-a.priority):a.due.localeCompare(b.due),
     'date-desc':(a,b)=>a.due===b.due?(b.priority-a.priority):b.due.localeCompare(a.due),
     'prio':(a,b)=>b.priority-a.priority||a.due.localeCompare(b.due),
+    // numeric:true so hand-numbered titles read 1, 2, 10 rather than 1, 10, 2,
+    // and sensitivity:'base' so accents and case do not split the order.
+    'alpha':(a,b)=>(a.title||'').localeCompare(b.title||'',undefined,{numeric:true,sensitivity:'base'}),
   }[V.sort]||((a,b)=>a.due.localeCompare(b.due));
   const F=STATE.tagFilters||[];
   const passes=r=>(V.scope==='all'||r.due<=tk)&&
