@@ -908,6 +908,7 @@ let STATE={
   // reads as broken rather than as a filter doing its job.
   tagFilters: [],
   showAddForm: false,
+  showGoals: false,
   // How the planner list is drawn. Remembered, but purely a view: none of this
   // can change a number that scores.
   view: S.get('st_view',{scope:'all',sort:'date-asc',flat:false}),
@@ -2040,23 +2041,40 @@ function renderPlanner(){
   const card=dv('card');
   const h=dv('rowb mb10');
   const left=dv('row gap8');
+  // Both lists fold, so a long day can be pushed out of the way to reach what
+  // is below it.
+  const foldOpen=bt('btn-icon',V.closedOpen?'▶':'▼',()=>{V.closedOpen=!V.closedOpen;saveView();render();});
+  foldOpen.style.cssText='padding:2px 4px;font-size:11px;color:var(--t3)';
+  left.appendChild(foldOpen);
   left.appendChild(sp('ctit',t('rem-open-h')));
   const nOver=tops.filter(r=>r.due<tk).length;
   if(nOver)left.appendChild(sp('xs cr w6',`${nOver} ${nOver===1?t('rem-overdue-1'):t('rem-overdue')}`));
   left.appendChild(sp('xs dimmer',String(shownIds.size)));
   h.appendChild(left);
+  const tools=dv('row gap6');
+  // Goals live behind a button rather than filling the page under the list.
+  const gDone=GOAL_KINDS.reduce((n,k)=>n+goalsOf(k).filter(g=>g.doneOn).length,0);
+  const gAll=GOAL_KINDS.reduce((n,k)=>n+goalsOf(k).length,0);
+  const goalsBtn=bt('btn-ghost btn-sm',`🏆 ${gAll?gDone+'/'+gAll:''}`.trim(),()=>{
+    STATE.showGoals=true;render();
+  });
+  goalsBtn.title=t('goals-title');
+  tools.appendChild(goalsBtn);
   const addBtn=bt(STATE.showAddForm?'btn-ghost btn-sm':'btn-ac btn-sm',STATE.showAddForm?'✕':'＋',()=>{
     STATE.showAddForm=!STATE.showAddForm;render();
   });
   addBtn.title=t('rem-new');
-  h.appendChild(addBtn);
+  tools.appendChild(addBtn);
+  h.appendChild(tools);
   card.appendChild(h);
-  card.appendChild(ctrl);
-  if(tagBar)card.appendChild(tagBar);
-  if(STATE.showAddForm)card.appendChild(form);
-  fillCard(card,tops,kidsFor);
-  if(hidden>0)card.appendChild(dv('xs dimmer ctr mt8',
-    `${hidden} ${hidden===1?t('view-hidden-1'):t('view-hidden')}`));
+  if(!V.closedOpen){
+    card.appendChild(ctrl);
+    if(tagBar)card.appendChild(tagBar);
+    if(STATE.showAddForm)card.appendChild(form);
+    fillCard(card,tops,kidsFor);
+    if(hidden>0)card.appendChild(dv('xs dimmer ctr mt8',
+      `${hidden} ${hidden===1?t('view-hidden-1'):t('view-hidden')}`));
+  }
   wrap.appendChild(card);
 
   // Same rule for what was finished today: the tag filter applies per row here
@@ -2077,26 +2095,50 @@ function renderPlanner(){
     const h=dv('rowb mb10');
     const shown=new Set();
     doneTops.forEach(p=>{shown.add(p.id);doneKids(p).forEach(c=>shown.add(c.id));});
-    h.appendChild(sp('ctit cg',t('rem-done-h')));
+    const dleft=dv('row gap8');
+    const foldDone=bt('btn-icon',V.closedDone?'▶':'▼',()=>{V.closedDone=!V.closedDone;saveView();render();});
+    foldDone.style.cssText='padding:2px 4px;font-size:11px;color:var(--t3)';
+    dleft.appendChild(foldDone);
+    dleft.appendChild(sp('ctit cg',t('rem-done-h')));
+    h.appendChild(dleft);
     h.appendChild(sp('xs dimmer',String(shown.size)));
     card.appendChild(h);
-    fillCard(card,doneTops,doneKids);
+    if(!V.closedDone)fillCard(card,doneTops,doneKids);
     wrap.appendChild(card);
   }
 
   if(!list.length)wrap.appendChild(dv('card ctr dim sm mt12',t('rem-empty')));
-  wrap.appendChild(renderGoals());
+
+  /* Goals open over the page instead of living beneath the list, where they
+     pushed the day's work off screen. Everything about them still happens
+     here — adding, ticking, deleting. */
+  if(STATE.showGoals){
+    const close=()=>{STATE.showGoals=false;render();};
+    const ov=dv('fi');
+    ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:60;'+
+      'display:flex;align-items:flex-start;justify-content:center;padding:20px;overflow:auto';
+    ov.onclick=e=>{if(e.target===ov)close();};
+    const panel=dv('card');
+    panel.style.cssText='max-width:1100px;width:100%;margin:auto;max-height:none';
+    const hd=dv('rowb mb4');
+    hd.appendChild(sp('ctit',t('goals-title')));
+    hd.appendChild(bt('btn-icon','✕',close));
+    panel.appendChild(hd);
+    panel.appendChild(renderGoals());
+    ov.appendChild(panel);
+    wrap.appendChild(ov);
+    // Single assignment rather than a listener, so repeated renders cannot
+    // stack handlers up.
+    document.onkeydown=e=>{if(e.key==='Escape'&&STATE.showGoals)close();};
+  }
   return wrap;
 }
 
 function renderGoals(){
-  const wrap=dv('mt12');
+  const wrap=dv('');
   const tk=todayKey();
-  const head=dv('rowb mb10');
-  head.appendChild(sp('ctit',t('goals-title')));
   const tot=goalsTotal();
-  if(tot)head.appendChild(sp('md mo ac w7','+'+tot.toLocaleString()));
-  wrap.appendChild(head);
+  if(tot)wrap.appendChild(dv('md mo ac w7 ctr mb10','+'+tot.toLocaleString()+' '+t('goal-earned')));
 
   const grid=dv('g3');
   GOAL_KINDS.forEach(kind=>{
