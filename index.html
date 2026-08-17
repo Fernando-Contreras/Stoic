@@ -502,6 +502,7 @@ en:{
   'rem-title':'Reminders','rem-new':'New reminder','rem-what':'What needs doing?',
   'rem-add':'+ Add reminder','rem-need-title':'Give it a name first',
   'rem-prio':'Priority','rem-flag':'Goal of the day','rem-every':'Every',
+  'rem-time':'Time (optional)','rep-hour':'Hourly',
   'rep-none':'Does not repeat','rep-day':'Daily','rep-week':'Weekly','rep-month':'Monthly','rep-year':'Yearly',
   'rem-overdue':'overdue','rem-overdue-1':'overdue','rem-overdue-h':'Overdue','rem-today-h':'Today','rem-soon-h':'Coming up','rem-done-h':'Done today',
   'rem-was-due':'was due','rem-empty':'Nothing here yet. Add your first reminder above.',
@@ -605,6 +606,7 @@ es:{
   'rem-title':'Recordatorios','rem-new':'Nuevo recordatorio','rem-what':'¿Qué hay que hacer?',
   'rem-add':'+ Agregar recordatorio','rem-need-title':'Ponle nombre primero',
   'rem-prio':'Prioridad','rem-flag':'Meta del día','rem-every':'Cada',
+  'rem-time':'Hora (opcional)','rep-hour':'Cada hora',
   'rep-none':'No se repite','rep-day':'Diario','rep-week':'Semanal','rep-month':'Mensual','rep-year':'Anual',
   'rem-overdue':'atrasados','rem-overdue-1':'atrasado','rem-overdue-h':'Atrasados','rem-today-h':'Hoy','rem-soon-h':'Próximos','rem-done-h':'Hechos hoy',
   'rem-was-due':'era para','rem-empty':'Nada por aquí. Agrega tu primer recordatorio arriba.',
@@ -1172,8 +1174,21 @@ function reminders(){return STATE.planner.reminders||(STATE.planner.reminders=[]
    even if you complete one late. Advancing stops at the first date that is not
    already past, so finishing a long-neglected daily task does not resurrect it
    dozens of times. */
-function advanceDue(due,rep,tk){
+function pad2(n){return String(n).padStart(2,'0');}
+function fmtTime(d){return pad2(d.getHours())+':'+pad2(d.getMinutes());}
+
+/* Advancing a repeat. Day-and-longer repeats move to the first date that is
+   not already past. Hourly ones move to the first slot still ahead on the
+   clock, so a thing due every three hours can come back several times within
+   the same day instead of jumping to tomorrow. */
+function advanceDue(due,rep,tk,time){
   const unit=rep.unit||'day',every=Math.max(1,rep.every||1);
+  if(unit==='hour'){
+    const d=new Date(due+'T'+(time||'00:00')+':00'),now=new Date();
+    let guard=0;
+    do{d.setHours(d.getHours()+every);guard++;}while(d<=now&&guard<1000);
+    return{due:isoDate(d),time:fmtTime(d)};
+  }
   const d=new Date(due+'T12:00:00'),today=new Date(tk+'T12:00:00');
   let guard=0;
   do{
@@ -1183,30 +1198,28 @@ function advanceDue(due,rep,tk){
     else if(unit==='year')d.setFullYear(d.getFullYear()+every);
     guard++;
   }while(d<today&&guard<1000);
-  return isoDate(d);
+  return{due:isoDate(d),time:time||''};
 }
 
 /* What tab 2 sees. An unfinished reminder keeps its original date and keeps
    counting, exactly like Apple's — so a pile of overdue tasks does weigh on
    today's numbers, which is what was asked for. */
 function plannerTodayStats(){
-  const tk=todayKey(),list=reminders();
-  const relevant=list.filter(r=>{
-    if(r.completedOn===tk)return true;   // ticked today
-    if(r.done)return false;              // finished on some other day
-    return !!r.due&&r.due<=tk;           // still open, due today or overdue
+  const tk=todayKey();
+  let total=0,done=0,overdue=0,flagsTotal=0,flagsDone=0;
+  reminders().forEach(r=>{
+    const n=doneCount(r,tk);                                  // times ticked today
+    const openNow=(!r.done&&r.due&&r.due<=tk)?1:0;            // still pending
+    const contrib=n+openNow;
+    if(!contrib)return;                                       // finished another day
+    total+=contrib;done+=n;
+    if(openNow&&r.due<tk)overdue++;
+    if(r.flagged){flagsTotal+=contrib;flagsDone+=n;}
   });
-  const flagged=relevant.filter(r=>r.flagged);
-  return{
-    total:relevant.length,
-    done:relevant.filter(r=>r.completedOn===tk).length,
-    overdue:relevant.filter(r=>!r.completedOn&&r.due<tk).length,
-    flagsTotal:flagged.length,
-    flagsDone:flagged.filter(r=>r.completedOn===tk).length,
+  return{total,done,overdue,flagsTotal,flagsDone,
     // A day with no flags at all is not an annihilated day — otherwise an
     // unplanned day would hand over 100 points times the streak for free.
-    annihilated:flagged.length>0&&flagged.every(r=>r.completedOn===tk)
-  };
+    annihilated:flagsTotal>0&&flagsDone===flagsTotal};
 }
 
 /* Subtasks are ordinary reminders that point at a parent, capped at two levels.
@@ -1278,14 +1291,32 @@ function tagPicker(initial){
   wrap.appendChild(row);wrap.appendChild(chosen);wrap.appendChild(pool);
   return{el:wrap,get:()=>normTags(sel)};
 }
+/* How many times this was ticked today. Anything can be done once, but an
+   hourly repeat can come round several times, and each of those is a real
+   task completed — so the day's count has to see all of them, not just one. */
+function doneCount(r,tk){
+  return (r.doneLog&&r.doneLog.d===tk)?(r.doneLog.n||0):0;
+}
+function bumpDone(r,tk,delta){
+  if(!r.doneLog||r.doneLog.d!==tk)r.doneLog={d:tk,n:0};
+  r.doneLog.n=Math.max(0,r.doneLog.n+delta);
+}
 function setDone(r,tk,on){
   if(on){
     r.completedOn=tk;
-    if(r.repeat){r._prevDue=r.due;r.due=advanceDue(r.due,r.repeat,tk);r.done=false;}
-    else r.done=true;
+    bumpDone(r,tk,1);
+    if(r.repeat){
+      r._prevDue=r.due;r._prevTime=r.time||'';
+      const nx=advanceDue(r.due,r.repeat,tk,r.time);
+      r.due=nx.due;r.time=nx.time;
+      r.done=false;
+      // An hourly one due again later today is pending again, not ticked.
+      if(r.repeat.unit==='hour'&&r.due===tk)r.completedOn=null;
+    }else r.done=true;
   }else{
     r.completedOn=null;r.done=false;
-    if(r.repeat&&r._prevDue){r.due=r._prevDue;delete r._prevDue;}
+    bumpDone(r,tk,-1);
+    if(r.repeat&&r._prevDue){r.due=r._prevDue;r.time=r._prevTime||'';delete r._prevDue;delete r._prevTime;}
   }
   r._ts=Date.now();
 }
@@ -1304,6 +1335,7 @@ function addReminder(data){
   reminders().unshift({
     id:uid(),title:data.title,notes:(data.notes||'').trim(),
     due:p?p.due:(data.due||todayKey()),
+    time:data.time||'',
     priority:data.priority||0,flagged:!!data.flagged,
     // A subtask starts in its parent's groups unless it is given its own.
     tags:normTags(data.tags&&data.tags.length?data.tags:(p?tagsOf(p):[])),
@@ -1582,7 +1614,7 @@ const PRIO=[['0','—'],['1','!'],['2','!!'],['3','!!!']];
 function prioColor(p){return p>=3?'var(--cr)':p==2?'var(--cy)':p==1?'var(--cp)':'var(--t3)';}
 function repeatLabel(rep){
   if(!rep)return'';
-  const u={day:t('rep-day'),week:t('rep-week'),month:t('rep-month'),year:t('rep-year')}[rep.unit]||rep.unit;
+  const u={hour:t('rep-hour'),day:t('rep-day'),week:t('rep-week'),month:t('rep-month'),year:t('rep-year')}[rep.unit]||rep.unit;
   return rep.every>1?`🔁 ${rep.every} ${u}`:`🔁 ${u}`;
 }
 
@@ -1665,9 +1697,10 @@ function renderPlanner(){
   const noi=taEl('',t('rem-notes-ph'));noi.style.marginTop='6px';
   form.appendChild(ti);form.appendChild(noi);
   const row2=dv('row gap8 mt8');row2.style.flexWrap='wrap';
-  const di=ip('date','',todayKey(),'');di.style.flex='1';di.style.minWidth='150px';
+  const di=ip('date','',todayKey(),'');di.style.flex='1';di.style.minWidth='140px';
+  const hi=ip('time','','','');hi.style.flex='0 0 110px';hi.title=t('rem-time');
   const pi=sk('',PRIO.map(([v,l])=>[v,`${t('rem-prio')} ${l}`]),'0');pi.style.flex='1';pi.style.minWidth='120px';
-  row2.appendChild(di);row2.appendChild(pi);form.appendChild(row2);
+  row2.appendChild(di);row2.appendChild(hi);row2.appendChild(pi);form.appendChild(row2);
   const dl=document.createElement('datalist');dl.id='st-tags';
   allTags().forEach(tg=>{const o=document.createElement('option');o.value=tg;dl.appendChild(o);});
   form.appendChild(dl);
@@ -1676,7 +1709,7 @@ function renderPlanner(){
   form.appendChild(picker.el);
 
   const row3=dv('row gap8 mt8');row3.style.flexWrap='wrap';
-  const ri=sk('',[['','🔁 '+t('rep-none')],['day',t('rep-day')],['week',t('rep-week')],['month',t('rep-month')],['year',t('rep-year')]],'');
+  const ri=sk('',[['','🔁 '+t('rep-none')],['hour',t('rep-hour')],['day',t('rep-day')],['week',t('rep-week')],['month',t('rep-month')],['year',t('rep-year')]],'');
   ri.style.flex='1';ri.style.minWidth='120px';
   const ni=ip('number','',1,'');ni.min=1;ni.style.width='70px';ni.title=t('rem-every');
   row3.appendChild(ri);row3.appendChild(ni);
@@ -1691,7 +1724,7 @@ function renderPlanner(){
     const title=ti.value.trim();
     if(!title){err.textContent=t('rem-need-title');ti.focus();return;}
     err.textContent='';
-    addReminder({title,notes:noi.value,due:di.value||todayKey(),priority:parseInt(pi.value)||0,
+    addReminder({title,notes:noi.value,due:di.value||todayKey(),time:hi.value,priority:parseInt(pi.value)||0,
       flagged:fc.checked,tags:picker.get(),
       repeat:ri.value?{unit:ri.value,every:Math.max(1,parseInt(ni.value)||1)}:null});
     render();
@@ -1935,7 +1968,8 @@ function renderReminderEditor(r){
 
   const r2=dv('row gap6 mt6');r2.style.flexWrap='wrap';
   const di=ip('date','',r.due,'');di.style.flex='1';di.style.minWidth='130px';
-  r2.appendChild(di);box.appendChild(r2);
+  const hi=ip('time','',r.time||'','');hi.style.flex='0 0 110px';hi.title=t('rem-time');
+  r2.appendChild(di);r2.appendChild(hi);box.appendChild(r2);
 
   const r3=dv('row gap6 mt6');r3.style.flexWrap='wrap';
   const pi=sk('',PRIO.map(([v,l])=>[v,`${t('rem-prio')} ${l}`]),String(r.priority||0));pi.style.flex='1';pi.style.minWidth='110px';
@@ -1949,7 +1983,7 @@ function renderReminderEditor(r){
   box.appendChild(r3);
 
   const r4=dv('row gap6 mt6');r4.style.flexWrap='wrap';
-  const ri=sk('',[['','🔁 '+t('rep-none')],['day',t('rep-day')],['week',t('rep-week')],['month',t('rep-month')],['year',t('rep-year')]],r.repeat?r.repeat.unit:'');
+  const ri=sk('',[['','🔁 '+t('rep-none')],['hour',t('rep-hour')],['day',t('rep-day')],['week',t('rep-week')],['month',t('rep-month')],['year',t('rep-year')]],r.repeat?r.repeat.unit:'');
   ri.style.flex='1';ri.style.minWidth='110px';
   const ni=ip('number','',r.repeat?r.repeat.every:1,'');ni.min=1;ni.style.width='64px';
   const fl=dv(`tog ${r.flagged?'on':''}`);fl.style.flex='1';fl.style.minWidth='130px';
@@ -1965,7 +1999,7 @@ function renderReminderEditor(r){
     if(!ti.value.trim()){err.textContent=t('rem-need-title');return;}
     const res=updateReminder(r.id,{
       title:ti.value.trim(),notes:no.value.replace(/\s+$/,''),tags:picker.get(),
-      due:di.value||r.due,priority:parseInt(pi.value)||0,flagged:fc.checked,
+      due:di.value||r.due,time:hi.value,priority:parseInt(pi.value)||0,flagged:fc.checked,
       repeat:ri.value?{unit:ri.value,every:Math.max(1,parseInt(ni.value)||1)}:null
     });
     if(!res.ok){err.textContent=res.warn==='sub-has-kids'?t('rem-has-kids'):t('rem-bad-parent');return;}
@@ -2042,8 +2076,11 @@ function renderReminderRow(r,tk,opts){
   // A subtask sits in its parent's column but keeps its own date, so the date
   // is coloured to say where it really falls: red overdue, amber due today.
   const dueCls=late?'cr w6':(r.due===tk?'ac w6':'');
-  meta.push(`<span class="${dueCls}">${late?t('rem-was-due')+' ':''}${r.due}</span>`);
+  meta.push(`<span class="${dueCls}">${late?t('rem-was-due')+' ':''}${r.due}${r.time?' · 🕐 '+r.time:''}</span>`);
   if(r.repeat)meta.push(repeatLabel(r.repeat));
+  // Several times a day means the tally matters more than a tick.
+  const n=doneCount(r,tk);
+  if(n>0&&r.repeat&&r.repeat.unit==='hour')meta.push(`<span class="cg w6">✓ ${n}× ${t('rem-today-h').toLowerCase()}</span>`);
   if(kids)meta.push(`<span class="cp">${kids} ${kids===1?t('rem-subtask'):t('rem-subtasks')}</span>`);
   mid.appendChild(dv('xs dimmer mt2',meta.join(' · ')));
 
