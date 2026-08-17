@@ -510,7 +510,7 @@ en:{
   'rem-subtask':'subtask','rem-subtask-ask':'Subtask of "{t}":',
   'rem-notes-ph':'Note (optional)','rem-edit':'Edit','rem-no-parent':'↳ Not a subtask',
   'rem-has-kids':'This one has subtasks of its own, so it cannot become one. Two levels is the limit.',
-  'rem-bad-parent':'That cannot be its parent.','rem-sub-no-rep':'A subtask follows its parent',
+  'rem-bad-parent':'That cannot be its parent.',
   'goals-title':'Goals','goal-week':'📅 Weekly','goal-quarter':'📈 Quarterly','goal-year':'🏆 Yearly',
   'goal-new':'A goal that excites you','goal-add':'+ Add goal','goal-day':'day left','goal-days':'days left',
   'goal-earned':'earned from goals','goal-daily':'Goals of the day',
@@ -613,7 +613,7 @@ es:{
   'rem-subtask':'subtarea','rem-subtask-ask':'Subtarea de "{t}":',
   'rem-notes-ph':'Nota (opcional)','rem-edit':'Editar','rem-no-parent':'↳ No es subtarea',
   'rem-has-kids':'Esta ya tiene subtareas, así que no puede volverse una. El límite son 2 niveles.',
-  'rem-bad-parent':'Esa no puede ser su tarea padre.','rem-sub-no-rep':'Una subtarea sigue a su padre',
+  'rem-bad-parent':'Esa no puede ser su tarea padre.',
   'goals-title':'Metas','goal-week':'📅 Semanales','goal-quarter':'📈 Trimestrales','goal-year':'🏆 Anuales',
   'goal-new':'Una meta que te emocione','goal-add':'+ Agregar meta','goal-day':'día restante','goal-days':'días restantes',
   'goal-earned':'ganados en metas','goal-daily':'Metas del día',
@@ -1308,7 +1308,7 @@ function addReminder(data){
     // A subtask starts in its parent's groups unless it is given its own.
     tags:normTags(data.tags&&data.tags.length?data.tags:(p?tagsOf(p):[])),
     parent:p?p.id:null,
-    repeat:parent?null:(data.repeat||null), // a subtask follows its parent's rhythm
+    repeat:data.repeat||null, // subtasks keep their own rhythm, like any reminder
     done:false,completedOn:null,
     created:Date.now(),_ts:Date.now()
   });
@@ -1952,8 +1952,6 @@ function renderReminderEditor(r){
   const ri=sk('',[['','🔁 '+t('rep-none')],['day',t('rep-day')],['week',t('rep-week')],['month',t('rep-month')],['year',t('rep-year')]],r.repeat?r.repeat.unit:'');
   ri.style.flex='1';ri.style.minWidth='110px';
   const ni=ip('number','',r.repeat?r.repeat.every:1,'');ni.min=1;ni.style.width='64px';
-  // A subtask follows its parent, so its own repeat is meaningless.
-  if(r.parent){ri.disabled=true;ni.disabled=true;ri.title=t('rem-sub-no-rep');}
   const fl=dv(`tog ${r.flagged?'on':''}`);fl.style.flex='1';fl.style.minWidth='130px';
   const fc=ip('checkbox','');fc.checked=!!r.flagged;
   const fw=dv('f1');fw.innerHTML=`<div class="tt">🏁 ${t('rem-flag')}</div>`;
@@ -1968,7 +1966,7 @@ function renderReminderEditor(r){
     const res=updateReminder(r.id,{
       title:ti.value.trim(),notes:no.value.replace(/\s+$/,''),tags:picker.get(),
       due:di.value||r.due,priority:parseInt(pi.value)||0,flagged:fc.checked,
-      repeat:(r.parent||!ri.value)?null:{unit:ri.value,every:Math.max(1,parseInt(ni.value)||1)}
+      repeat:ri.value?{unit:ri.value,every:Math.max(1,parseInt(ni.value)||1)}:null
     });
     if(!res.ok){err.textContent=res.warn==='sub-has-kids'?t('rem-has-kids'):t('rem-bad-parent');return;}
     STATE.editingRem=null;render();
