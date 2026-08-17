@@ -506,7 +506,7 @@ en:{
   'rem-overdue':'overdue','rem-overdue-1':'overdue','rem-overdue-h':'Overdue','rem-today-h':'Today','rem-soon-h':'Coming up','rem-done-h':'Done today',
   'rem-was-due':'was due','rem-empty':'Nothing here yet. Add your first reminder above.',
   'rem-del-warn':'Delete "{t}"?','rem-del-warn-kids':'Delete "{t}" and its {n} subtask(s)?',
-  'rem-tag-ph':'Tag (yours to invent: work, home, gym…)',
+  'rem-tag-ph':'New tag (work, home, gym…)','rem-filter':'Filter by tag','rem-filter-clear':'clear',
   'rem-subtask':'subtask','rem-subtask-ask':'Subtask of "{t}":',
   'rem-notes-ph':'Note (optional)','rem-edit':'Edit','rem-no-parent':'↳ Not a subtask',
   'rem-has-kids':'This one has subtasks of its own, so it cannot become one. Two levels is the limit.',
@@ -515,7 +515,7 @@ en:{
   'goal-new':'A goal that excites you','goal-add':'+ Add goal','goal-day':'day left','goal-days':'days left',
   'goal-earned':'earned from goals','goal-daily':'Goals of the day',
   'goal-worth':'worth','goal-tomorrow':'tomorrow','goal-past-due':'⚠ was due',
-  'goal-full':'That is the limit for this kind.','goal-carried':'⚠ carried over from last period',
+  'goal-full':'Limit reached.','goal-carried':'⚠ carried over from last period',
   'goal-note':'Finish early, earn more: base × days still left in the period. These add to your total score, not to the day.',
   'rem-subtasks':'subtasks','rem-collapse':'Hide subtasks','rem-expand':'Show subtasks',
   'rem-indent':'Make it a subtask of the one above','rem-outdent':'Lift out of its parent',
@@ -609,7 +609,7 @@ es:{
   'rem-overdue':'atrasados','rem-overdue-1':'atrasado','rem-overdue-h':'Atrasados','rem-today-h':'Hoy','rem-soon-h':'Próximos','rem-done-h':'Hechos hoy',
   'rem-was-due':'era para','rem-empty':'Nada por aquí. Agrega tu primer recordatorio arriba.',
   'rem-del-warn':'¿Borrar "{t}"?','rem-del-warn-kids':'¿Borrar "{t}" y sus {n} subtarea(s)?',
-  'rem-tag-ph':'Etiqueta (la que tú quieras: trabajo, casa, gym…)',
+  'rem-tag-ph':'Etiqueta nueva (trabajo, casa, gym…)','rem-filter':'Filtrar por etiqueta','rem-filter-clear':'limpiar',
   'rem-subtask':'subtarea','rem-subtask-ask':'Subtarea de "{t}":',
   'rem-notes-ph':'Nota (opcional)','rem-edit':'Editar','rem-no-parent':'↳ No es subtarea',
   'rem-has-kids':'Esta ya tiene subtareas, así que no puede volverse una. El límite son 2 niveles.',
@@ -618,7 +618,7 @@ es:{
   'goal-new':'Una meta que te emocione','goal-add':'+ Agregar meta','goal-day':'día restante','goal-days':'días restantes',
   'goal-earned':'ganados en metas','goal-daily':'Metas del día',
   'goal-worth':'vale','goal-tomorrow':'mañana','goal-past-due':'⚠ era para',
-  'goal-full':'Ese es el límite para este tipo.','goal-carried':'⚠ arrastrada del periodo anterior',
+  'goal-full':'Límite alcanzado.','goal-carried':'⚠ arrastrada del periodo anterior',
   'goal-note':'Termínalas temprano, valen más: base × días que quedan del periodo. Suman a tu puntaje total, no al día.',
   'rem-subtasks':'subtareas','rem-collapse':'Ocultar subtareas','rem-expand':'Ver subtareas',
   'rem-indent':'Volverla subtarea de la de arriba','rem-outdent':'Sacarla de su tarea madre',
@@ -1228,8 +1228,55 @@ function indentReminder(id,prevTopId){
   return updateReminder(id,{parent:prevTopId});
 }
 function outdentReminder(id){return updateReminder(id,{parent:null});}
+/* Tags became a list. Reminders written before that carry a single `tag`
+   string, so it is read through here instead of being migrated in place —
+   nothing has to be rewritten for old data to keep working. */
+function tagsOf(r){
+  if(Array.isArray(r.tags))return r.tags;
+  return r.tag?[r.tag]:[];
+}
+function normTags(arr){
+  return [...new Set((arr||[]).map(s=>String(s).trim()).filter(Boolean))];
+}
 function allTags(){
-  return [...new Set(reminders().map(r=>(r.tag||'').trim()).filter(Boolean))].sort();
+  const set=new Set();
+  reminders().forEach(r=>tagsOf(r).forEach(tg=>set.add(tg)));
+  return [...set].sort((a,b)=>a.localeCompare(b));
+}
+function hasTag(r,tg){return tagsOf(r).includes(tg);}
+
+/* A tag box: type a new one, or click one you already use. Used by both the
+   create form and the editor so they never drift apart. */
+function tagPicker(initial){
+  const sel=normTags(initial);
+  const wrap=dv('');
+  const row=dv('row gap6');
+  const inp=ip('text','','',t('rem-tag-ph'));inp.setAttribute('list','st-tags');inp.style.flex='1';
+  const chosen=dv('row gap6 mt6');chosen.style.flexWrap='wrap';
+  const pool=dv('row gap6 mt6');pool.style.flexWrap='wrap';
+  const add=()=>{
+    const v=inp.value.trim();
+    if(v&&!sel.includes(v))sel.push(v);
+    inp.value='';draw();
+  };
+  inp.onkeydown=e=>{if(e.key==='Enter'||e.key===','){e.preventDefault();add();}};
+  row.appendChild(inp);
+  const plus=bt('btn-ghost btn-sm','+',add);plus.style.padding='6px 12px';row.appendChild(plus);
+  function draw(){
+    chosen.innerHTML='';
+    sel.forEach(tg=>{
+      const c=bt('tagchip',tg+' ✕',()=>{sel.splice(sel.indexOf(tg),1);draw();});
+      c.style.cursor='pointer';chosen.appendChild(c);
+    });
+    pool.innerHTML='';
+    allTags().filter(tg=>!sel.includes(tg)).forEach(tg=>{
+      const c=bt('tagchip',tg,()=>{sel.push(tg);draw();});
+      c.style.cssText+=';opacity:.5;cursor:pointer';pool.appendChild(c);
+    });
+  }
+  draw();
+  wrap.appendChild(row);wrap.appendChild(chosen);wrap.appendChild(pool);
+  return{el:wrap,get:()=>normTags(sel)};
 }
 function setDone(r,tk,on){
   if(on){
@@ -1258,7 +1305,8 @@ function addReminder(data){
     id:uid(),title:data.title,notes:(data.notes||'').trim(),
     due:p?p.due:(data.due||todayKey()),
     priority:data.priority||0,flagged:!!data.flagged,
-    tag:(data.tag||(p?p.tag:'')||'').trim(), // a subtask belongs where its parent does
+    // A subtask starts in its parent's groups unless it is given its own.
+    tags:normTags(data.tags&&data.tags.length?data.tags:(p?tagsOf(p):[])),
     parent:p?p.id:null,
     repeat:parent?null:(data.repeat||null), // a subtask follows its parent's rhythm
     done:false,completedOn:null,
@@ -1442,7 +1490,9 @@ function pomoBeep(){
 
    The week starts on Sunday, matching the calendar in the score tab.
    ═══════════════════════════════════════════════════════════════════════ */
-const GOAL_KINDS=['week','quarter','year'];
+// Yearly first, then quarterly, then weekly: you derive the shorter goals from
+// the longer ones, so reading top-down is how you actually line them up.
+const GOAL_KINDS=['year','quarter','week'];
 /* One base for all three: the length of the period does the ranking on its
    own. A weekly tops out around 7,000, a quarterly around 92,000, a yearly at
    365,000 — a real hierarchy without a single goal dwarfing months of daily
@@ -1612,28 +1662,18 @@ function renderPlanner(){
   const form=dv('card mb12');
   form.appendChild(sp('ctit',t('rem-new')));
   const ti=ip('text','','',t('rem-what'));
-  const noi=ip('text','','',t('rem-notes-ph'));noi.style.marginTop='6px';
+  const noi=taEl('',t('rem-notes-ph'));noi.style.marginTop='6px';
   form.appendChild(ti);form.appendChild(noi);
   const row2=dv('row gap8 mt8');row2.style.flexWrap='wrap';
   const di=ip('date','',todayKey(),'');di.style.flex='1';di.style.minWidth='150px';
   const pi=sk('',PRIO.map(([v,l])=>[v,`${t('rem-prio')} ${l}`]),'0');pi.style.flex='1';pi.style.minWidth='120px';
   row2.appendChild(di);row2.appendChild(pi);form.appendChild(row2);
-  // Tags are yours to invent; the list just remembers the ones already in use.
-  const tagRow=dv('row gap8 mt8');
-  const gi=ip('text','','',t('rem-tag-ph'));gi.setAttribute('list','st-tags');
   const dl=document.createElement('datalist');dl.id='st-tags';
   allTags().forEach(tg=>{const o=document.createElement('option');o.value=tg;dl.appendChild(o);});
-  tagRow.appendChild(gi);tagRow.appendChild(dl);
-  form.appendChild(tagRow);
-  const existing=allTags();
-  if(existing.length){
-    const chips=dv('row gap6 mt6');chips.style.flexWrap='wrap';
-    existing.slice(0,8).forEach(tg=>{
-      const c=bt('tagchip',tg,()=>{gi.value=tg;});
-      c.style.cursor='pointer';chips.appendChild(c);
-    });
-    form.appendChild(chips);
-  }
+  form.appendChild(dl);
+  const picker=tagPicker([]);
+  picker.el.style.marginTop='8px';
+  form.appendChild(picker.el);
 
   const row3=dv('row gap8 mt8');row3.style.flexWrap='wrap';
   const ri=sk('',[['','🔁 '+t('rep-none')],['day',t('rep-day')],['week',t('rep-week')],['month',t('rep-month')],['year',t('rep-year')]],'');
@@ -1652,7 +1692,7 @@ function renderPlanner(){
     if(!title){err.textContent=t('rem-need-title');ti.focus();return;}
     err.textContent='';
     addReminder({title,notes:noi.value,due:di.value||todayKey(),priority:parseInt(pi.value)||0,
-      flagged:fc.checked,tag:gi.value,
+      flagged:fc.checked,tags:picker.get(),
       repeat:ri.value?{unit:ri.value,every:Math.max(1,parseInt(ni.value)||1)}:null});
     render();
   }
@@ -1663,7 +1703,23 @@ function renderPlanner(){
 
   /* ── the list: three columns so the day fits on one screen ── */
   const list=reminders();
-  const open=list.filter(r=>!r.done&&r.completedOn!==tk);
+  /* Filtering is a view, never a fact: the counts fed to the score tab are
+     computed from the whole list, so hiding tasks here can never change them. */
+  const tags=allTags();
+  if(tags.length){
+    const bar=dv('row gap6 mb12');bar.style.flexWrap='wrap';bar.style.alignItems='center';
+    bar.appendChild(sp('xs dimmer up ls',t('rem-filter')));
+    tags.forEach(tg=>{
+      const on=STATE.tagFilter===tg;
+      const c=bt('tagchip',tg,()=>{STATE.tagFilter=on?null:tg;render();});
+      c.style.cssText+=';cursor:pointer'+(on?';outline:2px solid var(--ac)':';opacity:.55');
+      bar.appendChild(c);
+    });
+    if(STATE.tagFilter)bar.appendChild(bt('btn-icon xs','✕ '+t('rem-filter-clear'),()=>{STATE.tagFilter=null;render();}));
+    wrap.appendChild(bar);
+  }
+  const matches=r=>!STATE.tagFilter||hasTag(r,STATE.tagFilter)||subtasksOf(r.id).some(c=>hasTag(c,STATE.tagFilter));
+  const open=list.filter(r=>!r.done&&r.completedOn!==tk).filter(matches);
   /* A subtask is drawn under its own parent, always — a column is chosen by the
      parent's date, and the subtask keeps and shows its own. Nesting is
      structure; the date it is due is written on the row and coloured when it is
@@ -1704,7 +1760,7 @@ function renderPlanner(){
   });
   wrap.appendChild(grid);
 
-  const doneTops=list.filter(r=>r.completedOn===tk&&!r.parent);
+  const doneTops=list.filter(r=>r.completedOn===tk&&!r.parent).filter(matches);
   if(doneTops.length){
     const card=dv('card mt12');
     const h=dv('rowb mb10');
@@ -1857,17 +1913,29 @@ function renderPomoCard(){
   return card;
 }
 
+/* Notes hold real paragraphs, so they get a textarea rather than a one-line
+   input — Enter inside one must make a new line, not submit anything. */
+function taEl(v,ph){
+  const x=document.createElement('textarea');
+  x.className='diary-area';x.style.minHeight='58px';
+  x.value=v||'';x.placeholder=ph||'';
+  return x;
+}
+
 function renderReminderEditor(r){
   const box=dv('fi mt8');
   box.style.cssText='background:var(--sur3);border:1px solid var(--b2);border-radius:8px;padding:10px';
   const ti=ip('text','',r.title,t('rem-what'));
-  const no=ip('text','',r.notes||'',t('rem-notes-ph'));no.style.marginTop='6px';
+  const no=taEl(r.notes||'',t('rem-notes-ph'));no.style.marginTop='6px';
   box.appendChild(ti);box.appendChild(no);
 
+  const picker=tagPicker(tagsOf(r));
+  picker.el.style.marginTop='6px';
+  box.appendChild(picker.el);
+
   const r2=dv('row gap6 mt6');r2.style.flexWrap='wrap';
-  const gi=ip('text','',r.tag||'',t('rem-tag-ph'));gi.setAttribute('list','st-tags');gi.style.flex='1';gi.style.minWidth='110px';
   const di=ip('date','',r.due,'');di.style.flex='1';di.style.minWidth='130px';
-  r2.appendChild(gi);r2.appendChild(di);box.appendChild(r2);
+  r2.appendChild(di);box.appendChild(r2);
 
   const r3=dv('row gap6 mt6');r3.style.flexWrap='wrap';
   const pi=sk('',PRIO.map(([v,l])=>[v,`${t('rem-prio')} ${l}`]),String(r.priority||0));pi.style.flex='1';pi.style.minWidth='110px';
@@ -1898,7 +1966,7 @@ function renderReminderEditor(r){
   acts.appendChild(bt('btn-ac btn-sm f1',t('save-btn'),()=>{
     if(!ti.value.trim()){err.textContent=t('rem-need-title');return;}
     const res=updateReminder(r.id,{
-      title:ti.value.trim(),notes:no.value.trim(),tag:gi.value.trim(),
+      title:ti.value.trim(),notes:no.value.replace(/\s+$/,''),tags:picker.get(),
       due:di.value||r.due,priority:parseInt(pi.value)||0,flagged:fc.checked,
       repeat:(r.parent||!ri.value)?null:{unit:ri.value,every:Math.max(1,parseInt(ni.value)||1)}
     });
@@ -1960,7 +2028,12 @@ function renderReminderRow(r,tk,opts){
   if(r.priority>0){const p=sp('sm w7',PRIO[r.priority][1]);p.style.color=prioColor(r.priority);titleLine.appendChild(p);}
   mid.appendChild(titleLine);
 
-  if(r.tag){const tg=sp('tagchip',r.tag);tg.style.marginLeft='2px';titleLine.appendChild(tg);}
+  tagsOf(r).forEach(tg=>{
+    // Clicking a tag filters the board to it — the grouped view, one tap away.
+    const c=bt('tagchip',tg,e=>{e.stopPropagation();STATE.tagFilter=STATE.tagFilter===tg?null:tg;render();});
+    c.style.cssText+=';margin-left:2px;cursor:pointer';
+    titleLine.appendChild(c);
+  });
   if(r.notes){
     const nt=dv('sm dim mt2');nt.style.whiteSpace='pre-wrap';nt.textContent=r.notes;
     if(doneToday)nt.style.color='var(--t3)';
