@@ -1888,7 +1888,7 @@ function renderPlanner(){
   }
 
   top.appendChild(sum);
-  top.appendChild(renderPomoCard());
+  top.appendChild(renderPomoCard(dayStatus));
   wrap.appendChild(top);
 
   /* ── add form — folded away behind the + in the list header, so the page is
@@ -2236,11 +2236,15 @@ function renderGoals(){
   return wrap;
 }
 
-function renderPomoCard(){
+function renderPomoCard(dayStatus){
   pomoRollDay();
   const p=STATE.pomo;
   const card=dv('card');
   const focusing=p.phase==='focus';
+  // Focus stays amber; a break takes the day's own colour, so resting reads
+  // against how the day is actually going.
+  const rest={red:'var(--cr)',yellow:'var(--cy)',green:'var(--cg)',purple:'var(--cp)'}[dayStatus]||'var(--cg)';
+  const accent=focusing?'var(--ac)':rest;
   const head=dv('rowb mb6');
   head.appendChild(sp('ctit',t('pomo-title')));
   head.appendChild(sp('xs dimmer',`${(p.minutesToday/POMO_UNIT).toFixed(1)} 🍅 · ${p.minutesToday} min`));
@@ -2248,18 +2252,18 @@ function renderPomoCard(){
 
   const phaseLbl=focusing?t('pomo-focus'):(p.phase==='long'?t('pomo-long'):t('pomo-short'));
   const ph=dv('ctr');
-  ph.innerHTML=`<div class="xs up ls" style="color:${focusing?'var(--ac)':'var(--cg)'}">${phaseLbl}</div>`;
+  ph.innerHTML=`<div class="xs up ls" style="color:${accent}">${phaseLbl}</div>`;
   card.appendChild(ph);
 
   const clock=dv('ctr xxxl w8 mo');
   clock.id='pomo-clock';
-  clock.style.color=focusing?'var(--ac)':'var(--cg)';
+  clock.style.color=accent;
   clock.textContent=fmtClock(pomoRemaining(p));
   card.appendChild(clock);
 
   const bar=dv('prog mt8');const fill=dv('prog-f');
   const pct=100-Math.round(pomoRemaining(p)/pomoPhaseLen(p)*100);
-  fill.style.cssText=`width:${pct}%;background:${focusing?'var(--ac)':'var(--cg)'}`;
+  fill.style.cssText=`width:${pct}%;background:${accent}`;
   bar.appendChild(fill);card.appendChild(bar);
 
   const dots=dv('row gap4 mt8');dots.style.justifyContent='center';
@@ -2283,7 +2287,7 @@ function renderPomoCard(){
 
   /* durations */
   const cfg=dv('row gap6 mt10');cfg.style.flexWrap='wrap';
-  [['focus',t('pomo-focus'),'var(--ac)'],['brk',t('pomo-short'),'var(--cg)'],['longBrk',t('pomo-long'),'var(--cg)']].forEach(([key,lbl,col])=>{
+  [['focus',t('pomo-focus'),'var(--ac)'],['brk',t('pomo-short'),rest],['longBrk',t('pomo-long'),rest]].forEach(([key,lbl,col])=>{
     const w=dv('s4');w.style.flex='1';w.style.minWidth='72px';
     w.innerHTML=`<div class="xs dimmer up ls" style="color:${col}">${lbl}</div>`;
     const i=ip('number','',p[key],'');i.min=1;i.max=180;
