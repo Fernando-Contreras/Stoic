@@ -1638,7 +1638,7 @@ function pomoBeep(){
    ═══════════════════════════════════════════════════════════════════════ */
 // Yearly first, then quarterly, then weekly: you derive the shorter goals from
 // the longer ones, so reading top-down is how you actually line them up.
-const GOAL_KINDS=['year','quarter','week'];
+const GOAL_KINDS=['week','quarter','year'];
 /* One base for all three: the length of the period does the ranking on its
    own. A weekly tops out around 7,000, a quarterly around 92,000, a yearly at
    365,000 — a real hierarchy without a single goal dwarfing months of daily
@@ -1789,11 +1789,24 @@ function renderPlanner(){
   const tk=todayKey();
   const s=plannerTodayStats();
 
+  /* The day's colour, shown where the day's work is. It comes from CALC, the
+     same call the score tab makes, so the two can never disagree — and it
+     reflects any manual override, since those are already folded into
+     STATE.today before this runs. */
+  const dayPct=STATE.today.target>0?Math.round((STATE.today.completed||0)/STATE.today.target*100):0;
+  const dayStatus=CALC.status(dayPct,STATE.today.flagCompleted||false);
+  const statusVar={red:'var(--cr)',yellow:'var(--cy)',green:'var(--cg)',purple:'var(--cp)'}[dayStatus];
+
   const top=dv('g2 mb12');
   const sum=dv('card');
   const sr=dv('rowb');
   sr.appendChild(sp('ctit',t('rem-title')));
-  sr.appendChild(sp('md mo ac w7',`${s.done}/${s.total}`));
+  const right=dv('row gap8');
+  right.appendChild(sbadge(dayStatus));
+  const num=sp('md mo w7',`${s.done}/${s.total}`);
+  num.style.color=statusVar;
+  right.appendChild(num);
+  sr.appendChild(right);
   sum.appendChild(sr);
   const bits=[`${s.total} ${t('tasks-lbl')}`];
   if(s.overdue)bits.push(`<span class="cr">${s.overdue} ${s.overdue===1?t('rem-overdue-1'):t('rem-overdue')}</span>`);
@@ -1801,8 +1814,9 @@ function renderPlanner(){
   sum.appendChild(dv('xs dim mt4',bits.join(' · ')));
   if(s.annihilated)sum.appendChild(dv('xs ac mt4 w6',t('goals-ann-badge')));
   const prog=dv('prog mt10');const pf=dv('prog-f');
-  pf.style.cssText=`width:${s.total?Math.round(s.done/s.total*100):0}%;background:var(--ac)`;
+  pf.style.cssText=`width:${Math.min(dayPct,100)}%;background:${statusVar}`;
   prog.appendChild(pf);sum.appendChild(prog);
+  sum.appendChild(dv('xs dimmer mt4 ctr',`${dayPct}%`));
 
   /* The long goals live further down the page, so their standing is repeated
      here where the day is summarised — otherwise you have to scroll to learn
