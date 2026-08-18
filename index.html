@@ -471,10 +471,11 @@ en:{
   'tpl-weekly-plan':'Plan for doing so:',
   'tpl-why':'Why these results?:','tpl-dream':'Today I remember dreaming:',
   'tpl-feel':'I feel:','tpl-feel-why':'Why?:',
-  'tpl-cool':'1 cool thing I did:','tpl-improve':'1 thing I can improve:',
+  'tpl-cool':'Something cool I did:','tpl-improve':'Something I can improve:',
   'tpl-summary':'Summary:',
   'ver-mas':'Ver más','ver-menos':'Ver menos',
-  'edit-hist':'Edit History','show-more':'Show more','save-btn':'Save',
+  'edit-hist':'Edit History','save-btn':'Save',
+  'day-panel':'The day','pick-day':'Pick a day on the calendar to read it and write its note.',
   'early-bed':'Early bed','late-bed':'Late bed',
   'indulg-hash':'Stimulants #','proc-lbl':'Procrast','org-hash':'Orgasm #','gap-warn':'⚠gap',
   'reset-work':'Work streak reset','reset-indulg':'Stimulants streak reset',
@@ -603,10 +604,11 @@ es:{
   'tpl-weekly-plan':'Plan para lograrlo:',
   'tpl-why':'¿Por qué estos resultados?:','tpl-dream':'Hoy recuerdo haber soñado:',
   'tpl-feel':'Me siento:','tpl-feel-why':'¿Por qué?:',
-  'tpl-cool':'1 cosa chida que hice:','tpl-improve':'1 cosa que puedo mejorar:',
+  'tpl-cool':'Algo chido que hice:','tpl-improve':'Algo que puedo mejorar:',
   'tpl-summary':'Resumen:',
   'ver-mas':'Ver más','ver-menos':'Ver menos',
-  'edit-hist':'Editar Historial','show-more':'Ver más','save-btn':'Guardar',
+  'edit-hist':'Editar Historial','save-btn':'Guardar',
+  'day-panel':'El día','pick-day':'Elige un día del calendario para verlo y escribir su nota.',
   'early-bed':'Dormí temprano','late-bed':'Dormí tarde',
   'indulg-hash':'Estimulantes #','proc-lbl':'Procrast','org-hash':'Orgasmo #','gap-warn':'⚠vacío',
   'reset-work':'Racha de trabajo reiniciada','reset-indulg':'Racha de Estimulantes reiniciada',
@@ -971,6 +973,13 @@ let STATE={
   tagFilters: [],
   showAddForm: false,
   showGoals: false,
+  /* The calendar and the panel beside it are two halves of one thing: the day
+     you pick fills the panel, and histDay is the day whose numbers are open on
+     top of it. All three live here because saving re-renders the whole app —
+     kept locally, a save would drop you back on today, in this month. */
+  calSel: null,
+  calYM: null,
+  histDay: null,
   // How the planner list is drawn. Remembered, but purely a view: none of this
   // can change a number that scores.
   view: S.get('st_view',{scope:'all',sort:'date-asc',flat:false}),
@@ -2984,7 +2993,24 @@ function renderApp(){
   grid.appendChild(renderSleepCard(sk_));
   wrap.appendChild(grid);
   wrap.appendChild(renderStreaks(sk_));
-  const ch=dv('g2 mt12');ch.appendChild(renderCalendar());ch.appendChild(renderHistEd(sk_));wrap.appendChild(ch);
+  /* Calendar on the left, the picked day on the right — its score, its note,
+     and the ✏ that opens its numbers over the page. */
+  const ch=dv('g2 mt12');
+  const panel=dv('');
+  const drawPanel=()=>{
+    // A note being typed is written before its editor is torn down, so moving
+    // to another day cannot eat the last words.
+    const ta=panel.querySelector('.diary-area');
+    if(ta&&ta.dataset.dirty){
+      if(ta.value.trim())STATE.diary[ta.dataset.day]=ta.value; else delete STATE.diary[ta.dataset.day];
+      S.set(K.DIARY,STATE.diary);
+      SB.push(STATE.history,STATE.today,STATE.diary,STATE.streakOverrides).catch(()=>{});
+    }
+    panel.innerHTML='';panel.appendChild(renderDayPanel());
+  };
+  ch.appendChild(renderCalendar(drawPanel));ch.appendChild(panel);drawPanel();
+  wrap.appendChild(ch);
+  if(STATE.histDay)wrap.appendChild(renderHistModal(STATE.histDay));
   wrap.appendChild(renderStats(total,sc));
   wrap.appendChild(renderRules());
   // Reset All — at the bottom where it's hard to hit accidentally
@@ -3446,9 +3472,21 @@ function renderStreaks(sk_){
   return card;
 }
 
+/* Both halves of the calendar row read a day from the same place: history with
+   its gaps filled, with anything actually logged laid over it. */
+function histMap(){
+  const m=new Map(CALC.fillGaps(STATE.history).map(d=>[d.date,d]));
+  STATE.history.forEach(d=>m.set(d.date,d));
+  return m;
+}
+
 /* ═══ CALENDAR — #5 pts visible, #8 flag glow ═══ */
-function renderCalendar(){
-  const wrap=dv('card');const now=new Date();let cY=now.getFullYear(),cM=now.getMonth(),selK=null;
+/* Picking a day no longer opens the day underneath the grid; it fills the panel
+   beside it, which is where the note now lives. onPick redraws that panel. */
+function renderCalendar(onPick){
+  const wrap=dv('card');const now=new Date();
+  if(!STATE.calYM)STATE.calYM={y:now.getFullYear(),m:now.getMonth()};
+  let cY=STATE.calYM.y,cM=STATE.calYM.m;
   const isLight=document.body.classList.contains('light');
   const sBg=isLight
     ? {red:{bg:'#fecaca',txt:'#991b1b'},yellow:{bg:'#fef08a',txt:'#854d0e'},green:{bg:'#bbf7d0',txt:'#14532d'},purple:{bg:'#e9d5ff',txt:'#581c87'},none:{bg:'#e2e8f0',txt:'#94a3b8'}}
@@ -3457,15 +3495,12 @@ function renderCalendar(){
   function build(){
     wrap.innerHTML='';
     const hd=dv('rowb mb12');
-    const pv=bt('btn-icon','‹',()=>{cM--;if(cM<0){cM=11;cY--;}build();});pv.style.fontSize='20px';
-    const nx=bt('btn-icon','›',()=>{cM++;if(cM>11){cM=0;cY++;}build();});nx.style.fontSize='20px';
+    const pv=bt('btn-icon','‹',()=>{cM--;if(cM<0){cM=11;cY--;}STATE.calYM={y:cY,m:cM};build();});pv.style.fontSize='20px';
+    const nx=bt('btn-icon','›',()=>{cM++;if(cM>11){cM=0;cY++;}STATE.calYM={y:cY,m:cM};build();});nx.style.fontSize='20px';
     hd.appendChild(pv);hd.appendChild(sp('lg w7',capFirst(new Date(cY,cM).toLocaleDateString(STATE.lang==='es'?'es-MX':'en-US',{month:'long',year:'numeric'}))));hd.appendChild(nx);wrap.appendChild(hd);
 
     // #6: use history with gaps filled for calendar display
-    const filledHist=CALC.fillGaps(STATE.history);
-    const hMap=new Map(filledHist.map(d=>[d.date,d]));
-    // also merge STATE.history (gaps might not be in STATE yet)
-    STATE.history.forEach(d=>hMap.set(d.date,d));
+    const hMap=histMap();
 
     const dim=new Date(cY,cM+1,0).getDate();const fd=new Date(cY,cM,1).getDay();
     const tk=todayKey();
@@ -3485,7 +3520,7 @@ function renderCalendar(){
       const isToday=key===tk;
       const status=isToday?liveToday.status:(entry?entry.status:null);
       const bg=status?(sBg[status]||sBg.none):sBg.none;
-      const cell=dv(`cal-c${isToday?' today':''}${key===selK?' sel':''}`);
+      const cell=dv(`cal-c${isToday?' today':''}${key===STATE.calSel?' sel':''}`);
       cell.style.background=bg.bg;
       const flagOn=isToday?!!STATE.today.flagCompleted
                           :entry?.streaks?.some(s=>s.type==='flags'&&s.active);
@@ -3500,185 +3535,162 @@ function renderCalendar(){
         const val=isToday?liveToday.total:CALC.liveScore(entry,STATE.history);
         const pts=sp('cal-pts',String(val));pts.style.color=bg.txt;cell.appendChild(pts);
       }
-      cell.onclick=()=>{selK=key===selK?null:key;build();};
+      cell.onclick=()=>{STATE.calSel=key===STATE.calSel?null:key;build();if(onPick)onPick();};
       cg.appendChild(cell);
     }
     wrap.appendChild(cg);
-    if(selK){
-      const entry=hMap.get(selK);
-      if(!entry){
-        // No data for this day — still allow diary
-        const det=dv('card2 fi');det.style.border='1px solid var(--b2)';
-        det.appendChild(sp('xs dim',selK));
-        det.appendChild(sp('xs dimmer mt4',t('no-data')));
-        const diaryToggle=bt('btn-ghost btn-sm','📝 '+(STATE.diary[selK]?t('edit-note'):t('add-note')),()=>{
-          toggleDiaryEditor(det,selK,diaryToggle);
-        });
-        diaryToggle.style.marginTop='8px';det.appendChild(diaryToggle);
-        if(STATE.diary[selK]){const pv=dv('xs dim mt6');pv.style.cssText='white-space:pre-wrap;max-height:60px;overflow:hidden';pv.textContent=STATE.diary[selK].slice(0,120);pv.onclick=()=>diaryToggle.click();det.appendChild(pv);}
-        wrap.appendChild(det);
-      }
-      if(entry){
-        const det=dv(`card2 fi s-${entry.status}`);det.style.border='1px solid';
-        const dr=dv('rowb');dr.appendChild(sbadge(entry.status));dr.appendChild(sp('lg mo w7 ac',`${CALC.liveScore(entry,STATE.history)} pts`));det.appendChild(dr);
-        // Format: Fri, Jun 12 2026 | 21/28 tasks | 20 🍅 | 🏅 ×37
-        const fmtSelDate=new Date(selK+'T12:00:00').toLocaleDateString('en-US',{weekday:'short',year:'numeric',month:'short',day:'numeric'});
-        const flagActive=entry.streaks?.some(s=>s.type==='flags'&&s.active);
-        const flagStreak=entry.streaksUsed?.flagStreak||entry.streaksUsed?.flagstreak||'';
-        const parts=[
-          fmtSelDate,
-          `${entry.completedTasks||0}/${entry.totalTasks||0} tasks`,
-          `${entry.pomodoros||0} 🍅`,
-          ...(flagActive?[`🏅 ×${flagStreak||'?'}`]:[])
-        ];
-        det.appendChild(sp('xs dim mt6',parts.join(' · ')));
-        if(entry._gap)det.appendChild(sp('xs ng mt4',t('day-not-logged')));
-        // Diary entry
-        const diaryToggle=bt('btn-ghost btn-sm','📝 '+(STATE.diary[selK]?t('edit-note'):t('add-note')),()=>{
-          toggleDiaryEditor(det,selK,diaryToggle);
-        });
-        diaryToggle.style.marginTop='10px';
-        det.appendChild(diaryToggle);
-        // Show existing note preview
-        if(STATE.diary[selK]){
-          const noteText=STATE.diary[selK];
-          const preview=dv('xs dim mt6');
-          preview.style.cssText='white-space:pre-wrap;line-height:1.6';
-          preview.innerHTML=diaryToHtml(noteText);   // escapes, then bolds headings
-          det.appendChild(preview);
-        }
-        wrap.appendChild(det);
-      }
-    }
   }
   build();return wrap;
 }
 
-/* ═══ HISTORY EDITOR — #2 save triggers full refresh ═══ */
-function renderHistEd(sk_){
-  const wrap=dv('card');wrap.appendChild(sp('ctit',t('edit-hist')));
-  let edKey=null,fst={},vis=7;
-  function buildDays(){
-    const days=[];const today=new Date();
-    for(let i=0;i<=30;i++){
-      const d=new Date(today);d.setDate(d.getDate()-i);
-      const key=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
-      days.push({key,entry:STATE.history.find(h=>h.date===key),isToday:i===0});
-    }return days;
+/* Which streaks a day of this colour resets — shown against the day itself,
+   since the rule holds for any day that lands on that colour. */
+function resetEmojis(status){
+  if(status==='red')return'💼🔄';
+  if(status==='yellow')return'💊🔄';
+  if(status==='green')return'💊🌐🔄';
+  if(status==='purple')return'💊🌐💦🌙🔄';
+  return'';
+}
+function resetTooltip(status){
+  if(status==='red')return t('reset-work');
+  if(status==='yellow')return t('reset-indulg');
+  if(status==='green')return t('reset-ip');
+  if(status==='purple')return t('reset-all');
+  return'';
+}
+
+/* ═══ DAY PANEL — the day you picked on the calendar ═══
+   It holds what used to hang underneath the grid — colour, points, the day's
+   line — and gives the note the whole of the room the history list used to
+   take. The numbers themselves are edited through ✏, which opens them over
+   the page for the same day. */
+function renderDayPanel(){
+  const wrap=dv('card');
+  const key=STATE.calSel;
+  const hd=dv('rowb mb12');
+  hd.appendChild(sp('ctit',key
+    ? capFirst(new Date(key+'T12:00:00').toLocaleDateString(STATE.lang==='es'?'es-MX':'en-US',{weekday:'long',day:'numeric',month:'long'}))
+    : t('day-panel')));
+  if(key){
+    const eb=bt('btn-icon','✏',()=>{STATE.histDay=key;render();});
+    eb.title=t('edit-hist');hd.appendChild(eb);
   }
-  function build(){
-    while(wrap.children.length>1)wrap.removeChild(wrap.lastChild);
-    const days=buildDays();const list=dv('s6');
-    // Most recent day shown = today (i=0); that's where we show reset emojis
-    const todaySt=CALC.score(STATE.today,sk_).status;
-    // Most recent logged key = today if it has tasks/data, else last history entry
-    const shownKeys=days.slice(0,vis).map(d=>d.key);
-    const mostRecentKey=shownKeys[0]; // always today
-    function resetEmojis(status){
-      if(status==='red')return'💼🔄';
-      if(status==='yellow')return'💊🔄';
-      if(status==='green')return'💊🌐🔄';
-      if(status==='purple')return'💊🌐💦🌙🔄';
-      return'';
-    }
-    function resetTooltip(status){
-      if(status==='red')return t('reset-work');
-      if(status==='yellow')return t('reset-indulg');
-      if(status==='green')return t('reset-ip');
-      if(status==='purple')return t('reset-all');
-      return'';
-    }
-    // Pre-pass: find most recent day key for each color (today wins for its color)
-    const mostRecentForColor={};
-    // today is always most recent for its own color
-    mostRecentForColor[todaySt]='today';
-    // scan history entries in order (days is already newest-first)
-    days.slice(0,vis).forEach(({key,entry,isToday})=>{
-      if(isToday)return;
-      if(entry&&!entry._gap&&!mostRecentForColor[entry.status]){
-        mostRecentForColor[entry.status]=key;
-      }
-    });
-    days.slice(0,vis).forEach(({key,entry,isToday})=>{
-      const isEd=edKey===key;const row=dv(`hr-row${isEd?' ed':''}`);
-      const hd=dv('rowb');const lft=dv('row gap6');
-      lft.appendChild(sp('sm mo dim',key));
-      if(isToday){
-        // TODAY badge: colored by current day status
-        const b=sp(`badge s-${todaySt}`,t('Today'));b.style.marginLeft='4px';lft.appendChild(b);
-        // Reset emojis only if today is the most recent of its color
-        if(mostRecentForColor[todaySt]==='today'){
-          const re=sp('xs dimmer',' '+resetEmojis(todaySt));re.style.marginLeft='2px';re.title=resetTooltip(todaySt);re.style.cursor='help';lft.appendChild(re);
-        }
-      }
-      if(entry&&!isToday)lft.appendChild(sbadge(entry.status));
-      if(entry?._gap)lft.appendChild(sp('xs ng',' '+t('gap-warn')));
-      // Show reset emojis only on the most recent historical entry of its color
-      if(!isToday&&entry&&!entry._gap&&mostRecentForColor[entry.status]===key){
-        const re=sp('xs dimmer',' '+resetEmojis(entry.status));re.style.marginLeft='4px';re.title=resetTooltip(entry.status);re.style.cursor='help';lft.appendChild(re);
-      }
-      hd.appendChild(lft);
-      const rgt=dv('row gap6');
-      if(isToday){
-        // Today isn't saved into history yet — use the live in-memory calculation
-        // (which already includes any streak override) instead of liveScore(entry).
-        const todayPts=CALC.score(STATE.today,sk_).total;
-        rgt.appendChild(sp('sm mo dimmer',`${todayPts}pt`));
-      } else if(entry){
-        rgt.appendChild(sp('sm mo dimmer',`${CALC.liveScore(entry,STATE.history)}pt`));
-      }
-      const eb=bt('btn-icon',isEd?'✕':'✏',()=>{
-        if(isEd){edKey=null;}
-        else{
-          edKey=key;const e=entry;
-          fst={completed:e?.completedTasks||0,target:e?.totalTasks||0,pomodoros:e?.pomodoros||0,workDuration:e?.workDuration||0,
-            sleepDuration:e?.sleepDuration||0,napDuration:e?.napDuration||0,sleptEarly:e?.sleptEarly||false,
-            morningCompleted:e?.streaks?.some(s=>s.type==='morning'&&s.active)||false,
-            flagCompleted:e?.streaks?.some(s=>s.type==='flags'&&s.active)||false,
-            sleptLate:e?.sleptLate||false,
-            substances:e?.penalties?.find(p=>p.type==='drugs')?.count||0,
-            procMins:e?.penalties?.find(p=>p.type==='internet')?.count||0,
-            macanazoCount:e?.penalties?.filter(p=>p.type==='macanazo')?.length||0};
-        }build();
-      });
-      rgt.appendChild(eb);hd.appendChild(rgt);row.appendChild(hd);
-      if(isEd){
-        const form=dv('fi mt10');const g=dv('g2 mb10');g.style.gap='6px';
-        function nf(label,val,onChange){const w=dv('s4');w.innerHTML=`<div class="xs dimmer up ls">${label}</div>`;const i=ip('number','',val,'');i.min=0;i.style.width='100%';i.oninput=()=>onChange(parseInt(i.value)||0);i.onkeydown=e=>{if(e.key==='Enter')i.blur();};w.appendChild(i);return w;}
-        function df(label,val,onChange){const w=dv('s4');w.innerHTML=`<div class="xs dimmer up ls">${label}</div>`;const i=ip('text','',val?fmtDur(val):'',t('ej-dur'));i.style.width='100%';i.oninput=()=>{const r=parseDur(i.value);if(r.v!==null)onChange(r.v);};i.onkeydown=e=>{if(e.key==='Enter')i.blur();};w.appendChild(i);return w;}
-        g.appendChild(nf(t('daily-tasks'),fst.completed,v=>fst.completed=v));g.appendChild(nf(t('target-ph'),fst.target,v=>fst.target=v));
-        g.appendChild(nf(t('pom-lbl'),fst.pomodoros,v=>fst.pomodoros=v));g.appendChild(df(t('work-lbl'),fst.workDuration,v=>fst.workDuration=v));
-        g.appendChild(df(t('main-sleep'),fst.sleepDuration,v=>fst.sleepDuration=v));g.appendChild(df(t('nap-lbl'),fst.napDuration,v=>fst.napDuration=v));
-        g.appendChild(nf(t('indulg-hash'),fst.substances,v=>fst.substances=v));g.appendChild(df(t('proc-lbl'),fst.procMins,v=>fst.procMins=v));
-        g.appendChild(nf(t('org-hash'),fst.macanazoCount,v=>fst.macanazoCount=v));form.appendChild(g);
-        const cks=dv('row gap16 mb10');
-        function ck(label,val,onChange){const w=dv('row gap6');w.style.cursor='pointer';const c=ip('checkbox','');c.checked=val;c.onchange=()=>onChange(c.checked);w.appendChild(c);w.appendChild(sp('sm',label));w.onclick=e=>{if(e.target!==c){c.checked=!c.checked;c.dispatchEvent(new Event('change'));}};return w;}
-        cks.appendChild(ck(t('morning-routine'),fst.morningCompleted,v=>fst.morningCompleted=v));cks.appendChild(ck(t('goals-ann'),fst.flagCompleted,v=>fst.flagCompleted=v));cks.appendChild(ck(t('early-bed'),fst.sleptEarly,v=>fst.sleptEarly=v));cks.appendChild(ck(t('late-bed'),fst.sleptLate,v=>fst.sleptLate=v));form.appendChild(cks);
-        const sb=bt('btn-ac btn-sm',t('save-btn'),()=>{
-          const pens=[];
-          if(fst.substances>0)pens.push({type:'drugs',count:fst.substances,points:CALC.penBase({type:'drugs',details:{substances:fst.substances}}),streak:1});
-          if(fst.procMins>0)pens.push({type:'internet',count:fst.procMins,points:CALC.penBase({type:'internet',details:{minutes:fst.procMins}}),streak:1});
-          for(let i=0;i<fst.macanazoCount;i++)pens.push({type:'macanazo',count:1,points:CALC.penBase({type:'macanazo',details:{isPositive:false}}),streak:1});
-          const mockDay={completed:fst.completed,target:fst.target,morningCompleted:fst.morningCompleted,flagCompleted:fst.flagCompleted,pomodoros:fst.pomodoros,
-            penalties:pens.map(p=>({type:p.type,count:p.count,details:p.type==='drugs'?{substances:p.count}:p.type==='internet'?{minutes:p.count}:{isPositive:false}})),
-            sleep:{sleepDuration:fst.sleepDuration,napDuration:fst.napDuration,sleptEarly:fst.sleptEarly,sleptLate:fst.sleptLate||false,earlyBedStreak:1},work:{workDuration:fst.workDuration}};
-          const fsk={morningStreak:1,flagStreak:1,substancesPenaltyStreak:1,procrastinationPenaltyStreak:1,macanazoPenaltyStreak:1,lateStreak:1,substancesStreak:0,procrastinationStreak:0,macanazoStreak:0,workStreak:0};
-          const sc_=CALC.score(mockDay,fsk);
-          upsertHist({date:key,_ts:Date.now(),todayPoints:sc_.total,status:sc_.status,completedTasks:fst.completed,totalTasks:fst.target,pomodoros:fst.pomodoros,sleepDuration:fst.sleepDuration,napDuration:fst.napDuration,sleptEarly:fst.sleptEarly,sleptLate:fst.sleptLate||false,workDuration:fst.workDuration,penalties:pens,_gap:false,
-            streaks:[{type:'morning',count:fst.morningCompleted?1:0,active:fst.morningCompleted},{type:'flags',count:fst.flagCompleted?1:0,active:fst.flagCompleted}]},key);
-          // Save locally AND push to Supabase immediately
-          S.set(K.HIST,STATE.history);
-          SB.push(STATE.history,STATE.today,STATE.diary,STATE.streakOverrides).catch(()=>{});
-          edKey=null;
-          refresh();
-        });form.appendChild(sb);row.appendChild(form);
-      }
-      list.appendChild(row);
-    });
-    wrap.appendChild(list);
-    if(vis<31){const mb=bt('btn-ghost btn-sm w100 mt8',t('show-more'),()=>{vis+=7;build();});mb.style.width='100%';wrap.appendChild(mb);}
+  wrap.appendChild(hd);
+  if(!key){wrap.appendChild(dv('sm dimmer ctr mt16 mb16',t('pick-day')));return wrap;}
+
+  const isToday=key===todayKey();
+  const entry=histMap().get(key);
+  // Today is still being lived, so it is scored from STATE.today through the
+  // very call the score card makes, never from a stale history entry.
+  const live=isToday?CALC.score(STATE.today,applyStreakOverrides(CALC.streaks(STATE.history,STATE.today))):null;
+
+  if(isToday||entry){
+    const status=isToday?live.status:entry.status;
+    const dr=dv('rowb');
+    const lft=dv('row gap6');
+    lft.appendChild(sbadge(status));
+    if(isToday){const b=sp('badge s-'+status,t('Today'));lft.appendChild(b);}
+    const re=sp('xs dimmer',resetEmojis(status));
+    re.title=resetTooltip(status);re.style.cursor='help';lft.appendChild(re);
+    dr.appendChild(lft);
+    dr.appendChild(sp('lg mo w7 ac',`${isToday?live.total:CALC.liveScore(entry,STATE.history)} pts`));
+    wrap.appendChild(dr);
+    // Format: 21/28 tasks · 20 🍅 · 🏅 ×37
+    const flagActive=isToday?!!STATE.today.flagCompleted:entry.streaks?.some(s=>s.type==='flags'&&s.active);
+    const flagStreak=entry?.streaksUsed?.flagStreak||entry?.streaksUsed?.flagstreak||'';
+    const parts=[
+      `${(isToday?STATE.today.completed:entry.completedTasks)||0}/${(isToday?STATE.today.target:entry.totalTasks)||0} tasks`,
+      `${(isToday?STATE.today.pomodoros:entry.pomodoros)||0} 🍅`,
+      ...(flagActive?[isToday?'🏅':`🏅 ×${flagStreak||'?'}`]:[])
+    ];
+    const line=dv('xs dim mt6');line.textContent=parts.join(' · ');wrap.appendChild(line);
+    if(!isToday&&entry?._gap)wrap.appendChild(dv('xs ng mt4',t('day-not-logged')));
+  } else {
+    wrap.appendChild(dv('xs dimmer',t('no-data')));
   }
-  build();return wrap;
+
+  // The note: read it formatted, or open it and write. Opening hides the
+  // reading copy so the day is not shown twice at once.
+  const nb=bt('btn-ghost btn-sm','📝 '+(STATE.diary[key]?t('edit-note'):t('add-note')),()=>{
+    const pv=wrap.querySelector('.note-prev');if(pv)pv.style.display='none';
+    toggleDiaryEditor(wrap,key,nb);
+  });
+  nb.style.cssText='margin-top:12px;display:block';wrap.appendChild(nb);
+  if(STATE.diary[key]){
+    const preview=dv('sm dim mt8 note-prev');
+    preview.style.cssText='white-space:pre-wrap;line-height:1.6';
+    preview.innerHTML=diaryToHtml(STATE.diary[key]);   // escapes, then bolds headings
+    wrap.appendChild(preview);
+  }
+  return wrap;
+}
+
+/* ═══ HISTORY EDITOR — one day, opened over the calendar ═══ */
+function renderHistModal(key){
+  const close=()=>{STATE.histDay=null;render();};
+  const ov=dv('fi');
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:60;'+
+    'display:flex;align-items:flex-start;justify-content:center;padding:20px;overflow:auto';
+  ov.onclick=e=>{if(e.target===ov)close();};
+  const panel=dv('card');
+  panel.style.cssText='max-width:560px;width:100%;margin:auto';
+  const hd=dv('rowb mb12');
+  const lft=dv('row gap6');
+  lft.appendChild(sp('ctit',t('edit-hist')));
+  lft.appendChild(sp('sm mo dim',key));
+  hd.appendChild(lft);hd.appendChild(bt('btn-icon','✕',close));
+  panel.appendChild(hd);
+  panel.appendChild(renderHistForm(key));
+  ov.appendChild(panel);
+  // Single assignment rather than a listener, so repeated renders cannot
+  // stack handlers up.
+  document.onkeydown=e=>{if(e.key==='Escape'&&STATE.histDay)close();};
+  return ov;
+}
+
+/* The day's numbers. Saving writes the day, pushes it, and re-renders — the
+   panel beside the calendar then reads back what was just saved. */
+function renderHistForm(key){
+  const e=histMap().get(key);
+  const fst={completed:e?.completedTasks||0,target:e?.totalTasks||0,pomodoros:e?.pomodoros||0,workDuration:e?.workDuration||0,
+    sleepDuration:e?.sleepDuration||0,napDuration:e?.napDuration||0,sleptEarly:e?.sleptEarly||false,
+    morningCompleted:e?.streaks?.some(s=>s.type==='morning'&&s.active)||false,
+    flagCompleted:e?.streaks?.some(s=>s.type==='flags'&&s.active)||false,
+    sleptLate:e?.sleptLate||false,
+    substances:e?.penalties?.find(p=>p.type==='drugs')?.count||0,
+    procMins:e?.penalties?.find(p=>p.type==='internet')?.count||0,
+    macanazoCount:e?.penalties?.filter(p=>p.type==='macanazo')?.length||0};
+  const form=dv('fi');const g=dv('g2 mb10');g.style.gap='6px';
+  function nf(label,val,onChange){const w=dv('s4');w.innerHTML=`<div class="xs dimmer up ls">${label}</div>`;const i=ip('number','',val,'');i.min=0;i.style.width='100%';i.oninput=()=>onChange(parseInt(i.value)||0);i.onkeydown=ev=>{if(ev.key==='Enter')i.blur();};w.appendChild(i);return w;}
+  function df(label,val,onChange){const w=dv('s4');w.innerHTML=`<div class="xs dimmer up ls">${label}</div>`;const i=ip('text','',val?fmtDur(val):'',t('ej-dur'));i.style.width='100%';i.oninput=()=>{const r=parseDur(i.value);if(r.v!==null)onChange(r.v);};i.onkeydown=ev=>{if(ev.key==='Enter')i.blur();};w.appendChild(i);return w;}
+  g.appendChild(nf(t('daily-tasks'),fst.completed,v=>fst.completed=v));g.appendChild(nf(t('target-ph'),fst.target,v=>fst.target=v));
+  g.appendChild(nf(t('pom-lbl'),fst.pomodoros,v=>fst.pomodoros=v));g.appendChild(df(t('work-lbl'),fst.workDuration,v=>fst.workDuration=v));
+  g.appendChild(df(t('main-sleep'),fst.sleepDuration,v=>fst.sleepDuration=v));g.appendChild(df(t('nap-lbl'),fst.napDuration,v=>fst.napDuration=v));
+  g.appendChild(nf(t('indulg-hash'),fst.substances,v=>fst.substances=v));g.appendChild(df(t('proc-lbl'),fst.procMins,v=>fst.procMins=v));
+  g.appendChild(nf(t('org-hash'),fst.macanazoCount,v=>fst.macanazoCount=v));form.appendChild(g);
+  const cks=dv('row gap16 mb10');cks.style.flexWrap='wrap';
+  function ck(label,val,onChange){const w=dv('row gap6');w.style.cursor='pointer';const c=ip('checkbox','');c.checked=val;c.onchange=()=>onChange(c.checked);w.appendChild(c);w.appendChild(sp('sm',label));w.onclick=ev=>{if(ev.target!==c){c.checked=!c.checked;c.dispatchEvent(new Event('change'));}};return w;}
+  cks.appendChild(ck(t('morning-routine'),fst.morningCompleted,v=>fst.morningCompleted=v));cks.appendChild(ck(t('goals-ann'),fst.flagCompleted,v=>fst.flagCompleted=v));cks.appendChild(ck(t('early-bed'),fst.sleptEarly,v=>fst.sleptEarly=v));cks.appendChild(ck(t('late-bed'),fst.sleptLate,v=>fst.sleptLate=v));form.appendChild(cks);
+  const sb=bt('btn-ac btn-sm',t('save-btn'),()=>{
+    const pens=[];
+    if(fst.substances>0)pens.push({type:'drugs',count:fst.substances,points:CALC.penBase({type:'drugs',details:{substances:fst.substances}}),streak:1});
+    if(fst.procMins>0)pens.push({type:'internet',count:fst.procMins,points:CALC.penBase({type:'internet',details:{minutes:fst.procMins}}),streak:1});
+    for(let i=0;i<fst.macanazoCount;i++)pens.push({type:'macanazo',count:1,points:CALC.penBase({type:'macanazo',details:{isPositive:false}}),streak:1});
+    const mockDay={completed:fst.completed,target:fst.target,morningCompleted:fst.morningCompleted,flagCompleted:fst.flagCompleted,pomodoros:fst.pomodoros,
+      penalties:pens.map(p=>({type:p.type,count:p.count,details:p.type==='drugs'?{substances:p.count}:p.type==='internet'?{minutes:p.count}:{isPositive:false}})),
+      sleep:{sleepDuration:fst.sleepDuration,napDuration:fst.napDuration,sleptEarly:fst.sleptEarly,sleptLate:fst.sleptLate||false,earlyBedStreak:1},work:{workDuration:fst.workDuration}};
+    const fsk={morningStreak:1,flagStreak:1,substancesPenaltyStreak:1,procrastinationPenaltyStreak:1,macanazoPenaltyStreak:1,lateStreak:1,substancesStreak:0,procrastinationStreak:0,macanazoStreak:0,workStreak:0};
+    const sc_=CALC.score(mockDay,fsk);
+    upsertHist({date:key,_ts:Date.now(),todayPoints:sc_.total,status:sc_.status,completedTasks:fst.completed,totalTasks:fst.target,pomodoros:fst.pomodoros,sleepDuration:fst.sleepDuration,napDuration:fst.napDuration,sleptEarly:fst.sleptEarly,sleptLate:fst.sleptLate||false,workDuration:fst.workDuration,penalties:pens,_gap:false,
+      streaks:[{type:'morning',count:fst.morningCompleted?1:0,active:fst.morningCompleted},{type:'flags',count:fst.flagCompleted?1:0,active:fst.flagCompleted}]},key);
+    // Save locally AND push to Supabase immediately
+    S.set(K.HIST,STATE.history);
+    SB.push(STATE.history,STATE.today,STATE.diary,STATE.streakOverrides).catch(()=>{});
+    STATE.histDay=null;
+    refresh();
+  });form.appendChild(sb);
+  return form;
 }
 
 /* ═══ STATS — #7 more interesting stats ═══ */
@@ -4172,9 +4184,11 @@ function toggleDiaryEditor(container,dateKey,button){
    open, and the plan line is dropped once there is nothing left to plan. */
 function diaryTemplate(){
   const left=goalsOf('week').filter(g=>!g.doneOn).length;
-  const weekly=left
-    ? t('tpl-weekly-left').replace('{n}',left)+'\n\n'+t('tpl-weekly-plan')+'\n'
-    : t('tpl-weekly-done')+'\n';
+  // --> marks the line as a heading of its own. It carries a number that
+  // changes, so it can never match the fixed list diaryHeadings holds.
+  const weekly='--> '+(left
+    ? t('tpl-weekly-left').replace('{n}',left)+'\n'+t('tpl-weekly-plan')+'\n'
+    : t('tpl-weekly-done')+'\n');
   return [
     t('tpl-grateful'),'    1. ','    2. ','    3. ','',
     t('tpl-bad'),'','',
@@ -4194,14 +4208,18 @@ function diaryTemplate(){
 function diaryHeadings(){
   return ['tpl-grateful','tpl-bad','tpl-weekly-plan','tpl-why','tpl-dream',
           'tpl-feel','tpl-feel-why','tpl-cool','tpl-improve','tpl-summary']
-    .map(k=>t(k));
+    .map(k=>t(k))
+    // Wording these two headings once had. Notes already written keep their
+    // gold instead of quietly going plain the day the template changes.
+    .concat(['1 cosa chida que hice:','1 cosa que puedo mejorar:',
+             '1 cool thing I did:','1 thing I can improve:']);
 }
 function diaryToHtml(text){
   const heads=diaryHeadings();
   const esc=s=>s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   return esc(text).split('\n').map(line=>{
     const bare=line.trim();
-    return heads.some(h=>bare===h||bare===esc(h))
+    return heads.some(h=>bare===h||bare===esc(h))||bare.startsWith('--&gt;')
       ? `<span class="w7 ac">${line}</span>` : line;
   }).join('\n');
 }
@@ -4214,9 +4232,15 @@ function renderDiaryFor(dateKey){
   const existing=STATE.diary[dateKey];
   ta.value=existing&&existing.trim()?existing:diaryTemplate();
   ta.style.minHeight='260px';
+  /* Whose day this is, and whether it has been touched. Picking another day on
+     the calendar tears this editor down, and what was typed has to be written
+     before it goes — but an untouched template is not a note and must not be
+     saved as one. */
+  ta.dataset.day=dateKey;
 
   let saveTimer=null;
   ta.oninput=()=>{
+    ta.dataset.dirty='1';
     clearTimeout(saveTimer);
     saveTimer=setTimeout(()=>{
       if(ta.value.trim()) STATE.diary[dateKey]=ta.value;
