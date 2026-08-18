@@ -149,6 +149,12 @@ button{cursor:pointer;font-family:var(--ff);font-size:15px;font-weight:600;borde
 @keyframes pulse{0%,100%{opacity:.4}50%{opacity:1}}
 @keyframes fi{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
 .fi{animation:fi .18s ease}
+/* Celebration for a day whose flags are all down */
+@keyframes pop{0%{transform:scale(.7);opacity:0}55%{transform:scale(1.08)}100%{transform:scale(1);opacity:1}}
+@keyframes shine{0%,100%{box-shadow:0 0 0 0 rgba(212,160,23,.35)}50%{box-shadow:0 0 22px 4px rgba(212,160,23,.35)}}
+.celebrate{animation:pop .45s cubic-bezier(.2,1.3,.4,1),shine 2.4s ease-in-out .45s infinite}
+@keyframes confetti{0%{transform:translateY(0) rotate(0);opacity:1}100%{transform:translateY(46px) rotate(220deg);opacity:0}}
+.confetti span{position:absolute;top:0;font-size:13px;animation:confetti 1.5s ease-in forwards}
 .login-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
 ::-webkit-scrollbar{width:5px;height:5px}
 ::-webkit-scrollbar-track{background:var(--bg)}
@@ -523,6 +529,7 @@ en:{
   'goals-title':'Goals','goal-week':'📅 Weekly','goal-quarter':'📈 Quarterly','goal-year':'🏆 Yearly',
   'goal-new':'A goal that excites you','goal-add':'+ Add goal','goal-day':'day left','goal-days':'days left',
   'goal-earned':'earned from goals','goal-daily':'Goals of the day',
+  'goal-day-done':'Goals annihilated!','goal-day-done-sub':'Every flag of the day is down.',
   'goal-worth':'worth','goal-tomorrow':'tomorrow','goal-past-due':'⚠ was due',
   'goal-full':'Limit reached.','goal-carried':'⚠ carried over from last period',
   'goal-note':'Finish early, earn more: base × days still left in the period. These add to your total score, not to the day.',
@@ -635,6 +642,7 @@ es:{
   'goals-title':'Metas','goal-week':'📅 Semanales','goal-quarter':'📈 Trimestrales','goal-year':'🏆 Anuales',
   'goal-new':'Una meta que te emocione','goal-add':'+ Agregar meta','goal-day':'día restante','goal-days':'días restantes',
   'goal-earned':'ganados en metas','goal-daily':'Metas del día',
+  'goal-day-done':'¡Metas exterminadas alv!','goal-day-done-sub':'Cayeron todas las banderas de hoy.',
   'goal-worth':'vale','goal-tomorrow':'mañana','goal-past-due':'⚠ era para',
   'goal-full':'Límite alcanzado.','goal-carried':'⚠ arrastrada del periodo anterior',
   'goal-note':'Termínalas temprano, valen más: base × días que quedan del periodo. Suman a tu puntaje total, no al día.',
@@ -1842,22 +1850,41 @@ function renderPlanner(){
 
   /* The day's goals are the flagged reminders, so they live here rather than
      with the long goals — foldable, since on a busy day the list is long. */
-  const flags=reminders().filter(r=>r.flagged&&(r.completedOn===tk||(!r.done&&r.due<=tk)));
-  if(flags.length){
+  /* Only what is still outstanding. A finished flag has served its purpose —
+     leaving it struck through kept the day's remaining work buried under a
+     list of things already dealt with. */
+  const flagsAll=reminders().filter(r=>r.flagged&&(r.completedOn===tk||(!r.done&&r.due<=tk)));
+  const flagsLeft=flagsAll.filter(r=>r.completedOn!==tk);
+  if(flagsAll.length){
     sum.appendChild(dv('xs dimmer up ls mt10 mb6',`🏁 ${t('goal-daily')} (${s.flagsDone}/${s.flagsTotal})`));
-    const box=dv('s4');
-    flags.forEach(r=>{
-      const row=dv('row gap8');
-      row.style.cssText='background:var(--sur2);border:1px solid var(--b1);border-radius:8px;padding:6px 9px';
-      const cb=ip('checkbox','');cb.checked=r.completedOn===tk;
-      cb.onchange=()=>{toggleReminder(r.id);render();};
-      row.appendChild(cb);
-      const tt=sp('sm f1',r.title);
-      if(r.completedOn===tk){tt.style.textDecoration='line-through';tt.style.color='var(--t3)';}
-      row.appendChild(tt);
-      box.appendChild(row);
-    });
-    sum.appendChild(box);
+    if(!flagsLeft.length){
+      const win=dv('ctr celebrate');
+      win.style.cssText='position:relative;overflow:hidden;background:var(--acd);border:1px solid var(--acb);border-radius:10px;padding:14px 10px';
+      win.innerHTML=`<div class="lg w8 ac">🏅 ${t('goal-day-done')}</div>`+
+        `<div class="xs dim mt2">${t('goal-day-done-sub')}</div>`;
+      const conf=dv('confetti');
+      conf.style.cssText='position:absolute;inset:0;pointer-events:none';
+      ['🎉','✨','🎊','⭐','✨','🎉'].forEach((c,i)=>{
+        const s_=document.createElement('span');
+        s_.textContent=c;
+        s_.style.cssText=`left:${8+i*16}%;animation-delay:${i*0.13}s`;
+        conf.appendChild(s_);
+      });
+      win.appendChild(conf);
+      sum.appendChild(win);
+    }else{
+      const box=dv('s4');
+      flagsLeft.forEach(r=>{
+        const row=dv('row gap8');
+        row.style.cssText='background:var(--sur2);border:1px solid var(--b1);border-radius:8px;padding:6px 9px';
+        const cb=ip('checkbox','');cb.checked=false;
+        cb.onchange=()=>{toggleReminder(r.id);render();};
+        row.appendChild(cb);
+        row.appendChild(sp('sm f1',r.title));
+        box.appendChild(row);
+      });
+      sum.appendChild(box);
+    }
   }
 
   top.appendChild(sum);
@@ -3231,16 +3258,26 @@ function renderCalendar(){
 
     const dim=new Date(cY,cM+1,0).getDate();const fd=new Date(cY,cM,1).getDay();
     const tk=todayKey();
+    /* Today is still being lived, so its cell must read from STATE.today
+       through CALC.score — the very call the score card makes. It used to
+       render whatever stale entry history held for today and score it with
+       liveScore, which is built for closed days and recomputes streaks
+       differently, so the two disagreed: +186 up top against -295 down here. */
+    const liveSk=applyStreakOverrides(CALC.streaks(STATE.history,STATE.today));
+    const liveToday=CALC.score(STATE.today,liveSk);
     const cg=dv('cal-g mb10');
     (STATE.lang==='es'?['Do','Lu','Ma','Mi','Ju','Vi','Sa']:['Su','Mo','Tu','We','Th','Fr','Sa']).forEach(d=>cg.appendChild(dv('cal-hd',d)));
     for(let i=0;i<fd;i++)cg.appendChild(dv(''));
     for(let d=1;d<=dim;d++){
       const key=(()=>{const _d=new Date(cY,cM,d);return _d.getFullYear()+'-'+String(_d.getMonth()+1).padStart(2,'0')+'-'+String(_d.getDate()).padStart(2,'0');})();
       const entry=hMap.get(key);
-      const bg=entry?sBg[entry.status]||sBg.none:sBg.none;
-      const cell=dv(`cal-c${key===tk?' today':''}${key===selK?' sel':''}`);
+      const isToday=key===tk;
+      const status=isToday?liveToday.status:(entry?entry.status:null);
+      const bg=status?(sBg[status]||sBg.none):sBg.none;
+      const cell=dv(`cal-c${isToday?' today':''}${key===selK?' sel':''}`);
       cell.style.background=bg.bg;
-      const flagOn=entry?.streaks?.some(s=>s.type==='flags'&&s.active);
+      const flagOn=isToday?!!STATE.today.flagCompleted
+                          :entry?.streaks?.some(s=>s.type==='flags'&&s.active);
       if(flagOn){
         // #8: prominent ring + icon
         const ring=dv('cal-flag-ring');cell.appendChild(ring);
@@ -3248,7 +3285,10 @@ function renderCalendar(){
       }
       const num=sp('cal-num',String(d));num.style.color=bg.txt;cell.appendChild(num);
       // #5: always show pts if entry exists
-      if(entry){const pts=sp('cal-pts',String(CALC.liveScore(entry,STATE.history)));pts.style.color=bg.txt;cell.appendChild(pts);}
+      if(isToday||entry){
+        const val=isToday?liveToday.total:CALC.liveScore(entry,STATE.history);
+        const pts=sp('cal-pts',String(val));pts.style.color=bg.txt;cell.appendChild(pts);
+      }
       cell.onclick=()=>{selK=key===selK?null:key;build();};
       cg.appendChild(cell);
     }
