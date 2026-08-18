@@ -21,6 +21,9 @@
   --ng:#f97316;--ngd:rgba(249,115,22,.13);--ngb:rgba(249,115,22,.30);
   /* status */
   --cr:#ff5566;--cy:#f5c842;--cg:#34d399;--cp:#a78bfa;
+  /* Rest blue. Sits opposite the amber accent so focus and break read apart at
+     a glance, and carries no meaning of its own the way the day colours do. */
+  --cb:#5b9df9;
   --rd:rgba(255,85,102,.13);--yd:rgba(245,200,66,.13);--gd:rgba(52,211,153,.13);--pd:rgba(167,139,250,.13);
   --rb:rgba(255,85,102,.30);--yb:rgba(245,200,66,.30);--gb:rgba(52,211,153,.30);--pb:rgba(167,139,250,.30);
   --ff:'Outfit',sans-serif;--mo:'JetBrains Mono',monospace;
@@ -35,7 +38,7 @@ html,body{background:var(--bg);color:var(--t1);font-family:var(--ff);font-size:2
 .w3{font-weight:300}.w4{font-weight:400}.w5{font-weight:500}.w6{font-weight:600}.w7{font-weight:700}.w8{font-weight:800}
 .dim{color:var(--t2)}.dimmer{color:var(--t3)}
 .ac{color:var(--ac)}.ng{color:var(--ng)}
-.cr{color:var(--cr)}.cy{color:var(--cy)}.cg{color:var(--cg)}.cp{color:var(--cp)}
+.cr{color:var(--cr)}.cy{color:var(--cy)}.cg{color:var(--cg)}.cp{color:var(--cp)}.cb{color:var(--cb)}
 .up{text-transform:uppercase}.ls{letter-spacing:.07em}
 .ctr{text-align:center}
 
@@ -1888,7 +1891,7 @@ function renderPlanner(){
   }
 
   top.appendChild(sum);
-  top.appendChild(renderPomoCard(dayStatus));
+  top.appendChild(renderPomoCard());
   wrap.appendChild(top);
 
   /* ── add form — folded away behind the + in the list header, so the page is
@@ -2236,14 +2239,16 @@ function renderGoals(){
   return wrap;
 }
 
-function renderPomoCard(dayStatus){
+function renderPomoCard(){
   pomoRollDay();
   const p=STATE.pomo;
   const card=dv('card');
   const focusing=p.phase==='focus';
-  // Focus stays amber; a break takes the day's own colour, so resting reads
-  // against how the day is actually going.
-  const rest={red:'var(--cr)',yellow:'var(--cy)',green:'var(--cg)',purple:'var(--cp)'}[dayStatus]||'var(--cg)';
+  /* Focus is amber, rest is blue. Green collided with a green day, and tying
+     rest to the day's colour was worse: the day colours mean "how you are
+     doing", so seeing one on a break invites a connection that is not there.
+     Blue means nothing else in this app, which is exactly the point. */
+  const rest='var(--cb)';
   const accent=focusing?'var(--ac)':rest;
   const head=dv('rowb mb6');
   head.appendChild(sp('ctit',t('pomo-title')));
