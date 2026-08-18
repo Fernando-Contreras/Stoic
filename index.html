@@ -464,6 +464,7 @@ en:{
   'sk-ci':'No Stimulants','sk-cp':'No Procrastination','sk-co':'No Orgasm :(',
   'sk-i':'Stimulants 💊','sk-p':'Procrastination 🌐','sk-o':'Orgasm 💦','sk-l':'Late Nights 🌙',
   'edit-note':'Edit note','add-note':'Add note','save-note':'Save note','no-data':'No data logged for this day.',
+  'day-title-ph':'Title for the day','day-untitled':'Untitled','ctrl-save':'Ctrl + Enter to save',
   'tpl-grateful':'3 reasons why I am deeply grateful',
   'tpl-bad':'1 bad thing of today (feel free to complain):',
   'tpl-weekly-left':'There are still {n} weekly goals waiting to be completed.',
@@ -597,6 +598,7 @@ es:{
   'sk-ci':'Sin Estimulantes','sk-cp':'Sin Procrastinación','sk-co':'Sin Orgasmo (¿todo bien?)',
   'sk-i':'Estimulantes 💊','sk-p':'Procrastinación 🌐','sk-o':'Orgasmo 💦','sk-l':'Trasnoche 🌙',
   'edit-note':'Editar nota','add-note':'Agregar nota','save-note':'Guardar nota','no-data':'Sin datos para este día.',
+  'day-title-ph':'Título del día','day-untitled':'Sin título','ctrl-save':'Ctrl + Enter para guardar',
   'tpl-grateful':'3 razones por las que estoy profundamente agradecido',
   'tpl-bad':'1 cosa mala de hoy (quéjate a gusto):',
   'tpl-weekly-left':'Todavía quedan {n} metas semanales por completar.',
@@ -973,6 +975,7 @@ let STATE={
   tagFilters: [],
   showAddForm: false,
   showGoals: false,
+  showRules: false,
   /* The calendar and the panel beside it are two halves of one thing: the day
      you pick fills the panel, and histDay is the day whose numbers are open on
      top of it. All three live here because saving re-renders the whole app —
@@ -980,6 +983,9 @@ let STATE={
   calSel: null,
   calYM: null,
   histDay: null,
+  // Which days are reading folded — a way of looking at a note, not part of it,
+  // so it is never written down or synced.
+  diaryFold: {},
   // How the planner list is drawn. Remembered, but purely a view: none of this
   // can change a number that scores.
   view: S.get('st_view',{scope:'all',sort:'date-asc',flat:false}),
@@ -1190,6 +1196,15 @@ function applyRemote(remote){
   // DIARY: union (both devices keep entries, no deletion)
   if(remote.diary){
     const merged={...STATE.diary,...remote.diary};
+    /* Except the note open in the editor. Its own keystrokes are pushed as it
+       is written, so a pull that crosses that push carries a copy a few words
+       behind what is on screen — and remote winning per key would hand those
+       words back. Whatever is being typed stays local until it is put down. */
+    const openDay=document.querySelector('.diary-area')?.dataset.day;
+    if(openDay){
+      if(openDay in STATE.diary)merged[openDay]=STATE.diary[openDay];
+      else delete merged[openDay];
+    }
     if(JSON.stringify(merged)!==JSON.stringify(STATE.diary)){STATE.diary=merged;S.set(K.DIARY,STATE.diary);changed=true;}
   }
 
@@ -1238,11 +1253,24 @@ function applyRemote(remote){
   return changed;
 }
 
+/* Is the user in the middle of writing something? A redraw throws away the
+   field under their hands, and the note editor is the one place where that is
+   unmistakable: it closes on its own, mid-sentence. */
+function isEditing(){
+  const a=document.activeElement;
+  if(a&&(a.tagName==='TEXTAREA'||a.tagName==='INPUT'))return true;
+  return !!document.querySelector('.diary-area');
+}
+/* The sync itself never waits — only the redraw does. What the cloud brought
+   is already in STATE; this remembers that the screen has yet to show it, so
+   the first quiet cycle draws it rather than the change being missed. */
+let _redrawOwed=false;
 async function bgSync(){
   if(!STATE.authed||!SB.init()) return;
   try{
     const remote=await SB.pull();
-    if(applyRemote(remote)) render();
+    if(applyRemote(remote))_redrawOwed=true;
+    if(_redrawOwed&&!isEditing()){_redrawOwed=false;render();}
   }catch(e){/* silent — will retry next cycle */}
 }
 setInterval(bgSync,5000); // every 5s for fast cross-device sync // every 8s
@@ -2916,9 +2944,14 @@ function renderApp(){
   const hdr=dv('ctr');hdr.style.padding='20px 0 16px';
   const now=new Date();
   const tz='America/Cancun';
-  hdr.innerHTML=`<div class="xxxl w8 ac" style="letter-spacing:-.02em">🏛️ Stoic</div>
+  /* The title opens the rules. It is left looking exactly like a title —
+     no border, no padding, no button about it — because that is how it
+     should look; only the cursor gives it away. */
+  hdr.innerHTML=`<div class="xxxl w8 ac" id="stoic-title" style="letter-spacing:-.02em;cursor:pointer;user-select:none" title="${t('rules-title')}">🏛️ Stoic</div>
     <div class="sm dim mt4">${capFirst(now.toLocaleDateString(STATE.lang==='es'?'es-MX':'en-US',{timeZone:tz,weekday:'long',year:'numeric',month:'long',day:'numeric'}))}</div>
     <div class="xs dimmer mt2 mo" id="clk">${now.toLocaleTimeString(STATE.lang==='es'?'es-MX':'en-US',{timeZone:tz,hour:'2-digit',minute:'2-digit',second:'2-digit'})}</div>`;
+
+  hdr.querySelector('#stoic-title').onclick=()=>{STATE.showRules=true;render();};
 
   // clock update: interval is started once at boot level
   const sind=dv('row gap6 xs dim mt6');sind.style.justifyContent='center';
@@ -2964,6 +2997,10 @@ function renderApp(){
     wrap.appendChild(renderSyncPanel());
   }
 
+  /* The rules open over whichever tab you are on. They sit here, above the
+     tabs, because the planner returns early below and would never reach them. */
+  if(STATE.showRules)wrap.appendChild(renderRulesModal());
+
   /* ── TABS ── */
   const st=plannerTodayStats();
   const tabs=dv('row gap6 mt4 mb4');
@@ -3002,7 +3039,8 @@ function renderApp(){
     // to another day cannot eat the last words.
     const ta=panel.querySelector('.diary-area');
     if(ta&&ta.dataset.dirty){
-      if(ta.value.trim())STATE.diary[ta.dataset.day]=ta.value; else delete STATE.diary[ta.dataset.day];
+      const v=diaryValue(panel);
+      if(v.trim())STATE.diary[ta.dataset.day]=v; else delete STATE.diary[ta.dataset.day];
       S.set(K.DIARY,STATE.diary);
       SB.push(STATE.history,STATE.today,STATE.diary,STATE.streakOverrides).catch(()=>{});
     }
@@ -3012,7 +3050,6 @@ function renderApp(){
   wrap.appendChild(ch);
   if(STATE.histDay)wrap.appendChild(renderHistModal(STATE.histDay));
   wrap.appendChild(renderStats(total,sc));
-  wrap.appendChild(renderRules());
   // Reset All — at the bottom where it's hard to hit accidentally
   const resetWrap=dv('card mt12');resetWrap.style.cssText='border-color:var(--ngb);background:var(--ngd)';
   const resetRow=dv('rowb');
@@ -3613,17 +3650,38 @@ function renderDayPanel(){
   // The note: read it formatted, or open it and write. Opening hides the
   // reading copy so the day is not shown twice at once.
   const nb=bt('btn-ghost btn-sm','📝 '+(STATE.diary[key]?t('edit-note'):t('add-note')),()=>{
-    const pv=wrap.querySelector('.note-prev');if(pv)pv.style.display='none';
+    wrap.querySelectorAll('.note-prev').forEach(pv=>pv.style.display='none');
     toggleDiaryEditor(wrap,key,nb);
   });
   nb.style.cssText='margin-top:12px;display:block';wrap.appendChild(nb);
   if(STATE.diary[key]){
+    const body=noteBody(STATE.diary[key]);
+    const folded=!!STATE.diaryFold[key];
+    /* The title heads the note and folds it: one click puts the template away
+       and leaves the summary, which is the part worth re-reading. A note with
+       no summary in it has nothing to fold, so it stays whole. */
+    const cut=summaryCut(body);
+    const head=dv('row gap6 mt10 note-prev');
+    head.style.cssText='cursor:pointer;align-items:baseline';
+    if(cut>=0)head.appendChild(sp('sm dimmer',folded?'▸':'▾'));
+    const title=noteTitle(STATE.diary[key]);
+    head.appendChild(sp(title?'xl w7 ac':'xl w7 dimmer',title||t('day-untitled')));
+    head.onclick=()=>{if(cut>=0){STATE.diaryFold[key]=!folded;refresh();}};
+    wrap.appendChild(head);
     const preview=dv('sm dim mt8 note-prev');
     preview.style.cssText='white-space:pre-wrap;line-height:1.6';
-    preview.innerHTML=diaryToHtml(STATE.diary[key]);   // escapes, then bolds headings
+    preview.innerHTML=diaryToHtml(folded&&cut>=0?body.split('\n').slice(cut).join('\n'):body);
     wrap.appendChild(preview);
   }
   return wrap;
+}
+
+/* Where the summary starts in a note — the fold leaves everything from there
+   down. Both languages are checked: a note written in Spanish still folds when
+   the app is read in English. */
+function summaryCut(body){
+  const sums=[T.es['tpl-summary'],T.en['tpl-summary']];
+  return body.split('\n').findIndex(l=>sums.includes(l.trim()));
 }
 
 /* ═══ HISTORY EDITOR — one day, opened over the calendar ═══ */
@@ -3862,12 +3920,29 @@ function renderStats(total,sc){
 
 
 /* ═══ RULES — #8 updated & simple ═══ */
-function renderRules(){
-  const wrap=dv('card mt12');let open=true;
-  const tog=el('button','sec-t');tog.innerHTML=`<span>${t('rules-title')}</span><span id="rl-a">▲</span>`;
+/* ═══ RULES — opened from the title, over whatever you were reading ═══ */
+function renderRulesModal(){
+  const close=()=>{STATE.showRules=false;render();};
+  const ov=dv('fi');
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:60;'+
+    'display:flex;align-items:flex-start;justify-content:center;padding:20px;overflow:auto';
+  ov.onclick=e=>{if(e.target===ov)close();};
+  const panel=renderRules(close);
+  panel.style.cssText='max-width:900px;width:100%;margin:auto';
+  ov.appendChild(panel);
+  // Single assignment rather than a listener, so repeated renders cannot
+  // stack handlers up.
+  document.onkeydown=e=>{if(e.key==='Escape'&&STATE.showRules)close();};
+  return ov;
+}
+
+function renderRules(onClose){
+  const wrap=dv('card');
+  const hd=dv('rowb mb12');
+  hd.appendChild(sp('ctit',t('rules-title')));
+  hd.appendChild(bt('btn-icon','✕',onClose));
+  wrap.appendChild(hd);
   const body=dv('fi');
-  tog.onclick=()=>{open=!open;body.style.display=open?'':'none';document.getElementById('rl-a').textContent=open?'▲':'▼';};
-  wrap.appendChild(tog);
   body.innerHTML=STATE.lang==='es'?`<div class="s16 dim">
   <div>
     <div class="md up ls dimmer w7 mb10">📋 Cómo funciona esta app</div>
@@ -4159,9 +4234,8 @@ function renderSyncPanel(){
 function toggleDiaryEditor(container,dateKey,button){
   const open=container.querySelector('.diary-wrap');
   if(open){
-    const ta=open.querySelector('.diary-area');
-    if(ta){
-      const val=ta.value;
+    const val=diaryValue(open);
+    if(val!==null){
       if(val.trim())STATE.diary[dateKey]=val; else delete STATE.diary[dateKey];
       S.set(K.DIARY,STATE.diary);
       SB.push(STATE.history,STATE.today,STATE.diary,STATE.streakOverrides).catch(()=>{});
@@ -4170,7 +4244,7 @@ function toggleDiaryEditor(container,dateKey,button){
     refresh();
     return;
   }
-  const dw=renderDiaryFor(dateKey);
+  const dw=renderDiaryFor(dateKey,()=>toggleDiaryEditor(container,dateKey,button));
   dw.className='diary-wrap fi';
   container.appendChild(dw);
   container.querySelector('.diary-area')?.focus();
@@ -4184,9 +4258,9 @@ function toggleDiaryEditor(container,dateKey,button){
    open, and the plan line is dropped once there is nothing left to plan. */
 function diaryTemplate(){
   const left=goalsOf('week').filter(g=>!g.doneOn).length;
-  // --> marks the line as a heading of its own. It carries a number that
+  // → marks the line as a heading of its own. It carries a number that
   // changes, so it can never match the fixed list diaryHeadings holds.
-  const weekly='--> '+(left
+  const weekly='→ '+(left
     ? t('tpl-weekly-left').replace('{n}',left)+'\n'+t('tpl-weekly-plan')+'\n'
     : t('tpl-weekly-done')+'\n');
   return [
@@ -4219,18 +4293,37 @@ function diaryToHtml(text){
   const esc=s=>s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   return esc(text).split('\n').map(line=>{
     const bare=line.trim();
-    return heads.some(h=>bare===h||bare===esc(h))||bare.startsWith('--&gt;')
+    // '--&gt;' is the arrow the template used to write. Notes already holding
+    // it keep their gold.
+    return heads.some(h=>bare===h||bare===esc(h))||bare.startsWith('→')||bare.startsWith('--&gt;')
       ? `<span class="w7 ac">${line}</span>` : line;
   }).join('\n');
 }
 
-function renderDiaryFor(dateKey){
+/* A note is one string, and its first line — when it starts with '# ' — is the
+   day's title. Keeping the title inside the note means nothing new has to sync
+   and every note ever written already reads correctly: it simply has none. */
+function noteTitle(text){const m=/^# (.*)(\n|$)/.exec(text||'');return m?m[1]:'';}
+function noteBody(text){return (text||'').replace(/^# .*(\n|$)/,'');}
+function noteJoin(title,body){const ti=(title||'').trim();return ti?'# '+ti+'\n'+body:body;}
+/* What the open editor holds right now, its two fields back as one note. */
+function diaryValue(scope){
+  const ta=scope.querySelector('.diary-area');if(!ta)return null;
+  return noteJoin(scope.querySelector('.diary-title')?.value,ta.value);
+}
+
+function renderDiaryFor(dateKey,onSave){
   const wrap=dv('mt10 fi');
+  const existing=STATE.diary[dateKey];
+  const hasNote=!!(existing&&existing.trim());
+
+  const ti=ip('text','diary-title',noteTitle(existing),t('day-title-ph'));
+  ti.style.cssText='width:100%;font-size:22px;font-weight:700;color:var(--ac);margin-bottom:8px';
+
   const ta=document.createElement('textarea');
   ta.className='diary-area';
   ta.placeholder='Write your thoughts about this day...';
-  const existing=STATE.diary[dateKey];
-  ta.value=existing&&existing.trim()?existing:diaryTemplate();
+  ta.value=hasNote?noteBody(existing):diaryTemplate();
   ta.style.minHeight='260px';
   /* Whose day this is, and whether it has been touched. Picking another day on
      the calendar tears this editor down, and what was typed has to be written
@@ -4239,22 +4332,28 @@ function renderDiaryFor(dateKey){
   ta.dataset.day=dateKey;
 
   let saveTimer=null;
-  ta.oninput=()=>{
+  const touch=()=>{
     ta.dataset.dirty='1';
     clearTimeout(saveTimer);
     saveTimer=setTimeout(()=>{
-      if(ta.value.trim()) STATE.diary[dateKey]=ta.value;
+      const v=diaryValue(wrap);
+      if(v.trim()) STATE.diary[dateKey]=v;
       else delete STATE.diary[dateKey];
       S.set(K.DIARY,STATE.diary);
       // Push immediately — no debounce, diary must sync
       SB.push(STATE.history,STATE.today,STATE.diary,STATE.streakOverrides).catch(()=>{});
     },600);
   };
+  ta.oninput=touch;ti.oninput=touch;
 
-  const saved=dv('xs dimmer mt4','');
-  ta.onfocus=()=>{saved.textContent='';};
+  // Ctrl/⌘+Enter puts the note down without reaching for the button. Enter on
+  // the title line goes to the body, the way a title field should.
+  const put=e=>{if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){e.preventDefault();if(onSave)onSave();}};
+  ta.onkeydown=put;
+  ti.onkeydown=e=>{if(e.key==='Enter'&&!e.ctrlKey&&!e.metaKey){e.preventDefault();ta.focus();}else put(e);};
 
-  wrap.appendChild(ta);wrap.appendChild(saved);
+  wrap.appendChild(ti);wrap.appendChild(ta);
+  wrap.appendChild(dv('xs dimmer mt4',t('ctrl-save')));
   return wrap;
 }
 
