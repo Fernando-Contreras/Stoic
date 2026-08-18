@@ -1803,17 +1803,17 @@ function renderPlanner(){
      STATE.today before this runs. */
   const dayPct=STATE.today.target>0?Math.round((STATE.today.completed||0)/STATE.today.target*100):0;
   const dayStatus=CALC.status(dayPct,STATE.today.flagCompleted||false);
-  const statusVar={red:'var(--cr)',yellow:'var(--cy)',green:'var(--cg)',purple:'var(--cp)'}[dayStatus];
 
   const top=dv('g2 mb12');
   const sum=dv('card');
   const sr=dv('rowb');
   sr.appendChild(sp('ctit',t('rem-title')));
+  // The badge carries the day's colour on its own. Tinting the count and the
+  // bar as well put green in two unrelated places at once — the day's standing
+  // and the pomodoro's break phase — and neither read clearly.
   const right=dv('row gap8');
   right.appendChild(sbadge(dayStatus));
-  const num=sp('md mo w7',`${s.done}/${s.total}`);
-  num.style.color=statusVar;
-  right.appendChild(num);
+  right.appendChild(sp('md mo ac w7',`${s.done}/${s.total}`));
   sr.appendChild(right);
   sum.appendChild(sr);
   const bits=[`${s.total} ${t('tasks-lbl')}`];
@@ -1822,7 +1822,7 @@ function renderPlanner(){
   sum.appendChild(dv('xs dim mt4',bits.join(' · ')));
   if(s.annihilated)sum.appendChild(dv('xs ac mt4 w6',t('goals-ann-badge')));
   const prog=dv('prog mt10');const pf=dv('prog-f');
-  pf.style.cssText=`width:${Math.min(dayPct,100)}%;background:${statusVar}`;
+  pf.style.cssText=`width:${Math.min(dayPct,100)}%;background:var(--ac)`;
   prog.appendChild(pf);sum.appendChild(prog);
   sum.appendChild(dv('xs dimmer mt4 ctr',`${dayPct}%`));
 
