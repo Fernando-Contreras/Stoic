@@ -8,6 +8,15 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🏛️%3C/text%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<!-- Installable: added to a phone's home screen it opens on its own, full
+     screen, with its own icon, and starts without signal. -->
+<link rel="manifest" href="./manifest.json">
+<meta name="theme-color" content="#09090f">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="Stoic">
+<link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 /* ── #9: zoom — max-width tighter + bigger base font ── */
@@ -2993,9 +3002,7 @@ function renderApp(){
 
 
 
-  if(STATE.showSyncPanel){
-    wrap.appendChild(renderSyncPanel());
-  }
+  if(STATE.showSyncPanel)wrap.appendChild(renderSyncModal());
 
   /* The rules open over whichever tab you are on. They sit here, above the
      tabs, because the planner returns early below and would never reach them. */
@@ -3919,7 +3926,6 @@ function renderStats(total,sc){
 }
 
 
-/* ═══ RULES — #8 updated & simple ═══ */
 /* ═══ RULES — opened from the title, over whatever you were reading ═══ */
 function renderRulesModal(){
   const close=()=>{STATE.showRules=false;render();};
@@ -3947,40 +3953,32 @@ function renderRules(onClose){
   <div>
     <div class="md up ls dimmer w7 mb10">📋 Cómo funciona esta app</div>
     <div class="s6">
-      <div>Stoic es <span class="ac w6">productividad gamificada</span>. Tiene dos pestañas: <strong>📋 Plan</strong>, donde vive tu lista de pendientes, y <strong>📊 Puntaje</strong>, donde esa lista se convierte en puntos.</div>
-      <div>Cada día: <strong>1)</strong> arma tu lista en Plan, <strong>2)</strong> trabájala y ve palomeando, <strong>3)</strong> en Puntaje registra lo demás (sueño, trabajo, recompensas).</div>
-      <div>La app convierte tu día en un puntaje y un color. Con el tiempo ves tus patrones — qué ayuda, qué perjudica, qué tan consistente eres realmente, qué necesita cambiar.</div>
+      <div>Stoic es <span class="ac w6">productividad gamificada</span>. Dos pestañas: <strong>📋 Plan</strong>, tu lista de pendientes, y <strong>📊 Puntaje</strong>, donde esa lista se vuelve puntos y un color.</div>
+      <div>Cada día: arma tu lista en Plan, trabájala palomeando, y en Puntaje registra lo demás (sueño, trabajo, recompensas). Con el tiempo ves tus patrones: qué ayuda, qué perjudica, qué tan consistente eres.</div>
     </div>
   </div>
   <hr class="dv">
   <div>
     <div class="md up ls dimmer w7 mb10">🔗 Cómo se hablan las dos pestañas</div>
     <div class="s6">
-      <div><span class="ac w6">Plan alimenta a Puntaje.</span> Tus recordatorios llenan solos tu meta del día, tus tareas completadas y tus Metas Exterminadas.</div>
-      <div><span class="ac w6">Puntaje nunca toca a Plan.</span> Lo que edites allá no marca ni borra nada de tu lista.</div>
-      <div><span class="ac w6">Tu mano manda</span> — si escribes un número a mano en Puntaje, se respeta. Pero en cuanto edites tu lista en Plan, Plan retoma el control de ese número.</div>
-      <div>Escribe <span class="ac w6">0</span> en la meta para devolverle el control a Plan de inmediato.</div>
-      <div>La app no te deja subreportar: tu meta nunca puede ser menor que las tareas que realmente tienes hoy, y las completadas nunca pasan de la meta.</div>
-      <div><span class="cr w6">Los atrasados sí cuentan.</span> Un recordatorio que no completaste conserva su fecha original y sigue sumando a tu meta de hoy, igual que en Apple Reminders.</div>
-      <div>Ponles <span class="cp w6">etiquetas</span> (las que tú inventes) y <span class="cp w6">subtareas</span> en 2 niveles. Cada una se paloma por su cuenta, así la tarea madre puede ser una tarea bonus en sí misma.</div>
-      <div>Las <span class="ac w6">repeticiones</span> siguen su propio ritmo: una tarea cada 5 días que completas tarde vuelve en su fecha, no 5 días después de que la palomeaste.</div>
+      <div><span class="ac w6">Plan alimenta a Puntaje</span> — tus recordatorios llenan solos tu meta del día, tus completadas y tus Metas Exterminadas. <span class="ac w6">Puntaje nunca toca a Plan.</span></div>
+      <div><span class="ac w6">Tu mano manda</span> — un número que escribas en Puntaje se respeta, hasta que edites tu lista en Plan: ahí Plan lo retoma. Escribe <span class="ac w6">0</span> en la meta para devolvérselo de inmediato.</div>
+      <div>No puedes subreportar: la meta nunca baja de las tareas que hoy tienes, y las completadas nunca pasan de la meta.</div>
+      <div><span class="cr w6">Los atrasados cuentan.</span> Un recordatorio sin completar conserva su fecha y sigue sumando a tu meta de hoy, igual que en Apple Reminders.</div>
+      <div><span class="cp w6">Etiquetas</span> (las que inventes) y <span class="cp w6">subtareas</span> en 2 niveles: cada una se paloma por su cuenta. Las <span class="ac w6">repeticiones</span> vuelven en su fecha, no desde que palomeaste.</div>
       <div>Un día <strong>sin ninguna bandera</strong> no cuenta como Metas Exterminadas.</div>
-      <div>El <span class="ac w6">🍅 pomodoro</span> vive en Plan. 1 minuto enfocado = 1 punto, los descansos no pagan, y cada 25 min enfocados cuenta como un pomodoro (50 min = 2). El timer <strong>solo suma</strong> a Puntaje: nunca te baja lo que pusiste a mano.</div>
+      <div>El <span class="ac w6">🍅 pomodoro</span> vive en Plan: 1 min enfocado = 1 pt, los descansos no pagan, 25 min enfocados = 1 pomodoro (50 min = 2). <strong>Solo suma</strong>: nunca baja lo que pusiste a mano.</div>
     </div>
   </div>
   <hr class="dv">
   <div>
     <div class="md up ls dimmer w7 mb10">🏆 Metas semanales, trimestrales y anuales</div>
     <div class="s6">
-      <div>Estas no pueden generar racha, así que su premio es <span class="ac w6">terminarlas temprano</span>: valen su base × los días que <em>queden</em> del periodo.</div>
-      <div>Las tres valen <span class="ac w6">1,000 por día restante</span>. El largo del periodo hace la jerarquía solo: una semanal llega a 7,000, una trimestral a ~92,000 y una anual a 365,000.</div>
-      <div><span class="w6">📅 Semanal</span> — máximo 5. La semana empieza en <strong>domingo</strong>, así que cerrarla el domingo paga ×7 y el sábado ×1.</div>
-      <div><span class="w6">📈 Trimestral</span> — máximo 5.</div>
-      <div><span class="w6">🏆 Anual</span> — máximo 10. Terminar una en agosto son ~139,000; el 1 de enero serían 365,000.</div>
-      <div>Las metas <strong>diarias</strong> son tus banderas 🏁 en los recordatorios. Se recomiendan 3 al día.</div>
-      <div><span class="ac w6">La fecha límite se fija cuando creas la meta</span> y ya no se mueve. El reloj corre desde que te comprometes, así que terminar antes <em>siempre</em> paga más.</div>
-      <div>Una meta que no cumpliste <span class="cy w6">se arrastra</span> y la puedes seguir cerrando, pero pasada su fecha ya solo paga el mínimo (1,000). <strong>Postergar nunca conviene.</strong></div>
-      <div>Sus puntos van a tu <span class="ac w6">puntaje total</span>, no al día. Así una meta anual no se vuelve tu "mejor día" para siempre ni descuadra tus promedios.</div>
+      <div>No generan racha: su premio es <span class="ac w6">terminarlas temprano</span>. Valen <span class="ac w6">1,000 por día que quede</span> del periodo, así una semanal llega a 7,000, una trimestral a ~92,000 y una anual a 365,000.</div>
+      <div><span class="w6">📅 Semanal</span> máx. 5 · <span class="w6">📈 Trimestral</span> máx. 5 · <span class="w6">🏆 Anual</span> máx. 10. La semana empieza en <strong>domingo</strong>: cerrarla el domingo paga ×7 y el sábado ×1.</div>
+      <div>Las <strong>diarias</strong> son tus banderas 🏁 en los recordatorios. Se recomiendan 3 al día.</div>
+      <div><span class="ac w6">La fecha límite se fija al crearla</span> y no se mueve. Una meta vencida <span class="cy w6">se arrastra</span> y la puedes cerrar, pero ya solo paga el mínimo (1,000): <strong>postergar nunca conviene</strong>.</div>
+      <div>Sus puntos van a tu <span class="ac w6">puntaje total</span>, no al día, para no descuadrar tus promedios.</div>
     </div>
   </div>
   <hr class="dv">
@@ -3999,24 +3997,23 @@ function renderRules(onClose){
   <div>
     <div class="md up ls ac w7 mb10">💰 Cómo ganas puntos</div>
     <div class="s6">
-      <div><span class="ac w6">✅ Tareas</span> — +1 pt por tarea completada.</div>
-      <div><span class="ac w6">🌅 Rutina Matutina</span> — ¿hiciste tu rutina hoy? Márcala por +25 pts. Cuanto más larga tu racha, mayor el bonus.</div>
-      <div><span class="ac w6">🏅 Metas Exterminadas alv</span> — ¿acabaste tus 3 tareas más importantes? +100 pts × tu racha.</div>
-      <div><span class="ac w6">🍅 Pomodoros</span> — cada sesión de trabajo enfocado = +25 pts.</div>
-      <div><span class="ac w6">💼 Trabajo</span> — registra tu tiempo de trabajo. +1 pt por minuto, multiplicado por tu racha de días trabajados consecutivos.</div>
-      <div><span class="ac w6">😴 Sueño</span> — registra tu sueño y siestas. +1 pt por minuto. Dormir temprano da un bonus multiplicado por racha.</div>
-      <div><span class="ac w6">🎨 Bonus de color</span> — tu color da puntos que <em>se acumulan</em>: <span class="cy">Amarillo</span> +10 · <span class="cg">Verde</span> +30 (incluye Amarillo) · <span class="cp">Morado</span> +60 (incluye los tres). Este bonus se multiplica por tu racha de días no rojos consecutivos.</div>
+      <div><span class="ac w6">✅ Tareas</span> — +1 pt cada una.</div>
+      <div><span class="ac w6">🌅 Rutina Matutina</span> — márcala: +25 pts × tu racha.</div>
+      <div><span class="ac w6">🏅 Metas Exterminadas alv</span> — tus 3 tareas más importantes: +100 pts × tu racha.</div>
+      <div><span class="ac w6">🍅 Pomodoros</span> — +25 pts cada uno.</div>
+      <div><span class="ac w6">💼 Trabajo</span> — +1 pt por minuto × tu racha de días trabajados.</div>
+      <div><span class="ac w6">😴 Sueño</span> — sueño y siestas: +1 pt por minuto. Dormir temprano da bonus × racha.</div>
+      <div><span class="ac w6">🎨 Bonus de color</span> — <em>se acumula</em>: <span class="cy">Amarillo</span> +10 · <span class="cg">Verde</span> +30 · <span class="cp">Morado</span> +60, × tu racha de días no rojos.</div>
     </div>
   </div>
   <hr class="dv">
   <div>
     <div class="md up ls ng w7 mb10">🤤 Recompensas (costos en puntos 💸)</div>
     <div class="s6">
-      <div>Son premios que quieres mantener a raya. Cada uno cuesta puntos — y cuanto más seguido las haces, más cuestan (multiplicador de racha).</div>
-      <div><span class="ng w6">💊 Estimulantes</span> — comida chatarra, sustancias (azúcar, café, mota, alcohol; todo cuenta) y cualquier mal hábito que quieras reducir. Cuesta puntos × cuántos días seguidos llevas.</div>
-      <div><span class="ng w6">🌐 Procrastinación</span> — registra cuántos minutos desperdiciaste. Después de 30 min, el multiplicador de racha aplica.</div>
-      <div><span class="ng w6">💦 Orgasmo</span> — cuesta bastante × días consecutivos.</div>
-      <div><span class="ng w6">🌙 Trasnoché</span> — quedarse despierto tarde cuesta bastante × tu racha de desvelo.</div>
+      <div>Premios que quieres mantener a raya. Cada uno cuesta puntos, y cuanto más seguido los haces, más cuestan (× racha).</div>
+      <div><span class="ng w6">💊 Estimulantes</span> — chatarra, azúcar, café, mota, alcohol y cualquier mal hábito que quieras reducir.</div>
+      <div><span class="ng w6">🌐 Procrastinación</span> — registra los minutos desperdiciados. Pasados 30 min entra el multiplicador.</div>
+      <div><span class="ng w6">💦 Orgasmo</span> y <span class="ng w6">🌙 Trasnoché</span> — cuestan bastante × su racha.</div>
       <div class="xs dimmer">Los costos exactos dependen de tu modo de dificultad — ver abajo.</div>
     </div>
   </div>
@@ -4024,7 +4021,7 @@ function renderRules(onClose){
   <div>
     <div class="md up ls dimmer w7 mb10">🌱⚖️💪 Modo de Dificultad</div>
     <div class="s6">
-      <div>Cambia la dificultad en la barra superior. Escala qué tan duro pegan las <em>Recompensas</em>. Los puntos positivos son iguales en todos los modos.</div>
+      <div>Cámbiala en la barra superior. Escala qué tan duro pegan las <em>Recompensas</em>; los puntos positivos son iguales en todos los modos.</div>
       <div><span class="w6" style="color:var(--cg)">🌱 Fácil</span> — para principiantes o formación de hábitos. Estimulantes −25 · Procrastinación −10/min · Orgasmo −100.</div>
       <div><span class="w6" style="color:var(--cy)">⚖️ Medio</span> — balanceado. Estimulantes −125 · Procrastinación −50/min · Orgasmo −500.</div>
       <div><span class="w6" style="color:var(--cr)">💪 Difícil</span> — modo disciplina total. Estimulantes −250 · Procrastinación −100/min · Orgasmo −1,000.</div>
@@ -4034,12 +4031,11 @@ function renderRules(onClose){
   <div>
     <div class="md up ls dimmer w7 mb10">🔄 Cómo se reinician las rachas</div>
     <div class="s6">
-      <div>Todas las rachas se rompen al saltarte un día, excepto procrastinación, que permite 30 minutos diarios.</div>
-      <div>Además, algunas rachas se reinician según el color de tu día:</div>
-      <div>Un día <span class="cr w6">🔴 Rojo</span> reinicia tu racha de Trabajo. 💼</div>
-      <div>Un día <span class="cy w6">🟡 Amarillo</span> reinicia tu racha de Estimulantes. 💊</div>
-      <div>Un día <span class="cg w6">🟢 Verde</span> reinicia Estimulantes 💊 + Procrastinación. 🌐</div>
-      <div>Un día <span class="cp w6">🟣 Morado</span> reinicia TODAS las rachas de recompensas, incluyendo Desvelo. 🌙</div>
+      <div>Todas se rompen al saltarte un día, excepto procrastinación, que permite 30 minutos diarios. Además, el color del día reinicia algunas:</div>
+      <div><span class="cr w6">🔴 Rojo</span> — reinicia tu racha de Trabajo 💼</div>
+      <div><span class="cy w6">🟡 Amarillo</span> — reinicia Estimulantes 💊</div>
+      <div><span class="cg w6">🟢 Verde</span> — reinicia Estimulantes 💊 + Procrastinación 🌐</div>
+      <div><span class="cp w6">🟣 Morado</span> — reinicia TODAS las de recompensas, incluyendo Desvelo 🌙</div>
       <div class="xs dimmer">Los días que olvidas registrar cuentan como −1,000 pts y día Rojo. ¡Registra diario!</div>
     </div>
   </div>
@@ -4049,40 +4045,32 @@ function renderRules(onClose){
   <div>
     <div class="md up ls dimmer w7 mb10">📋 How this app works</div>
     <div class="s6">
-      <div>Stoic is a <span class="ac w6">daily accountability tracker</span> with two tabs: <strong>📋 Plan</strong>, where your to-do list lives, and <strong>📊 Score</strong>, where that list turns into points.</div>
-      <div>Every day: <strong>1)</strong> build your list in Plan, <strong>2)</strong> work through it, ticking as you go, <strong>3)</strong> log everything else in Score (sleep, work, rewards).</div>
-      <div>The app turns your day into a score and a color. Over time you see your patterns — what helps, what hurts, how consistent you really are, what needs to change.</div>
+      <div>Stoic is a <span class="ac w6">daily accountability tracker</span> with two tabs: <strong>📋 Plan</strong>, your to-do list, and <strong>📊 Score</strong>, where that list turns into points and a colour.</div>
+      <div>Every day: build your list in Plan, work through it ticking as you go, and log everything else in Score (sleep, work, rewards). Over time you see your patterns — what helps, what hurts, how consistent you really are.</div>
     </div>
   </div>
   <hr class="dv">
   <div>
     <div class="md up ls dimmer w7 mb10">🔗 How the two tabs talk</div>
     <div class="s6">
-      <div><span class="ac w6">Plan feeds Score.</span> Your reminders fill in the day's target, your completed count, and Goals Annihilated on their own.</div>
-      <div><span class="ac w6">Score never touches Plan.</span> Nothing you edit there ticks or deletes anything on your list.</div>
-      <div><span class="ac w6">Your hand wins</span> — a number you type in Score is respected. But the moment you edit your list in Plan, Plan takes that number back.</div>
-      <div>Type <span class="ac w6">0</span> in the target to hand control back to Plan straight away.</div>
-      <div>The app will not let you undercount: your target can never be lower than the tasks you actually have today, and completed can never exceed the target.</div>
-      <div><span class="cr w6">Overdue still counts.</span> A reminder you did not finish keeps its original date and goes on adding to today's target, just like Apple Reminders.</div>
-      <div>Give them <span class="cp w6">tags</span> (invent your own) and <span class="cp w6">subtasks</span>, two levels deep. Each is ticked on its own, so a parent can be a bonus task in its own right.</div>
-      <div><span class="ac w6">Repeats</span> keep their own rhythm: a task every 5 days completed late comes back on its date, not 5 days after you ticked it.</div>
+      <div><span class="ac w6">Plan feeds Score</span> — your reminders fill in the day's target, your completed count and Goals Annihilated on their own. <span class="ac w6">Score never touches Plan.</span></div>
+      <div><span class="ac w6">Your hand wins</span> — a number you type in Score is respected, until you edit your list in Plan: then Plan takes it back. Type <span class="ac w6">0</span> in the target to hand it back straight away.</div>
+      <div>You cannot undercount: the target never falls below the tasks you have today, and completed never exceeds the target.</div>
+      <div><span class="cr w6">Overdue still counts.</span> A reminder you did not finish keeps its date and goes on adding to today's target, just like Apple Reminders.</div>
+      <div><span class="cp w6">Tags</span> (invent your own) and <span class="cp w6">subtasks</span> two levels deep: each is ticked on its own. <span class="ac w6">Repeats</span> come back on their date, not from when you ticked them.</div>
       <div>A day with <strong>no flags at all</strong> does not count as Goals Annihilated.</div>
-      <div>The <span class="ac w6">🍅 pomodoro</span> lives in Plan. One focused minute is one point, breaks pay nothing, and every 25 focused minutes counts as one pomodoro (50 min = 2). The timer <strong>only ever adds</strong> to Score: it can never reduce a count you typed by hand.</div>
+      <div>The <span class="ac w6">🍅 pomodoro</span> lives in Plan: one focused minute is one point, breaks pay nothing, 25 focused minutes is one pomodoro (50 min = 2). It <strong>only ever adds</strong>: it can never reduce a count you typed by hand.</div>
     </div>
   </div>
   <hr class="dv">
   <div>
     <div class="md up ls dimmer w7 mb10">🏆 Weekly, quarterly and yearly goals</div>
     <div class="s6">
-      <div>These cannot build streaks, so the reward is <span class="ac w6">finishing early</span>: base × the days still <em>left</em> in the period.</div>
-      <div>All three pay <span class="ac w6">1,000 per day left</span>. The length of the period does the ranking on its own: a weekly tops out at 7,000, a quarterly around 92,000, a yearly at 365,000.</div>
-      <div><span class="w6">📅 Weekly</span> — up to 5. The week starts on <strong>Sunday</strong>, so closing one on Sunday pays ×7 and Saturday pays ×1.</div>
-      <div><span class="w6">📈 Quarterly</span> — up to 5.</div>
-      <div><span class="w6">🏆 Yearly</span> — up to 10. Finishing one in August is about 139,000; on 1 January it would be 365,000.</div>
+      <div>These cannot build streaks, so the reward is <span class="ac w6">finishing early</span>. They pay <span class="ac w6">1,000 per day still left</span> in the period, so a weekly tops out at 7,000, a quarterly around 92,000, a yearly at 365,000.</div>
+      <div><span class="w6">📅 Weekly</span> up to 5 · <span class="w6">📈 Quarterly</span> up to 5 · <span class="w6">🏆 Yearly</span> up to 10. The week starts on <strong>Sunday</strong>, so closing one on Sunday pays ×7 and Saturday pays ×1.</div>
       <div><strong>Daily</strong> goals are your 🏁 flags on reminders. Three a day is the sweet spot.</div>
-      <div><span class="ac w6">The deadline is set when you create the goal</span> and never moves. The clock runs from the moment you commit, so finishing sooner <em>always</em> pays more.</div>
-      <div>A goal you did not finish <span class="cy w6">carries over</span> and can still be closed, but past its deadline it only pays the floor (1,000). <strong>Postponing never wins.</strong></div>
-      <div>Their points go to your <span class="ac w6">total score</span>, not to the day — so a yearly goal never becomes your "best day" forever or skews your averages.</div>
+      <div><span class="ac w6">The deadline is set when you create the goal</span> and never moves. One you did not finish <span class="cy w6">carries over</span> and can still be closed, but past its deadline it only pays the floor (1,000): <strong>postponing never wins</strong>.</div>
+      <div>Their points go to your <span class="ac w6">total score</span>, not to the day, so they never skew your averages.</div>
     </div>
   </div>
   <hr class="dv">
@@ -4101,24 +4089,23 @@ function renderRules(onClose){
   <div>
     <div class="md up ls ac w7 mb10">💰 How you earn points</div>
     <div class="s6">
-      <div><span class="ac w6">✅ Tasks</span> — +1 pt per completed task.</div>
-      <div><span class="ac w6">🌅 Morning Routine</span> — did you do your morning routine today? Check it off for +25 pts. The longer your streak, the bigger the bonus.</div>
-      <div><span class="ac w6">🏅 Goals Annihilated</span> — crushed your key goals for the day? +100 pts × your streak.</div>
-      <div><span class="ac w6">🍅 Pomodoros</span> — each focused work session = +25 pts.</div>
-      <div><span class="ac w6">💼 Work</span> — log your work time. +1 pt per minute, multiplied by your consecutive work-day streak.</div>
-      <div><span class="ac w6">😴 Sleep</span> — log your sleep and naps. +1 pt per minute. Going to bed early gives a streak-multiplied bonus on top.</div>
-      <div><span class="ac w6">🎨 Day color bonus</span> — your color gives bonus points that <em>stack</em>: <span class="cy">Yellow</span> +10 · <span class="cg">Green</span> +30 (includes Yellow) · <span class="cp">Purple</span> +60 (includes all three). This bonus multiplies by your consecutive non-red streak.</div>
+      <div><span class="ac w6">✅ Tasks</span> — +1 pt each.</div>
+      <div><span class="ac w6">🌅 Morning Routine</span> — check it off: +25 pts × your streak.</div>
+      <div><span class="ac w6">🏅 Goals Annihilated</span> — your key goals for the day: +100 pts × your streak.</div>
+      <div><span class="ac w6">🍅 Pomodoros</span> — +25 pts each.</div>
+      <div><span class="ac w6">💼 Work</span> — +1 pt per minute × your consecutive work-day streak.</div>
+      <div><span class="ac w6">😴 Sleep</span> — sleep and naps: +1 pt per minute. Going to bed early adds a bonus × streak.</div>
+      <div><span class="ac w6">🎨 Day colour bonus</span> — it <em>stacks</em>: <span class="cy">Yellow</span> +10 · <span class="cg">Green</span> +30 · <span class="cp">Purple</span> +60, × your consecutive non-red streak.</div>
     </div>
   </div>
   <hr class="dv">
   <div>
     <div class="md up ls ng w7 mb10">🤤 Rewards (point costs 💸)</div>
     <div class="s6">
-      <div>These are behaviors you want to keep at bay. Each one costs points — and the longer you keep doing them, the more they cost (streak multiplier).</div>
-      <div><span class="ng w6">💊 Stimulants</span> — junk food, substances (sugar, coffee, weed, alcohol; all counts), and any bad habit you want to cut back on. Costs points × how many days in a row you indulged.</div>
-      <div><span class="ng w6">🌐 Procrastination</span> — log how many minutes you wasted. After 30 min, the streak multiplier kicks in.</div>
-      <div><span class="ng w6">💦 Orgasm</span> — costs a lot × consecutive days.</div>
-      <div><span class="ng w6">🌙 Slept Late</span> — staying up late costs a lot × your late-night streak.</div>
+      <div>Behaviours you want to keep at bay. Each costs points, and the more often you do them, the more they cost (× streak).</div>
+      <div><span class="ng w6">💊 Stimulants</span> — junk food, sugar, coffee, weed, alcohol and any bad habit you want to cut back on.</div>
+      <div><span class="ng w6">🌐 Procrastination</span> — log the minutes you wasted. Past 30 min the multiplier kicks in.</div>
+      <div><span class="ng w6">💦 Orgasm</span> and <span class="ng w6">🌙 Slept Late</span> — cost a lot × their own streak.</div>
       <div class="xs dimmer">Exact costs depend on your difficulty mode — see below.</div>
     </div>
   </div>
@@ -4126,7 +4113,7 @@ function renderRules(onClose){
   <div>
     <div class="md up ls dimmer w7 mb10">🌱⚖️💪 Difficulty Mode</div>
     <div class="s6">
-      <div>Switch difficulty in the top bar. It scales how hard the <em>Rewards</em> hit. Positive points stay the same in all modes.</div>
+      <div>Switch it in the top bar. It scales how hard the <em>Rewards</em> hit; positive points stay the same in all modes.</div>
       <div><span class="w6" style="color:var(--cg)">🌱 Easy</span> — good for beginners or habit formation. Stimulants −25 · Procrastination −10/min · Orgasm −100.</div>
       <div><span class="w6" style="color:var(--cy)">⚖️ Medium</span> — balanced. Stimulants −125 · Procrastination −50/min · Orgasm −500.</div>
       <div><span class="w6" style="color:var(--cr)">💪 Hard</span> — full discipline mode. Stimulants −250 · Procrastination −100/min · Orgasm −1,000.</div>
@@ -4136,12 +4123,11 @@ function renderRules(onClose){
   <div>
     <div class="md up ls dimmer w7 mb10">🔄 How streaks reset</div>
     <div class="s6">
-      <div>All streaks break the moment you skip a day, except for procrastination, which you're allowed for 30 minutes a day.</div>
-      <div>Also, some streaks reset based on your day color:</div>
-      <div>A <span class="cr w6">🔴 Red</span> day resets your Work streak.</div>
-      <div>A <span class="cy w6">🟡 Yellow</span> day resets your Stimulants reward streak.</div>
-      <div>A <span class="cg w6">🟢 Green</span> day resets Stimulants + Procrastination reward streaks.</div>
-      <div>A <span class="cp w6">🟣 Purple</span> day resets ALL reward streaks, including Late Night.</div>
+      <div>All of them break the moment you skip a day, except procrastination, which allows 30 minutes a day. On top of that, the day's colour resets some:</div>
+      <div><span class="cr w6">🔴 Red</span> — resets your Work streak 💼</div>
+      <div><span class="cy w6">🟡 Yellow</span> — resets Stimulants 💊</div>
+      <div><span class="cg w6">🟢 Green</span> — resets Stimulants 💊 + Procrastination 🌐</div>
+      <div><span class="cp w6">🟣 Purple</span> — resets ALL reward streaks, including Late Night 🌙</div>
       <div class="xs dimmer">Days you forget to log count as −1,000 pts and a Red day. Don't skip!</div>
     </div>
   </div>
@@ -4153,9 +4139,24 @@ function renderRules(onClose){
 
 
 
-/* ═══ CLOUD SYNC PANEL ═══ */
+/* ═══ CLOUD SYNC — opened from the indicator, over the page ═══ */
+function renderSyncModal(){
+  const close=()=>{STATE.showSyncPanel=false;render();};
+  const ov=dv('fi');
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:60;'+
+    'display:flex;align-items:flex-start;justify-content:center;padding:20px;overflow:auto';
+  ov.onclick=e=>{if(e.target===ov)close();};
+  const panel=renderSyncPanel();
+  panel.style.maxWidth='460px';panel.style.width='100%';panel.style.margin='auto';
+  ov.appendChild(panel);
+  // Single assignment rather than a listener, so repeated renders cannot
+  // stack handlers up.
+  document.onkeydown=e=>{if(e.key==='Escape'&&STATE.showSyncPanel)close();};
+  return ov;
+}
+
 function renderSyncPanel(){
-  const card=dv('card fi mb12');
+  const card=dv('card fi');
   card.style.cssText='border:1px solid var(--acb);background:var(--acd)';
   const hd=dv('rowb mb12');
   hd.appendChild(sp('ctit',t('sync-title')));
@@ -4358,6 +4359,12 @@ function renderDiaryFor(dateKey,onSave){
 }
 
 /* ═══ BOOT ═══ */
+/* Register the worker that lets the app open without signal. It needs https
+   (or localhost), so opening the file straight off the disk simply skips it —
+   and the app runs exactly as it always has. */
+if('serviceWorker' in navigator){
+  window.addEventListener('load',()=>{navigator.serviceWorker.register('./sw.js').catch(()=>{});});
+}
 initTimezone();loadToday();applyTheme();
 
 // On boot: PULL from Supabase first (before pushing ANYTHING).
