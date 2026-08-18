@@ -464,6 +464,15 @@ en:{
   'sk-ci':'No Stimulants','sk-cp':'No Procrastination','sk-co':'No Orgasm :(',
   'sk-i':'Stimulants 💊','sk-p':'Procrastination 🌐','sk-o':'Orgasm 💦','sk-l':'Late Nights 🌙',
   'edit-note':'Edit note','add-note':'Add note','save-note':'Save note','no-data':'No data logged for this day.',
+  'tpl-grateful':'3 reasons why I am deeply grateful',
+  'tpl-bad':'1 bad thing of today (feel free to complain):',
+  'tpl-weekly-left':'There are still {n} weekly goals waiting to be completed.',
+  'tpl-weekly-done':"You've completed all your weekly goals.",
+  'tpl-weekly-plan':'Plan for doing so:',
+  'tpl-why':'Why these results?:','tpl-dream':'Today I remember dreaming:',
+  'tpl-feel':'I feel:','tpl-feel-why':'Why?:',
+  'tpl-cool':'1 cool thing I did:','tpl-improve':'1 thing I can improve:',
+  'tpl-summary':'Summary:',
   'ver-mas':'Ver más','ver-menos':'Ver menos',
   'edit-hist':'Edit History','show-more':'Show more','save-btn':'Save',
   'early-bed':'Early bed','late-bed':'Late bed',
@@ -515,6 +524,14 @@ en:{
   'rem-prio':'Priority','rem-flag':'Goal of the day','rem-every':'Every',
   'rem-time':'Time (optional)','rep-hour':'Hourly',
   'weekdays':'Sun,Mon,Tue,Wed,Thu,Fri,Sat',
+  'weekdays-full':'Sundays,Mondays,Tuesdays,Wednesdays,Thursdays,Fridays,Saturdays',
+  'and':'and',
+  'rep-hour-1':'Every hour','rep-hour-n':'Every {n} hours',
+  'rep-day-1':'Every day','rep-day-n':'Every {n} days',
+  'rep-week-1':'Every week','rep-week-n':'Every {n} weeks',
+  'rep-month-1':'Every month','rep-month-n':'Every {n} months',
+  'rep-year-1':'Every year','rep-year-n':'Every {n} years',
+  'rep-weekends':'Weekends','rep-weekdays':'Weekdays','rep-everyday':'Every day',
   'rep-pick-days':'Days of the month','rep-on-days':'on the',
   'rep-31-note':'Leave empty to repeat on the same day each month. Day 31 means the last day, whatever the month.',
   'view-today':'Today','view-all':'All',
@@ -579,6 +596,15 @@ es:{
   'sk-ci':'Sin Estimulantes','sk-cp':'Sin Procrastinación','sk-co':'Sin Orgasmo (¿todo bien?)',
   'sk-i':'Estimulantes 💊','sk-p':'Procrastinación 🌐','sk-o':'Orgasmo 💦','sk-l':'Trasnoche 🌙',
   'edit-note':'Editar nota','add-note':'Agregar nota','save-note':'Guardar nota','no-data':'Sin datos para este día.',
+  'tpl-grateful':'3 razones por las que estoy profundamente agradecido',
+  'tpl-bad':'1 cosa mala de hoy (quéjate a gusto):',
+  'tpl-weekly-left':'Todavía quedan {n} metas semanales por completar.',
+  'tpl-weekly-done':'Ya completaste todas tus metas semanales.',
+  'tpl-weekly-plan':'Plan para lograrlo:',
+  'tpl-why':'¿Por qué estos resultados?:','tpl-dream':'Hoy recuerdo haber soñado:',
+  'tpl-feel':'Me siento:','tpl-feel-why':'¿Por qué?:',
+  'tpl-cool':'1 cosa chida que hice:','tpl-improve':'1 cosa que puedo mejorar:',
+  'tpl-summary':'Resumen:',
   'ver-mas':'Ver más','ver-menos':'Ver menos',
   'edit-hist':'Editar Historial','show-more':'Ver más','save-btn':'Guardar',
   'early-bed':'Dormí temprano','late-bed':'Dormí tarde',
@@ -630,6 +656,14 @@ es:{
   'rem-prio':'Prioridad','rem-flag':'Meta del día','rem-every':'Cada',
   'rem-time':'Hora (opcional)','rep-hour':'Cada hora',
   'weekdays':'Dom,Lun,Mar,Mié,Jue,Vie,Sáb',
+  'weekdays-full':'Domingos,Lunes,Martes,Miércoles,Jueves,Viernes,Sábados',
+  'and':'y',
+  'rep-hour-1':'Cada hora','rep-hour-n':'Cada {n} horas',
+  'rep-day-1':'Todos los días','rep-day-n':'Cada {n} días',
+  'rep-week-1':'Cada semana','rep-week-n':'Cada {n} semanas',
+  'rep-month-1':'Cada mes','rep-month-n':'Cada {n} meses',
+  'rep-year-1':'Cada año','rep-year-n':'Cada {n} años',
+  'rep-weekends':'Fines de semana','rep-weekdays':'Entre semana','rep-everyday':'Todos los días',
   'rep-pick-days':'Días del mes','rep-on-days':'los días',
   'rep-31-note':'Déjalo vacío para repetir el mismo día cada mes. El día 31 significa el último, sea cual sea el mes.',
   'view-today':'Hoy','view-all':'Todos',
@@ -1834,17 +1868,32 @@ function deleteGoal(id){
 const PRIO=[['0','—'],['1','!'],['2','!!'],['3','!!!']];
 function prioColor(p){return p>=3?'var(--cr)':p==2?'var(--cy)':p==1?'var(--cp)':'var(--t3)';}
 function weekdayNames(){return t('weekdays').split(',');}
+function weekdayFull(){return t('weekdays-full').split(',');}
+/* Reads as a sentence rather than as a unit and a number stuck together —
+   "3 Mensual" and "12 Cada hora" said nothing. Common weekday sets get their
+   own name, since "weekends" beats "Sat, Sun". */
+function joinList(arr){
+  if(arr.length<=1)return arr.join('');
+  return arr.slice(0,-1).join(', ')+' '+t('and')+' '+arr[arr.length-1];
+}
 function repeatLabel(rep){
   if(!rep)return'';
+  const n=Math.max(1,rep.every||1);
+  const every=k=>n===1?t('rep-'+k+'-1'):t('rep-'+k+'-n').replace('{n}',n);
+
   if(rep.unit==='week'&&Array.isArray(rep.days)&&rep.days.length){
-    const n=weekdayNames();
-    return '🔁 '+rep.days.slice().sort().map(i=>n[i]).join(', ');
+    const days=[...new Set(rep.days)].sort((a,b)=>a-b);
+    const key=days.join(',');
+    const named={'0,6':t('rep-weekends'),'1,2,3,4,5':t('rep-weekdays'),
+                 '0,1,2,3,4,5,6':t('rep-everyday')}[key];
+    const which=named||joinList(days.map(i=>weekdayFull()[i]));
+    return '🔁 '+(n===1?which:t('rep-week-n').replace('{n}',n)+': '+which);
   }
   if(rep.unit==='month'&&Array.isArray(rep.doms)&&rep.doms.length){
-    return '🔁 '+t('rep-on-days')+' '+rep.doms.slice().sort((a,b)=>a-b).join(', ');
+    const which=t('rep-on-days')+' '+joinList([...new Set(rep.doms)].sort((a,b)=>a-b).map(String));
+    return '🔁 '+(n===1?capFirst(which):t('rep-month-n').replace('{n}',n)+', '+which);
   }
-  const u={hour:t('rep-hour'),day:t('rep-day'),week:t('rep-week'),month:t('rep-month'),year:t('rep-year')}[rep.unit]||rep.unit;
-  return rep.every>1?`🔁 ${rep.every} ${u}`:`🔁 ${u}`;
+  return '🔁 '+every(rep.unit);
 }
 /* Seven toggles for a weekly repeat. Empty means the plain "every N weeks"
    stride; picking days switches it to those weekdays. */
@@ -3495,7 +3544,7 @@ function renderCalendar(){
           const noteText=STATE.diary[selK];
           const preview=dv('xs dim mt6');
           preview.style.cssText='white-space:pre-wrap;line-height:1.6';
-          preview.textContent=noteText;
+          preview.innerHTML=diaryToHtml(noteText);   // escapes, then bolds headings
           det.appendChild(preview);
         }
         wrap.appendChild(det);
@@ -4117,12 +4166,54 @@ function toggleDiaryEditor(container,dateKey,button){
 }
 
 /* ═══ DIARY (used inside calendar) ═══ */
+/* A starting shape for the day's review. It is only ever offered into an empty
+   note — anything already written is left exactly as it is, never merged with
+   or replaced by this. The weekly-goal line reflects what is actually still
+   open, and the plan line is dropped once there is nothing left to plan. */
+function diaryTemplate(){
+  const left=goalsOf('week').filter(g=>!g.doneOn).length;
+  const weekly=left
+    ? t('tpl-weekly-left').replace('{n}',left)+'\n\n'+t('tpl-weekly-plan')+'\n'
+    : t('tpl-weekly-done')+'\n';
+  return [
+    t('tpl-grateful'),'    1. ','    2. ','    3. ','',
+    t('tpl-bad'),'','',
+    weekly,'',
+    t('tpl-why'),'','',
+    t('tpl-dream'),'','',
+    t('tpl-feel'),'','',
+    t('tpl-feel-why'),'','',
+    t('tpl-cool'),'','',
+    t('tpl-improve'),'','',
+    t('tpl-summary'),'','',''
+  ].join('\n');
+}
+/* The template's headings are bolded when a note is read back. The note itself
+   stays plain text, so nothing already saved changes shape or risks being
+   mangled by a format it was not written in. */
+function diaryHeadings(){
+  return ['tpl-grateful','tpl-bad','tpl-weekly-plan','tpl-why','tpl-dream',
+          'tpl-feel','tpl-feel-why','tpl-cool','tpl-improve','tpl-summary']
+    .map(k=>t(k));
+}
+function diaryToHtml(text){
+  const heads=diaryHeadings();
+  const esc=s=>s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  return esc(text).split('\n').map(line=>{
+    const bare=line.trim();
+    return heads.some(h=>bare===h||bare===esc(h))
+      ? `<span class="w7 ac">${line}</span>` : line;
+  }).join('\n');
+}
+
 function renderDiaryFor(dateKey){
   const wrap=dv('mt10 fi');
   const ta=document.createElement('textarea');
   ta.className='diary-area';
   ta.placeholder='Write your thoughts about this day...';
-  ta.value=STATE.diary[dateKey]||'';
+  const existing=STATE.diary[dateKey];
+  ta.value=existing&&existing.trim()?existing:diaryTemplate();
+  ta.style.minHeight='260px';
 
   let saveTimer=null;
   ta.oninput=()=>{
