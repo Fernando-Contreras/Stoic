@@ -520,7 +520,8 @@ en:{
   'view-hidden':'later ones hidden','view-hidden-1':'later one hidden',
   'view-flat':'flat list','view-grouped':'grouped under parents',
   'rep-none':'Does not repeat','rep-day':'Daily','rep-week':'Weekly','rep-month':'Monthly','rep-year':'Yearly',
-  'rem-overdue':'overdue','rem-overdue-1':'overdue','rem-overdue-h':'Overdue','rem-open-h':'To do','rem-today-h':'Today','rem-soon-h':'Coming up','rem-done-h':'Done today',
+  'rem-overdue':'overdue','rem-overdue-1':'overdue','rem-overdue-h':'Overdue','rem-open-h':'To do',
+  'rem-past-h':'Done before','rem-past-more':'Showing the {n} most recent.','rem-reopen':'Put it back on the list','rem-today-h':'Today','rem-soon-h':'Coming up','rem-done-h':'Done today',
   'rem-was-due':'was due','rem-empty':'Nothing here yet. Add your first reminder above.',
   'rem-del-warn':'Delete "{t}"?','rem-del-warn-kids':'Delete "{t}" and its {n} subtask(s)?',
   'rem-tag-ph':'New tag (work, home, gym…)','rem-filter':'Filter by tag','rem-filter-clear':'clear',
@@ -633,7 +634,8 @@ es:{
   'view-hidden':'de más adelante, ocultos','view-hidden-1':'de más adelante, oculto',
   'view-flat':'lista plana','view-grouped':'agrupadas por madre',
   'rep-none':'No se repite','rep-day':'Diario','rep-week':'Semanal','rep-month':'Mensual','rep-year':'Anual',
-  'rem-overdue':'atrasados','rem-overdue-1':'atrasado','rem-overdue-h':'Atrasados','rem-open-h':'Pendientes','rem-today-h':'Hoy','rem-soon-h':'Próximos','rem-done-h':'Hechos hoy',
+  'rem-overdue':'atrasados','rem-overdue-1':'atrasado','rem-overdue-h':'Atrasados','rem-open-h':'Pendientes',
+  'rem-past-h':'Hechos anteriormente','rem-past-more':'Mostrando los {n} más recientes.','rem-reopen':'Regresarla a la lista','rem-today-h':'Hoy','rem-soon-h':'Próximos','rem-done-h':'Hechos hoy',
   'rem-was-due':'era para','rem-empty':'Nada por aquí. Agrega tu primer recordatorio arriba.',
   'rem-del-warn':'¿Borrar "{t}"?','rem-del-warn-kids':'¿Borrar "{t}" y sus {n} subtarea(s)?',
   'rem-tag-ph':'Etiqueta nueva (trabajo, casa, gym…)','rem-filter':'Filtrar por etiqueta','rem-filter-clear':'limpiar',
@@ -1323,10 +1325,15 @@ function plannerTodayStats(){
     const n=doneCount(r,tk);                                  // times ticked today
     const openNow=(!r.done&&r.due&&r.due<=tk)?1:0;            // still pending
     if(!n&&!openNow)return;                                   // finished another day
+    /* Done means ticked today AND no longer waiting today. Something every six
+       hours with a turn still to come is under way, not finished — counting it
+       the moment it was first ticked credited a whole day's habit to its first
+       round. */
+    const finished=n>0&&!openNow;
     total+=1;
-    if(n)done+=1;
+    if(finished)done+=1;
     if(openNow&&r.due<tk)overdue++;
-    if(r.flagged){flagsTotal+=1;if(n)flagsDone+=1;}
+    if(r.flagged){flagsTotal+=1;if(finished)flagsDone+=1;}
   });
   return{total,done,overdue,flagsTotal,flagsDone,
     // A day with no flags at all is not an annihilated day — otherwise an
@@ -1451,6 +1458,15 @@ function toggleReminder(id){
   // repeat daily on their own schedule. Closing one must not close the rest.
   setDone(r,tk,on);
   savePlanner();
+}
+/* Put a finished reminder back on the list. toggleReminder cannot do this: it
+   asks whether the thing was ticked TODAY, so on something closed last week it
+   reads as "not done yet" and marks it done all over again. */
+function reopenReminder(id){
+  const r=reminders().find(x=>x.id===id);if(!r)return;
+  r.done=false;r.completedOn=null;
+  delete r._prevDue;delete r._prevTime;
+  r._ts=Date.now();savePlanner();
 }
 function addReminder(data){
   const parent=data.parent||null;
@@ -2134,6 +2150,55 @@ function renderPlanner(){
     h.appendChild(sp('xs dimmer',String(shown.size)));
     card.appendChild(h);
     if(!V.closedDone)fillCard(card,doneTops,doneKids);
+    wrap.appendChild(card);
+  }
+
+  /* Everything finished on an earlier day, newest first and capped, so the
+     archive stays browsable without the page carrying years of it.
+     Note: only reminders that close for good land here. A repeating one never
+     "finishes" — it advances to its next turn — so its past rounds are not
+     individually recorded. */
+  const ARCHIVE_MAX=200;
+  const past=list.filter(r=>r.done&&r.completedOn&&r.completedOn!==tk&&tagOk(r))
+                 .sort((a,b)=>b.completedOn.localeCompare(a.completedOn));
+  if(past.length){
+    const card=dv('card mt12');
+    const h=dv('rowb mb10');
+    const pleft=dv('row gap8');
+    const openPast=!!V.openPast;   // closed until asked for; it is an archive
+    const foldPast=bt('btn-icon',openPast?'▼':'▶',()=>{
+      V.openPast=!openPast;saveView();render();
+    });
+    foldPast.style.cssText='padding:2px 4px;font-size:11px;color:var(--t3)';
+    pleft.appendChild(foldPast);
+    pleft.appendChild(sp('ctit dim',t('rem-past-h')));
+    h.appendChild(pleft);
+    h.appendChild(sp('xs dimmer',String(past.length)));
+    card.appendChild(h);
+    if(openPast){
+      const box=dv('s6');
+      past.slice(0,ARCHIVE_MAX).forEach(r=>{
+        const row=dv('row gap8');
+        row.style.cssText='background:var(--sur2);border:1px solid var(--b1);border-radius:8px;padding:7px 10px;align-items:flex-start';
+        const mid=dv('f1');
+        const tt=sp('sm',r.title);tt.style.color='var(--t3)';tt.style.textDecoration='line-through';
+        mid.appendChild(tt);
+        const meta=[r.completedOn];
+        tagsOf(r).forEach(tg=>meta.push(tg));
+        mid.appendChild(dv('xs dimmer mt2',meta.join(' · ')));
+        row.appendChild(mid);
+        const undo=bt('btn-icon','↺',()=>{reopenReminder(r.id);render();});
+        undo.title=t('rem-reopen');
+        row.appendChild(undo);
+        row.appendChild(bt('btn-icon','✕',()=>{
+          if(confirm(t('rem-del-warn').replace('{t}',r.title))){deleteReminder(r.id);render();}
+        }));
+        box.appendChild(row);
+      });
+      card.appendChild(box);
+      if(past.length>ARCHIVE_MAX)card.appendChild(dv('xs dimmer ctr mt8',
+        t('rem-past-more').replace('{n}',ARCHIVE_MAX)));
+    }
     wrap.appendChild(card);
   }
 
