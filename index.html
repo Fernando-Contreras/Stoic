@@ -252,7 +252,9 @@ const SB={
           // database has it. Sending an unknown column makes PostgREST reject the
           // whole write, which would take the rest of the save down with it — so
           // it is added conditionally, and its absence is reported, never hidden.
-          ...(SB.hasPlannerColumn?{planner:STATE.planner||{reminders:[]}}:{}),
+          // The pomodoro rides inside the planner column rather than needing a
+          // second one, so no further database change is required.
+          ...(SB.hasPlannerColumn?{planner:{...(STATE.planner||{reminders:[]}),pomo:STATE.pomo}}:{}),
           saved_at: Date.now(),
           updated_at: new Date().toISOString()
         })
@@ -521,7 +523,8 @@ en:{
   'view-flat':'flat list','view-grouped':'grouped under parents',
   'rep-none':'Does not repeat','rep-day':'Daily','rep-week':'Weekly','rep-month':'Monthly','rep-year':'Yearly',
   'rem-overdue':'overdue','rem-overdue-1':'overdue','rem-overdue-h':'Overdue','rem-open-h':'To do',
-  'rem-past-h':'Done before','rem-past-more':'Showing the {n} most recent.','rem-reopen':'Put it back on the list','rem-today-h':'Today','rem-soon-h':'Coming up','rem-done-h':'Done today',
+  'rem-past-h':'Done before','rem-past-more':'Showing the {n} most recent.','rem-reopen':'Put it back on the list',
+  'rem-gone':'⚠ no longer on the list — restoring rebuilds it','rem-today-h':'Today','rem-soon-h':'Coming up','rem-done-h':'Done today',
   'rem-was-due':'was due','rem-empty':'Nothing here yet. Add your first reminder above.',
   'rem-del-warn':'Delete "{t}"?','rem-del-warn-kids':'Delete "{t}" and its {n} subtask(s)?',
   'rem-tag-ph':'New tag (work, home, gym…)','rem-filter':'Filter by tag','rem-filter-clear':'clear',
@@ -635,7 +638,8 @@ es:{
   'view-flat':'lista plana','view-grouped':'agrupadas por madre',
   'rep-none':'No se repite','rep-day':'Diario','rep-week':'Semanal','rep-month':'Mensual','rep-year':'Anual',
   'rem-overdue':'atrasados','rem-overdue-1':'atrasado','rem-overdue-h':'Atrasados','rem-open-h':'Pendientes',
-  'rem-past-h':'Hechos anteriormente','rem-past-more':'Mostrando los {n} más recientes.','rem-reopen':'Regresarla a la lista','rem-today-h':'Hoy','rem-soon-h':'Próximos','rem-done-h':'Hechos hoy',
+  'rem-past-h':'Hechos anteriormente','rem-past-more':'Mostrando los {n} más recientes.','rem-reopen':'Regresarla a la lista',
+  'rem-gone':'⚠ ya no está en la lista — al restaurar se recrea','rem-today-h':'Hoy','rem-soon-h':'Próximos','rem-done-h':'Hechos hoy',
   'rem-was-due':'era para','rem-empty':'Nada por aquí. Agrega tu primer recordatorio arriba.',
   'rem-del-warn':'¿Borrar "{t}"?','rem-del-warn-kids':'¿Borrar "{t}" y sus {n} subtarea(s)?',
   'rem-tag-ph':'Etiqueta nueva (trabajo, casa, gym…)','rem-filter':'Filtrar por etiqueta','rem-filter-clear':'limpiar',
@@ -798,6 +802,12 @@ const CALC={
     let subsStreak=e.streaksUsed?.substancesPenaltyStreak||1;
     let procStreak=e.streaksUsed?.procrastinationPenaltyStreak||1;
     let macStreak=e.streaksUsed?.macanazoPenaltyStreak||1;
+    /* CALC.score multiplies the colour bonus by the non-red streak, and this
+       did not — so a day was worth one number while you lived it and another
+       once it became history. Measured across 76 real days, 75 of them
+       disagreed. The multiplier is reconstructed here from the days before it,
+       the same rule CALC.streaks uses. */
+    let colorMult=1;
 
     // If we have the full history, recompute the REAL streak at this exact day
     // by counting backward through REGISTERED days only (no invented days, no gaps assumed).
@@ -813,6 +823,9 @@ const CALC={
         subsStreak=this.streakAtDay(sorted,idx,d=>d.penalties?.some(p=>p.type==='drugs'),['yellow','green','purple'])||1;
         procStreak=this.streakAtDay(sorted,idx,d=>d.penalties?.some(p=>p.type==='internet'),['green','purple'])||1;
         macStreak=this.streakAtDay(sorted,idx,d=>d.penalties?.some(p=>p.type==='macanazo'),['purple'])||1;
+        // Consecutive non-red days BEFORE this one — gaps are already excluded
+        // from `sorted`, and the day itself never counts toward its own streak.
+        colorMult=Math.max(1,this.streakAtDay(sorted,idx-1,d=>d.status!=='red'));
         // Apply streakOverrides offset so historical days reflect the real streak
         // e.g. if user set goals=8 (offset=4), yesterday shows ×8 not ×4.
         // IMPORTANT: once a streak breaks it is RETIRED with a date (see
@@ -844,7 +857,7 @@ const CALC={
       +((e.pomodoros||0)*25)
       +((e.workDuration||0)*workStreak)
       +((e.sleepDuration||0)+(e.napDuration||0)+(e.sleptEarly?(e.sleepDuration||0)*earlyBedStreak:0))
-      +(this.colorBonus(e.status))
+      +(this.colorBonus(e.status)*colorMult)
       +(e.sleptLate&&!lateReset?-100*this.diffMult()*lateStreak:0);
 
     const pen=(e.penalties||[]).reduce((sum,p)=>{
@@ -1153,8 +1166,15 @@ function applyRemote(remote){
   if(remote.planner&&typeof remote.planner==='object'){
     const lp=STATE.planner||{reminders:[],_ts:0};
     if((remote.planner._ts||0)>(lp._ts||0)){
-      STATE.planner={reminders:[],...remote.planner};
+      const {pomo:_drop,...rest}=remote.planner;   // the pomodoro has its own clock
+      STATE.planner={reminders:[],...rest};
       S.set(K.PLANNER,STATE.planner);changed=true;
+    }
+    // Whichever device touched the timer last owns it, independently of the list.
+    const rp=remote.planner.pomo;
+    if(rp&&typeof rp==='object'&&(rp._ts||0)>(STATE.pomo._ts||0)){
+      STATE.pomo={...STATE.pomo,...rp};
+      S.set('st_pomo',STATE.pomo);changed=true;
     }
   }
 
@@ -1425,10 +1445,32 @@ function bumpDone(r,tk,delta){
   if(!r.doneLog||r.doneLog.d!==tk)r.doneLog={d:tk,n:0};
   r.doneLog.n=Math.max(0,r.doneLog.n+delta);
 }
+/* A log of everything ticked, kept apart from the reminders themselves.
+   A repeating reminder never "finishes" — it advances to its next turn — so
+   without this its rounds left no trace at all, and anything that vanished by
+   accident was gone silently. Each entry is a full snapshot, so a reminder can
+   be rebuilt from it even if the original is no longer there. */
+const LOG_MAX=200;
+function completionLog(){return STATE.planner.log||(STATE.planner.log=[]);}
+function logCompletion(r,tk){
+  completionLog().unshift({
+    logId:uid(),srcId:r.id,date:tk,
+    title:r.title,notes:r.notes||'',tags:tagsOf(r).slice(),
+    priority:r.priority||0,flagged:!!r.flagged,
+    repeat:r.repeat?JSON.parse(JSON.stringify(r.repeat)):null,
+    due:r.due,time:r.time||'',parent:r.parent||null
+  });
+  STATE.planner.log=completionLog().slice(0,LOG_MAX);
+}
+function unlogCompletion(r,tk){
+  const i=completionLog().findIndex(x=>x.srcId===r.id&&x.date===tk);
+  if(i>=0)completionLog().splice(i,1);
+}
 function setDone(r,tk,on){
   if(on){
     r.completedOn=tk;
     bumpDone(r,tk,1);
+    logCompletion(r,tk);   // snapshot taken before the date advances
     if(r.repeat){
       r._prevDue=r.due;r._prevTime=r.time||'';
       const nx=advanceDue(r.due,r.repeat,tk,r.time);
@@ -1444,9 +1486,37 @@ function setDone(r,tk,on){
   }else{
     r.completedOn=null;r.done=false;
     bumpDone(r,tk,-1);
+    unlogCompletion(r,tk);
     if(r.repeat&&r._prevDue){r.due=r._prevDue;r.time=r._prevTime||'';delete r._prevDue;delete r._prevTime;}
   }
   r._ts=Date.now();
+}
+
+/* Undo something from the archive. If the reminder is still around it goes
+   back on the list on the date it was logged with; if it is gone — deleted, or
+   lost to a bug, which is what this is for — it is rebuilt from the snapshot. */
+function restoreFromLog(logId){
+  const entry=completionLog().find(x=>x.logId===logId);
+  if(!entry)return;
+  const r=reminders().find(x=>x.id===entry.srcId);
+  if(r){
+    r.done=false;r.completedOn=null;
+    r.due=entry.due;r.time=entry.time||'';
+    delete r._prevDue;delete r._prevTime;
+    if(r.doneLog&&r.doneLog.d===entry.date)r.doneLog.n=Math.max(0,r.doneLog.n-1);
+    r._ts=Date.now();
+  }else{
+    reminders().unshift({
+      id:entry.srcId||uid(),title:entry.title,notes:entry.notes||'',
+      due:entry.due,time:entry.time||'',priority:entry.priority||0,
+      flagged:!!entry.flagged,tags:normTags(entry.tags),
+      parent:reminders().some(x=>x.id===entry.parent)?entry.parent:null,
+      repeat:entry.repeat||null,done:false,completedOn:null,
+      created:Date.now(),_ts:Date.now()
+    });
+  }
+  STATE.planner.log=completionLog().filter(x=>x.logId!==logId);
+  savePlanner();
 }
 function toggleReminder(id){
   const r=reminders().find(x=>x.id===id);if(!r)return;
@@ -1568,7 +1638,17 @@ function syncPlannerToToday(){
    nothing here can take away pomodoros you logged by hand.
    ═══════════════════════════════════════════════════════════════════════ */
 const POMO_UNIT=25; // minutes that make up one pomodoro, whatever your session length
-function savePomo(){S.set('st_pomo',STATE.pomo);}
+/* The pomodoro travels with everything else. Left unsynced, a session started
+   on the phone was invisible on the desktop, the cycle position disagreed
+   (three done on one device, "first one" on the other), and two devices could
+   each run their own timer and bank the minutes twice.
+   startedAt is an absolute timestamp, so a running timer resumes correctly
+   wherever it is picked up. */
+function savePomo(){
+  STATE.pomo._ts=Date.now();
+  S.set('st_pomo',STATE.pomo);
+  commit();
+}
 function pomoPhaseLen(p){
   if(p.phase==='focus')return Math.max(1,p.focus)*60;
   if(p.phase==='long')return Math.max(1,p.longBrk)*60;
@@ -2158,9 +2238,11 @@ function renderPlanner(){
      Note: only reminders that close for good land here. A repeating one never
      "finishes" — it advances to its next turn — so its past rounds are not
      individually recorded. */
-  const ARCHIVE_MAX=200;
-  const past=list.filter(r=>r.done&&r.completedOn&&r.completedOn!==tk&&tagOk(r))
-                 .sort((a,b)=>b.completedOn.localeCompare(a.completedOn));
+  const ARCHIVE_MAX=LOG_MAX;
+  const past=completionLog()
+    .filter(x=>x.date!==tk&&(!(STATE.tagFilters||[]).length||
+      normTags(x.tags).some(tg=>STATE.tagFilters.includes(tg))))
+    .sort((a,b)=>b.date.localeCompare(a.date));
   if(past.length){
     const card=dv('card mt12');
     const h=dv('rowb mb10');
@@ -2177,21 +2259,27 @@ function renderPlanner(){
     card.appendChild(h);
     if(openPast){
       const box=dv('s6');
-      past.slice(0,ARCHIVE_MAX).forEach(r=>{
+      past.slice(0,ARCHIVE_MAX).forEach(x=>{
+        const gone=!reminders().some(r=>r.id===x.srcId);
         const row=dv('row gap8');
         row.style.cssText='background:var(--sur2);border:1px solid var(--b1);border-radius:8px;padding:7px 10px;align-items:flex-start';
         const mid=dv('f1');
-        const tt=sp('sm',r.title);tt.style.color='var(--t3)';tt.style.textDecoration='line-through';
+        const tt=sp('sm',x.title);tt.style.color='var(--t3)';tt.style.textDecoration='line-through';
         mid.appendChild(tt);
-        const meta=[r.completedOn];
-        tagsOf(r).forEach(tg=>meta.push(tg));
+        const meta=[`✓ ${x.date}`];
+        if(x.due&&x.due!==x.date)meta.push(`${t('rem-was-due')} ${x.due}`);
+        if(x.repeat)meta.push(repeatLabel(x.repeat));
+        normTags(x.tags).forEach(tg=>meta.push(tg));
+        if(gone)meta.push(`<span class="cy">${t('rem-gone')}</span>`);
         mid.appendChild(dv('xs dimmer mt2',meta.join(' · ')));
         row.appendChild(mid);
-        const undo=bt('btn-icon','↺',()=>{reopenReminder(r.id);render();});
+        const undo=bt('btn-icon','↺',()=>{restoreFromLog(x.logId);render();});
         undo.title=t('rem-reopen');
         row.appendChild(undo);
         row.appendChild(bt('btn-icon','✕',()=>{
-          if(confirm(t('rem-del-warn').replace('{t}',r.title))){deleteReminder(r.id);render();}
+          // Only the record goes; the reminder itself is left alone.
+          STATE.planner.log=completionLog().filter(y=>y.logId!==x.logId);
+          savePlanner();render();
         }));
         box.appendChild(row);
       });
