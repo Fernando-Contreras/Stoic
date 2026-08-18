@@ -519,6 +519,7 @@ en:{
   'rem-notes-ph':'Note (optional)','rem-edit':'Edit','rem-no-parent':'↳ Not a subtask',
   'rem-has-kids':'This one has subtasks of its own, so it cannot become one. Two levels is the limit.',
   'rem-bad-parent':'That cannot be its parent.',
+  'rem-parent-is':'Subtask of','rem-parent-search':'Nest under… (type to search)','rem-parent-none':'Nothing matches',
   'goals-title':'Goals','goal-week':'📅 Weekly','goal-quarter':'📈 Quarterly','goal-year':'🏆 Yearly',
   'goal-new':'A goal that excites you','goal-add':'+ Add goal','goal-day':'day left','goal-days':'days left',
   'goal-earned':'earned from goals','goal-daily':'Goals of the day',
@@ -630,6 +631,7 @@ es:{
   'rem-notes-ph':'Nota (opcional)','rem-edit':'Editar','rem-no-parent':'↳ No es subtarea',
   'rem-has-kids':'Esta ya tiene subtareas, así que no puede volverse una. El límite son 2 niveles.',
   'rem-bad-parent':'Esa no puede ser su tarea padre.',
+  'rem-parent-is':'Subtarea de','rem-parent-search':'Meterla bajo… (escribe para buscar)','rem-parent-none':'Nada coincide',
   'goals-title':'Metas','goal-week':'📅 Semanales','goal-quarter':'📈 Trimestrales','goal-year':'🏆 Anuales',
   'goal-new':'Una meta que te emocione','goal-add':'+ Agregar meta','goal-day':'día restante','goal-days':'días restantes',
   'goal-earned':'ganados en metas','goal-daily':'Metas del día',
@@ -2279,14 +2281,47 @@ function renderReminderEditor(r){
 
   const r3=dv('row gap6 mt6');r3.style.flexWrap='wrap';
   const pi=sk('',PRIO.map(([v,l])=>[v,`${t('rem-prio')} ${l}`]),String(r.priority||0));pi.style.flex='1';pi.style.minWidth='110px';
-  r3.appendChild(pi);
-  // Nesting lives on the row itself now — drag one onto another, or use the
-  // indent arrows. A dropdown listing every task was unusable past a handful.
-  if(r.parent){
-    const b=bt('btn-ghost btn-sm','⤴ '+t('rem-outdent'),()=>{outdentReminder(r.id);STATE.editingRem=null;render();});
-    b.style.flex='1';b.style.minWidth='130px';r3.appendChild(b);
-  }
   box.appendChild(r3);
+
+  /* Choosing a parent by searching. The indent arrow only reaches the row
+     directly above, which is no help once sorting has put the two far apart,
+     and dragging needs both on screen at once — hopeless in a list of a
+     hundred. Type a few letters instead and pick from what matches. */
+  const pRow=dv('mt8');
+  const cur=r.parent?reminders().find(x=>x.id===r.parent):null;
+  if(cur){
+    const line=dv('row gap6');
+    line.appendChild(sp('xs dimmer',t('rem-parent-is')));
+    const chip=sp('tagchip',cur.title.slice(0,34));
+    line.appendChild(chip);
+    line.appendChild(bt('btn-ghost btn-xs','⤴ '+t('rem-outdent'),()=>{
+      outdentReminder(r.id);STATE.editingRem=null;render();
+    }));
+    pRow.appendChild(line);
+  }else if(subtasksOf(r.id).length){
+    pRow.appendChild(dv('xs dimmer',t('rem-has-kids')));
+  }else{
+    const si=ip('text','','',t('rem-parent-search'));
+    const res=dv('row gap6 mt6');res.style.flexWrap='wrap';
+    si.oninput=()=>{
+      const q=si.value.trim().toLowerCase();
+      res.innerHTML='';
+      if(!q)return;
+      const hits=reminders().filter(x=>!x.parent&&x.id!==r.id&&
+        ((x.title||'').toLowerCase().includes(q)||(x.notes||'').toLowerCase().includes(q)));
+      if(!hits.length){res.appendChild(sp('xs dimmer',t('rem-parent-none')));return;}
+      hits.slice(0,10).forEach(x=>{
+        res.appendChild(bt('btn-ghost btn-xs','↳ '+x.title.slice(0,34),()=>{
+          const out=updateReminder(r.id,{parent:x.id});
+          if(!out.ok){alert(out.warn==='sub-has-kids'?t('rem-has-kids'):t('rem-bad-parent'));return;}
+          STATE.editingRem=null;render();
+        }));
+      });
+    };
+    si.onkeydown=e=>{if(e.key==='Enter')e.preventDefault();};
+    pRow.appendChild(si);pRow.appendChild(res);
+  }
+  box.appendChild(pRow);
 
   const r4=dv('row gap6 mt6');r4.style.flexWrap='wrap';
   const ri=sk('',[['','🔁 '+t('rep-none')],['hour',t('rep-hour')],['day',t('rep-day')],['week',t('rep-week')],['month',t('rep-month')],['year',t('rep-year')]],r.repeat?r.repeat.unit:'');
