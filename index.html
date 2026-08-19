@@ -1359,7 +1359,7 @@ function advanceDue(due,rep,tk,time){
       return c;
     };
     let cur=d;
-    do{cur=next(cur);guard++;}while(cur<today&&guard<400);
+    do{cur=next(cur);guard++;}while(cur<=today&&guard<400);
     return{due:isoDate(cur),time:time||''};
   }
   /* Monthly and yearly steps are clamped to the end of the target month.
@@ -1390,7 +1390,7 @@ function advanceDue(due,rep,tk,time){
       return new Date(ty,tmm,clamp(ty,tmm,days[0]),12,0,0);
     };
     let cur=d;
-    do{cur=next(cur);guard++;}while(cur<today&&guard<400);
+    do{cur=next(cur);guard++;}while(cur<=today&&guard<400);
     return{due:isoDate(cur),time:time||''};
   }
   const stepMonths=(dt,months)=>{
@@ -1406,8 +1406,29 @@ function advanceDue(due,rep,tk,time){
     else if(unit==='month')cur=stepMonths(cur,every);
     else if(unit==='year')cur=stepMonths(cur,12*every);
     guard++;
-  }while(cur<today&&guard<1000);
+  }while(cur<=today&&guard<1000);
   return{due:isoDate(cur),time:time||''};
+}
+
+/* A repair for days already logged. Advancing used to stop on the first turn
+   that was not in the past — and for anything overdue that turn was today, the
+   very day it had just been done. The reminder then vanished from the list
+   (completed today) while still counting as one of today's unfinished tasks:
+   ticking it moved neither number, and the day's tally read 21/35 with ten
+   tasks left on screen. Anything still sitting in that state is walked on to
+   the turn it should have taken. Its own date is what advances, so nothing is
+   invented: the reminder simply stops being due on the day it was finished. */
+function healRepeatsStuckOnDoneDay(){
+  let fixed=0;
+  reminders().forEach(r=>{
+    if(!r.repeat||r.repeat.unit==='hour')return;   // hourly ones do come back the same day
+    if(r.done||!r.completedOn||!r.due)return;
+    if(r.due>r.completedOn)return;                 // already looking ahead
+    const nx=advanceDue(r.due,r.repeat,r.completedOn,r.time);
+    if(nx.due!==r.due){r.due=nx.due;r.time=nx.time;r._ts=Date.now();fixed++;}
+  });
+  if(fixed)savePlanner();
+  return fixed;
 }
 
 /* What tab 2 sees. An unfinished reminder keeps its original date and keeps
@@ -2265,9 +2286,16 @@ function renderPlanner(){
     tops=[...topRows,...loose].sort(order);
     kidsFor=r=>topIds.has(r.id)?shownKids(r):[];
   }
-  // Everything the filters are keeping out of sight — subtasks included.
+  /* Everything the filters are keeping out of sight — subtasks included — and
+     how many of the rows on show are overdue. The overdue tally used to read
+     top rows only while the count beside it read every row, so the same header
+     answered "3 overdue" out of "10" while six of them were late. */
   const shownIds=new Set();
-  tops.forEach(p=>{shownIds.add(p.id);kidsFor(p).forEach(c=>shownIds.add(c.id));});
+  let nOver=0;
+  tops.forEach(p=>{
+    shownIds.add(p.id);if(p.due<tk)nOver++;
+    kidsFor(p).forEach(c=>{shownIds.add(c.id);if(c.due<tk)nOver++;});
+  });
   const hidden=open.length-shownIds.size;
   const card=dv('card');
   const h=dv('rowb mb10');
@@ -2278,7 +2306,6 @@ function renderPlanner(){
   foldOpen.style.cssText='padding:2px 4px;font-size:11px;color:var(--t3)';
   left.appendChild(foldOpen);
   left.appendChild(sp('ctit',t('rem-open-h')));
-  const nOver=tops.filter(r=>r.due<tk).length;
   if(nOver)left.appendChild(sp('xs cr w6',`${nOver} ${nOver===1?t('rem-overdue-1'):t('rem-overdue')}`));
   left.appendChild(sp('xs dimmer',String(shownIds.size)));
   h.appendChild(left);
@@ -4365,7 +4392,7 @@ function renderDiaryFor(dateKey,onSave){
 if('serviceWorker' in navigator){
   window.addEventListener('load',()=>{navigator.serviceWorker.register('./sw.js').catch(()=>{});});
 }
-initTimezone();loadToday();applyTheme();
+initTimezone();loadToday();healRepeatsStuckOnDoneDay();applyTheme();
 
 // On boot: PULL from Supabase first (before pushing ANYTHING).
 // Supabase is the single source of truth.
