@@ -141,6 +141,7 @@ button{cursor:pointer;font-family:var(--ff);font-size:15px;font-weight:600;borde
 /* #8: flag glow overlay */
 .cal-flag-ring{position:absolute;inset:0;border-radius:6px;border:2px solid gold;box-shadow:inset 0 0 8px rgba(255,200,0,.3),0 0 8px rgba(255,200,0,.4);pointer-events:none;z-index:2}
 .cal-flag-ico{position:absolute;top:1px;right:2px;font-size:14px;z-index:3;line-height:1}
+.cal-medal{position:absolute;top:1px;left:2px;font-size:12px;z-index:3;line-height:1;filter:drop-shadow(0 0 4px rgba(255,255,255,.25))}
 .cal-hd{text-align:center;font-size:9px;color:var(--t3);padding:3px 0;text-transform:uppercase;letter-spacing:.05em}
 
 /* ── GOAL TILES ──
@@ -614,10 +615,13 @@ en:{
   'clock-off':"⏰ This device's clock is {n} {dir}. Stoic corrects for it, so your days and your sync are safe — but the system clock is worth fixing.",
   'clock-fast':'ahead of the server','clock-slow':'behind the server',
   'tz-title':'Where your day begins','tz-this-device':'this device',
-  'tz-search':'Search a city or zone…',
+  'tz-search':'Search a city or zone…','rem-open-tree':'This task and its subtasks',
   'ms-constancy':'Constancy','ms-discipline':'Discipline','ms-temperance':'Temperance',
   'ms-fortitude':'Fortitude','ms-virtue':'Virtue','ms-wisdom':'Wisdom','ms-ataraxia':'Ataraxia',
-  'ms-sub':'days in a row without a red one',
+  'ms-sub':'days in a row',
+  'md-day':'Days without red','md-morning':'Morning routine','md-flags':'Goals annihilated','md-work':'Work',
+  'md-cleand':'No stimulants','md-cleanp':'No procrastination','md-cleano':'No orgasm',
+  'medals-title':'Medals','medals-none':'None yet. Positive streaks earn them; rewards never do.',
   'goal-edit':'Click to rewrite it','goal-done-when':'The day you actually finished it',
   'tz-help':'Stoic runs one clock for every device, so both always agree on what day it is. Move it when you travel.',
   'tz-warn':'Change it during the day, not around midnight: a day that has already closed does not reopen.',
@@ -710,7 +714,8 @@ en:{
   'rem-parent-is':'Subtask of','rem-parent-search':'Nest under… (type to search)','rem-parent-none':'Nothing matches',
   'goals-title':'Goals','goal-week':'📅 Weekly','goal-quarter':'📈 Quarterly','goal-year':'🏆 Yearly',
   'goal-new':'A goal that excites you','goal-add':'+ Add goal','goal-day':'day left','goal-days':'days left',
-  'goal-earned':'earned from goals','goal-daily':'Goals of the day',
+  'goal-earned':'earned from goals','goal-daily':'Goals to annihilate',
+  'goal-nudge':'Finish your weekly goals for extra points',
   'goal-day-done':'Goals annihilated!','goal-day-done-sub':'Every flag of the day is down.',
   'goal-worth':'worth','goal-tomorrow':'tomorrow','goal-past-due':'⚠ was due',
   'goal-full':'Limit reached.','goal-carried':'⚠ carried over from last period',
@@ -758,10 +763,13 @@ es:{
   'clock-off':'⏰ El reloj de este dispositivo va {n} {dir}. Stoic lo compensa, así que tus días y tu sincronización están a salvo — pero conviene corregir la hora del sistema.',
   'clock-fast':'adelantado respecto al servidor','clock-slow':'atrasado respecto al servidor',
   'tz-title':'Dónde empieza tu día','tz-this-device':'este dispositivo',
-  'tz-search':'Busca una ciudad o zona…',
+  'tz-search':'Busca una ciudad o zona…','rem-open-tree':'Esta tarea y sus subtareas',
   'ms-constancy':'Constancia','ms-discipline':'Disciplina','ms-temperance':'Templanza',
   'ms-fortitude':'Fortaleza','ms-virtue':'Virtud','ms-wisdom':'Sabiduría','ms-ataraxia':'Ataraxia',
-  'ms-sub':'días seguidos sin caer en rojo',
+  'ms-sub':'días seguidos',
+  'md-day':'Días sin rojo','md-morning':'Rutina matutina','md-flags':'Metas exterminadas','md-work':'Trabajo',
+  'md-cleand':'Sin estimulantes','md-cleanp':'Sin procrastinar','md-cleano':'Sin orgasmo',
+  'medals-title':'Medallas','medals-none':'Aún ninguna. Las dan las rachas positivas; las recompensas nunca.',
   'goal-edit':'Haz click para reescribirla','goal-done-when':'El día en que realmente la terminaste',
   'tz-help':'Stoic usa un solo reloj para todos tus dispositivos, así siempre coinciden en qué día es. Muévelo cuando viajes.',
   'tz-warn':'Cámbialo de día, no cerca de la medianoche: un día que ya cerró no se vuelve a abrir.',
@@ -854,7 +862,8 @@ es:{
   'rem-parent-is':'Subtarea de','rem-parent-search':'Meterla bajo… (escribe para buscar)','rem-parent-none':'Nada coincide',
   'goals-title':'Metas','goal-week':'📅 Semanales','goal-quarter':'📈 Trimestrales','goal-year':'🏆 Anuales',
   'goal-new':'Una meta que te emocione','goal-add':'+ Agregar meta','goal-day':'día restante','goal-days':'días restantes',
-  'goal-earned':'ganados en metas','goal-daily':'Metas del día',
+  'goal-earned':'ganados en metas','goal-daily':'Metas por exterminar alv',
+  'goal-nudge':'Termina tus metas semanales para más puntos extra',
   'goal-day-done':'¡Metas exterminadas alv!','goal-day-done-sub':'Cayeron todas las banderas de hoy.',
   'goal-worth':'vale','goal-tomorrow':'mañana','goal-past-due':'⚠ era para',
   'goal-full':'Límite alcanzado.','goal-carried':'⚠ arrastrada del periodo anterior',
@@ -1143,6 +1152,7 @@ let STATE={
   showGoals: false,
   showRules: false,
   showTZ: false,
+  taskTree: null,
   tzQuery: '',
   tz: localStorage.getItem('st_tz')||'America/Cancun',
   /* The calendar and the panel beside it are two halves of one thing: the day
@@ -2263,7 +2273,12 @@ function renderPlanner(){
   });
   sum.appendChild(gstats);
   const gt=goalsTotal();
-  if(gt)sum.appendChild(dv('xs ac ctr mt6 w6',`+${gt.toLocaleString()} ${t('goal-earned')}`));
+  /* A total sitting under the three tiles read as though it counted the day's
+     flags as well, which it never did — the long goals are paid apart. It
+     points at the tiles instead, and says what pressing one is for. */
+  const nudge=bt('btn-ghost btn-sm w100 mt6',t('goal-nudge')+' ↑',()=>{STATE.showGoals=true;render();});
+  nudge.style.cssText='width:100%;font-size:11px;color:var(--t3);padding:4px';
+  sum.appendChild(nudge);
 
   /* The day's goals are the flagged reminders, so they live here rather than
      with the long goals — foldable, since on a busy day the list is long. */
@@ -2504,9 +2519,9 @@ function renderPlanner(){
   const left=dv('row gap8');
   // Both lists fold, so a long day can be pushed out of the way to reach what
   // is below it.
-  const foldOpen=bt('btn-icon',V.closedOpen?'▶':'▼',()=>{V.closedOpen=!V.closedOpen;saveView();render();});
-  foldOpen.style.cssText='padding:2px 4px;font-size:11px;color:var(--t3)';
-  left.appendChild(foldOpen);
+  left.style.cssText='cursor:pointer;user-select:none;flex:1';
+  left.onclick=()=>{V.closedOpen=!V.closedOpen;saveView();render();};
+  left.appendChild(sp('sm dimmer',V.closedOpen?'▶':'▼'));
   left.appendChild(sp('ctit',t('rem-open-h')));
   if(nOver)left.appendChild(sp('xs cr w6',`${nOver} ${nOver===1?t('rem-overdue-1'):t('rem-overdue')}`));
   left.appendChild(sp('xs dimmer',String(shownIds.size)));
@@ -2545,9 +2560,12 @@ function renderPlanner(){
     const h=dv('rowb mb10');
     const shown=new Set();
     doneTops.forEach(p=>{shown.add(p.id);doneKids(p).forEach(c=>shown.add(c.id));});
+    // The whole heading folds it, not the arrow alone — the arrow is small and
+    // sits where a finger does not.
     const dleft=dv('row gap8');
-    const foldDone=bt('btn-icon',V.closedDone?'▶':'▼',()=>{V.closedDone=!V.closedDone;saveView();render();});
-    foldDone.style.cssText='padding:2px 4px;font-size:11px;color:var(--t3)';
+    dleft.style.cssText='cursor:pointer;user-select:none;flex:1';
+    dleft.onclick=()=>{V.closedDone=!V.closedDone;saveView();render();};
+    const foldDone=sp('sm dimmer',V.closedDone?'▶':'▼');
     dleft.appendChild(foldDone);
     dleft.appendChild(sp('ctit cg',t('rem-done-h')));
     h.appendChild(dleft);
@@ -2638,7 +2656,16 @@ function renderPlanner(){
   return wrap;
 }
 
+/* The panel redraws itself rather than asking the whole page to. Stepping a
+   completion date through a full render tore the overlay down and built it
+   again for every press — the goals blinked out and back, once per click. */
 function renderGoals(){
+  const shell=dv('');
+  const draw=()=>{shell.innerHTML='';shell.appendChild(buildGoals(draw));};
+  draw();
+  return shell;
+}
+function buildGoals(redraw){
   const wrap=dv('');
   const tk=todayKey();
   const tot=goalsTotal();
@@ -2664,7 +2691,7 @@ function renderGoals(){
       const row=dv('row gap8');
       row.style.cssText='background:var(--sur2);border:1px solid '+(g.doneOn?'var(--gb)':'var(--b1)')+';border-radius:10px;padding:9px 11px;align-items:flex-start';
       const cb=ip('checkbox','');cb.checked=!!g.doneOn;cb.style.marginTop='2px';
-      cb.onchange=()=>{toggleGoal(g.id);render();};
+      cb.onchange=()=>{toggleGoal(g.id);redraw();};
       row.appendChild(cb);
       const mid=dv('f1');
       /* The wording is editable in place. Rewriting a goal used to mean
@@ -2675,8 +2702,8 @@ function renderGoals(){
       if(g.doneOn){tt.style.textDecoration='line-through';tt.style.color='var(--t3)';}
       tt.onclick=()=>{
         const inp=ip('text','',g.title,'');inp.style.width='100%';
-        const put=()=>{const v=inp.value.trim();if(v&&v!==g.title){g.title=v;g._ts=CLOCK.now();savePlanner();}render();};
-        inp.onkeydown=e=>{if(e.key==='Enter')put();if(e.key==='Escape')render();};
+        const put=()=>{const v=inp.value.trim();if(v&&v!==g.title){g.title=v;g._ts=CLOCK.now();savePlanner();}redraw();};
+        inp.onkeydown=e=>{if(e.key==='Enter')put();if(e.key==='Escape')redraw();};
         inp.onblur=put;
         mid.replaceChild(inp,tt);inp.focus();inp.select();
       };
@@ -2698,7 +2725,7 @@ function renderGoals(){
           const d=new Date(g.doneOn+'T12:00:00');d.setDate(d.getDate()+n);
           const v=isoDate(d);
           if(v<floor||v>tk)return;
-          g.doneOn=v;g.points=goalPoints(g);g._ts=CLOCK.now();savePlanner();render();
+          g.doneOn=v;g.points=goalPoints(g);g._ts=CLOCK.now();savePlanner();redraw();
         };
         const dr=dv('row gap4 mt2');dr.style.alignItems='center';
         dr.appendChild(sp('xs cg',`+${goalPoints(g).toLocaleString()} ·`));
@@ -2728,7 +2755,7 @@ function renderGoals(){
       }
       row.appendChild(mid);
       row.appendChild(bt('btn-icon','✕',()=>{
-        if(confirm(t('rem-del-warn').replace('{t}',g.title))){deleteGoal(g.id);render();}
+        if(confirm(t('rem-del-warn').replace('{t}',g.title))){deleteGoal(g.id);redraw();}
       }));
       box.appendChild(row);
     });
@@ -2738,7 +2765,7 @@ function renderGoals(){
       const gi=ip('text','','',t('goal-new'));gi.style.marginTop='8px';
       const add=()=>{
         const v=gi.value.trim();if(!v)return;
-        addGoal(kind,v);render();
+        addGoal(kind,v);redraw();
       };
       gi.onkeydown=e=>{if(e.key==='Enter')add();};
       card.appendChild(gi);
@@ -2974,6 +3001,14 @@ function renderReminderRow(r,tk,opts){
   const titleLine=dv('row gap6');titleLine.style.flexWrap='wrap';
   const tt=sp('md',r.title);
   if(doneToday){tt.style.textDecoration='line-through';tt.style.color='var(--t3)';}
+  /* A task with subtasks opens on its title: the whole family on one screen,
+     away from the rest of the day. A task that carries a project inside it is
+     easier to work through when nothing else is on the page. */
+  if(!r.parent&&subtasksOf(r.id).length){
+    tt.style.cursor='pointer';
+    tt.title=t('rem-open-tree');
+    tt.onclick=e=>{e.stopPropagation();STATE.taskTree=r.id;render();};
+  }
   titleLine.appendChild(tt);
   if(r.flagged)titleLine.appendChild(sp('sm','🏁'));
   if(r.priority>0){const p=sp('sm w7',PRIO[r.priority][1]);p.style.color=prioColor(r.priority);titleLine.appendChild(p);}
@@ -3066,58 +3101,89 @@ function render(){
    which is more the point of the app than "achievement unlocked" would be.
    ═══════════════════════════════════════════════════════════════════════ */
 const MILESTONES=[
-  {n:10,  word:'constancy', icon:'🔥',  hue:'#f97316'},
-  {n:20,  word:'discipline',icon:'⚡',  hue:'#f5c842'},
-  {n:50,  word:'temperance',icon:'🌊',  hue:'#34d399'},
-  {n:100, word:'fortitude', icon:'🗡️', hue:'#5b9df9'},
-  {n:200, word:'virtue',    icon:'🏛️', hue:'#a78bfa'},
-  {n:500, word:'wisdom',    icon:'🦉',  hue:'#d4a017'},
-  {n:1000,word:'ataraxia',  icon:'🌌',  hue:'#e879f9'}
+  {n:10,word:'constancy'},{n:20,word:'discipline'},{n:50,word:'temperance'},
+  {n:100,word:'fortitude'},{n:200,word:'virtue'},{n:500,word:'wisdom'},{n:1000,word:'ataraxia'}
 ];
-/* Days in a row, ending today, that did not end red — today included only
-   once it has stopped being red itself, which is what makes the moment land
-   on the tick that turns the day around. */
-function nonRedStreak(){
-  const tk=todayKey();
-  const live=CALC.score(STATE.today,applyStreakOverrides(CALC.streaks(STATE.history,STATE.today)));
-  const map=histMap();
-  const d=new Date(tk+'T12:00:00');
-  let n=0;
-  for(let i=0;i<2000;i++){
-    const key=isoDate(d);
-    const e=map.get(key);
-    const status=key===tk?live.status:(e&&!e._gap?e.status:null);
-    if(!status||status==='red')break;
-    n++;d.setDate(d.getDate()-1);
+/* Only what you keep up earns one. The rewards have streaks of their own and
+   they are the opposite of an achievement, so nothing is ever awarded for a
+   run of them. */
+const MEDAL_KINDS=[
+  {k:'day',    icon:'🔥',  name:'md-day',    hue:'#f97316', ok:d=>d.status&&d.status!=='red'},
+  {k:'morning',icon:'🌅',  name:'md-morning',hue:'#f5c842', ok:d=>d.morning},
+  {k:'flags',  icon:'🏁',  name:'md-flags',  hue:'#d4a017', ok:d=>d.flags},
+  {k:'work',   icon:'💼',  name:'md-work',   hue:'#5b9df9', ok:d=>d.work>0},
+  {k:'cleand', icon:'🧘',  name:'md-cleand', hue:'#34d399', ok:d=>!d.drugs},
+  {k:'cleanp', icon:'🎯',  name:'md-cleanp', hue:'#a78bfa', ok:d=>!d.proc},
+  {k:'cleano', icon:'🛡️', name:'md-cleano', hue:'#e879f9', ok:d=>!d.org}
+];
+/* One day reduced to the handful of yes-or-no answers a streak is built from,
+   read the same way whether the day is closed or still being lived. */
+function dayFacts(entry,isToday){
+  if(isToday){
+    const live=CALC.score(STATE.today,applyStreakOverrides(CALC.streaks(STATE.history,STATE.today)));
+    const pens=STATE.today.penalties||[];
+    return{status:live.status,morning:!!STATE.today.morningCompleted,flags:!!STATE.today.flagCompleted,
+      work:STATE.today.work?.workDuration||0,
+      drugs:pens.some(p=>p.type==='drugs'),proc:pens.some(p=>p.type==='internet'),org:pens.some(p=>p.type==='macanazo')};
   }
-  return n;
+  const pens=entry.penalties||[];
+  return{status:entry.status,
+    morning:!!entry.streaks?.some(s=>s.type==='morning'&&s.active),
+    flags:!!entry.streaks?.some(s=>s.type==='flags'&&s.active),
+    work:entry.workDuration||0,
+    drugs:pens.some(p=>p.type==='drugs'),proc:pens.some(p=>p.type==='internet'),org:pens.some(p=>p.type==='macanazo')};
+}
+/* Every medal ever earned, worked out from the days themselves rather than
+   kept in a list somewhere. Fixing a day you logged wrong re-earns — or
+   un-earns — whatever hung on it, which is the only way a record built on
+   editable history can stay honest. A day never logged breaks everything. */
+function medalsByDate(){
+  const tk=todayKey();
+  const map=histMap();
+  const dates=[...new Set([...map.keys(),tk])].filter(d=>d<=tk).sort();
+  const run={};MEDAL_KINDS.forEach(m=>run[m.k]=0);
+  const out=new Map();
+  dates.forEach(d=>{
+    const isToday=d===tk;
+    const e=map.get(d);
+    if(!isToday&&(!e||e._gap)){MEDAL_KINDS.forEach(m=>run[m.k]=0);return;}
+    const f=dayFacts(e,isToday);
+    MEDAL_KINDS.forEach(m=>{
+      if(!m.ok(f)){run[m.k]=0;return;}
+      run[m.k]++;
+      if(MILESTONES.some(x=>x.n===run[m.k])){
+        if(!out.has(d))out.set(d,[]);
+        out.get(d).push({kind:m,n:run[m.k]});
+      }
+    });
+  });
+  return out;
 }
 function checkMilestone(){
   if(document.querySelector('.ms-ov'))return;
-  const n=nonRedStreak();
-  if(!n)return;
+  const tk=todayKey();
+  const today=medalsByDate().get(tk)||[];
+  if(!today.length)return;
   let seen=[];try{seen=JSON.parse(localStorage.getItem('st_milestones')||'[]');}catch(e){}
-  const reached=MILESTONES.filter(m=>n>=m.n).map(m=>m.n);
-  const fresh=reached.filter(x=>!seen.includes(x));
+  const id=m=>m.kind.k+':'+m.n+':'+tk;
+  const fresh=today.filter(m=>!seen.includes(id(m)));
   if(!fresh.length)return;
-  /* The first time this runs, a history going back months has already passed
-     several of these. All of them are recorded, and the highest is shown once:
-     seven at a time would be noise, and none at all would be a shame — they
-     were earned before anyone was watching. */
-  const show=MILESTONES.find(m=>m.n===Math.max(...fresh));
-  try{localStorage.setItem('st_milestones',JSON.stringify([...new Set([...seen,...reached])]));}catch(e){}
-  showMilestone(show);
+  // Several at once would talk over each other; the biggest speaks for them.
+  const best=fresh.reduce((a,b)=>b.n>a.n?b:a);
+  try{localStorage.setItem('st_milestones',JSON.stringify([...seen,...today.map(id)].slice(-300)));}catch(e){}
+  showMilestone(best);
 }
 function showMilestone(m){
+  const tier=MILESTONES.find(x=>x.n===m.n)||MILESTONES[0];
   const ov=dv('ms-ov');
   const card=dv('ms-card');
-  card.style.setProperty('--ms',m.hue);
-  card.innerHTML=`<div class="ms-ico">${m.icon}</div>`+
+  card.style.setProperty('--ms',m.kind.hue);
+  card.innerHTML=`<div class="ms-ico">${m.kind.icon}</div>`+
     `<div class="ms-n">${m.n}</div>`+
-    `<div class="ms-w">${t('ms-'+m.word)}</div>`+
-    `<div class="ms-sub">${t('ms-sub')}</div>`;
+    `<div class="ms-w">${t(m.kind.name)}</div>`+
+    `<div class="ms-sub">${t('ms-sub')} · ${t('ms-'+tier.word)}</div>`;
   for(let i=0;i<16;i++){
-    const s=dv('ms-spark',m.icon);
+    const s=dv('ms-spark',m.kind.icon);
     const a=(Math.PI*2*i)/16+Math.random()*.4, r=120+Math.random()*160;
     s.style.setProperty('--dx',Math.cos(a)*r+'px');
     s.style.setProperty('--dy',Math.sin(a)*r+'px');
@@ -3349,6 +3415,7 @@ function renderApp(){
      tabs, because the planner returns early below and would never reach them. */
   if(STATE.showRules)wrap.appendChild(renderRulesModal());
   if(STATE.showTZ)wrap.appendChild(renderTZModal());
+  if(STATE.taskTree)wrap.appendChild(renderTaskTreeModal(STATE.taskTree));
 
   /* ── TABS ── */
   const st=plannerTodayStats();
@@ -3887,6 +3954,7 @@ function renderCalendar(onPick){
 
     // #6: use history with gaps filled for calendar display
     const hMap=histMap();
+    const medals=medalsByDate();
 
     const dim=new Date(cY,cM+1,0).getDate();const fd=new Date(cY,cM,1).getDay();
     const tk=todayKey();
@@ -3914,6 +3982,14 @@ function renderCalendar(onPick){
         // #8: prominent ring + icon
         const ring=dv('cal-flag-ring');cell.appendChild(ring);
         cell.appendChild(sp('cal-flag-ico','🏅'));
+      }
+      /* A medal earned that day, kept on the day it was earned. The flag ring
+         says what the day was; this says what the day finished. */
+      const won=medals.get(key);
+      if(won&&won.length){
+        const mk=sp('cal-medal',won.length>1?'🎖️':won[0].kind.icon);
+        mk.title=won.map(x=>`${t(x.kind.name)} · ${x.n}`).join('\n');
+        cell.appendChild(mk);
       }
       const num=sp('cal-num',String(d));num.style.color=bg.txt;cell.appendChild(num);
       // #5: always show pts if entry exists
@@ -3995,6 +4071,10 @@ function renderDayPanel(){
     ];
     const line=dv('xs dim mt6');line.textContent=parts.join(' · ');wrap.appendChild(line);
     if(!isToday&&entry?._gap)wrap.appendChild(dv('xs ng mt4',t('day-not-logged')));
+    // What this day earned, spelled out — the calendar only has room for a mark.
+    const won=medalsByDate().get(key)||[];
+    won.forEach(w=>wrap.appendChild(dv('xs mt4',
+      `<span class="w7" style="color:${w.kind.hue}">${w.kind.icon} ${t(w.kind.name)} · ${w.n}</span>`)));
   } else {
     wrap.appendChild(dv('xs dimmer',t('no-data')));
   }
@@ -4270,6 +4350,35 @@ function renderStats(total,sc){
   [['purple','🟣'],['green','🟢'],['yellow','🟡'],['red','🔴']].forEach(([s,e])=>dr.appendChild(sp(`badge s-${s}`,`${e} ${counts[s]}d`)));
   body.appendChild(dr);
 
+  // ── 8b. Medals ────────────────────────────────────────────────────────────
+  /* The whole collection in one place. The calendar keeps each one on its own
+     day, which is the record; this is the shelf. */
+  // Each medal carries the day it was won, so the shelf can name the day.
+  const allMedals=[...medalsByDate().entries()].flatMap(([d,l])=>l.map(m=>({...m,date:d})));
+  const mbox=dv('card2 mb10');
+  const mh=dv('rowb mb8');
+  mh.appendChild(sp('xs dimmer up ls',t('medals-title')));
+  mh.appendChild(sp('md mo w7 ac',String(allMedals.length)));
+  mbox.appendChild(mh);
+  if(!allMedals.length){
+    mbox.appendChild(dv('xs dimmer',t('medals-none')));
+  }else{
+    const mg=dv('row gap6');mg.style.flexWrap='wrap';
+    MEDAL_KINDS.forEach(k=>{
+      const mine=allMedals.filter(m=>m.kind.k===k.k).sort((a,b)=>b.n-a.n);
+      if(!mine.length)return;
+      const chip=dv('row gap4');
+      chip.style.cssText=`background:var(--sur2);border:1px solid ${k.hue}55;border-radius:8px;padding:4px 8px;align-items:baseline`;
+      chip.title=t(k.name)+'\n'+mine.map(m=>m.n+' — '+m.date).join('\n');
+      chip.appendChild(sp('sm',k.icon));
+      chip.appendChild(sp('xs mo w7',String(mine[0].n)));
+      if(mine.length>1)chip.appendChild(sp('xs dimmer','×'+mine.length));
+      mg.appendChild(chip);
+    });
+    mbox.appendChild(mg);
+  }
+  body.appendChild(mbox);
+
   // ── 9. Insight ────────────────────────────────────────────────────────────
   const ib=dv('card2 s-ac fi');ib.appendChild(sp('sm dim',insight));body.appendChild(ib);
 
@@ -4386,6 +4495,7 @@ function renderRules(onClose){
       <div><span class="cy w6">🟡 Amarillo</span> — reinicia Estimulantes 💊</div>
       <div><span class="cg w6">🟢 Verde</span> — reinicia Estimulantes 💊 + Procrastinación 🌐</div>
       <div><span class="cp w6">🟣 Morado</span> — reinicia TODAS las de recompensas, incluyendo Desvelo 🌙</div>
+      <div><span class="ac w6">🎖️ Medallas</span> — cada racha <em>positiva</em> que llega a 10, 20, 50, 100, 200, 500 o 1000 días deja su medalla en ese día del calendario. Las recompensas nunca dan medalla.</div>
       <div class="xs dimmer">Los días que olvidas registrar cuentan como −1,000 pts y día Rojo. ¡Registra diario!</div>
     </div>
   </div>
@@ -4480,6 +4590,7 @@ function renderRules(onClose){
       <div><span class="cy w6">🟡 Yellow</span> — resets Stimulants 💊</div>
       <div><span class="cg w6">🟢 Green</span> — resets Stimulants 💊 + Procrastination 🌐</div>
       <div><span class="cp w6">🟣 Purple</span> — resets ALL reward streaks, including Late Night 🌙</div>
+      <div><span class="ac w6">🎖️ Medals</span> — every <em>positive</em> streak that reaches 10, 20, 50, 100, 200, 500 or 1000 days leaves its medal on that day in the calendar. Rewards never earn one.</div>
       <div class="xs dimmer">Days you forget to log count as −1,000 pts and a Red day. Don't skip!</div>
     </div>
   </div>
@@ -4490,6 +4601,42 @@ function renderRules(onClose){
 }
 
 
+
+/* ═══ ONE TASK AND ITS OWN — opened from a parent's title ═══
+   The same rows the list draws, so everything works here exactly as it does
+   there: ticking, editing, adding another subtask. Only the surroundings are
+   gone. Subtasks already finished today are shown too — a family reads wrong
+   with half of it missing. */
+function renderTaskTreeModal(id){
+  const r=reminders().find(x=>x.id===id);
+  if(!r){STATE.taskTree=null;return dv('');}
+  const close=()=>{STATE.taskTree=null;render();};
+  const ov=dv('fi');
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:60;'+
+    'display:flex;align-items:flex-start;justify-content:center;padding:20px;overflow:auto';
+  ov.onclick=e=>{if(e.target===ov)close();};
+  const panel=dv('card');
+  panel.style.cssText='max-width:640px;width:100%;margin:auto';
+  const tk=todayKey();
+  const kids=subtasksOf(r.id).sort((a,b)=>a.due.localeCompare(b.due));
+  const doneN=kids.filter(k=>k.done||k.completedOn===tk).length;
+  const hd=dv('rowb mb12');
+  const lft=dv('row gap6');
+  lft.appendChild(sp('ctit',t('rem-open-tree')));
+  if(kids.length)lft.appendChild(sp('sm mo dim',`${doneN}/${kids.length}`));
+  hd.appendChild(lft);hd.appendChild(bt('btn-icon','✕',close));
+  panel.appendChild(hd);
+  const box=dv('s6');
+  box.appendChild(renderReminderRow(r,tk,{prevTop:null,kids:kids.length}));
+  kids.forEach(c=>{
+    const w=dv('rem-sub');
+    w.appendChild(renderReminderRow(c,tk,{prevTop:r.id}));
+    box.appendChild(w);
+  });
+  panel.appendChild(box);
+  ov.appendChild(panel);
+  return ov;
+}
 
 /* ═══ WHERE THE DAY BEGINS — opened from the clock ═══
    Every zone there is, searched by name, because the app is not only for one
@@ -4831,9 +4978,9 @@ document.addEventListener('keydown',e=>{
   if(e.key!=='Escape')return;
   const ms=document.querySelector('.ms-ov');
   if(ms){ms.click();return;}
-  const open=['histDay','showTZ','showRules','showSyncPanel','showGoals'].find(k=>STATE[k]);
+  const open=['taskTree','histDay','showTZ','showRules','showSyncPanel','showGoals'].find(k=>STATE[k]);
   if(!open)return;
-  STATE[open]=(open==='histDay')?null:false;
+  STATE[open]=(open==='histDay'||open==='taskTree')?null:false;
   render();
 });
 
