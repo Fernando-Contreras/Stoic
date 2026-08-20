@@ -143,6 +143,13 @@ button{cursor:pointer;font-family:var(--ff);font-size:15px;font-weight:600;borde
 .cal-flag-ico{position:absolute;top:1px;right:2px;font-size:14px;z-index:3;line-height:1}
 .cal-hd{text-align:center;font-size:9px;color:var(--t3);padding:3px 0;text-transform:uppercase;letter-spacing:.05em}
 
+/* ── GOAL TILES ──
+   One-two-three, then still again. Big enough to catch the corner of an eye,
+   small enough not to be a thing that has to be dealt with. */
+@keyframes goalwave{0%{transform:scale(1)}35%{transform:scale(1.18)}70%{transform:scale(.97)}100%{transform:scale(1)}}
+.goal-tile.wave{animation:goalwave .5s cubic-bezier(.34,1.56,.64,1)}
+@media(prefers-reduced-motion:reduce){.goal-tile.wave{animation:none}}
+
 /* ── PENALTY ITEM ── */
 .pen-it{background:var(--sur2);border:1px solid var(--ngb);border-radius:8px;padding:9px 12px;display:flex;align-items:center;justify-content:space-between;gap:8px}
 
@@ -503,14 +510,49 @@ const CLOCK={
   offMinutes(){return Math.round(this.skew/60000);}
 };
 
-function todayKey(){
-  // Always use America/Cancun (UTC-5, no DST) so all devices agree on the date
-  return new Date(CLOCK.now()).toLocaleDateString('en-CA',{timeZone:'America/Cancun'});
+/* Where the day begins and ends. One zone for the whole account, not one per
+   device: that is what stops a laptop and a phone from disagreeing about what
+   day it is, which is the thing that would really break — two devices each
+   closing a different day, each filing the same work under a different date.
+
+   It is a setting rather than a constant because you can move. Travelling two
+   hours west without it means the day ends at 10pm where you are standing, and
+   the hours you lose are hours of scoring. Change it and both devices follow,
+   because it rides along with the language and the theme.
+
+   Change it during the day. In the couple of hours where the two zones do not
+   even agree on the date, a change can only move the boundary forward, never
+   reopen a day already closed — see loadToday. */
+const TZ_HOME='America/Cancun';
+function appTZ(){return localStorage.getItem('st_tz')||TZ_HOME;}
+function setAppTZ(tz){
+  localStorage.setItem('st_tz',tz);
+  STATE.tz=tz;
+  STATE.today._tz=tz;      // rides to the other device with the other settings
+  commitAndRefresh();
 }
-function initTimezone(){
-  if(!localStorage.getItem('st_tz_offset')){
-    localStorage.setItem('st_tz_offset',String(new Date().getTimezoneOffset()));
-  }
+// What this device is actually set to — offered as one of the choices.
+function deviceTZ(){
+  try{return Intl.DateTimeFormat().resolvedOptions().timeZone||TZ_HOME;}catch(e){return TZ_HOME;}
+}
+/* A zone written the way a person would say it, and how far it is from home
+   right now — which is the part that actually answers "does my day move?" */
+function tzLabel(tz){
+  const city=tz.split('/').pop().replace(/_/g,' ');
+  const off=tzOffsetHours(tz)-tzOffsetHours(TZ_HOME);
+  return off?`${city} (${off>0?'+':''}${off}h)`:city;
+}
+function tzOffsetHours(tz){
+  try{
+    const d=new Date(CLOCK.now());
+    const s=d.toLocaleString('en-US',{timeZone:tz,hour12:false,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
+    const u=d.toLocaleString('en-US',{timeZone:'UTC',hour12:false,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
+    return Math.round((Date.parse(s)-Date.parse(u))/3600000);
+  }catch(e){return 0;}
+}
+
+function todayKey(){
+  return new Date(CLOCK.now()).toLocaleDateString('en-CA',{timeZone:appTZ()});
 }
 
 
@@ -549,6 +591,10 @@ en:{
   'day-title-ph':'Title for the day','day-untitled':'Untitled','ctrl-save':'Ctrl + Enter to save',
   'clock-off':"⏰ This device's clock is {n} {dir}. Stoic corrects for it, so your days and your sync are safe — but the system clock is worth fixing.",
   'clock-fast':'ahead of the server','clock-slow':'behind the server',
+  'tz-title':'Where your day begins','tz-this-device':'this device',
+  'goal-edit':'Click to rewrite it','goal-done-when':'The day you actually finished it',
+  'tz-help':'Stoic runs one clock for every device, so both always agree on what day it is. Move it when you travel.',
+  'tz-warn':'Change it during the day, not around midnight: a day that has already closed does not reopen.',
   'tpl-grateful':'3 reasons why I am deeply grateful',
   'tpl-bad':'1 bad thing of today (feel free to complain):',
   'tpl-weekly-left':'There are still {n} weekly goals waiting to be completed.',
@@ -685,6 +731,10 @@ es:{
   'day-title-ph':'Título del día','day-untitled':'Sin título','ctrl-save':'Ctrl + Enter para guardar',
   'clock-off':'⏰ El reloj de este dispositivo va {n} {dir}. Stoic lo compensa, así que tus días y tu sincronización están a salvo — pero conviene corregir la hora del sistema.',
   'clock-fast':'adelantado respecto al servidor','clock-slow':'atrasado respecto al servidor',
+  'tz-title':'Dónde empieza tu día','tz-this-device':'este dispositivo',
+  'goal-edit':'Haz click para reescribirla','goal-done-when':'El día en que realmente la terminaste',
+  'tz-help':'Stoic usa un solo reloj para todos tus dispositivos, así siempre coinciden en qué día es. Muévelo cuando viajes.',
+  'tz-warn':'Cámbialo de día, no cerca de la medianoche: un día que ya cerró no se vuelve a abrir.',
   'tpl-grateful':'3 razones por las que estoy profundamente agradecido',
   'tpl-bad':'1 cosa mala de hoy (quéjate a gusto):',
   'tpl-weekly-left':'Todavía quedan {n} metas semanales por completar.',
@@ -1062,6 +1112,8 @@ let STATE={
   showAddForm: false,
   showGoals: false,
   showRules: false,
+  showTZ: false,
+  tz: localStorage.getItem('st_tz')||'America/Cancun',
   /* The calendar and the panel beside it are two halves of one thing: the day
      you pick fills the panel, and histDay is the day whose numbers are open on
      top of it. All three live here because saving re-renders the whole app —
@@ -1083,13 +1135,30 @@ function loadToday(){
   if(t){STATE.today={...STATE.today,...t};if(t._penType)STATE.penType=t._penType;
     if(t._difficulty){STATE.difficulty=t._difficulty;localStorage.setItem('st_difficulty',t._difficulty);}
     if(t._lang){STATE.lang=t._lang;localStorage.setItem('st_lang',t._lang);}
+    // Read before the date is worked out below — it decides what the date is.
+    if(t._tz){STATE.tz=t._tz;localStorage.setItem('st_tz',t._tz);}
   }
   const tk=todayKey();
   const saved=STATE.today._date||'';
+  /* Only ever forward. A day can end; it cannot un-end. If the date reads
+     EARLIER than the day in hand — the zone was moved west, or the device
+     clock jumped back — rolling over would file the day in hand under a date
+     still in the future and hand back an empty one in its place, losing
+     everything logged since midnight. The day in hand simply stands until the
+     clock genuinely passes it. */
+  if(saved&&saved>tk){
+    if(!STATE.today._date)STATE.today._date=saved;
+    return;
+  }
   if(saved&&saved!==tk){
-    // might have missed multiple days — fill each missing day as -1000 gap
-    const savedDate=new Date(saved);
-    const nowDate=new Date(tk);
+    /* Might have missed multiple days — fill each missing one as a -1000 gap.
+       Anchored at noon, local. A bare 'YYYY-MM-DD' is read as UTC midnight,
+       which anywhere west of Greenwich is the evening BEFORE — so every gap
+       day was written one day early: the first landed back on the day already
+       archived and was dropped as a duplicate, and the last day missed was
+       never filled at all. Miss three days and only one was ever counted. */
+    const savedDate=new Date(saved+'T12:00:00');
+    const nowDate=new Date(tk+'T12:00:00');
     const daysDiff=Math.round((nowDate-savedDate)/(1000*60*60*24));
     // save the actual last-used day — keep ORIGINAL _ts so Supabase data always wins
     const sk=CALC.streaks(STATE.history,STATE.today);
@@ -1099,7 +1168,7 @@ function loadToday(){
     // fill any days between saved and today as gap days
     for(let i=1;i<daysDiff;i++){
       const gapDate=new Date(savedDate);gapDate.setDate(gapDate.getDate()+i);
-      const gk=gapDate.getFullYear()+'-'+String(gapDate.getMonth()+1).padStart(2,'0')+'-'+String(gapDate.getDate()).padStart(2,'0');
+      const gk=isoDate(gapDate);
       if(!STATE.history.find(h=>h.date===gk)){
         upsertHist({date:gk,_ts:0,todayPoints:-1000,status:'red',completedTasks:0,totalTasks:0,pomodoros:0,penalties:[],streaks:[],workDuration:0,sleepDuration:0,napDuration:0,sleptEarly:false,_gap:true},gk);
         S.set(K.HIST,STATE.history);
@@ -1232,6 +1301,8 @@ function applyRemote(remote){
     if(R._difficulty&&R._difficulty!==STATE.difficulty){STATE.difficulty=R._difficulty;localStorage.setItem('st_difficulty',R._difficulty);changed=true;}
     if(R._theme&&R._theme!==STATE.theme){STATE.theme=R._theme;S.set(K.THEME,R._theme);applyTheme();changed=true;}
     if(R._lang&&R._lang!==STATE.lang){STATE.lang=R._lang;localStorage.setItem('st_lang',R._lang);changed=true;}
+    // The zone travels with the settings so both devices keep the same day.
+    if(R._tz&&R._tz!==appTZ()){STATE.tz=R._tz;localStorage.setItem('st_tz',R._tz);changed=true;}
 
     if(remoteIsNewer){
       const Rdate=R._date||'';
@@ -1398,7 +1469,7 @@ function fmtTime(d){return pad2(d.getHours())+':'+pad2(d.getMinutes());}
    of Mexico, and disagreeing about what day it is breaks hourly repeats near
    the end of the day. */
 function appNow(){
-  return new Date(new Date(CLOCK.now()).toLocaleString('en-US',{timeZone:'America/Cancun'}));
+  return new Date(new Date(CLOCK.now()).toLocaleString('en-US',{timeZone:appTZ()}));
 }
 
 /* Advancing a repeat. Day-and-longer repeats move to the first date that is
@@ -2128,7 +2199,12 @@ function renderPlanner(){
     const list=goalsOf(kind);
     const done=list.filter(g=>g.doneOn).length;
     const all=done&&done===list.length;
-    const tile=bt('','',()=>{STATE.showGoals=true;render();});
+    const tile=bt('goal-tile','',()=>{STATE.showGoals=true;render();});
+    /* A tile with something still open waves every few minutes. Long goals are
+       the one part of Stoic that asks nothing of you day to day, so they are
+       the one part you can forget for a week — and forgetting costs a thousand
+       points a day. Once its goals are all in, a tile stops asking. */
+    if(list.length&&!all)tile.dataset.open='1';
     tile.style.cssText=`flex:1;border:1px solid ${all?'var(--gb)':'var(--b1)'};background:${all?'var(--gd)':'var(--sur2)'};border-radius:10px;padding:8px 4px;cursor:pointer;text-align:center`;
     tile.title=t('goal-'+kind).replace(/^\S+\s/,'');
     const icon={week:'📅',quarter:'📈',year:'🏆'}[kind];
@@ -2545,11 +2621,39 @@ function renderGoals(){
       cb.onchange=()=>{toggleGoal(g.id);render();};
       row.appendChild(cb);
       const mid=dv('f1');
+      /* The wording is editable in place. Rewriting a goal used to mean
+         deleting it and typing it again, which threw away the deadline it was
+         committed to — and with it the whole point of having one. */
       const tt=sp('sm',g.title);
+      tt.style.cssText='cursor:text';tt.title=t('goal-edit');
       if(g.doneOn){tt.style.textDecoration='line-through';tt.style.color='var(--t3)';}
+      tt.onclick=()=>{
+        const inp=ip('text','',g.title,'');inp.style.width='100%';
+        const put=()=>{const v=inp.value.trim();if(v&&v!==g.title){g.title=v;g._ts=CLOCK.now();savePlanner();}render();};
+        inp.onkeydown=e=>{if(e.key==='Enter')put();if(e.key==='Escape')render();};
+        inp.onblur=put;
+        mid.replaceChild(inp,tt);inp.focus();inp.select();
+      };
       mid.appendChild(tt);
       if(g.doneOn){
-        mid.appendChild(dv('xs cg mt2',`+${goalPoints(g).toLocaleString()} · ${g.doneOn}`));
+        /* When it was finished, not when it was ticked. Remembering to tick a
+           goal two days after doing it used to cost the two days: the payout
+           reads the completion date, and the completion date was whenever you
+           happened to remember. Now that date can be told the truth — no
+           earlier than the day the goal was set, no later than today. */
+        const dr=dv('row gap6 mt2');dr.style.alignItems='center';
+        dr.appendChild(sp('xs cg',`+${goalPoints(g).toLocaleString()} ·`));
+        const di=ip('date','',g.doneOn,'');
+        di.min=(g.period||'').split(':')[1]||'';di.max=tk;
+        di.style.cssText='font-size:11px;padding:1px 4px;background:none;border:1px solid var(--b2);color:var(--cg)';
+        di.title=t('goal-done-when');
+        di.onchange=()=>{
+          const v=di.value;
+          if(!v||v>tk){render();return;}
+          g.doneOn=v;g.points=goalPoints(g);g._ts=CLOCK.now();savePlanner();render();
+        };
+        dr.appendChild(di);
+        mid.appendChild(dr);
       }else{
         // What it is worth today, and what tomorrow costs — the whole point of
         // the rule is only obvious when both numbers are on screen.
@@ -3056,15 +3160,18 @@ function renderApp(){
   // HEADER
   const hdr=dv('ctr');hdr.style.padding='20px 0 16px';
   const now=new Date();
-  const tz='America/Cancun';
+  const tz=appTZ();
   /* The title opens the rules. It is left looking exactly like a title —
      no border, no padding, no button about it — because that is how it
      should look; only the cursor gives it away. */
   hdr.innerHTML=`<div class="xxxl w8 ac" id="stoic-title" style="letter-spacing:-.02em;cursor:pointer;user-select:none" title="${t('rules-title')}">🏛️ Stoic</div>
     <div class="sm dim mt4">${capFirst(now.toLocaleDateString(STATE.lang==='es'?'es-MX':'en-US',{timeZone:tz,weekday:'long',year:'numeric',month:'long',day:'numeric'}))}</div>
-    <div class="xs dimmer mt2 mo" id="clk">${now.toLocaleTimeString(STATE.lang==='es'?'es-MX':'en-US',{timeZone:tz,hour:'2-digit',minute:'2-digit',second:'2-digit'})}</div>`;
+    <div class="xs dimmer mt2 mo" id="clk" style="cursor:pointer" title="${t('tz-title')}">${now.toLocaleTimeString(STATE.lang==='es'?'es-MX':'en-US',{timeZone:tz,hour:'2-digit',minute:'2-digit',second:'2-digit'})}${tz!==TZ_HOME?' · '+tz.split('/').pop().replace(/_/g,' '):''}</div>`;
 
   hdr.querySelector('#stoic-title').onclick=()=>{STATE.showRules=true;render();};
+  // The clock is where the day's boundary lives, so it is where you move it.
+  hdr.querySelector('#clk').onclick=()=>{STATE.showTZ=!STATE.showTZ;render();};
+  if(STATE.showTZ)hdr.appendChild(renderTZPicker());
 
   // clock update: interval is started once at boot level
   const sind=dv('row gap6 xs dim mt6');sind.style.justifyContent='center';
@@ -3721,8 +3828,11 @@ function renderDayPanel(){
     ? capFirst(new Date(key+'T12:00:00').toLocaleDateString(STATE.lang==='es'?'es-MX':'en-US',{weekday:'long',day:'numeric',month:'long'}))
     : t('day-panel')));
   if(key){
-    const eb=bt('btn-icon','✏',()=>{STATE.histDay=key;render();});
-    eb.title=t('edit-hist');hd.appendChild(eb);
+    /* It says what it does. A lone pencil is a fine thing to find on a toy and
+       a bad thing to hide a day's numbers behind: fixing a day you forgot to
+       log is not a flourish, it is the repair you reach for most. */
+    const eb=bt('btn-ghost btn-sm','✏ '+t('edit-hist'),()=>{STATE.histDay=key;render();});
+    eb.style.whiteSpace='nowrap';hd.appendChild(eb);
   }
   wrap.appendChild(hd);
   if(!key){wrap.appendChild(dv('sm dimmer ctr mt16 mb16',t('pick-day')));return wrap;}
@@ -4059,6 +4169,7 @@ function renderRules(onClose){
     <div class="s6">
       <div>Stoic es <span class="ac w6">productividad gamificada</span>. Dos pestañas: <strong>📋 Plan</strong>, tu lista de pendientes, y <strong>📊 Puntaje</strong>, donde esa lista se vuelve puntos y un color.</div>
       <div>Cada día: arma tu lista en Plan, trabájala palomeando, y en Puntaje registra lo demás (sueño, trabajo, recompensas). Con el tiempo ves tus patrones: qué ayuda, qué perjudica, qué tan consistente eres.</div>
+      <div>Tu día empieza y termina a la <span class="ac w6">medianoche de una sola zona horaria</span>, la misma en todos tus dispositivos — así nunca discuten sobre qué día es. Si viajas, cámbiala dándole click al reloj de arriba.</div>
     </div>
   </div>
   <hr class="dv">
@@ -4082,6 +4193,7 @@ function renderRules(onClose){
       <div><span class="w6">📅 Semanal</span> máx. 5 · <span class="w6">📈 Trimestral</span> máx. 5 · <span class="w6">🏆 Anual</span> máx. 10. La semana empieza en <strong>domingo</strong>: cerrarla el domingo paga ×7 y el sábado ×1.</div>
       <div>Las <strong>diarias</strong> son tus banderas 🏁 en los recordatorios. Se recomiendan 3 al día.</div>
       <div><span class="ac w6">La fecha límite se fija al crearla</span> y no se mueve. Una meta vencida <span class="cy w6">se arrastra</span> y la puedes cerrar, pero ya solo paga el mínimo (1,000): <strong>postergar nunca conviene</strong>.</div>
+      <div>Si la palomeaste tarde, <span class="ac w6">corrige la fecha</span> junto a sus puntos: se pagan por el día en que de verdad la terminaste, no por el día en que te acordaste. El título también se edita con un click.</div>
       <div>Sus puntos van a tu <span class="ac w6">puntaje total</span>, no al día, para no descuadrar tus promedios.</div>
     </div>
   </div>
@@ -4151,6 +4263,7 @@ function renderRules(onClose){
     <div class="s6">
       <div>Stoic is a <span class="ac w6">daily accountability tracker</span> with two tabs: <strong>📋 Plan</strong>, your to-do list, and <strong>📊 Score</strong>, where that list turns into points and a colour.</div>
       <div>Every day: build your list in Plan, work through it ticking as you go, and log everything else in Score (sleep, work, rewards). Over time you see your patterns — what helps, what hurts, how consistent you really are.</div>
+      <div>Your day begins and ends at <span class="ac w6">midnight in one single timezone</span>, the same on every device — so they never argue about what day it is. Travelling? Change it by clicking the clock up top.</div>
     </div>
   </div>
   <hr class="dv">
@@ -4174,6 +4287,7 @@ function renderRules(onClose){
       <div><span class="w6">📅 Weekly</span> up to 5 · <span class="w6">📈 Quarterly</span> up to 5 · <span class="w6">🏆 Yearly</span> up to 10. The week starts on <strong>Sunday</strong>, so closing one on Sunday pays ×7 and Saturday pays ×1.</div>
       <div><strong>Daily</strong> goals are your 🏁 flags on reminders. Three a day is the sweet spot.</div>
       <div><span class="ac w6">The deadline is set when you create the goal</span> and never moves. One you did not finish <span class="cy w6">carries over</span> and can still be closed, but past its deadline it only pays the floor (1,000): <strong>postponing never wins</strong>.</div>
+      <div>Ticked it late? <span class="ac w6">Correct the date</span> next to its points: they are paid for the day you actually finished it, not the day you remembered. The wording is editable with a click too.</div>
       <div>Their points go to your <span class="ac w6">total score</span>, not to the day, so they never skew your averages.</div>
     </div>
   </div>
@@ -4242,6 +4356,32 @@ function renderRules(onClose){
 }
 
 
+
+/* ═══ WHERE THE DAY BEGINS — picked from the clock ═══
+   Four zones cover the country and "this device" covers everywhere else, and
+   it stores the real zone name rather than "wherever I happen to be", so the
+   other device follows to the same one instead of keeping its own. */
+function renderTZPicker(){
+  const card=dv('card fi mt10');
+  card.style.cssText='max-width:340px;margin:0 auto;text-align:left';
+  card.appendChild(dv('xs dimmer up ls mb2',t('tz-title')));
+  card.appendChild(dv('xs dimmer mb10',t('tz-help')));
+  const cur=appTZ(),dev=deviceTZ();
+  const zones=['America/Cancun','America/Mexico_City','America/Mazatlan','America/Tijuana'];
+  if(!zones.includes(dev))zones.push(dev);
+  const box=dv('s6');
+  zones.forEach(tz=>{
+    const on=tz===cur;
+    const b=bt(on?'btn-ac btn-sm':'btn-ghost btn-sm',
+      tzLabel(tz)+(tz===dev?' · '+t('tz-this-device'):''),
+      ()=>{STATE.showTZ=false;setAppTZ(tz);});
+    b.style.cssText+=';width:100%;text-align:left';
+    box.appendChild(b);
+  });
+  card.appendChild(box);
+  card.appendChild(dv('xs dimmer mt10',t('tz-warn')));
+  return card;
+}
 
 /* ═══ CLOUD SYNC — opened from the indicator, over the page ═══ */
 function renderSyncModal(){
@@ -4478,7 +4618,7 @@ function renderDiaryFor(dateKey,onSave){
 if('serviceWorker' in navigator){
   window.addEventListener('load',()=>{navigator.serviceWorker.register('./sw.js').catch(()=>{});});
 }
-initTimezone();loadToday();healRepeatsStuckOnDoneDay();applyTheme();
+loadToday();healRepeatsStuckOnDoneDay();applyTheme();
 
 // On boot: PULL from Supabase first (before pushing ANYTHING).
 // Supabase is the single source of truth.
@@ -4519,11 +4659,23 @@ initTimezone();loadToday();healRepeatsStuckOnDoneDay();applyTheme();
   }
   render();
 })();
+/* The goal tiles wave one after another every few minutes, so long goals get
+   noticed on a day that has nothing to do with them. Driven from here rather
+   than from the render, so it keeps its own rhythm instead of firing again
+   every time the page redraws — which is constantly. */
+setInterval(()=>{
+  const tiles=document.querySelectorAll('.goal-tile[data-open="1"]');
+  tiles.forEach((el,i)=>setTimeout(()=>{
+    el.classList.add('wave');
+    setTimeout(()=>el.classList.remove('wave'),600);
+  },i*160));
+},3*60*1000);
+
 // Start clock ticker once (not inside renderApp to prevent accumulation)
 let _lastDay=todayKey();
 setInterval(()=>{
   const cl=document.getElementById('clk');
-  if(cl)cl.textContent=new Date().toLocaleTimeString(STATE.lang==='es'?'es-MX':'en-US',{timeZone:'America/Cancun',hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  if(cl)cl.textContent=new Date().toLocaleTimeString(STATE.lang==='es'?'es-MX':'en-US',{timeZone:appTZ(),hour:'2-digit',minute:'2-digit',second:'2-digit'});
   // Pomodoro tick. The clock text is patched in place rather than re-rendering
   // the whole app every second, which would fight anything you are typing.
   const p=STATE.pomo;
