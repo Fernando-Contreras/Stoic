@@ -144,11 +144,33 @@ button{cursor:pointer;font-family:var(--ff);font-size:15px;font-weight:600;borde
 .cal-hd{text-align:center;font-size:9px;color:var(--t3);padding:3px 0;text-transform:uppercase;letter-spacing:.05em}
 
 /* ── GOAL TILES ──
-   One-two-three, then still again. Big enough to catch the corner of an eye,
-   small enough not to be a thing that has to be dealt with. */
-@keyframes goalwave{0%{transform:scale(1)}35%{transform:scale(1.18)}70%{transform:scale(.97)}100%{transform:scale(1)}}
-.goal-tile.wave{animation:goalwave .5s cubic-bezier(.34,1.56,.64,1)}
-@media(prefers-reduced-motion:reduce){.goal-tile.wave{animation:none}}
+   They grow under the pointer. A timed wave asked to be noticed whether or not
+   you were looking anywhere near it; this answers the eye that is already
+   there, and says plainly that the tile can be pressed. */
+.goal-tile{transition:transform .16s cubic-bezier(.34,1.4,.64,1),border-color .16s}
+.goal-tile:hover{transform:scale(1.09);border-color:var(--ac)!important}
+.goal-tile:active{transform:scale(1.02)}
+@media(prefers-reduced-motion:reduce){.goal-tile{transition:border-color .16s}.goal-tile:hover{transform:none}}
+
+/* ── MILESTONE ──
+   Over the whole page, gone in a few seconds, once ever. */
+.ms-ov{position:fixed;inset:0;z-index:90;display:flex;align-items:center;justify-content:center;cursor:pointer;
+  background:radial-gradient(circle at 50% 44%,rgba(0,0,0,.5),rgba(0,0,0,.88));animation:msIn .45s ease both}
+.ms-ov.out{animation:msOut .6s ease both}
+@keyframes msIn{from{opacity:0}to{opacity:1}}
+@keyframes msOut{to{opacity:0}}
+.ms-card{position:relative;text-align:center;animation:msPop .75s cubic-bezier(.2,1.5,.4,1) both}
+@keyframes msPop{0%{transform:scale(.62);opacity:0}62%{transform:scale(1.05)}100%{transform:scale(1);opacity:1}}
+.ms-ico{font-size:62px;line-height:1;filter:drop-shadow(0 0 26px var(--ms));animation:msFloat 2.8s ease-in-out infinite}
+@keyframes msFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-9px)}}
+.ms-n{font-family:var(--mo);font-size:84px;font-weight:800;line-height:1;letter-spacing:-.04em;
+  color:var(--ms);text-shadow:0 0 44px var(--ms);margin-top:4px}
+.ms-w{font-size:20px;font-weight:700;letter-spacing:.34em;text-transform:uppercase;color:#fff;opacity:.96;margin-top:10px}
+.ms-sub{font-size:12px;letter-spacing:.06em;color:rgba(255,255,255,.5);margin-top:14px}
+.ms-spark{position:absolute;left:50%;top:42%;font-size:17px;pointer-events:none;animation:msSpark 1.6s ease-out forwards}
+@keyframes msSpark{0%{transform:translate(-50%,-50%) scale(.3);opacity:1}
+  100%{transform:translate(calc(-50% + var(--dx)),calc(-50% + var(--dy))) scale(1.15);opacity:0}}
+@media(prefers-reduced-motion:reduce){.ms-card,.ms-ico,.ms-spark{animation:none}.ms-spark{display:none}}
 
 /* ── PENALTY ITEM ── */
 .pen-it{background:var(--sur2);border:1px solid var(--ngb);border-radius:8px;padding:9px 12px;display:flex;align-items:center;justify-content:space-between;gap:8px}
@@ -592,6 +614,10 @@ en:{
   'clock-off':"⏰ This device's clock is {n} {dir}. Stoic corrects for it, so your days and your sync are safe — but the system clock is worth fixing.",
   'clock-fast':'ahead of the server','clock-slow':'behind the server',
   'tz-title':'Where your day begins','tz-this-device':'this device',
+  'tz-search':'Search a city or zone…',
+  'ms-constancy':'Constancy','ms-discipline':'Discipline','ms-temperance':'Temperance',
+  'ms-fortitude':'Fortitude','ms-virtue':'Virtue','ms-wisdom':'Wisdom','ms-ataraxia':'Ataraxia',
+  'ms-sub':'days in a row without a red one',
   'goal-edit':'Click to rewrite it','goal-done-when':'The day you actually finished it',
   'tz-help':'Stoic runs one clock for every device, so both always agree on what day it is. Move it when you travel.',
   'tz-warn':'Change it during the day, not around midnight: a day that has already closed does not reopen.',
@@ -732,6 +758,10 @@ es:{
   'clock-off':'⏰ El reloj de este dispositivo va {n} {dir}. Stoic lo compensa, así que tus días y tu sincronización están a salvo — pero conviene corregir la hora del sistema.',
   'clock-fast':'adelantado respecto al servidor','clock-slow':'atrasado respecto al servidor',
   'tz-title':'Dónde empieza tu día','tz-this-device':'este dispositivo',
+  'tz-search':'Busca una ciudad o zona…',
+  'ms-constancy':'Constancia','ms-discipline':'Disciplina','ms-temperance':'Templanza',
+  'ms-fortitude':'Fortaleza','ms-virtue':'Virtud','ms-wisdom':'Sabiduría','ms-ataraxia':'Ataraxia',
+  'ms-sub':'días seguidos sin caer en rojo',
   'goal-edit':'Haz click para reescribirla','goal-done-when':'El día en que realmente la terminaste',
   'tz-help':'Stoic usa un solo reloj para todos tus dispositivos, así siempre coinciden en qué día es. Muévelo cuando viajes.',
   'tz-warn':'Cámbialo de día, no cerca de la medianoche: un día que ya cerró no se vuelve a abrir.',
@@ -1113,6 +1143,7 @@ let STATE={
   showGoals: false,
   showRules: false,
   showTZ: false,
+  tzQuery: '',
   tz: localStorage.getItem('st_tz')||'America/Cancun',
   /* The calendar and the panel beside it are two halves of one thing: the day
      you pick fills the panel, and histDay is the day whose numbers are open on
@@ -2046,10 +2077,33 @@ function goalDeadline(g){
   const start=(g.period||'').split(':')[1];
   return start?periodBounds(g.kind,start).end:periodBounds(g.kind,todayKey()).end;
 }
+/* The first day the goal can honestly have been finished: the day it was
+   written down, or the day its period opened, whichever is later. Nothing can
+   be finished before it was set, and nothing belongs to a period it did not
+   live in. */
+function goalFloorDate(g){
+  const start=(g.period||'').split(':')[1]||periodBounds(g.kind,goalDeadline(g)).start;
+  const born=g.created?new Date(g.created).toLocaleDateString('en-CA',{timeZone:appTZ()}):'';
+  return born&&born>start?born:start;
+}
+/* How long the whole period is — the ceiling on what a goal of that kind can
+   ever pay. A week can only ever be worth seven days, however the completion
+   date is arrived at. */
+function goalPeriodLength(g){
+  const b=periodBounds(g.kind,goalDeadline(g));
+  return Math.round((new Date(b.end+'T12:00:00')-new Date(b.start+'T12:00:00'))/86400000)+1;
+}
 function goalDaysLeft(g,from){
   const a=new Date((from||g.doneOn||todayKey())+'T12:00:00');
   const b=new Date(goalDeadline(g)+'T12:00:00');
-  return Math.max(1,Math.round((b-a)/86400000)+1); // past the deadline pays the floor
+  const days=Math.round((b-a)/86400000)+1;
+  /* Floor and ceiling both. Past the deadline pays the floor; and a date from
+     before the period — typed by hand, or arriving from a device that let one
+     through — cannot pay more than the period itself holds. A weekly goal
+     dated a month early once paid thirty-odd thousand for a seven-thousand
+     goal, and the payout is recomputed from the date every time it is read, so
+     capping it here retires any such number already stored. */
+  return Math.max(1,Math.min(goalPeriodLength(g),days));
 }
 function goalIsLate(g,from){
   return (from||g.doneOn||todayKey())>goalDeadline(g);
@@ -2200,11 +2254,6 @@ function renderPlanner(){
     const done=list.filter(g=>g.doneOn).length;
     const all=done&&done===list.length;
     const tile=bt('goal-tile','',()=>{STATE.showGoals=true;render();});
-    /* A tile with something still open waves every few minutes. Long goals are
-       the one part of Stoic that asks nothing of you day to day, so they are
-       the one part you can forget for a week — and forgetting costs a thousand
-       points a day. Once its goals are all in, a tile stops asking. */
-    if(list.length&&!all)tile.dataset.open='1';
     tile.style.cssText=`flex:1;border:1px solid ${all?'var(--gb)':'var(--b1)'};background:${all?'var(--gd)':'var(--sur2)'};border-radius:10px;padding:8px 4px;cursor:pointer;text-align:center`;
     tile.title=t('goal-'+kind).replace(/^\S+\s/,'');
     const icon={week:'📅',quarter:'📈',year:'🏆'}[kind];
@@ -2585,9 +2634,6 @@ function renderPlanner(){
     panel.appendChild(renderGoals());
     ov.appendChild(panel);
     wrap.appendChild(ov);
-    // Single assignment rather than a listener, so repeated renders cannot
-    // stack handlers up.
-    document.onkeydown=e=>{if(e.key==='Escape'&&STATE.showGoals)close();};
   }
   return wrap;
 }
@@ -2641,18 +2687,29 @@ function renderGoals(){
            reads the completion date, and the completion date was whenever you
            happened to remember. Now that date can be told the truth — no
            earlier than the day the goal was set, no later than today. */
-        const dr=dv('row gap6 mt2');dr.style.alignItems='center';
-        dr.appendChild(sp('xs cg',`+${goalPoints(g).toLocaleString()} ·`));
-        const di=ip('date','',g.doneOn,'');
-        di.min=(g.period||'').split(':')[1]||'';di.max=tk;
-        di.style.cssText='font-size:11px;padding:1px 4px;background:none;border:1px solid var(--b2);color:var(--cg)';
-        di.title=t('goal-done-when');
-        di.onchange=()=>{
-          const v=di.value;
-          if(!v||v>tk){render();return;}
+        /* Stepped a day at a time rather than typed. A date field commits the
+           instant the browser thinks it has read a whole date, so a half-typed
+           day was saved and scored before the rest of it arrived — and typing
+           a date outside the period paid for days the goal never had. Arrows
+           cannot say anything out of range, and the year is not shown because
+           there is only ever one it could be. */
+        const floor=goalFloorDate(g);
+        const shift=n=>{
+          const d=new Date(g.doneOn+'T12:00:00');d.setDate(d.getDate()+n);
+          const v=isoDate(d);
+          if(v<floor||v>tk)return;
           g.doneOn=v;g.points=goalPoints(g);g._ts=CLOCK.now();savePlanner();render();
         };
-        dr.appendChild(di);
+        const dr=dv('row gap4 mt2');dr.style.alignItems='center';
+        dr.appendChild(sp('xs cg',`+${goalPoints(g).toLocaleString()} ·`));
+        const back=bt('btn-icon','‹',()=>shift(-1));
+        const fwd=bt('btn-icon','›',()=>shift(1));
+        [back,fwd].forEach(b=>{b.style.cssText='padding:0 5px;font-size:14px;line-height:1';b.title=t('goal-done-when');});
+        const lbl=sp('xs cg mo',g.doneOn.slice(5).replace('-','/'));
+        lbl.title=t('goal-done-when');
+        back.disabled=g.doneOn<=floor;fwd.disabled=g.doneOn>=tk;
+        [back,fwd].forEach(b=>{if(b.disabled)b.style.opacity='.25';});
+        dr.appendChild(back);dr.appendChild(lbl);dr.appendChild(fwd);
         mid.appendChild(dr);
       }else{
         // What it is worth today, and what tomorrow costs — the whole point of
@@ -2999,6 +3056,80 @@ function render(){
   const root=document.getElementById('root');root.innerHTML='';
   if(!STATE.authed){root.appendChild(renderLogin());return;}
   root.appendChild(renderApp());
+  checkMilestone();
+}
+
+/* ═══ MILESTONES ═════════════════════════════════════════════════════════
+   The streak worth marking is the plain one: days on end that did not end
+   red. Crossing certain numbers earns a moment of something — over the whole
+   page, gone in a few seconds, once ever. The names climb the stoic virtues,
+   which is more the point of the app than "achievement unlocked" would be.
+   ═══════════════════════════════════════════════════════════════════════ */
+const MILESTONES=[
+  {n:10,  word:'constancy', icon:'🔥',  hue:'#f97316'},
+  {n:20,  word:'discipline',icon:'⚡',  hue:'#f5c842'},
+  {n:50,  word:'temperance',icon:'🌊',  hue:'#34d399'},
+  {n:100, word:'fortitude', icon:'🗡️', hue:'#5b9df9'},
+  {n:200, word:'virtue',    icon:'🏛️', hue:'#a78bfa'},
+  {n:500, word:'wisdom',    icon:'🦉',  hue:'#d4a017'},
+  {n:1000,word:'ataraxia',  icon:'🌌',  hue:'#e879f9'}
+];
+/* Days in a row, ending today, that did not end red — today included only
+   once it has stopped being red itself, which is what makes the moment land
+   on the tick that turns the day around. */
+function nonRedStreak(){
+  const tk=todayKey();
+  const live=CALC.score(STATE.today,applyStreakOverrides(CALC.streaks(STATE.history,STATE.today)));
+  const map=histMap();
+  const d=new Date(tk+'T12:00:00');
+  let n=0;
+  for(let i=0;i<2000;i++){
+    const key=isoDate(d);
+    const e=map.get(key);
+    const status=key===tk?live.status:(e&&!e._gap?e.status:null);
+    if(!status||status==='red')break;
+    n++;d.setDate(d.getDate()-1);
+  }
+  return n;
+}
+function checkMilestone(){
+  if(document.querySelector('.ms-ov'))return;
+  const n=nonRedStreak();
+  if(!n)return;
+  let seen=[];try{seen=JSON.parse(localStorage.getItem('st_milestones')||'[]');}catch(e){}
+  const reached=MILESTONES.filter(m=>n>=m.n).map(m=>m.n);
+  const fresh=reached.filter(x=>!seen.includes(x));
+  if(!fresh.length)return;
+  /* The first time this runs, a history going back months has already passed
+     several of these. All of them are recorded, and the highest is shown once:
+     seven at a time would be noise, and none at all would be a shame — they
+     were earned before anyone was watching. */
+  const show=MILESTONES.find(m=>m.n===Math.max(...fresh));
+  try{localStorage.setItem('st_milestones',JSON.stringify([...new Set([...seen,...reached])]));}catch(e){}
+  showMilestone(show);
+}
+function showMilestone(m){
+  const ov=dv('ms-ov');
+  const card=dv('ms-card');
+  card.style.setProperty('--ms',m.hue);
+  card.innerHTML=`<div class="ms-ico">${m.icon}</div>`+
+    `<div class="ms-n">${m.n}</div>`+
+    `<div class="ms-w">${t('ms-'+m.word)}</div>`+
+    `<div class="ms-sub">${t('ms-sub')}</div>`;
+  for(let i=0;i<16;i++){
+    const s=dv('ms-spark',m.icon);
+    const a=(Math.PI*2*i)/16+Math.random()*.4, r=120+Math.random()*160;
+    s.style.setProperty('--dx',Math.cos(a)*r+'px');
+    s.style.setProperty('--dy',Math.sin(a)*r+'px');
+    s.style.animationDelay=(Math.random()*.35)+'s';
+    card.appendChild(s);
+  }
+  ov.appendChild(card);
+  document.body.appendChild(ov);
+  // It leaves on its own; a click only asks it to leave sooner.
+  const close=()=>{if(!ov.isConnected)return;ov.classList.add('out');setTimeout(()=>ov.remove(),620);};
+  ov.onclick=close;
+  setTimeout(close,3800);
 }
 function refresh(){save();render();}  // save() without bumping _ts
 function commitAndRefresh(){commit();render();}  // user action: bump _ts then render
@@ -3170,8 +3301,7 @@ function renderApp(){
 
   hdr.querySelector('#stoic-title').onclick=()=>{STATE.showRules=true;render();};
   // The clock is where the day's boundary lives, so it is where you move it.
-  hdr.querySelector('#clk').onclick=()=>{STATE.showTZ=!STATE.showTZ;render();};
-  if(STATE.showTZ)hdr.appendChild(renderTZPicker());
+  hdr.querySelector('#clk').onclick=()=>{STATE.showTZ=true;render();};
 
   // clock update: interval is started once at boot level
   const sind=dv('row gap6 xs dim mt6');sind.style.justifyContent='center';
@@ -3218,6 +3348,7 @@ function renderApp(){
   /* The rules open over whichever tab you are on. They sit here, above the
      tabs, because the planner returns early below and would never reach them. */
   if(STATE.showRules)wrap.appendChild(renderRulesModal());
+  if(STATE.showTZ)wrap.appendChild(renderTZModal());
 
   /* ── TABS ── */
   const st=plannerTodayStats();
@@ -3831,7 +3962,7 @@ function renderDayPanel(){
     /* It says what it does. A lone pencil is a fine thing to find on a toy and
        a bad thing to hide a day's numbers behind: fixing a day you forgot to
        log is not a flourish, it is the repair you reach for most. */
-    const eb=bt('btn-ghost btn-sm','✏ '+t('edit-hist'),()=>{STATE.histDay=key;render();});
+    const eb=bt('btn-ghost btn-sm',t('edit-hist'),()=>{STATE.histDay=key;render();});
     eb.style.whiteSpace='nowrap';hd.appendChild(eb);
   }
   wrap.appendChild(hd);
@@ -3922,9 +4053,6 @@ function renderHistModal(key){
   panel.appendChild(hd);
   panel.appendChild(renderHistForm(key));
   ov.appendChild(panel);
-  // Single assignment rather than a listener, so repeated renders cannot
-  // stack handlers up.
-  document.onkeydown=e=>{if(e.key==='Escape'&&STATE.histDay)close();};
   return ov;
 }
 
@@ -3991,7 +4119,16 @@ function renderStats(total,sc){
   const avg7=last7.length?Math.round(last7.reduce((a,b)=>a+b,0)/last7.length):0;
   const totalTracked=STATE.history.filter(d=>!d._gap).length;
   const sortedH=[...STATE.history].sort((a,b)=>new Date(a.date)-new Date(b.date));
-  const momentum=avg>0?Math.round((avg7-avg)/avg*100):0;
+  /* This week against your own average, as a percentage of it. Two things kept
+     it from meaning anything. It divided by a signed average, so with a
+     negative one a better week came out negative — an improvement reported as
+     a slump. And it divided by however small the average was, so an average of
+     +45 against a week of −380 read as −937%: arithmetically true, and no use
+     to anyone. Below a hundred points either way the baseline is too small to
+     divide by, and the reading is set aside rather than dressed up. */
+  const momentum=Math.abs(avg)>=100
+    ? Math.max(-300,Math.min(300,Math.round((avg7-avg)/Math.abs(avg)*100)))
+    : 0;
 
   // Streaks
   let bStrk=0,curStrk=0;sortedH.forEach(d=>{if(d.status!=='red'&&!d._gap){curStrk++;bStrk=Math.max(bStrk,curStrk);}else curStrk=0;});
@@ -4059,8 +4196,8 @@ function renderStats(total,sc){
   // Insight
   let insight='';
   if(totalTracked<3)insight=isEs?'Sigue registrando días para ver estadísticas personalizadas.':'Keep logging days to see personalized insights.';
-  else if(momentum>20)insight=`🚀 Momentum +${momentum}% — tu última semana supera tu promedio histórico.`;
-  else if(momentum<-20)insight=`📉 ${isEs?'Semana difícil':'Tough week'} (${momentum}%). Progress isn't linear.`;
+  else if(momentum>20)insight=isEs?`🚀 Momentum +${momentum}% — tu última semana supera tu promedio histórico.`:`🚀 Momentum +${momentum}% — your last week beats your all-time average.`;
+  else if(momentum<-20)insight=isEs?`📉 Semana difícil (${momentum}%). El progreso no es una línea recta.`:`📉 Tough week (${momentum}%). Progress isn't linear.`;
   else if(dfPct===100)insight=isEs?'🌟 100% de días sin estimulantes. Disciplina consistente.':'🌟 100% stimulant-free days. Consistent discipline.';
   else if(pfStrk>7)insight=isEs?`✨ ${pfStrk} días sin penalizaciones. ¡Racha limpia!`:`✨ ${pfStrk} days with no rewards. Clean streak!`;
   else if(totalPoms>50)insight=isEs?`🍅 ${totalPoms} pomodoros = ${Math.round(totalPoms*25/60)}h de trabajo enfocado.`:`🍅 ${totalPoms} pomodoros = ${Math.round(totalPoms*25/60)}h of focused work.`;
@@ -4150,9 +4287,6 @@ function renderRulesModal(){
   const panel=renderRules(close);
   panel.style.cssText='max-width:900px;width:100%;margin:auto';
   ov.appendChild(panel);
-  // Single assignment rather than a listener, so repeated renders cannot
-  // stack handlers up.
-  document.onkeydown=e=>{if(e.key==='Escape'&&STATE.showRules)close();};
   return ov;
 }
 
@@ -4357,30 +4491,63 @@ function renderRules(onClose){
 
 
 
-/* ═══ WHERE THE DAY BEGINS — picked from the clock ═══
-   Four zones cover the country and "this device" covers everywhere else, and
-   it stores the real zone name rather than "wherever I happen to be", so the
+/* ═══ WHERE THE DAY BEGINS — opened from the clock ═══
+   Every zone there is, searched by name, because the app is not only for one
+   country. It stores the zone rather than "wherever I happen to be", so the
    other device follows to the same one instead of keeping its own. */
-function renderTZPicker(){
-  const card=dv('card fi mt10');
-  card.style.cssText='max-width:340px;margin:0 auto;text-align:left';
-  card.appendChild(dv('xs dimmer up ls mb2',t('tz-title')));
-  card.appendChild(dv('xs dimmer mb10',t('tz-help')));
+function tzList(){
+  let all=[];
+  try{all=Intl.supportedValuesOf('timeZone')||[];}catch(e){}
+  if(!all.length)all=['America/Cancun','America/Mexico_City','America/Mazatlan','America/Tijuana',
+    'America/New_York','America/Los_Angeles','America/Bogota','America/Buenos_Aires',
+    'Europe/Madrid','Europe/London','Europe/Berlin','Asia/Tokyo','Australia/Sydney','UTC'];
+  return all;
+}
+function renderTZModal(){
+  const close=()=>{STATE.showTZ=false;render();};
+  const ov=dv('fi');
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:60;'+
+    'display:flex;align-items:flex-start;justify-content:center;padding:20px;overflow:auto';
+  ov.onclick=e=>{if(e.target===ov)close();};
+  const panel=dv('card');
+  panel.style.cssText='max-width:420px;width:100%;margin:auto';
+  const hd=dv('rowb mb4');
+  hd.appendChild(sp('ctit',t('tz-title')));
+  hd.appendChild(bt('btn-icon','✕',close));
+  panel.appendChild(hd);
+  panel.appendChild(dv('xs dimmer mb10',t('tz-help')));
+
   const cur=appTZ(),dev=deviceTZ();
-  const zones=['America/Cancun','America/Mexico_City','America/Mazatlan','America/Tijuana'];
-  if(!zones.includes(dev))zones.push(dev);
-  const box=dv('s6');
-  zones.forEach(tz=>{
-    const on=tz===cur;
-    const b=bt(on?'btn-ac btn-sm':'btn-ghost btn-sm',
-      tzLabel(tz)+(tz===dev?' · '+t('tz-this-device'):''),
-      ()=>{STATE.showTZ=false;setAppTZ(tz);});
-    b.style.cssText+=';width:100%;text-align:left';
-    box.appendChild(b);
-  });
-  card.appendChild(box);
-  card.appendChild(dv('xs dimmer mt10',t('tz-warn')));
-  return card;
+  const q=ip('text','',STATE.tzQuery||'',t('tz-search'));
+  q.style.width='100%';
+  panel.appendChild(q);
+
+  const box=dv('s6 mt8');
+  box.style.cssText='max-height:280px;overflow:auto';
+  const draw=()=>{
+    box.innerHTML='';
+    const needle=(STATE.tzQuery||'').trim().toLowerCase();
+    // What you are on and where you are stay at the top, always reachable.
+    const pinned=[...new Set([cur,dev])];
+    const rest=tzList().filter(z=>!pinned.includes(z)&&
+      (!needle||z.toLowerCase().replace(/_/g,' ').includes(needle)));
+    const rows=[...pinned,...rest.slice(0,60)];
+    rows.forEach(tz=>{
+      const on=tz===cur;
+      const b=bt(on?'btn-ac btn-sm':'btn-ghost btn-sm',
+        tzLabel(tz)+(tz===dev?' · '+t('tz-this-device'):''),
+        ()=>{STATE.showTZ=false;STATE.tzQuery='';setAppTZ(tz);});
+      b.style.cssText+=';width:100%;text-align:left';
+      box.appendChild(b);
+    });
+    if(!rows.length)box.appendChild(dv('xs dimmer ctr mt8','—'));
+  };
+  q.oninput=()=>{STATE.tzQuery=q.value;draw();};
+  draw();
+  panel.appendChild(box);
+  panel.appendChild(dv('xs dimmer mt10',t('tz-warn')));
+  ov.appendChild(panel);
+  return ov;
 }
 
 /* ═══ CLOUD SYNC — opened from the indicator, over the page ═══ */
@@ -4393,9 +4560,6 @@ function renderSyncModal(){
   const panel=renderSyncPanel();
   panel.style.maxWidth='460px';panel.style.width='100%';panel.style.margin='auto';
   ov.appendChild(panel);
-  // Single assignment rather than a listener, so repeated renders cannot
-  // stack handlers up.
-  document.onkeydown=e=>{if(e.key==='Escape'&&STATE.showSyncPanel)close();};
   return ov;
 }
 
@@ -4659,17 +4823,19 @@ loadToday();healRepeatsStuckOnDoneDay();applyTheme();
   }
   render();
 })();
-/* The goal tiles wave one after another every few minutes, so long goals get
-   noticed on a day that has nothing to do with them. Driven from here rather
-   than from the render, so it keeps its own rhythm instead of firing again
-   every time the page redraws — which is constantly. */
-setInterval(()=>{
-  const tiles=document.querySelectorAll('.goal-tile[data-open="1"]');
-  tiles.forEach((el,i)=>setTimeout(()=>{
-    el.classList.add('wave');
-    setTimeout(()=>el.classList.remove('wave'),600);
-  },i*160));
-},3*60*1000);
+/* One place decides what Escape closes. Every overlay used to assign
+   document.onkeydown as it was drawn, so whichever happened to be drawn last
+   owned the key — and the one you were actually looking at might not be it.
+   Innermost first: what was opened last is what closes first. */
+document.addEventListener('keydown',e=>{
+  if(e.key!=='Escape')return;
+  const ms=document.querySelector('.ms-ov');
+  if(ms){ms.click();return;}
+  const open=['histDay','showTZ','showRules','showSyncPanel','showGoals'].find(k=>STATE[k]);
+  if(!open)return;
+  STATE[open]=(open==='histDay')?null:false;
+  render();
+});
 
 // Start clock ticker once (not inside renderApp to prevent accumulation)
 let _lastDay=todayKey();
