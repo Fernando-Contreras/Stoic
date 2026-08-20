@@ -184,6 +184,9 @@ button{cursor:pointer;font-family:var(--ff);font-size:15px;font-weight:600;borde
 .rem-chip:hover{border-color:var(--ac);transform:translateY(-1px)}
 .rem-chip.late{border-color:var(--rb)}
 .rem-chip.sel{border-color:var(--ac);background:var(--acd)}
+/* Something with tasks inside it wears a spine, so a project never reads as
+   one more loose task — least of all when what is inside is out of sight. */
+.rem-chip.parent{border-left:3px solid var(--cp);padding-left:8px}
 .rem-chip-t{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.35}
 @media(prefers-reduced-motion:reduce){.rem-chip:hover{transform:none}}
 
@@ -2509,6 +2512,13 @@ function renderPlanner(){
   ctrl.appendChild(seg([['today',t('view-today')],['all',t('view-all')]],V.scope,v=>{
     V.scope=v;saveView();render();
   }));
+  /* List or grid, your choice, and the same choice in both scopes. The grid
+     began as the answer to All being unreadable, but a day of work reads well
+     that way too — and a switch says so plainly, where a rule tied to the
+     scope only ever surprised you. */
+  ctrl.appendChild(seg([['list','☰'],['grid','▦']],V.layout||'list',v=>{
+    V.layout=v;saveView();render();
+  }));
   /* The sort buttons double as a flat/grouped switch. Pressed, the list is
      strictly sorted and nesting is dropped, so a subtask due sooner sits above
      the parent it belongs to instead of being dragged down beneath it. Press
@@ -2665,9 +2675,9 @@ function renderPlanner(){
     if(STATE.showAddForm)card.appendChild(form);
     // At a glance, only the names on screen can be picked; on the full list,
     // everything drawn can — so "All" means the same thing in both.
-    const grid=V.scope==='all'&&tops.length;
+    const grid=(V.layout||'list')==='grid'&&tops.length;
     if(STATE.selecting)card.appendChild(renderBulkBar(grid?tops.map(r=>r.id):[...shownIds]));
-    if(grid)card.appendChild(renderCompactGrid(tops,r=>kidsFor(r).length,tk));
+    if(grid)card.appendChild(renderCompactGrid(tops,tk));
     else fillCard(card,tops,kidsFor);
     if(hidden>0)card.appendChild(dv('xs dimmer ctr mt8',
       `${hidden} ${hidden===1?t('view-hidden-1'):t('view-hidden')}`));
@@ -3133,24 +3143,39 @@ function renderReminderEditor(r){
    the whole of each one to find one of them is the wrong shape: a long column
    of paragraphs you scroll past. Here it is names, in a grid, small enough to
    take in at once — and any of them opens in full with a click. */
-function renderCompactGrid(items,kidsCountOf,tk){
+function renderCompactGrid(items,tk,redraw){
+  const rd=redraw||render;
   const g=dv('rem-grid');
   items.forEach(r=>{
     const late=r.due<tk&&r.completedOn!==tk;
     const doneToday=r.completedOn===tk;
-    const kids=kidsCountOf?kidsCountOf(r):0;
-    const cell=dv('rem-chip'+(late?' late':'')+(isSelected(r.id)?' sel':''));
+    /* How many are inside, counted from the family itself rather than from
+       what the filters happen to be showing — a project whose steps are all
+       filtered out is still a project, and looking like a loose task is how
+       you forget there is anything in it. */
+    const kids=r.parent?0:subtasksOf(r.id).length;
+    const cell=dv('rem-chip'+(late?' late':'')+(kids?' parent':'')+(isSelected(r.id)?' sel':''));
     if(STATE.selecting){
-      cell.onclick=()=>{toggleSelected(r.id);render();};
+      cell.onclick=()=>{toggleSelected(r.id);rd();};
     }else{
       cell.onclick=()=>{STATE.editingRem=null;STATE.taskTree=r.id;render();};
     }
     const top=dv('row gap4');top.style.cssText='align-items:baseline;flex-wrap:nowrap';
-    if(STATE.selecting)top.appendChild(sp('xs',isSelected(r.id)?'☑':'☐'));
-    if(doneToday)top.appendChild(sp('xs cg','✓'));
+    if(STATE.selecting){
+      top.appendChild(sp('xs',isSelected(r.id)?'☑':'☐'));
+    }else{
+      /* Ticking a task off is the thing you do most, so it is here too. The
+         box takes the press; anywhere else on the name opens it in full. */
+      const cb=ip('checkbox','');cb.checked=doneToday;
+      cb.style.cssText='margin:0;flex:0 0 auto';
+      cb.onclick=e=>e.stopPropagation();
+      cb.onchange=e=>{e.stopPropagation();toggleReminder(r.id);rd();};
+      top.appendChild(cb);
+    }
     if(r.flagged)top.appendChild(sp('xs','🏁'));
     if(r.priority>0){const p=sp('xs w7',PRIO[r.priority][1]);p.style.color=prioColor(r.priority);top.appendChild(p);}
     const ttl=sp('sm rem-chip-t',r.title);
+    if(doneToday){ttl.style.textDecoration='line-through';ttl.style.color='var(--t3)';}
     top.appendChild(ttl);
     cell.appendChild(top);
     const meta=[r.due===tk?t('rem-today-h'):r.due.slice(5).replace('-','/')];
@@ -3171,11 +3196,12 @@ function toggleSelected(id){
 }
 /* Applied one by one through the ordinary edit, so a bulk change follows every
    rule a single change does — nothing here writes to a reminder directly. */
-function bulkApply(patch){
+function bulkApply(patch,redraw){
   (STATE.selected||[]).forEach(id=>updateReminder(id,patch));
-  render();
+  (redraw||render)();
 }
-function renderBulkBar(visibleIds){
+function renderBulkBar(visibleIds,redraw){
+  const rd=redraw||render;
   const bar=dv('row gap6 mb10');
   bar.style.cssText='flex-wrap:wrap;align-items:center;background:var(--acd);border:1px solid var(--acb);border-radius:10px;padding:8px 10px';
   const n=(STATE.selected||[]).length;
@@ -3184,28 +3210,28 @@ function renderBulkBar(visibleIds){
   const all=bt('btn-ghost btn-xs',t('sel-all'),()=>{
     const every=visibleIds.every(id=>isSelected(id));
     STATE.selected=every?[]:[...visibleIds];
-    render();
+    rd();
   });
   bar.appendChild(all);
 
   if(n){
     const di=ip('date','','','');di.style.cssText='flex:0 0 140px';di.title=t('sel-date');
-    di.onchange=()=>{if(di.value)bulkApply({due:di.value});};
+    di.onchange=()=>{if(di.value)bulkApply({due:di.value},rd);};
     bar.appendChild(di);
 
     const pi=sk('',[['-1',t('sel-prio')],...PRIO.map(([v,l])=>[v,`${t('rem-prio')} ${l}`])],'-1');
     pi.style.cssText='flex:0 0 130px';
-    pi.onchange=()=>{if(pi.value!=='-1')bulkApply({priority:parseInt(pi.value)||0});};
+    pi.onchange=()=>{if(pi.value!=='-1')bulkApply({priority:parseInt(pi.value)||0},rd);};
     bar.appendChild(pi);
 
-    bar.appendChild(bt('btn-ghost btn-xs','🏁 '+t('sel-flag'),()=>bulkApply({flagged:true})));
-    bar.appendChild(bt('btn-ghost btn-xs','⚐ '+t('sel-unflag'),()=>bulkApply({flagged:false})));
+    bar.appendChild(bt('btn-ghost btn-xs','🏁 '+t('sel-flag'),()=>bulkApply({flagged:true},rd)));
+    bar.appendChild(bt('btn-ghost btn-xs','⚐ '+t('sel-unflag'),()=>bulkApply({flagged:false},rd)));
 
     const del=bt('btn-ng btn-xs','✕ '+t('sel-del'),()=>{
       if(!confirm(t('sel-del-warn').replace('{n}',n)))return;
       // Each goes to the bin on its own, so any of them can be put back.
       [...(STATE.selected||[])].forEach(id=>deleteReminder(id));
-      STATE.selected=[];render();
+      STATE.selected=[];rd();
     });
     bar.appendChild(del);
   }
@@ -3255,7 +3281,7 @@ function renderReminderRow(r,tk,opts){
   /* In select mode the row answers a different question — is this one of the
      ones I mean — so the box that ticks it off gives way to the box that picks
      it, rather than sitting beside it waiting to be hit by mistake. */
-  if(STATE.selecting&&!opts.redraw){
+  if(STATE.selecting){
     const sel=ip('checkbox','');sel.checked=isSelected(r.id);sel.style.cssText='margin-top:3px;accent-color:var(--ac)';
     sel.onchange=()=>{toggleSelected(r.id);rd();};
     row.appendChild(sel);
@@ -4947,8 +4973,21 @@ function renderTaskTreeModal(id){
     // A task with no subtasks is not a family; it is just this task, in full.
     lft.appendChild(sp('ctit',kids.length?t('rem-open-tree'):t('rem-detail')));
     if(kids.length)lft.appendChild(sp('sm mo dim',`${doneN}/${kids.length}`));
-    hd.appendChild(lft);hd.appendChild(bt('btn-icon','✕',close));
+    hd.appendChild(lft);
+    const rgt=dv('row gap6');
+    /* Picking several works in here too. A family is exactly where you want it
+       — thirteen steps that all need pushing a week, chosen and moved without
+       leaving the window they live in. */
+    if(kids.length){
+      const selBtn=bt(STATE.selecting?'btn-ac btn-sm':'btn-ghost btn-sm','☑',()=>{
+        STATE.selecting=!STATE.selecting;STATE.selected=[];draw();
+      });
+      selBtn.title=t('sel-mode');rgt.appendChild(selBtn);
+    }
+    rgt.appendChild(bt('btn-icon','✕',close));
+    hd.appendChild(rgt);
     panel.appendChild(hd);
+    if(STATE.selecting&&kids.length)panel.appendChild(renderBulkBar([r.id,...kids.map(k=>k.id)],draw));
     const box=dv('s6');
     box.appendChild(renderReminderRow(r,tk,{prevTop:null,kids:kids.length,redraw:draw}));
     kids.forEach(c=>{
