@@ -739,7 +739,7 @@ en:{
   'goals-title':'Goals','goal-week':'📅 Weekly','goal-quarter':'📈 Quarterly','goal-year':'🏆 Yearly',
   'goal-new':'A goal that excites you','goal-add':'+ Add goal','goal-day':'day left','goal-days':'days left',
   'goal-earned':'earned from goals','goal-daily':'Goals to annihilate',
-  'goal-nudge':'Finish your weekly goals for extra points',
+  'goal-nudge':'Your biggest goals are your compass',
   'goal-day-done':'Goals annihilated!','goal-day-done-sub':'Every flag of the day is down.',
   'goal-worth':'worth','goal-tomorrow':'tomorrow','goal-past-due':'⚠ was due',
   'goal-full':'Limit reached.','goal-carried':'⚠ carried over from last period',
@@ -892,7 +892,7 @@ es:{
   'goals-title':'Metas','goal-week':'📅 Semanales','goal-quarter':'📈 Trimestrales','goal-year':'🏆 Anuales',
   'goal-new':'Una meta que te emocione','goal-add':'+ Agregar meta','goal-day':'día restante','goal-days':'días restantes',
   'goal-earned':'ganados en metas','goal-daily':'Metas por exterminar alv',
-  'goal-nudge':'Termina tus metas semanales para más puntos extra',
+  'goal-nudge':'Tus metas más grandes son tu brújula',
   'goal-day-done':'¡Metas exterminadas alv!','goal-day-done-sub':'Cayeron todas las banderas de hoy.',
   'goal-worth':'vale','goal-tomorrow':'mañana','goal-past-due':'⚠ era para',
   'goal-full':'Límite alcanzado.','goal-carried':'⚠ arrastrada del periodo anterior',
@@ -1293,14 +1293,19 @@ function applyStreakOverrides(skRaw){
     if(o===undefined||o===null) return;
     const offset=typeof o==='object'?(o.offset!==undefined?o.offset:0):o;
     const retiredAt=typeof o==='object'?o.retiredAt:null;
+    const setOn=typeof o==='object'?o.setOn:null;
     const natural=skRaw[k]||0;
 
     if(retiredAt){
       sk[k]=natural; // already retired — today runs on the new, natural streak
-    } else if(natural===0){
-      ovr[k]={offset,retiredAt:todayKey()}; changed=true; sk[k]=0;
+    } else if(natural===0&&setOn!==todayKey()){
+      ovr[k]={offset,setOn,retiredAt:todayKey()}; changed=true; sk[k]=0;
     } else {
-      sk[k]=natural+offset;
+      /* Natural counts the days behind today, so on the day a number is typed
+         it is often 0 — the day it speaks for has not closed yet. Retiring it
+         then would erase the number the moment it was entered, which is what
+         made the panel look like it refused to be edited. */
+      sk[k]=Math.max(0,natural+offset);
     }
   });
 
@@ -2401,9 +2406,9 @@ function renderPlanner(){
   const noi=taEl('',t('rem-notes-ph'));noi.style.marginTop='6px';
   form.appendChild(ti);form.appendChild(noi);
   const row2=dv('row gap8 mt8');row2.style.flexWrap='wrap';
-  const di=ip('date','',todayKey(),'');di.style.flex='1';di.style.minWidth='140px';
-  const hi=ip('time','','','');hi.style.flex='0 0 110px';hi.title=t('rem-time');
-  const pi=sk('',PRIO.map(([v,l])=>[v,`${t('rem-prio')} ${l}`]),'0');pi.style.flex='1';pi.style.minWidth='120px';
+  const di=ip('date','',todayKey(),'');di.style.cssText='flex:0 0 148px;min-width:130px';
+  const hi=ip('time','','','');hi.style.cssText='flex:0 0 104px';hi.title=t('rem-time');
+  const pi=sk('',PRIO.map(([v,l])=>[v,`${t('rem-prio')} ${l}`]),'0');pi.style.cssText='flex:1;min-width:120px';
   row2.appendChild(di);row2.appendChild(hi);row2.appendChild(pi);form.appendChild(row2);
   const dl=document.createElement('datalist');dl.id='st-tags';
   allTags().forEach(tg=>{const o=document.createElement('option');o.value=tg;dl.appendChild(o);});
@@ -2970,14 +2975,17 @@ function renderReminderEditor(r){
   picker.el.style.marginTop='6px';
   box.appendChild(picker.el);
 
+  /* Date, time and priority on one line. The priority picker was built here
+     and then never put on the page — it existed, it held the right value, and
+     it saved that same value straight back, so priority simply could not be
+     changed. The date took the whole width for a number three fields wide,
+     which is the space this needed. */
   const r2=dv('row gap6 mt6');r2.style.flexWrap='wrap';
-  const di=ip('date','',r.due,'');di.style.flex='1';di.style.minWidth='130px';
-  const hi=ip('time','',r.time||'','');hi.style.flex='0 0 110px';hi.title=t('rem-time');
-  r2.appendChild(di);r2.appendChild(hi);box.appendChild(r2);
-
-  const r3=dv('row gap6 mt6');r3.style.flexWrap='wrap';
-  const pi=sk('',PRIO.map(([v,l])=>[v,`${t('rem-prio')} ${l}`]),String(r.priority||0));pi.style.flex='1';pi.style.minWidth='110px';
-  box.appendChild(r3);
+  const di=ip('date','',r.due,'');di.style.cssText='flex:0 0 148px;min-width:130px';
+  const hi=ip('time','',r.time||'','');hi.style.cssText='flex:0 0 104px';hi.title=t('rem-time');
+  const pi=sk('',PRIO.map(([v,l])=>[v,`${t('rem-prio')} ${l}`]),String(r.priority||0));
+  pi.style.cssText='flex:1;min-width:120px';
+  r2.appendChild(di);r2.appendChild(hi);r2.appendChild(pi);box.appendChild(r2);
 
   /* Choosing a parent by searching. The indent arrow only reaches the row
      directly above, which is no help once sorting has put the two far apart,
@@ -3937,69 +3945,24 @@ function renderStreaks(sk_){
         const v=parseInt(raw);
         if(isNaN(v)||v<0){ refresh(); return; }
 
-        const fieldMap={
-          morningStreak:'morning', flagStreak:'flags',
-          workStreak:'work', earlyBedStreak:'early', lateStreak:'late',
-          substancesPenaltyStreak:'drugs', procrastinationPenaltyStreak:'internet', macanazoPenaltyStreak:'macanazo',
-        };
-        const field=fieldMap[item.k];
-        const tk=todayKey();
+        /* A number you type is a claim about days already gone, and nothing
+           more. It used to be made true by force: setting the morning streak
+           to 80 rewrote the last 79 days of your history, marking each one as
+           a morning done. That moved hundreds of thousands of points, and it
+           could not be taken back — typing the old number again marked fewer
+           days but unmarked none, so the way back was never the way you came.
 
-        if(field){
-          if(v===0){
-            delete STATE.streakOverrides[item.k];
-            if(field==='morning') STATE.today.morningCompleted=false;
-            else if(field==='flags') STATE.today.flagCompleted=false;
-            else if(field==='work'){ if(STATE.today.work) STATE.today.work.workDuration=0; }
-            else if(field==='early'){ if(STATE.today.sleep) STATE.today.sleep.sleptEarly=false; }
-            else if(field==='late'){ if(STATE.today.sleep) STATE.today.sleep.sleptLate=false; }
-            else if(field==='drugs'||field==='internet'||field==='macanazo'){
-              STATE.today.penalties=(STATE.today.penalties||[]).filter(p=>p.type!==field);
-            }
-          } else {
-            // STEP 1+2 — mark TODAY so natural includes it; offset is computed afterward (STEP 4 below)
-            if(field==='morning') STATE.today.morningCompleted=true;
-            else if(field==='flags') STATE.today.flagCompleted=true;
-            else if(field==='work'){ if(!STATE.today.work) STATE.today.work={}; if(!STATE.today.work.workDuration||STATE.today.work.workDuration<=0) STATE.today.work.workDuration=1; }
-            else if(field==='early'){ if(!STATE.today.sleep) STATE.today.sleep={}; STATE.today.sleep.sleptEarly=true; if(!STATE.today.sleep.sleepDuration) STATE.today.sleep.sleepDuration=1; }
-            else if(field==='late'){ if(!STATE.today.sleep) STATE.today.sleep={}; STATE.today.sleep.sleptLate=true; }
-            else if(field==='drugs'||field==='internet'||field==='macanazo'){
-              if(!STATE.today.penalties) STATE.today.penalties=[];
-              const has=STATE.today.penalties.some(p=>p.type===field);
-              if(!has) STATE.today.penalties.push({id:'streak-seed-'+Date.now(),type:field,count:field==='internet'?35:1,details:field==='drugs'?{substances:1}:field==='internet'?{minutes:35}:{isPositive:false},timestamp:new Date().toISOString()});
-            }
-
-            // STEP 3 — propagate backward ONLY into already-registered days (never invented)
-            const sorted=[...STATE.history].filter(h=>!h._gap&&h.date!==tk).sort((a,b)=>a.date.localeCompare(b.date));
-            const daysToMark=Math.min(Math.max(0,v-1), sorted.length);
-            const startIdx=sorted.length-daysToMark;
-            for(let i=startIdx;i<sorted.length;i++){
-              const d=sorted[i];
-              if(field==='morning'){
-                if(!d.streaks) d.streaks=[{type:'morning',count:0,active:false},{type:'flags',count:0,active:false}];
-                const ms=d.streaks.find(s=>s.type==='morning'); if(ms){ms.active=true;ms.count=1;}
-              } else if(field==='flags'){
-                if(!d.streaks) d.streaks=[{type:'morning',count:0,active:false},{type:'flags',count:0,active:false}];
-                const fs=d.streaks.find(s=>s.type==='flags'); if(fs){fs.active=true;fs.count=1;}
-              } else if(field==='work'){
-                if(!d.workDuration||d.workDuration<=0) d.workDuration=1;
-              } else if(field==='early'){
-                d.sleptEarly=true; if(!d.sleepDuration) d.sleepDuration=1;
-              } else if(field==='late'){
-                d.sleptLate=true;
-              } else if(field==='drugs'||field==='internet'||field==='macanazo'){
-                if(!d.penalties) d.penalties=[];
-                const has=d.penalties.some(p=>p.type===field);
-                if(!has) d.penalties.push({type:field,count:field==='internet'?35:1,points:0,streak:1});
-              }
-            }
-          }
-          if(v>0){
-            // Compute offset using the natural value AFTER today is marked + history propagated
-            const naturalAfter=(CALC.streaks(STATE.history,STATE.today)[item.k])||0;
-            STATE.streakOverrides[item.k]=v-naturalAfter;
-          }
-          S.set(K.HIST,STATE.history);
+           Nothing here touches history or today now. The number is held beside
+           the real streak as the distance between them, and from that day on
+           the two move together: do the thing tomorrow and it reads 81, miss
+           it and the streak is broken and reads 0, which is what a broken
+           streak is. Type it again whenever you like — the distance is worked
+           out afresh each time, so it can always be corrected. */
+        if(v===0){
+          delete STATE.streakOverrides[item.k];
+        }else{
+          const natural=(CALC.streaks(STATE.history,STATE.today)[item.k])||0;
+          STATE.streakOverrides[item.k]={offset:v-natural,setOn:todayKey()};
         }
         S.set(K.STREAK_OVR,STATE.streakOverrides);
         commitAndRefresh();
@@ -4307,10 +4270,22 @@ function renderStats(total,sc){
   const isEs=STATE.lang==='es';
 
   // ── Computed values ──────────────────────────────────────────────────────
-  const allPts=STATE.history.filter(d=>!d._gap).map(d=>CALC.liveScore(d,STATE.history));
-  const last7=STATE.history.filter(d=>!d._gap).slice(0,7).map(d=>CALC.liveScore(d,STATE.history));
+  const realDays=STATE.history.filter(d=>!d._gap);
+  const allPts=realDays.map(d=>CALC.liveScore(d,STATE.history));
+  const last7=realDays.slice(0,7).map(d=>CALC.liveScore(d,STATE.history));
   const best=allPts.length?Math.max(...allPts):0;
   const worst=allPts.length?Math.min(...allPts):0;
+  /* Which day a number came from. A record is worth more when you can see when
+     it happened — and a hover is where that belongs, since the tile has room
+     for the number and nothing else. */
+  const dayOfPts=v=>{const i=allPts.indexOf(v);return i>=0?realDays[i].date:'';};
+  const fmtD=d=>d?capFirst(new Date(d+'T12:00:00').toLocaleDateString(isEs?'es-MX':'en-US',{weekday:'short',day:'numeric',month:'short'})):'';
+  // The run of days a best streak was made of, named by where it ended.
+  const spanOf=(len,endDate)=>{
+    if(!len||!endDate)return '';
+    const e=new Date(endDate+'T12:00:00'),s=new Date(e);s.setDate(s.getDate()-(len-1));
+    return fmtD(isoDate(s))+' → '+fmtD(endDate);
+  };
   const avg=allPts.length?Math.round(allPts.reduce((a,b)=>a+b,0)/allPts.length):0;
   const avg7=last7.length?Math.round(last7.reduce((a,b)=>a+b,0)/last7.length):0;
   const totalTracked=STATE.history.filter(d=>!d._gap).length;
@@ -4326,11 +4301,16 @@ function renderStats(total,sc){
     ? Math.max(-300,Math.min(300,Math.round((avg7-avg)/Math.abs(avg)*100)))
     : 0;
 
-  // Streaks
-  let bStrk=0,curStrk=0;sortedH.forEach(d=>{if(d.status!=='red'&&!d._gap){curStrk++;bStrk=Math.max(bStrk,curStrk);}else curStrk=0;});
+  // Streaks — each remembers the day its best run ended, so it can be dated.
+  let bStrk=0,curStrk=0,bStrkEnd='';sortedH.forEach(d=>{if(d.status!=='red'&&!d._gap){curStrk++;if(curStrk>bStrk){bStrk=curStrk;bStrkEnd=d.date;}}else curStrk=0;});
   let pfStrk=0;for(let k=0;k<sortedH.length;k++){if(!sortedH[sortedH.length-1-k].penalties?.length&&!sortedH[sortedH.length-1-k]._gap)pfStrk++;else break;}
-  let bestMornStrk=0,curMorn=0;sortedH.forEach(d=>{if(d.morningCompleted&&!d._gap){curMorn++;bestMornStrk=Math.max(bestMornStrk,curMorn);}else curMorn=0;});
-  let bestDFStrk=0,curDF=0;sortedH.forEach(d=>{if(!d.penalties?.some(p=>p.type==='drugs')&&!d._gap){curDF++;bestDFStrk=Math.max(bestDFStrk,curDF);}else curDF=0;});
+  /* A logged day records the morning routine inside its streaks, never as a
+     morningCompleted field — that name belongs to today alone. This read the
+     field, found nothing on any day, and so has reported a best morning streak
+     of zero for as long as the stat has existed. */
+  const didMorning=d=>!!d.streaks?.some(s=>s.type==='morning'&&s.active);
+  let bestMornStrk=0,curMorn=0,mornEnd='';sortedH.forEach(d=>{if(didMorning(d)&&!d._gap){curMorn++;if(curMorn>bestMornStrk){bestMornStrk=curMorn;mornEnd=d.date;}}else curMorn=0;});
+  let bestDFStrk=0,curDF=0,dfEnd='';sortedH.forEach(d=>{if(!d.penalties?.some(p=>p.type==='drugs')&&!d._gap){curDF++;if(curDF>bestDFStrk){bestDFStrk=curDF;dfEnd=d.date;}}else curDF=0;});
 
   // Work & focus
   const totalPoms=STATE.history.reduce((s,d)=>s+(d.pomodoros||0),0)+(STATE.today.pomodoros||0);
@@ -4338,7 +4318,10 @@ function renderStats(total,sc){
   const workDays=STATE.history.filter(d=>!d._gap&&(d.workDuration||0)>0).length;
   const workPct=totalTracked>0?Math.round(workDays/totalTracked*100):0;
   const pomPerDay=totalTracked>0?Math.round(totalPoms/totalTracked*10)/10:0;
-  const totalProcMin=STATE.history.reduce((s,d)=>s+(d.penalties?.filter(p=>p.type==='internet').reduce((a,p)=>a+(p.duration||0),0)||0),0);
+  /* Minutes wasted are kept in the penalty's count, the way every stored
+     penalty keeps its number. This looked for a `duration` that nothing has
+     ever written, so the total read zero however much was logged. */
+  const totalProcMin=STATE.history.reduce((s,d)=>s+(d.penalties?.filter(p=>p.type==='internet').reduce((a,p)=>a+(p.count||p.details?.minutes||0),0)||0),0);
 
   // Sleep
   const totalSleepMin=STATE.history.reduce((s,d)=>s+(d.sleepDuration||0),0)+(STATE.today.sleep?.sleepDuration||0);
@@ -4374,6 +4357,7 @@ function renderStats(total,sc){
 
   // Most productive & horniest day OF THE WEEK (by average)
   const dowNames=isEs?['Dom','Lun','Mar','Mié','Jue','Vie','Sáb']:['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const dowFull=isEs?['domingos','lunes','martes','miércoles','jueves','viernes','sábados']:['Sundays','Mondays','Tuesdays','Wednesdays','Thursdays','Fridays','Saturdays'];
   const dowWork=[],dowOrg=[];for(let k=0;k<7;k++){dowWork.push([]);dowOrg.push([]);}
   sortedH.filter(d=>!d._gap).forEach(d=>{
     const dow=new Date(d.date+'T12:00:00').getDay();
@@ -4399,32 +4383,39 @@ function renderStats(total,sc){
   else if(totalPoms>50)insight=isEs?`🍅 ${totalPoms} pomodoros = ${Math.round(totalPoms*25/60)}h de trabajo enfocado.`:`🍅 ${totalPoms} pomodoros = ${Math.round(totalPoms*25/60)}h of focused work.`;
   else insight=isEs?'📊 Construyendo historial. Más datos = mejores estadísticas.':'📊 Building history. More data = better insights.';
 
-  function statCard(label,value,color,sub,size='xl'){
+  /* `when` is what the hover says: the day a record was set, or the run a best
+     streak was made of. Only for the numbers that have one — a percentage over
+     all your days has no date to give, and inventing one would say nothing. */
+  function statCard(label,value,color,sub,size='xl',when){
     const s=dv('card2 ctr');const n=dv(size+' w7 mo');n.style.color=color;n.textContent=value;
-    s.appendChild(n);s.appendChild(dv('xs dimmer mt4',label));if(sub)s.appendChild(dv('xs dimmer',sub));return s;
+    s.appendChild(n);s.appendChild(dv('xs dimmer mt4',label));if(sub)s.appendChild(dv('xs dimmer',sub));
+    if(when){s.title=when;s.style.cursor='help';}
+    return s;
   }
   function grid4(...cards){const g=dv('g4 mb10');g.style.gap='8px';cards.forEach(c=>g.appendChild(c));return g;}
 
   // ── 1. Score highlights ──────────────────────────────────────────────────
   const gA=dv('g4 mb10');gA.style.gap='8px';
-  [[t('best-day'),best,'var(--ac)',t('pts-s')],[t('worst-day'),worst,'var(--ac)',t('pts-s')],
-   [t('all-avg'),avg,'var(--ac)',t('pts-day')],[t('last7-avg'),avg7,'var(--ac)',t('pts-s')]].forEach(([l,v,c,sub])=>{
+  [[t('best-day'),best,'var(--ac)',fmtD(dayOfPts(best))],[t('worst-day'),worst,'var(--ac)',fmtD(dayOfPts(worst))],
+   [t('all-avg'),avg,'var(--ac)',''],[t('last7-avg'),avg7,'var(--ac)','']].forEach(([l,v,c,when])=>{
     const s=dv('card2 ctr');const n=dv('xxl w7 mo');n.style.color=c;n.textContent=String(v);
-    s.appendChild(n);s.appendChild(dv('xs dimmer mt4',l));gA.appendChild(s);
+    s.appendChild(n);s.appendChild(dv('xs dimmer mt4',l));
+    if(when){s.title=when;s.style.cursor='help';}
+    gA.appendChild(s);
   });body.appendChild(gA);
 
   // ── 2. Overview ──────────────────────────────────────────────────────────
   body.appendChild(grid4(
     statCard(t('total-days-lbl'),String(totalTracked),'var(--ac)',null),
-    statCard(t('best-streak'),bStrk+'d','var(--cp)',isEs?'sin rojo':'non-red'),
+    statCard(t('best-streak'),bStrk+'d','var(--cp)',isEs?'sin rojo':'non-red','xl',spanOf(bStrk,bStrkEnd)),
     statCard(t('clean-streak'),pfStrk+'d','var(--ac)',isEs?'sin penalizaciones':'no rewards'),
     statCard(isEs?'Días morados':t('purple-days'),purplePct+'%','var(--cp)',counts.purple+'d')
   ));
 
   // ── 3. Work: Best days ───────────────────────────────────────────────────
   body.appendChild(grid4(
-    statCard(isEs?'Día más productivo (ever)':'Most productive day',prodEverStr,'var(--ac)',prodEverSub),
-    statCard(isEs?'Día más productivo (semana)':'Most productive day of week',prodDayStr,'var(--ac)',prodDaySub),
+    statCard(isEs?'Día más productivo (ever)':'Most productive day',prodEverStr,'var(--ac)',prodEverSub,'xl',fmtD(bestWorkDay)),
+    statCard(isEs?'Día más productivo (semana)':'Most productive day of week',prodDayStr,'var(--ac)',prodDaySub,'xl',prodDay>=0?(isEs?'Promedio de todos tus '+dowFull[prodDay]:'Average across every '+dowFull[prodDay]):''),
     statCard(t('work-total'),fmtDur(totalWorkMin),'var(--ac)',null),
     statCard(t('work-days-lbl'),workPct+'%','var(--ac)',workDays+'d')
   ));
@@ -4433,14 +4424,14 @@ function renderStats(total,sc){
   body.appendChild(grid4(
     statCard(t('total-poms'),String(totalPoms),'var(--ac)',null),
     statCard(t('poms-day'),String(pomPerDay),'var(--ac)',null),
-    statCard(t('best-morn-lbl'),bestMornStrk+'d','var(--ac)',null),
+    statCard(t('best-morn-lbl'),bestMornStrk+'d','var(--ac)',null,'xl',spanOf(bestMornStrk,mornEnd)),
     statCard(t('total-proc-lbl'),fmtDur(totalProcMin),'var(--ng)',null)
   ));
 
   // ── 5. Orgasms ───────────────────────────────────────────────────────────
   body.appendChild(grid4(
-    statCard(isEs?'Día más cachondo (ever)':'Horniest day',hornEverStr,'var(--ng)',hornEverSub),
-    statCard(isEs?'Día más cachondo (semana)':'Horniest day of week',hornDayStr,'var(--ng)',hornDaySub),
+    statCard(isEs?'Día más cachondo (ever)':'Horniest day',hornEverStr,'var(--ng)',hornEverSub,'xl',fmtD(bestOrgDay)),
+    statCard(isEs?'Día más cachondo (semana)':'Horniest day of week',hornDayStr,'var(--ng)',hornDaySub,'xl',hornDay>=0?(isEs?'Promedio de todos tus '+dowFull[hornDay]:'Average across every '+dowFull[hornDay]):''),
     statCard(isEs?'Total orgasmos':'Total orgasms',String(totalOrgasms),'var(--ng)',null),
     statCard(t('clean-org'),orgFreePct+'%','var(--ac)',orgFreeDays+'d')
   ));
@@ -4448,7 +4439,7 @@ function renderStats(total,sc){
   // ── 6. Discipline ────────────────────────────────────────────────────────
   body.appendChild(grid4(
     statCard(t('clean-drugs'),dfPct+'%','var(--ac)',drugFreeDays+'d'),
-    statCard(t('best-drug-free'),bestDFStrk+'d','var(--cg)',null),
+    statCard(t('best-drug-free'),bestDFStrk+'d','var(--cg)',null,'xl',spanOf(bestDFStrk,dfEnd)),
     statCard(isEs?'Total estimulantes':'Total stimulants',String(totalIndulgences),'var(--ng)',null),
     statCard(t('clean-proc'),procFreePct+'%','var(--ac)',procFreeDays+'d')
   ));
@@ -5151,6 +5142,19 @@ loadToday();healRepeatsStuckOnDoneDay();applyTheme();
   }
   render();
 })();
+/* The daily backup used to happen only at boot, so a device left open for
+   days — a phone that never actually closes the app — never took one, and the
+   day it was needed there was nothing from that day. This asks every ten
+   minutes whether today has one yet, which also covers the app being open
+   across midnight. It writes at most one a day; the key is the date itself. */
+setInterval(()=>{
+  if(!STATE.authed||!SB.init())return;
+  const key='st_last_backup';
+  if(localStorage.getItem(key)===todayKey())return;
+  SB.saveBackup(STATE.history,STATE.today,STATE.diary,STATE.streakOverrides)
+    .then(ok=>{if(ok)localStorage.setItem(key,todayKey());}).catch(()=>{});
+},10*60*1000);
+
 /* One place decides what Escape closes. Every overlay used to assign
    document.onkeydown as it was drawn, so whichever happened to be drawn last
    owned the key — and the one you were actually looking at might not be it.
