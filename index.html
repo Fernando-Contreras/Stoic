@@ -264,7 +264,7 @@ const SB={
           // The pomodoro rides inside the planner column rather than needing a
           // second one, so no further database change is required.
           ...(SB.hasPlannerColumn?{planner:{...(STATE.planner||{reminders:[]}),pomo:STATE.pomo}}:{}),
-          saved_at: Date.now(),
+          saved_at: CLOCK.now(),
           updated_at: new Date().toISOString()
         })
       });
@@ -288,6 +288,15 @@ const SB={
         this.hasPlannerColumn=false;
         r=await fetch(`${this.url}/rest/v1/stoic_data?select=${base}&limit=1`,{headers:this.headers()});
       }else if(r.ok&&tryPlanner)this.hasPlannerColumn=true;
+      /* A 401 means the token lapsed after all. ensureFresh renews ahead of
+         time by comparing the expiry against this device's clock, so a clock
+         running slow reads a dead token as good for hours yet and every call
+         quietly fails. Being told no by the server is the one reading that
+         cannot be wrong: renew on it, retry once, and the renewal also brings
+         back the server's time, which is what was wrong to begin with. */
+      if(r.status===401&&await this.refresh()){
+        r=await fetch(`${this.url}/rest/v1/stoic_data?select=${this.hasPlannerColumn===false?base:base+',planner'}&limit=1`,{headers:this.headers()});
+      }
       if(!r.ok){console.warn('Pull failed:',r.status);this.status='error';return null;}
       const rows=await r.json();
       this.status='ok';
@@ -303,6 +312,18 @@ const SB={
       const decoded=JSON.parse(atob(payload.replace(/-/g,'+').replace(/_/g,'/')));
       return decoded.sub||null;
     }catch{return null;}
+  },
+  /* Where the server's time comes from. A browser is not allowed to read the
+     Date header of a cross-origin reply — Supabase exposes only the length and
+     the type — so the moment is taken from the token it has just minted
+     instead: a JWT carries the second it was issued, and that second was
+     counted by the server. Tokens last about an hour, so this is re-read every
+     time one is renewed. */
+  stampFromToken(tok){
+    try{
+      const p=JSON.parse(atob(tok.split('.')[1].replace(/-/g,'+').replace(/_/g,'/')));
+      if(p.iat)CLOCK.sync(p.iat*1000);
+    }catch(e){}
   },
 
   /* ── SESSION HEALTH ─────────────────────────────────────────────────
@@ -335,6 +356,7 @@ const SB={
       const d=await r.json();
       if(d.access_token){
         this.token=d.access_token;
+        this.stampFromToken(d.access_token);
         localStorage.setItem('AUTH_TOKEN',d.access_token);
         if(d.refresh_token)localStorage.setItem('REFRESH_TOKEN',d.refresh_token);
         return true;
@@ -346,8 +368,13 @@ const SB={
   /* Renew when the token is missing or within 2 minutes of lapsing. */
   async ensureFresh(){
     if(!this.url||!this.key||!this.token)return false;
+    /* A difference carried over from last time is only a memory, and a clock
+       that was wrong may since have been put right — in which case the memory
+       is now the thing making this device wrong. Renewing once at the start of
+       a session re-reads the server's time and settles it. */
+    if(CLOCK.skew&&!CLOCK.checked)return await this.refresh();
     const exp=this.tokenExpiresAt();
-    if(exp&&Date.now()<exp-120000)return true;
+    if(exp&&CLOCK.now()<exp-120000)return true;
     return await this.refresh();
   },
   async saveBackup(history,today,diary,streakOverrides){
@@ -406,6 +433,7 @@ const SB={
       const d=await r.json();
       if(d.access_token){
         this.token=d.access_token;
+        this.stampFromToken(d.access_token);
         localStorage.setItem('AUTH_TOKEN',d.access_token);
         // Keep the refresh token — without it the session dies for good in ~1h.
         if(d.refresh_token)localStorage.setItem('REFRESH_TOKEN',d.refresh_token);
@@ -430,9 +458,54 @@ function fmtDur(min){
   if(!min)return'0m';const h=Math.floor(min/60),m=min%60;
   if(!h)return m+'m';if(!m)return h+'h';return h+'h'+m+'m';
 }
+/* ═══ THE CLOCK THIS APP RUNS ON ═════════════════════════════════════════
+   Which timezone a device is set to never mattered: the date is always read
+   in America/Cancun, and Date.now() is the same instant everywhere on earth.
+   A phone in Tokyo and a laptop in Cancún already agree about what day it is.
+
+   A device whose CLOCK is actually wrong is the real hazard, and it is not a
+   small one. Every stamp this app writes comes from the device, and every
+   conflict is settled by whoever claims the later moment — so a phone running
+   three hours fast wins every sync it ever takes part in, and its older copy
+   overwrites the newer one from the other device, silently. The same wrong
+   clock rolls the day over early, closing a day that still has hours left in
+   it, and it reads the login token as expired hours before it is.
+
+   Supabase stamps every reply with its own time, so the difference between
+   that and this device is measured and carried into every reading afterwards.
+   Both devices then agree, whatever their own clocks say. With no cloud there
+   is nothing to disagree with, the difference stays zero, and everything below
+   behaves exactly as it always has.
+   ═══════════════════════════════════════════════════════════════════════ */
+const CLOCK={
+  skew:Number(localStorage.getItem('st_clock_skew')||0)||0,
+  checked:false,
+  /* Given a moment that came from the server. The reading arrives a fraction
+     of a second late and is counted in whole seconds, so anything under a
+     minute is treated as agreement — a difference that kept twitching would
+     reorder stamps written moments apart. Anything past a month is nonsense
+     rather than a clock, and the device is believed instead. */
+  sync(serverMs){
+    if(!serverMs)return;
+    const server=typeof serverMs==='number'?serverMs:Date.parse(serverMs);
+    if(!server)return;
+    const diff=server-Date.now();
+    if(Math.abs(diff)>30*24*3600*1000)return;
+    this.checked=true;
+    const next=Math.abs(diff)<60000?0:diff;
+    if(next!==this.skew){
+      this.skew=next;
+      try{localStorage.setItem('st_clock_skew',String(next));}catch(e){}
+    }
+  },
+  now(){return Date.now()+this.skew;},
+  // How far out the device is, in minutes — for saying so out loud.
+  offMinutes(){return Math.round(this.skew/60000);}
+};
+
 function todayKey(){
   // Always use America/Cancun (UTC-5, no DST) so all devices agree on the date
-  return new Date().toLocaleDateString('en-CA',{timeZone:'America/Cancun'});
+  return new Date(CLOCK.now()).toLocaleDateString('en-CA',{timeZone:'America/Cancun'});
 }
 function initTimezone(){
   if(!localStorage.getItem('st_tz_offset')){
@@ -474,6 +547,8 @@ en:{
   'sk-i':'Stimulants 💊','sk-p':'Procrastination 🌐','sk-o':'Orgasm 💦','sk-l':'Late Nights 🌙',
   'edit-note':'Edit note','add-note':'Add note','save-note':'Save note','no-data':'No data logged for this day.',
   'day-title-ph':'Title for the day','day-untitled':'Untitled','ctrl-save':'Ctrl + Enter to save',
+  'clock-off':"⏰ This device's clock is {n} {dir}. Stoic corrects for it, so your days and your sync are safe — but the system clock is worth fixing.",
+  'clock-fast':'ahead of the server','clock-slow':'behind the server',
   'tpl-grateful':'3 reasons why I am deeply grateful',
   'tpl-bad':'1 bad thing of today (feel free to complain):',
   'tpl-weekly-left':'There are still {n} weekly goals waiting to be completed.',
@@ -608,6 +683,8 @@ es:{
   'sk-i':'Estimulantes 💊','sk-p':'Procrastinación 🌐','sk-o':'Orgasmo 💦','sk-l':'Trasnoche 🌙',
   'edit-note':'Editar nota','add-note':'Agregar nota','save-note':'Guardar nota','no-data':'Sin datos para este día.',
   'day-title-ph':'Título del día','day-untitled':'Sin título','ctrl-save':'Ctrl + Enter para guardar',
+  'clock-off':'⏰ El reloj de este dispositivo va {n} {dir}. Stoic lo compensa, así que tus días y tu sincronización están a salvo — pero conviene corregir la hora del sistema.',
+  'clock-fast':'adelantado respecto al servidor','clock-slow':'atrasado respecto al servidor',
   'tpl-grateful':'3 razones por las que estoy profundamente agradecido',
   'tpl-bad':'1 cosa mala de hoy (quéjate a gusto):',
   'tpl-weekly-left':'Todavía quedan {n} metas semanales por completar.',
@@ -920,7 +997,7 @@ const CALC={
   },
   buildEntry(today,streaks,date){
     const sc=this.score(today,streaks);
-    return{date,_ts:Date.now(),todayPoints:sc.total,status:sc.status,
+    return{date,_ts:CLOCK.now(),todayPoints:sc.total,status:sc.status,
       completedTasks:today.completed,totalTasks:today.target,pomodoros:today.pomodoros,
       penalties:today.penalties.map(p=>({type:p.type,count:p.count,points:this.penBase(p),streak:1})),
       streaks:[{type:'morning',count:today.morningCompleted?1:0,active:today.morningCompleted},{type:'flags',count:today.flagCompleted?1:0,active:today.flagCompleted}],
@@ -1049,7 +1126,7 @@ function upsertHist(entry,dk){
 /* save: local + push to Supabase if logged in */
 // commit() = user changed something real → bump _ts, push to cloud
 function commit(){
-  const now=Date.now();
+  const now=CLOCK.now();
   STATE.today._ts=now;
   STATE._lastSavedAt=now; // we're the writer now — prevent echoing our own push back
   save();
@@ -1302,7 +1379,7 @@ function isoDate(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2
 
 function saveView(){S.set('st_view',STATE.view);}
 function savePlanner(){
-  STATE.planner._ts=Date.now();
+  STATE.planner._ts=CLOCK.now();
   S.set(K.PLANNER,STATE.planner);
   commit();
 }
@@ -1321,7 +1398,7 @@ function fmtTime(d){return pad2(d.getHours())+':'+pad2(d.getMinutes());}
    of Mexico, and disagreeing about what day it is breaks hourly repeats near
    the end of the day. */
 function appNow(){
-  return new Date(new Date().toLocaleString('en-US',{timeZone:'America/Cancun'}));
+  return new Date(new Date(CLOCK.now()).toLocaleString('en-US',{timeZone:'America/Cancun'}));
 }
 
 /* Advancing a repeat. Day-and-longer repeats move to the first date that is
@@ -1333,7 +1410,7 @@ function advanceDue(due,rep,tk,time){
   if(unit==='hour'){
     const d=new Date(due+'T'+(time||'00:00')+':00'),now=appNow();
     let guard=0;
-    do{d.setHours(d.getHours()+every);guard++;}while(d<=now&&guard<1000);
+    do{d.setHours(d.getHours()+every);guard++;}while(d<=now&&guard<30000);
     return{due:isoDate(d),time:fmtTime(d)};
   }
   const d=new Date(due+'T12:00:00'),today=new Date(tk+'T12:00:00');
@@ -1359,7 +1436,7 @@ function advanceDue(due,rep,tk,time){
       return c;
     };
     let cur=d;
-    do{cur=next(cur);guard++;}while(cur<=today&&guard<400);
+    do{cur=next(cur);guard++;}while(cur<=today&&guard<3000);
     return{due:isoDate(cur),time:time||''};
   }
   /* Monthly and yearly steps are clamped to the end of the target month.
@@ -1390,7 +1467,7 @@ function advanceDue(due,rep,tk,time){
       return new Date(ty,tmm,clamp(ty,tmm,days[0]),12,0,0);
     };
     let cur=d;
-    do{cur=next(cur);guard++;}while(cur<=today&&guard<400);
+    do{cur=next(cur);guard++;}while(cur<=today&&guard<3000);
     return{due:isoDate(cur),time:time||''};
   }
   const stepMonths=(dt,months)=>{
@@ -1406,7 +1483,7 @@ function advanceDue(due,rep,tk,time){
     else if(unit==='month')cur=stepMonths(cur,every);
     else if(unit==='year')cur=stepMonths(cur,12*every);
     guard++;
-  }while(cur<=today&&guard<1000);
+  }while(cur<=today&&guard<8000);
   return{due:isoDate(cur),time:time||''};
 }
 
@@ -1425,7 +1502,7 @@ function healRepeatsStuckOnDoneDay(){
     if(r.done||!r.completedOn||!r.due)return;
     if(r.due>r.completedOn)return;                 // already looking ahead
     const nx=advanceDue(r.due,r.repeat,r.completedOn,r.time);
-    if(nx.due!==r.due){r.due=nx.due;r.time=nx.time;r._ts=Date.now();fixed++;}
+    if(nx.due!==r.due){r.due=nx.due;r.time=nx.time;r._ts=CLOCK.now();fixed++;}
   });
   if(fixed)savePlanner();
   return fixed;
@@ -1590,7 +1667,7 @@ function setDone(r,tk,on){
     unlogCompletion(r,tk);
     if(r.repeat&&r._prevDue){r.due=r._prevDue;r.time=r._prevTime||'';delete r._prevDue;delete r._prevTime;}
   }
-  r._ts=Date.now();
+  r._ts=CLOCK.now();
 }
 
 /* Undo something from the archive. If the reminder is still around it goes
@@ -1605,7 +1682,7 @@ function restoreFromLog(logId){
     r.due=entry.due;r.time=entry.time||'';
     delete r._prevDue;delete r._prevTime;
     if(r.doneLog&&r.doneLog.d===entry.date)r.doneLog.n=Math.max(0,r.doneLog.n-1);
-    r._ts=Date.now();
+    r._ts=CLOCK.now();
   }else{
     reminders().unshift({
       id:entry.srcId||uid(),title:entry.title,notes:entry.notes||'',
@@ -1613,7 +1690,7 @@ function restoreFromLog(logId){
       flagged:!!entry.flagged,tags:normTags(entry.tags),
       parent:reminders().some(x=>x.id===entry.parent)?entry.parent:null,
       repeat:entry.repeat||null,done:false,completedOn:null,
-      created:Date.now(),_ts:Date.now()
+      created:CLOCK.now(),_ts:CLOCK.now()
     });
   }
   STATE.planner.log=completionLog().filter(x=>x.logId!==logId);
@@ -1637,7 +1714,7 @@ function reopenReminder(id){
   const r=reminders().find(x=>x.id===id);if(!r)return;
   r.done=false;r.completedOn=null;
   delete r._prevDue;delete r._prevTime;
-  r._ts=Date.now();savePlanner();
+  r._ts=CLOCK.now();savePlanner();
 }
 function addReminder(data){
   const parent=data.parent||null;
@@ -1654,7 +1731,7 @@ function addReminder(data){
     parent:p?p.id:null,
     repeat:data.repeat||null, // subtasks keep their own rhythm, like any reminder
     done:false,completedOn:null,
-    created:Date.now(),_ts:Date.now()
+    created:CLOCK.now(),_ts:CLOCK.now()
   });
   savePlanner();
 }
@@ -1677,7 +1754,7 @@ function updateReminder(id,patch){
     }
   }
   Object.assign(r,patch);
-  r._ts=Date.now();
+  r._ts=CLOCK.now();
   savePlanner();
   return{ok:!warn,warn};
 }
@@ -1708,7 +1785,7 @@ function manualHolds(field){
 }
 function markManual(field){
   STATE.today._manual=STATE.today._manual||{};
-  STATE.today._manual[field]=Date.now();
+  STATE.today._manual[field]=CLOCK.now();
 }
 function syncPlannerToToday(){
   const s=plannerTodayStats();
@@ -1746,7 +1823,7 @@ const POMO_UNIT=25; // minutes that make up one pomodoro, whatever your session 
    startedAt is an absolute timestamp, so a running timer resumes correctly
    wherever it is picked up. */
 function savePomo(){
-  STATE.pomo._ts=Date.now();
+  STATE.pomo._ts=CLOCK.now();
   S.set('st_pomo',STATE.pomo);
   commit();
 }
@@ -1758,7 +1835,7 @@ function pomoPhaseLen(p){
 /* Seconds elapsed in the current leg, measured from the wall clock so a
    backgrounded tab or a locked phone keeps counting correctly. */
 function pomoElapsed(p){
-  return p.running?p.elapsed+Math.floor((Date.now()-p.startedAt)/1000):p.elapsed;
+  return p.running?p.elapsed+Math.floor((CLOCK.now()-p.startedAt)/1000):p.elapsed;
 }
 function pomoRemaining(p){return Math.max(0,pomoPhaseLen(p)-pomoElapsed(p));}
 function pomoRollDay(){
@@ -1768,7 +1845,7 @@ function pomoRollDay(){
 function pomoStart(){
   const p=STATE.pomo;
   if(p.running)return;
-  p.running=true;p.startedAt=Date.now();savePomo();
+  p.running=true;p.startedAt=CLOCK.now();savePomo();
 }
 function pomoPause(){
   const p=STATE.pomo;
@@ -1919,14 +1996,14 @@ function addGoal(kind,title){
   if(goalsOf(kind).length>=GOAL_MAX[kind])return false;
   const b=periodBounds(kind,todayKey());
   goals().unshift({id:uid(),kind,title,period:b.id,deadline:b.end,
-    doneOn:null,points:0,created:Date.now(),_ts:Date.now()});
+    doneOn:null,points:0,created:CLOCK.now(),_ts:CLOCK.now()});
   savePlanner();return true;
 }
 function toggleGoal(id){
   const g=goals().find(x=>x.id===id);if(!g)return;
   if(g.doneOn){g.doneOn=null;g.points=0;}
   else{g.doneOn=todayKey();g.points=goalPoints(g);}  // deadline never moves
-  g._ts=Date.now();savePlanner();
+  g._ts=CLOCK.now();savePlanner();
 }
 function deleteGoal(id){
   STATE.planner.goals=goals().filter(g=>g.id!==id);savePlanner();
@@ -3774,7 +3851,7 @@ function renderHistForm(key){
       sleep:{sleepDuration:fst.sleepDuration,napDuration:fst.napDuration,sleptEarly:fst.sleptEarly,sleptLate:fst.sleptLate||false,earlyBedStreak:1},work:{workDuration:fst.workDuration}};
     const fsk={morningStreak:1,flagStreak:1,substancesPenaltyStreak:1,procrastinationPenaltyStreak:1,macanazoPenaltyStreak:1,lateStreak:1,substancesStreak:0,procrastinationStreak:0,macanazoStreak:0,workStreak:0};
     const sc_=CALC.score(mockDay,fsk);
-    upsertHist({date:key,_ts:Date.now(),todayPoints:sc_.total,status:sc_.status,completedTasks:fst.completed,totalTasks:fst.target,pomodoros:fst.pomodoros,sleepDuration:fst.sleepDuration,napDuration:fst.napDuration,sleptEarly:fst.sleptEarly,sleptLate:fst.sleptLate||false,workDuration:fst.workDuration,penalties:pens,_gap:false,
+    upsertHist({date:key,_ts:CLOCK.now(),todayPoints:sc_.total,status:sc_.status,completedTasks:fst.completed,totalTasks:fst.target,pomodoros:fst.pomodoros,sleepDuration:fst.sleepDuration,napDuration:fst.napDuration,sleptEarly:fst.sleptEarly,sleptLate:fst.sleptLate||false,workDuration:fst.workDuration,penalties:pens,_gap:false,
       streaks:[{type:'morning',count:fst.morningCompleted?1:0,active:fst.morningCompleted},{type:'flags',count:fst.flagCompleted?1:0,active:fst.flagCompleted}]},key);
     // Save locally AND push to Supabase immediately
     S.set(K.HIST,STATE.history);
@@ -4189,6 +4266,15 @@ function renderSyncPanel(){
   hd.appendChild(sp('ctit',t('sync-title')));
   hd.appendChild(bt('btn-icon','✕',()=>{STATE.showSyncPanel=false;refresh()}));
   card.appendChild(hd);
+  /* A device whose clock is out is compensated for silently everywhere else,
+     so this is the one place it is said out loud — the numbers stay right
+     either way, but a wrong clock is worth knowing about. */
+  const off=Math.abs(CLOCK.offMinutes());
+  if(CLOCK.checked&&off>=5){
+    const w=dv('sm mt2 mb10');w.style.color='var(--cy)';
+    w.textContent=t('clock-off').replace('{n}',fmtDur(off)).replace('{dir}',CLOCK.skew<0?t('clock-fast'):t('clock-slow'));
+    card.appendChild(w);
+  }
   const sbConfigured=!!(window._SUPABASE_URL&&window._SUPABASE_KEY);
   if(!sbConfigured){
     card.appendChild(dv('sm dim','Supabase not configured. Add window._SUPABASE_URL and window._SUPABASE_KEY to the HTML.'));
@@ -4466,7 +4552,7 @@ setInterval(()=>{
       completed:0,target:0,morningCompleted:false,flagCompleted:false,
       pomodoros:0,penalties:[],
       sleep:{sleepDuration:0,napDuration:0,sleptEarly:false,earlyBedStreak:STATE.today.sleep?.earlyBedStreak||0},
-      work:{workDuration:0},_date:nd,_ts:Date.now()
+      work:{workDuration:0},_date:nd,_ts:CLOCK.now()
     };
     S.set(K.TODAY,STATE.today);
     S.set(K.HIST,STATE.history);
