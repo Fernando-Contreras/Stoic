@@ -176,6 +176,17 @@ button{cursor:pointer;font-family:var(--ff);font-size:15px;font-weight:600;borde
 /* ── PENALTY ITEM ── */
 .pen-it{background:var(--sur2);border:1px solid var(--ngb);border-radius:8px;padding:9px 12px;display:flex;align-items:center;justify-content:space-between;gap:8px}
 
+/* ── ALL, AT A GLANCE ──
+   As many across as the width allows, and every name readable. */
+.rem-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:8px}
+.rem-chip{background:var(--sur2);border:1px solid var(--b1);border-radius:9px;padding:8px 10px;
+  cursor:pointer;transition:border-color .14s,transform .14s,background .14s}
+.rem-chip:hover{border-color:var(--ac);transform:translateY(-1px)}
+.rem-chip.late{border-color:var(--rb)}
+.rem-chip.sel{border-color:var(--ac);background:var(--acd)}
+.rem-chip-t{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.35}
+@media(prefers-reduced-motion:reduce){.rem-chip:hover{transform:none}}
+
 /* ── HISTORY ROW ── */
 .hr-row{padding:9px 12px;border-radius:8px;border:1px solid var(--b1);background:var(--sur2);cursor:pointer;transition:border-color .15s}
 .hr-row:hover{border-color:var(--b2)}
@@ -634,7 +645,7 @@ en:{
   'clock-off':"⏰ This device's clock is {n} {dir}. Stoic corrects for it, so your days and your sync are safe — but the system clock is worth fixing.",
   'clock-fast':'ahead of the server','clock-slow':'behind the server',
   'tz-title':'Where your day begins','tz-this-device':'this device',
-  'tz-search':'Search a city or zone…','rem-open-tree':'This task and its subtasks',
+  'tz-search':'Search a city or zone…','rem-open-tree':'This task and its subtasks','rem-detail':'Task detail',
   'ms-constancy':'Constancy','ms-discipline':'Discipline','ms-temperance':'Temperance',
   'ms-fortitude':'Fortitude','ms-virtue':'Virtue','ms-wisdom':'Wisdom','ms-ataraxia':'Ataraxia',
   'ms-sub':'days in a row',
@@ -791,7 +802,7 @@ es:{
   'clock-off':'⏰ El reloj de este dispositivo va {n} {dir}. Stoic lo compensa, así que tus días y tu sincronización están a salvo — pero conviene corregir la hora del sistema.',
   'clock-fast':'adelantado respecto al servidor','clock-slow':'atrasado respecto al servidor',
   'tz-title':'Dónde empieza tu día','tz-this-device':'este dispositivo',
-  'tz-search':'Busca una ciudad o zona…','rem-open-tree':'Esta tarea y sus subtareas',
+  'tz-search':'Busca una ciudad o zona…','rem-open-tree':'Esta tarea y sus subtareas','rem-detail':'Detalle de la tarea',
   'ms-constancy':'Constancia','ms-discipline':'Disciplina','ms-temperance':'Templanza',
   'ms-fortitude':'Fortaleza','ms-virtue':'Virtud','ms-wisdom':'Sabiduría','ms-ataraxia':'Ataraxia',
   'ms-sub':'días seguidos',
@@ -2535,7 +2546,13 @@ function renderPlanner(){
      another turn coming — so under "All", which is the view for everything
      ahead of you, it stays on the list with the date of that next turn. Under
      "Today" it drops out, because today's turn is done. */
-  const open=list.filter(r=>!r.done&&(r.completedOn!==tk||(V.scope==='all'&&!!r.repeat)));
+  /* One rule for what is still to do, used by the rows and by the subtasks
+     under them alike. A repeating task ticked today is not finished — it has
+     another turn coming — so under All, the view for what is ahead of you, it
+     stays on the list with the date of that next turn. Under Today it drops
+     out, because today's turn is done. */
+  const stillOpen=r=>!r.done&&(r.completedOn!==tk||(V.scope==='all'&&!!r.repeat));
+  const open=list.filter(stillOpen);
   /* A subtask is drawn under its own parent, always — a column is chosen by the
      parent's date, and the subtask keeps and shows its own. Nesting is
      structure; the date it is due is written on the row and coloured when it is
@@ -2583,7 +2600,11 @@ function renderPlanner(){
   const F=STATE.view.tags||[];
   const passes=r=>(V.scope==='all'||r.due<=tk)&&
                   (!F.length||tagsOf(r).some(tg=>F.includes(tg)));
-  const openKids=p=>subtasksOf(p.id).filter(c=>!c.done&&c.completedOn!==tk);
+  /* Subtasks are judged by the very same rule as the rows above them. They had
+     their own, older one, so a repeating subtask ticked today vanished from
+     under its parent even under All — the family read 9 on the list and 13 in
+     its own window, and the four missing were the four already done. */
+  const openKids=p=>subtasksOf(p.id).filter(stillOpen);
   const shownKids=p=>openKids(p).filter(passes).sort(order);
   /* A parent earns its place on its own merit only. It used to be pulled onto
      the screen by any subtask that passed, so a project dated 2027 sat at the
@@ -2642,8 +2663,12 @@ function renderPlanner(){
     card.appendChild(ctrl);
     if(tagBar)card.appendChild(tagBar);
     if(STATE.showAddForm)card.appendChild(form);
-    if(STATE.selecting)card.appendChild(renderBulkBar([...shownIds]));
-    fillCard(card,tops,kidsFor);
+    // At a glance, only the names on screen can be picked; on the full list,
+    // everything drawn can — so "All" means the same thing in both.
+    const grid=V.scope==='all'&&tops.length;
+    if(STATE.selecting)card.appendChild(renderBulkBar(grid?tops.map(r=>r.id):[...shownIds]));
+    if(grid)card.appendChild(renderCompactGrid(tops,r=>kidsFor(r).length,tk));
+    else fillCard(card,tops,kidsFor);
     if(hidden>0)card.appendChild(dv('xs dimmer ctr mt8',
       `${hidden} ${hidden===1?t('view-hidden-1'):t('view-hidden')}`));
   }
@@ -3100,6 +3125,41 @@ function renderReminderEditor(r){
   box.appendChild(acts);
   ti.onkeydown=e=>{if(e.key==='Escape'){STATE.editingRem=null;render();}};
   return box;
+}
+
+/* ═══ ALL, AT A GLANCE ═══
+   Under Today the list is the day's work and every detail on a row earns its
+   place. Under All it is everything you have ever set yourself, and reading
+   the whole of each one to find one of them is the wrong shape: a long column
+   of paragraphs you scroll past. Here it is names, in a grid, small enough to
+   take in at once — and any of them opens in full with a click. */
+function renderCompactGrid(items,kidsCountOf,tk){
+  const g=dv('rem-grid');
+  items.forEach(r=>{
+    const late=r.due<tk&&r.completedOn!==tk;
+    const doneToday=r.completedOn===tk;
+    const kids=kidsCountOf?kidsCountOf(r):0;
+    const cell=dv('rem-chip'+(late?' late':'')+(isSelected(r.id)?' sel':''));
+    if(STATE.selecting){
+      cell.onclick=()=>{toggleSelected(r.id);render();};
+    }else{
+      cell.onclick=()=>{STATE.editingRem=null;STATE.taskTree=r.id;render();};
+    }
+    const top=dv('row gap4');top.style.cssText='align-items:baseline;flex-wrap:nowrap';
+    if(STATE.selecting)top.appendChild(sp('xs',isSelected(r.id)?'☑':'☐'));
+    if(doneToday)top.appendChild(sp('xs cg','✓'));
+    if(r.flagged)top.appendChild(sp('xs','🏁'));
+    if(r.priority>0){const p=sp('xs w7',PRIO[r.priority][1]);p.style.color=prioColor(r.priority);top.appendChild(p);}
+    const ttl=sp('sm rem-chip-t',r.title);
+    top.appendChild(ttl);
+    cell.appendChild(top);
+    const meta=[r.due===tk?t('rem-today-h'):r.due.slice(5).replace('-','/')];
+    if(kids)meta.push('↳'+kids);
+    const m=dv('xs '+(late?'cr':'dimmer'));m.style.marginTop='3px';m.textContent=meta.join(' · ');
+    cell.appendChild(m);
+    g.appendChild(cell);
+  });
+  return g;
 }
 
 /* ═══ SEVERAL AT ONCE ═══ */
@@ -4884,7 +4944,8 @@ function renderTaskTreeModal(id){
     const doneN=kids.filter(k=>k.done||k.completedOn===tk).length;
     const hd=dv('rowb mb12');
     const lft=dv('row gap6');
-    lft.appendChild(sp('ctit',t('rem-open-tree')));
+    // A task with no subtasks is not a family; it is just this task, in full.
+    lft.appendChild(sp('ctit',kids.length?t('rem-open-tree'):t('rem-detail')));
     if(kids.length)lft.appendChild(sp('sm mo dim',`${doneN}/${kids.length}`));
     hd.appendChild(lft);hd.appendChild(bt('btn-icon','✕',close));
     panel.appendChild(hd);
