@@ -642,6 +642,10 @@ en:{
   'md-cleand':'No stimulants','md-cleanp':'No procrastination','md-cleano':'No orgasm',
   'medals-title':'Medals','medals-none':'None yet. Positive streaks earn them; rewards never do.',
   'medals-locked':'Not won yet',
+  'rem-done-title':'Done','done-tab-today':'Today','done-tab-before':'Before',
+  'sel-mode':'Select several','sel-count':'selected','sel-one':'selected','sel-all':'All',
+  'sel-date':'Move them to this date','sel-prio':'Priority…','sel-flag':'Flag','sel-unflag':'Unflag','sel-del':'Delete',
+  'sel-del-warn':'Delete {n} tasks? They go to the bin and can be put back.',
   'rem-bin-h':'Deleted','rem-bin-kids':'subtasks','rem-bin-undo':'Put it back',
   'rem-bin-note':'The last {n} deleted are kept here.',
   'restore-help':'Pick a day. What it holds replaces what is here now.',
@@ -795,6 +799,10 @@ es:{
   'md-cleand':'Sin estimulantes','md-cleanp':'Sin procrastinar','md-cleano':'Sin orgasmo',
   'medals-title':'Medallas','medals-none':'Aún ninguna. Las dan las rachas positivas; las recompensas nunca.',
   'medals-locked':'Aún sin conseguir',
+  'rem-done-title':'Hechas','done-tab-today':'Hoy','done-tab-before':'Antes',
+  'sel-mode':'Seleccionar varias','sel-count':'seleccionadas','sel-one':'seleccionada','sel-all':'Todas',
+  'sel-date':'Moverlas a esta fecha','sel-prio':'Prioridad…','sel-flag':'Poner bandera','sel-unflag':'Quitar bandera','sel-del':'Eliminar',
+  'sel-del-warn':'¿Eliminar {n} tareas? Se van a la papelera y se pueden devolver.',
   'rem-bin-h':'Eliminadas','rem-bin-kids':'subtareas','rem-bin-undo':'Devolver a la lista',
   'rem-bin-note':'Aquí se guardan las últimas {n} eliminadas.',
   'restore-help':'Elige un día. Lo que tenga reemplaza lo que hay ahora.',
@@ -1183,6 +1191,8 @@ let STATE={
   showTZ: false,
   taskTree: null,
   restoreList: null,
+  selecting: false,
+  selected: [],
   tzQuery: '',
   tz: localStorage.getItem('st_tz')||'America/Cancun',
   /* The calendar and the panel beside it are two halves of one thing: the day
@@ -1380,10 +1390,14 @@ function applyRemote(remote){
     if(R._lang&&R._lang!==STATE.lang){STATE.lang=R._lang;localStorage.setItem('st_lang',R._lang);changed=true;}
     // The zone travels with the settings so both devices keep the same day.
     if(R._tz&&R._tz!==appTZ()){STATE.tz=R._tz;localStorage.setItem('st_tz',R._tz);changed=true;}
-    // How the list is drawn is a setting like the rest, so it follows you across.
-    if(R._view&&typeof R._view==='object'&&JSON.stringify(R._view)!==JSON.stringify(STATE.view)){STATE.view={...STATE.view,...R._view};S.set('st_view',STATE.view);changed=true;}
-
     if(remoteIsNewer){
+      /* How the list is drawn follows you across, but only from a copy that is
+         actually newer. Applied unconditionally, like the settings above, the
+         cloud's older copy overwrote every toggle within seconds of making it:
+         open Done today, and five seconds later it had closed itself again. */
+      if(R._view&&typeof R._view==='object'&&JSON.stringify(R._view)!==JSON.stringify(STATE.view)){
+        STATE.view={...STATE.view,...R._view};S.set('st_view',STATE.view);changed=true;
+      }
       const Rdate=R._date||'';
       if(Rdate&&Rdate<tk){
         // Remote today is from a past date — put it in history
@@ -1495,7 +1509,13 @@ function applyRemote(remote){
 function isEditing(){
   const a=document.activeElement;
   if(a&&(a.tagName==='TEXTAREA'||a.tagName==='INPUT'))return true;
-  return !!document.querySelector('.diary-area');
+  if(document.querySelector('.diary-area'))return true;
+  /* Anything open over the page counts too. A redraw rebuilds it from nothing,
+     and at one sync every five seconds that reads as the overlay blinking out
+     and back while you are looking straight at it. The sync itself still runs
+     on time; what it brought is drawn the moment the overlay is closed. */
+  return ['taskTree','histDay','restoreList','showTZ','showRules','showSyncPanel','showGoals']
+    .some(k=>STATE[k]);
 }
 /* The sync itself never waits — only the redraw does. What the cloud brought
    is already in STATE; this remembers that the screen has yet to show it, so
@@ -2511,7 +2531,11 @@ function renderPlanner(){
     });
     if((STATE.view.tags||[]).length)tagBar.appendChild(bt('btn-icon xs','✕ '+t('rem-filter-clear'),()=>{STATE.view.tags=[];saveView();commitAndRefresh();}));
   }
-  const open=list.filter(r=>!r.done&&r.completedOn!==tk);
+  /* What is still to do. A repeating task ticked today is not finished — it has
+     another turn coming — so under "All", which is the view for everything
+     ahead of you, it stays on the list with the date of that next turn. Under
+     "Today" it drops out, because today's turn is done. */
+  const open=list.filter(r=>!r.done&&(r.completedOn!==tk||(V.scope==='all'&&!!r.repeat)));
   /* A subtask is drawn under its own parent, always — a column is chosen by the
      parent's date, and the subtask keeps and shows its own. Nesting is
      structure; the date it is due is written on the row and coloured when it is
@@ -2600,6 +2624,14 @@ function renderPlanner(){
   if(nOver)left.appendChild(sp('xs cr w6',`${nOver} ${nOver===1?t('rem-overdue-1'):t('rem-overdue')}`));
   left.appendChild(sp('xs dimmer',String(shownIds.size)));
   h.appendChild(left);
+  /* Pick several and act on all of them at once. Thirteen tasks that need the
+     same new date, or the same priority, are thirteen trips through the editor
+     otherwise — and one wrong ✕ away from the afternoon that prompted this. */
+  const selBtn=bt(STATE.selecting?'btn-ac btn-sm':'btn-ghost btn-sm','☑',()=>{
+    STATE.selecting=!STATE.selecting;STATE.selected=[];render();
+  });
+  selBtn.title=t('sel-mode');
+  h.appendChild(selBtn);
   const addBtn=bt(STATE.showAddForm?'btn-ghost btn-sm':'btn-ac btn-sm',STATE.showAddForm?'✕':'＋',()=>{
     STATE.showAddForm=!STATE.showAddForm;render();
   });
@@ -2610,6 +2642,7 @@ function renderPlanner(){
     card.appendChild(ctrl);
     if(tagBar)card.appendChild(tagBar);
     if(STATE.showAddForm)card.appendChild(form);
+    if(STATE.selecting)card.appendChild(renderBulkBar([...shownIds]));
     fillCard(card,tops,kidsFor);
     if(hidden>0)card.appendChild(dv('xs dimmer ctr mt8',
       `${hidden} ${hidden===1?t('view-hidden-1'):t('view-hidden')}`));
@@ -2629,26 +2662,6 @@ function renderPlanner(){
     ...doneAll.filter(r=>!r.parent),
     ...doneAll.filter(r=>r.parent&&!doneTopIds.has(r.parent))
   ].sort(order);
-  if(doneTops.length){
-    const card=dv('card mt12');
-    const h=dv('rowb mb10');
-    const shown=new Set();
-    doneTops.forEach(p=>{shown.add(p.id);doneKids(p).forEach(c=>shown.add(c.id));});
-    // The whole heading folds it, not the arrow alone — the arrow is small and
-    // sits where a finger does not.
-    const dleft=dv('row gap8');
-    dleft.style.cssText='cursor:pointer;user-select:none;flex:1';
-    dleft.onclick=()=>{V.closedDone=!V.closedDone;saveView();render();};
-    const foldDone=sp('sm dimmer',V.closedDone?'▶':'▼');
-    dleft.appendChild(foldDone);
-    dleft.appendChild(sp('ctit cg',t('rem-done-h')));
-    h.appendChild(dleft);
-    h.appendChild(sp('xs dimmer',String(shown.size)));
-    card.appendChild(h);
-    if(!V.closedDone)fillCard(card,doneTops,doneKids);
-    wrap.appendChild(card);
-  }
-
   /* Everything finished on an earlier day, newest first and capped, so the
      archive stays browsable without the page carrying years of it.
      Note: only reminders that close for good land here. A repeating one never
@@ -2659,21 +2672,39 @@ function renderPlanner(){
     .filter(x=>x.date!==tk&&(!(STATE.view.tags||[]).length||
       normTags(x.tags).some(tg=>(STATE.view.tags||[]).includes(tg))))
     .sort((a,b)=>b.date.localeCompare(a.date));
-  if(past.length){
+
+  /* One Done, with Today and Before inside it, the way the list above has
+     Today and All. Two separate cards for the same idea put the same question
+     — what have I finished — in two places, each with its own fold. */
+  if(doneTops.length||past.length){
+    const doneTab=(V.doneTab==='before'||!doneTops.length)&&past.length?'before':'today';
     const card=dv('card mt12');
     const h=dv('rowb mb10');
-    const pleft=dv('row gap8');
-    const openPast=!!V.openPast;   // closed until asked for; it is an archive
-    const foldPast=bt('btn-icon',openPast?'▼':'▶',()=>{
-      V.openPast=!openPast;saveView();render();
-    });
-    foldPast.style.cssText='padding:2px 4px;font-size:11px;color:var(--t3)';
-    pleft.appendChild(foldPast);
-    pleft.appendChild(sp('ctit dim',t('rem-past-h')));
-    h.appendChild(pleft);
-    h.appendChild(sp('xs dimmer',String(past.length)));
+    const shown=new Set();
+    doneTops.forEach(p=>{shown.add(p.id);doneKids(p).forEach(c=>shown.add(c.id));});
+    // The whole heading folds it, not the arrow alone — the arrow is small and
+    // sits where a finger does not.
+    const dleft=dv('row gap8');
+    dleft.style.cssText='cursor:pointer;user-select:none;flex:1';
+    dleft.onclick=()=>{V.closedDone=!V.closedDone;saveView();render();};
+    dleft.appendChild(sp('sm dimmer',V.closedDone?'▶':'▼'));
+    dleft.appendChild(sp('ctit cg',t('rem-done-title')));
+    h.appendChild(dleft);
+    h.appendChild(sp('xs dimmer',String(doneTab==='today'?shown.size:past.length)));
     card.appendChild(h);
-    if(openPast){
+    if(!V.closedDone){
+      const tabs=dv('row gap4 mb10');
+      tabs.style.cssText='border:1px solid var(--b2);border-radius:9px;padding:2px;background:var(--sur2);width:fit-content';
+      [['today',t('done-tab-today'),doneTops.length],['before',t('done-tab-before'),past.length]].forEach(([id,lbl,n])=>{
+        const on=doneTab===id;
+        const b=bt(on?'btn-ac btn-xs':'btn-xs',`${lbl} ${n}`,()=>{V.doneTab=id;saveView();render();});
+        if(!on)b.style.cssText='background:none;border:none;color:var(--t3);font-size:12px;padding:3px 8px;border-radius:5px;cursor:pointer';
+        tabs.appendChild(b);
+      });
+      card.appendChild(tabs);
+    }
+    if(!V.closedDone&&doneTab==='today')fillCard(card,doneTops,doneKids);
+    if(!V.closedDone&&doneTab==='before'){
       const box=dv('s6');
       past.slice(0,ARCHIVE_MAX).forEach(x=>{
         const gone=!reminders().some(r=>r.id===x.srcId);
@@ -3071,6 +3102,56 @@ function renderReminderEditor(r){
   return box;
 }
 
+/* ═══ SEVERAL AT ONCE ═══ */
+function isSelected(id){return (STATE.selected||[]).includes(id);}
+function toggleSelected(id){
+  const s=STATE.selected||(STATE.selected=[]);
+  const i=s.indexOf(id);
+  if(i>=0)s.splice(i,1); else s.push(id);
+}
+/* Applied one by one through the ordinary edit, so a bulk change follows every
+   rule a single change does — nothing here writes to a reminder directly. */
+function bulkApply(patch){
+  (STATE.selected||[]).forEach(id=>updateReminder(id,patch));
+  render();
+}
+function renderBulkBar(visibleIds){
+  const bar=dv('row gap6 mb10');
+  bar.style.cssText='flex-wrap:wrap;align-items:center;background:var(--acd);border:1px solid var(--acb);border-radius:10px;padding:8px 10px';
+  const n=(STATE.selected||[]).length;
+  bar.appendChild(sp('sm w6 ac',`${n} ${n===1?t('sel-one'):t('sel-count')}`));
+
+  const all=bt('btn-ghost btn-xs',t('sel-all'),()=>{
+    const every=visibleIds.every(id=>isSelected(id));
+    STATE.selected=every?[]:[...visibleIds];
+    render();
+  });
+  bar.appendChild(all);
+
+  if(n){
+    const di=ip('date','','','');di.style.cssText='flex:0 0 140px';di.title=t('sel-date');
+    di.onchange=()=>{if(di.value)bulkApply({due:di.value});};
+    bar.appendChild(di);
+
+    const pi=sk('',[['-1',t('sel-prio')],...PRIO.map(([v,l])=>[v,`${t('rem-prio')} ${l}`])],'-1');
+    pi.style.cssText='flex:0 0 130px';
+    pi.onchange=()=>{if(pi.value!=='-1')bulkApply({priority:parseInt(pi.value)||0});};
+    bar.appendChild(pi);
+
+    bar.appendChild(bt('btn-ghost btn-xs','🏁 '+t('sel-flag'),()=>bulkApply({flagged:true})));
+    bar.appendChild(bt('btn-ghost btn-xs','⚐ '+t('sel-unflag'),()=>bulkApply({flagged:false})));
+
+    const del=bt('btn-ng btn-xs','✕ '+t('sel-del'),()=>{
+      if(!confirm(t('sel-del-warn').replace('{n}',n)))return;
+      // Each goes to the bin on its own, so any of them can be put back.
+      [...(STATE.selected||[])].forEach(id=>deleteReminder(id));
+      STATE.selected=[];render();
+    });
+    bar.appendChild(del);
+  }
+  return bar;
+}
+
 function renderReminderRow(r,tk,opts){
   opts=opts||{};
   /* Where this row asks to be redrawn. On the list that is the whole page;
@@ -3111,9 +3192,19 @@ function renderReminderRow(r,tk,opts){
     row.appendChild(ar);
   }
 
-  const cb=ip('checkbox','');cb.checked=doneToday;cb.style.marginTop='3px';
-  cb.onchange=()=>{toggleReminder(r.id);rd();};
-  row.appendChild(cb);
+  /* In select mode the row answers a different question — is this one of the
+     ones I mean — so the box that ticks it off gives way to the box that picks
+     it, rather than sitting beside it waiting to be hit by mistake. */
+  if(STATE.selecting&&!opts.redraw){
+    const sel=ip('checkbox','');sel.checked=isSelected(r.id);sel.style.cssText='margin-top:3px;accent-color:var(--ac)';
+    sel.onchange=()=>{toggleSelected(r.id);rd();};
+    row.appendChild(sel);
+    if(isSelected(r.id)){row.style.borderColor='var(--ac)';row.style.background='var(--acd)';}
+  }else{
+    const cb=ip('checkbox','');cb.checked=doneToday;cb.style.marginTop='3px';
+    cb.onchange=()=>{toggleReminder(r.id);rd();};
+    row.appendChild(cb);
+  }
 
   const mid=dv('f1');
   const titleLine=dv('row gap6');titleLine.style.flexWrap='wrap';
@@ -4884,7 +4975,10 @@ function renderSyncModal(){
 
 function renderSyncPanel(){
   const card=dv('card fi');
-  card.style.cssText='border:1px solid var(--acb);background:var(--acd)';
+  /* Solid. The gold wash it used to carry is transparent, which is fine for a
+     panel sitting on the page and no good at all for one floating over it —
+     the words underneath showed straight through the words on top. */
+  card.style.cssText='border:1px solid var(--acb);background:var(--sur)';
   const hd=dv('rowb mb12');
   hd.appendChild(sp('ctit',t('sync-title')));
   hd.appendChild(bt('btn-icon','✕',()=>{STATE.showSyncPanel=false;refresh()}));
