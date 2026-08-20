@@ -407,22 +407,41 @@ const SB={
     if(exp&&CLOCK.now()<exp-120000)return true;
     return await this.refresh();
   },
+  /* null = not asked yet. The backups table may predate the planner column,
+     and sending a column that is not there makes PostgREST reject the whole
+     write — which would take the rest of the backup down with it. */
+  backupHasPlanner:null,
   async saveBackup(history,today,diary,streakOverrides){
     if(!this.init()) return false;
     if(!await this.ensureFresh()) return false;
     try{
+      /* The planner rides along now. It did not, and a backup without it is
+         not a backup of your day: deleting a task by accident could not be
+         undone from one, because the only thing it held was the scoring. */
+      const body=()=>({
+        user_id:this.userId(),
+        backup_date:todayKey(),
+        history,today,diary,streak_overrides:streakOverrides,
+        ...(this.backupHasPlanner===false?{}:{planner:{...(STATE.planner||{reminders:[]}),pomo:STATE.pomo}})
+      });
       // on_conflict MUST match the real unique constraint (user_id, backup_date) —
       // the table's primary key is a random id, so without this the upsert
       // silently fails (409) whenever a backup for today already exists.
-      const res=await fetch(`${this.url}/rest/v1/stoic_backups?on_conflict=user_id,backup_date`,{
+      let res=await fetch(`${this.url}/rest/v1/stoic_backups?on_conflict=user_id,backup_date`,{
         method:'POST',
         headers:{...this.headers(),'Prefer':'resolution=merge-duplicates,return=minimal'},
-        body:JSON.stringify({
-          user_id:this.userId(),
-          backup_date:todayKey(),
-          history,today,diary,streak_overrides:streakOverrides
-        })
+        body:JSON.stringify(body())
       });
+      if(res.status===400&&this.backupHasPlanner!==false){
+        // No such column — remember it, say so, and save the rest.
+        this.backupHasPlanner=false;
+        console.warn('stoic_backups has no planner column — backing up without the task list. Add it with: alter table stoic_backups add column planner jsonb;');
+        res=await fetch(`${this.url}/rest/v1/stoic_backups?on_conflict=user_id,backup_date`,{
+          method:'POST',
+          headers:{...this.headers(),'Prefer':'resolution=merge-duplicates,return=minimal'},
+          body:JSON.stringify(body())
+        });
+      }else if(res.ok&&this.backupHasPlanner===null)this.backupHasPlanner=true;
       if(!res.ok){
         const t=await res.text();
         console.error('Backup save failed:',res.status,t);
@@ -622,6 +641,11 @@ en:{
   'md-day':'Days without red','md-morning':'Morning routine','md-flags':'Goals annihilated','md-work':'Work',
   'md-cleand':'No stimulants','md-cleanp':'No procrastination','md-cleano':'No orgasm',
   'medals-title':'Medals','medals-none':'None yet. Positive streaks earn them; rewards never do.',
+  'medals-locked':'Not won yet',
+  'rem-bin-h':'Deleted','rem-bin-kids':'subtasks','rem-bin-undo':'Put it back',
+  'rem-bin-note':'The last {n} deleted are kept here.',
+  'restore-help':'Pick a day. What it holds replaces what is here now.',
+  'restore-warn':'Replace everything with the backup from {d}?','backup-none':'That backup could not be read.',
   'goal-edit':'Click to rewrite it','goal-done-when':'The day you actually finished it',
   'tz-help':'Stoic runs one clock for every device, so both always agree on what day it is. Move it when you travel.',
   'tz-warn':'Change it during the day, not around midnight: a day that has already closed does not reopen.',
@@ -770,6 +794,11 @@ es:{
   'md-day':'Días sin rojo','md-morning':'Rutina matutina','md-flags':'Metas exterminadas','md-work':'Trabajo',
   'md-cleand':'Sin estimulantes','md-cleanp':'Sin procrastinar','md-cleano':'Sin orgasmo',
   'medals-title':'Medallas','medals-none':'Aún ninguna. Las dan las rachas positivas; las recompensas nunca.',
+  'medals-locked':'Aún sin conseguir',
+  'rem-bin-h':'Eliminadas','rem-bin-kids':'subtareas','rem-bin-undo':'Devolver a la lista',
+  'rem-bin-note':'Aquí se guardan las últimas {n} eliminadas.',
+  'restore-help':'Elige un día. Lo que tenga reemplaza lo que hay ahora.',
+  'restore-warn':'¿Reemplazar todo con el respaldo del {d}?','backup-none':'No se pudo leer ese respaldo.',
   'goal-edit':'Haz click para reescribirla','goal-done-when':'El día en que realmente la terminaste',
   'tz-help':'Stoic usa un solo reloj para todos tus dispositivos, así siempre coinciden en qué día es. Muévelo cuando viajes.',
   'tz-warn':'Cámbialo de día, no cerca de la medianoche: un día que ya cerró no se vuelve a abrir.',
@@ -1147,12 +1176,13 @@ let STATE={
   // Several tags can be active at once; a reminder shows if it carries ANY of
   // them. Requiring all of them would usually leave the list empty, which
   // reads as broken rather than as a filter doing its job.
-  tagFilters: [],
+
   showAddForm: false,
   showGoals: false,
   showRules: false,
   showTZ: false,
   taskTree: null,
+  restoreList: null,
   tzQuery: '',
   tz: localStorage.getItem('st_tz')||'America/Cancun',
   /* The calendar and the panel beside it are two halves of one thing: the day
@@ -1167,7 +1197,7 @@ let STATE={
   diaryFold: {},
   // How the planner list is drawn. Remembered, but purely a view: none of this
   // can change a number that scores.
-  view: S.get('st_view',{scope:'all',sort:'date-asc',flat:false}),
+  view: S.get('st_view',{scope:'all',sort:'date-asc',flat:false,tags:[]}),
 };
 
 /* ═══ #1 FIX: loadToday checks for missed days, fills all gaps ═══ */
@@ -1178,6 +1208,7 @@ function loadToday(){
     if(t._lang){STATE.lang=t._lang;localStorage.setItem('st_lang',t._lang);}
     // Read before the date is worked out below — it decides what the date is.
     if(t._tz){STATE.tz=t._tz;localStorage.setItem('st_tz',t._tz);}
+    if(t._view&&typeof t._view==='object'){STATE.view={...STATE.view,...t._view};S.set('st_view',STATE.view);}
   }
   const tk=todayKey();
   const saved=STATE.today._date||'';
@@ -1344,6 +1375,8 @@ function applyRemote(remote){
     if(R._lang&&R._lang!==STATE.lang){STATE.lang=R._lang;localStorage.setItem('st_lang',R._lang);changed=true;}
     // The zone travels with the settings so both devices keep the same day.
     if(R._tz&&R._tz!==appTZ()){STATE.tz=R._tz;localStorage.setItem('st_tz',R._tz);changed=true;}
+    // How the list is drawn is a setting like the rest, so it follows you across.
+    if(R._view&&typeof R._view==='object'&&JSON.stringify(R._view)!==JSON.stringify(STATE.view)){STATE.view={...STATE.view,...R._view};S.set('st_view',STATE.view);changed=true;}
 
     if(remoteIsNewer){
       const Rdate=R._date||'';
@@ -1489,7 +1522,7 @@ function sbadge(status){const lb={red:t('Red'),yellow:t('Yellow'),green:t('Green
    ═══════════════════════════════════════════════════════════════════════ */
 function isoDate(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
 
-function saveView(){S.set('st_view',STATE.view);}
+function saveView(){S.set('st_view',STATE.view);STATE.today._view=STATE.view;}
 function savePlanner(){
   STATE.planner._ts=CLOCK.now();
   S.set(K.PLANNER,STATE.planner);
@@ -1686,10 +1719,15 @@ function allTags(){
   return [...set].sort((a,b)=>a.localeCompare(b));
 }
 function hasTag(r,tg){return tagsOf(r).includes(tg);}
+/* Which tags are being filtered on lives in the view, alongside the sort and
+   the scope — so it survives a reload and travels to the other device with
+   everything else you have set. It used to be held in memory alone and was
+   gone the moment the page was refreshed. */
 function toggleTagFilter(tg){
-  const f=STATE.tagFilters||(STATE.tagFilters=[]);
+  const f=STATE.view.tags||(STATE.view.tags=[]);
   const i=f.indexOf(tg);
   if(i>=0)f.splice(i,1); else f.push(tg);
+  saveView();
 }
 
 /* A tag box: type a new one, or click one you already use. Used by both the
@@ -1870,10 +1908,43 @@ function updateReminder(id,patch){
   savePlanner();
   return{ok:!warn,warn};
 }
+/* Nothing deleted is gone. A parent takes its subtasks with it — otherwise
+   they are orphaned and invisible while still counting toward the day — which
+   is exactly what makes one wrong press expensive: thirteen tasks can leave on
+   a single ✕. They go to the bin whole, family and all, and come back the same
+   way. The last 200 are kept, the way completions are. */
+const BIN_MAX=200;
+function deletedBin(){return STATE.planner.bin||(STATE.planner.bin=[]);}
 function deleteReminder(id){
-  // Deleting a parent takes its subtasks, otherwise they are orphaned and
-  // invisible while still counting toward the day.
+  const going=reminders().filter(r=>r.id===id||r.parent===id);
+  if(going.length){
+    deletedBin().unshift({
+      binId:uid(),at:CLOCK.now(),
+      title:(going.find(r=>r.id===id)||going[0]).title,
+      items:JSON.parse(JSON.stringify(going))
+    });
+    STATE.planner.bin=deletedBin().slice(0,BIN_MAX);
+  }
   STATE.planner.reminders=reminders().filter(r=>r.id!==id&&r.parent!==id);
+  savePlanner();
+}
+/* Back onto the list exactly as they left it. An id already in use means the
+   same task was restored once already, so a fresh one is minted and any
+   subtask pointing at it is pointed at the new one. */
+function restoreDeleted(binId){
+  const entry=deletedBin().find(x=>x.binId===binId);
+  if(!entry)return;
+  const taken=new Set(reminders().map(r=>r.id));
+  const remap={};
+  entry.items.forEach(it=>{if(taken.has(it.id))remap[it.id]=uid();});
+  entry.items.forEach(it=>{
+    const r={...it};
+    if(remap[r.id])r.id=remap[r.id];
+    if(r.parent&&remap[r.parent])r.parent=remap[r.parent];
+    r._ts=CLOCK.now();
+    reminders().unshift(r);
+  });
+  STATE.planner.bin=deletedBin().filter(x=>x.binId!==binId);
   savePlanner();
 }
 
@@ -2276,9 +2347,7 @@ function renderPlanner(){
   /* A total sitting under the three tiles read as though it counted the day's
      flags as well, which it never did — the long goals are paid apart. It
      points at the tiles instead, and says what pressing one is for. */
-  const nudge=bt('btn-ghost btn-sm w100 mt6',t('goal-nudge')+' ↑',()=>{STATE.showGoals=true;render();});
-  nudge.style.cssText='width:100%;font-size:11px;color:var(--t3);padding:4px';
-  sum.appendChild(nudge);
+  sum.appendChild(dv('xs ac ctr mt6 w6',t('goal-nudge')+' ↑'));
 
   /* The day's goals are the flagged reminders, so they live here rather than
      with the long goals — foldable, since on a busy day the list is long. */
@@ -2430,12 +2499,12 @@ function renderPlanner(){
     tagBar=dv('row gap6 mb10');tagBar.style.flexWrap='wrap';tagBar.style.alignItems='center';
     tagBar.appendChild(sp('xs dimmer up ls',t('rem-filter')));
     tags.forEach(tg=>{
-      const on=(STATE.tagFilters||[]).includes(tg);
+      const on=(STATE.view.tags||[]).includes(tg);
       const c=bt('tagchip',tg,()=>{toggleTagFilter(tg);render();});
       c.style.cssText+=';cursor:pointer'+(on?';outline:2px solid var(--ac)':';opacity:.55');
       tagBar.appendChild(c);
     });
-    if((STATE.tagFilters||[]).length)tagBar.appendChild(bt('btn-icon xs','✕ '+t('rem-filter-clear'),()=>{STATE.tagFilters=[];render();}));
+    if((STATE.view.tags||[]).length)tagBar.appendChild(bt('btn-icon xs','✕ '+t('rem-filter-clear'),()=>{STATE.view.tags=[];saveView();commitAndRefresh();}));
   }
   const open=list.filter(r=>!r.done&&r.completedOn!==tk);
   /* A subtask is drawn under its own parent, always — a column is chosen by the
@@ -2482,7 +2551,7 @@ function renderPlanner(){
     // and sensitivity:'base' so accents and case do not split the order.
     'alpha':(a,b)=>(a.title||'').localeCompare(b.title||'',undefined,{numeric:true,sensitivity:'base'}),
   }[V.sort]||((a,b)=>a.due.localeCompare(b.due));
-  const F=STATE.tagFilters||[];
+  const F=STATE.view.tags||[];
   const passes=r=>(V.scope==='all'||r.due<=tk)&&
                   (!F.length||tagsOf(r).some(tg=>F.includes(tg)));
   const openKids=p=>subtasksOf(p.id).filter(c=>!c.done&&c.completedOn!==tk);
@@ -2544,7 +2613,7 @@ function renderPlanner(){
 
   // Same rule for what was finished today: the tag filter applies per row here
   // too. Scope is not applied — anything ticked today belongs to today.
-  const tagOk=r=>!(STATE.tagFilters||[]).length||tagsOf(r).some(tg=>STATE.tagFilters.includes(tg));
+  const tagOk=r=>!(STATE.view.tags||[]).length||tagsOf(r).some(tg=>(STATE.view.tags||[]).includes(tg));
   // Same rule here: a subtask ticked today shows up even when its parent is
   // not done, standing on its own row instead of going missing.
   const doneAll=list.filter(r=>r.completedOn===tk&&tagOk(r));
@@ -2582,8 +2651,8 @@ function renderPlanner(){
      individually recorded. */
   const ARCHIVE_MAX=LOG_MAX;
   const past=completionLog()
-    .filter(x=>x.date!==tk&&(!(STATE.tagFilters||[]).length||
-      normTags(x.tags).some(tg=>STATE.tagFilters.includes(tg))))
+    .filter(x=>x.date!==tk&&(!(STATE.view.tags||[]).length||
+      normTags(x.tags).some(tg=>(STATE.view.tags||[]).includes(tg))))
     .sort((a,b)=>b.date.localeCompare(a.date));
   if(past.length){
     const card=dv('card mt12');
@@ -2628,6 +2697,43 @@ function renderPlanner(){
       card.appendChild(box);
       if(past.length>ARCHIVE_MAX)card.appendChild(dv('xs dimmer ctr mt8',
         t('rem-past-more').replace('{n}',ARCHIVE_MAX)));
+    }
+    wrap.appendChild(card);
+  }
+
+  /* The bin. Below the archive, closed, and it holds whole families: a parent
+     restored brings back everything that went with it. */
+  const bin=deletedBin();
+  if(bin.length){
+    const card=dv('card mt12');
+    const h=dv('rowb mb10');
+    const bleft=dv('row gap8');
+    const openBin=!!V.openBin;
+    bleft.style.cssText='cursor:pointer;user-select:none;flex:1';
+    bleft.onclick=()=>{V.openBin=!openBin;saveView();render();};
+    bleft.appendChild(sp('sm dimmer',openBin?'▼':'▶'));
+    bleft.appendChild(sp('ctit dim',t('rem-bin-h')));
+    h.appendChild(bleft);
+    h.appendChild(sp('xs dimmer',String(bin.length)));
+    card.appendChild(h);
+    if(openBin){
+      const box=dv('s6');
+      bin.forEach(x=>{
+        const row=dv('row gap8');
+        row.style.cssText='background:var(--sur2);border:1px solid var(--b1);border-radius:8px;padding:7px 10px;align-items:flex-start';
+        const mid=dv('f1');
+        const tt=sp('sm',x.title);tt.style.color='var(--t3)';mid.appendChild(tt);
+        const kids=x.items.length-1;
+        const when=new Date(x.at).toLocaleDateString(STATE.lang==='es'?'es-MX':'en-US',{timeZone:appTZ(),month:'short',day:'numeric'});
+        mid.appendChild(dv('xs dimmer mt2',[when,kids>0?`+${kids} ${t('rem-bin-kids')}`:''].filter(Boolean).join(' · ')));
+        row.appendChild(mid);
+        const undo=bt('btn-icon','↺',()=>{restoreDeleted(x.binId);render();});
+        undo.title=t('rem-bin-undo');
+        row.appendChild(undo);
+        box.appendChild(row);
+      });
+      card.appendChild(box);
+      card.appendChild(dv('xs dimmer ctr mt8',t('rem-bin-note').replace('{n}',BIN_MAX)));
     }
     wrap.appendChild(card);
   }
@@ -2959,6 +3065,10 @@ function renderReminderEditor(r){
 
 function renderReminderRow(r,tk,opts){
   opts=opts||{};
+  /* Where this row asks to be redrawn. On the list that is the whole page;
+     inside the one-task overlay it is only the overlay, which otherwise tore
+     itself down and built itself again on every tick. */
+  const rd=opts.redraw||render;
   const doneToday=r.completedOn===tk;
   const late=!doneToday&&r.due<tk;
   const kids=opts.kids||0;
@@ -2981,20 +3091,20 @@ function renderReminderRow(r,tk,opts){
     if(!id||id===r.id||r.parent)return;
     const res=updateReminder(id,{parent:r.id});
     if(!res.ok)alert(res.warn==='sub-has-kids'?t('rem-has-kids'):t('rem-bad-parent'));
-    render();
+    rd();
   };
   row.addEventListener('dragstart',()=>{STATE._dragId=r.id;});
 
   // Collapse arrow — only where there is something to hide.
   if(kids){
-    const ar=bt('btn-icon',isCollapsed(r.id)?'▶':'▼',()=>{toggleCollapse(r.id);render();});
+    const ar=bt('btn-icon',isCollapsed(r.id)?'▶':'▼',()=>{toggleCollapse(r.id);rd();});
     ar.style.cssText='padding:2px 4px;font-size:11px;color:var(--t3)';
     ar.title=isCollapsed(r.id)?t('rem-expand'):t('rem-collapse');
     row.appendChild(ar);
   }
 
   const cb=ip('checkbox','');cb.checked=doneToday;cb.style.marginTop='3px';
-  cb.onchange=()=>{toggleReminder(r.id);render();};
+  cb.onchange=()=>{toggleReminder(r.id);rd();};
   row.appendChild(cb);
 
   const mid=dv('f1');
@@ -3007,7 +3117,10 @@ function renderReminderRow(r,tk,opts){
   if(!r.parent&&subtasksOf(r.id).length){
     tt.style.cursor='pointer';
     tt.title=t('rem-open-tree');
-    tt.onclick=e=>{e.stopPropagation();STATE.taskTree=r.id;render();};
+    // Opened fresh every time. An editor left open inside it used to still be
+    // open when it was next opened, which reads as a task already being changed
+    // — and a ✕ pressed in that state is a task deleted by surprise.
+    tt.onclick=e=>{e.stopPropagation();STATE.editingRem=null;STATE.taskTree=r.id;render();};
   }
   titleLine.appendChild(tt);
   if(r.flagged)titleLine.appendChild(sp('sm','🏁'));
@@ -3016,7 +3129,7 @@ function renderReminderRow(r,tk,opts){
 
   tagsOf(r).forEach(tg=>{
     // Clicking a tag filters the board to it — the grouped view, one tap away.
-    const c=bt('tagchip',tg,e=>{e.stopPropagation();toggleTagFilter(tg);render();});
+    const c=bt('tagchip',tg,e=>{e.stopPropagation();toggleTagFilter(tg);rd();});
     c.style.cssText+=';margin-left:2px;cursor:pointer';
     titleLine.appendChild(c);
   });
@@ -3045,7 +3158,7 @@ function renderReminderRow(r,tk,opts){
   if(!r.parent&&!doneToday){
     const addSub=bt('btn-icon xs','＋ '+t('rem-subtask'),()=>{
       const title=prompt(t('rem-subtask-ask').replace('{t}',r.title));
-      if(title&&title.trim()){addReminder({title:title.trim(),parent:r.id,tag:r.tag});render();}
+      if(title&&title.trim()){addReminder({title:title.trim(),parent:r.id,tag:r.tag});rd();}
     });
     addSub.style.cssText='padding:2px 0;font-size:11px;color:var(--t3)';
     mid.appendChild(addSub);
@@ -3056,24 +3169,24 @@ function renderReminderRow(r,tk,opts){
   // Indent under the row above / lift back out — the touch-friendly twin of
   // dragging, and the reason no dropdown of every task is needed.
   if(r.parent){
-    const out_=bt('btn-icon','⤴',()=>{outdentReminder(r.id);render();});
+    const out_=bt('btn-icon','⤴',()=>{outdentReminder(r.id);rd();});
     out_.title=t('rem-outdent');tools.appendChild(out_);
   }else if(opts.prevTop&&!kids){
     const in_=bt('btn-icon','⤵',()=>{
       const res=indentReminder(r.id,opts.prevTop);
       if(!res.ok&&res.warn==='sub-has-kids')alert(t('rem-has-kids'));
-      render();
+      rd();
     });
     in_.title=t('rem-indent');tools.appendChild(in_);
   }
-  const ed=bt('btn-icon','✏️',()=>{STATE.editingRem=STATE.editingRem===r.id?null:r.id;render();});
+  const ed=bt('btn-icon','✏️',()=>{STATE.editingRem=STATE.editingRem===r.id?null:r.id;rd();});
   ed.title=t('rem-edit');
   tools.appendChild(ed);
   tools.appendChild(bt('btn-icon','✕',()=>{
     const kids=r.parent?0:subtasksOf(r.id).length;
     const msg=kids?t('rem-del-warn-kids').replace('{t}',r.title).replace('{n}',kids)
                   :t('rem-del-warn').replace('{t}',r.title);
-    if(confirm(msg)){deleteReminder(r.id);render();}
+    if(confirm(msg)){deleteReminder(r.id);rd();}
   }));
   row.appendChild(tools);
 
@@ -3100,22 +3213,32 @@ function render(){
    page, gone in a few seconds, once ever. The names climb the stoic virtues,
    which is more the point of the app than "achievement unlocked" would be.
    ═══════════════════════════════════════════════════════════════════════ */
+/* The medals themselves. What earns one is any positive streak reaching the
+   number; which streak it was is written on the medal, not stamped into it —
+   a hundred days is a hundred days, whether they were mornings or clean ones.
+   Seven of them, climbing the stoic virtues, and 200 is nowhere near the end. */
 const MILESTONES=[
-  {n:10,word:'constancy'},{n:20,word:'discipline'},{n:50,word:'temperance'},
-  {n:100,word:'fortitude'},{n:200,word:'virtue'},{n:500,word:'wisdom'},{n:1000,word:'ataraxia'}
+  {n:10,  icon:'🔥',  word:'constancy', hue:'#f97316'},
+  {n:20,  icon:'⚡',  word:'discipline',hue:'#f5c842'},
+  {n:50,  icon:'🌊',  word:'temperance',hue:'#34d399'},
+  {n:100, icon:'🗡️', word:'fortitude', hue:'#5b9df9'},
+  {n:200, icon:'🏛️', word:'virtue',    hue:'#a78bfa'},
+  {n:500, icon:'🦉',  word:'wisdom',    hue:'#d4a017'},
+  {n:1000,icon:'🌌',  word:'ataraxia',  hue:'#e879f9'}
 ];
 /* Only what you keep up earns one. The rewards have streaks of their own and
    they are the opposite of an achievement, so nothing is ever awarded for a
-   run of them. */
+   run of them. These say what a medal was won for, and nothing more. */
 const MEDAL_KINDS=[
-  {k:'day',    icon:'🔥',  name:'md-day',    hue:'#f97316', ok:d=>d.status&&d.status!=='red'},
-  {k:'morning',icon:'🌅',  name:'md-morning',hue:'#f5c842', ok:d=>d.morning},
-  {k:'flags',  icon:'🏁',  name:'md-flags',  hue:'#d4a017', ok:d=>d.flags},
-  {k:'work',   icon:'💼',  name:'md-work',   hue:'#5b9df9', ok:d=>d.work>0},
-  {k:'cleand', icon:'🧘',  name:'md-cleand', hue:'#34d399', ok:d=>!d.drugs},
-  {k:'cleanp', icon:'🎯',  name:'md-cleanp', hue:'#a78bfa', ok:d=>!d.proc},
-  {k:'cleano', icon:'🛡️', name:'md-cleano', hue:'#e879f9', ok:d=>!d.org}
+  {k:'day',    name:'md-day',    ok:d=>d.status&&d.status!=='red'},
+  {k:'morning',name:'md-morning',ok:d=>d.morning},
+  {k:'flags',  name:'md-flags',  ok:d=>d.flags},
+  {k:'work',   name:'md-work',   ok:d=>d.work>0},
+  {k:'cleand', name:'md-cleand', ok:d=>!d.drugs},
+  {k:'cleanp', name:'md-cleanp', ok:d=>!d.proc},
+  {k:'cleano', name:'md-cleano', ok:d=>!d.org}
 ];
+function tierOf(n){return MILESTONES.find(x=>x.n===n)||MILESTONES[0];}
 /* One day reduced to the handful of yes-or-no answers a streak is built from,
    read the same way whether the day is closed or still being lived. */
 function dayFacts(entry,isToday){
@@ -3174,16 +3297,16 @@ function checkMilestone(){
   showMilestone(best);
 }
 function showMilestone(m){
-  const tier=MILESTONES.find(x=>x.n===m.n)||MILESTONES[0];
+  const tier=tierOf(m.n);
   const ov=dv('ms-ov');
   const card=dv('ms-card');
-  card.style.setProperty('--ms',m.kind.hue);
-  card.innerHTML=`<div class="ms-ico">${m.kind.icon}</div>`+
+  card.style.setProperty('--ms',tier.hue);
+  card.innerHTML=`<div class="ms-ico">${tier.icon}</div>`+
     `<div class="ms-n">${m.n}</div>`+
-    `<div class="ms-w">${t(m.kind.name)}</div>`+
-    `<div class="ms-sub">${t('ms-sub')} · ${t('ms-'+tier.word)}</div>`;
+    `<div class="ms-w">${t('ms-'+tier.word)}</div>`+
+    `<div class="ms-sub">${t(m.kind.name)} · ${t('ms-sub')}</div>`;
   for(let i=0;i<16;i++){
-    const s=dv('ms-spark',m.kind.icon);
+    const s=dv('ms-spark',tier.icon);
     const a=(Math.PI*2*i)/16+Math.random()*.4, r=120+Math.random()*160;
     s.style.setProperty('--dx',Math.cos(a)*r+'px');
     s.style.setProperty('--dy',Math.sin(a)*r+'px');
@@ -3416,6 +3539,7 @@ function renderApp(){
   if(STATE.showRules)wrap.appendChild(renderRulesModal());
   if(STATE.showTZ)wrap.appendChild(renderTZModal());
   if(STATE.taskTree)wrap.appendChild(renderTaskTreeModal(STATE.taskTree));
+  if(STATE.restoreList)wrap.appendChild(renderRestoreModal());
 
   /* ── TABS ── */
   const st=plannerTodayStats();
@@ -3507,24 +3631,13 @@ function renderApp(){
   });
   backupRow.appendChild(backupNowBtn);
 
+  // Pick a day off a list rather than typing its date at a prompt.
   const restoreBtn=bt('btn-ghost btn-sm',t('restore-from'),async()=>{
     restoreBtn.disabled=true;restoreBtn.textContent='...';
     const list=await SB.listBackups();
     restoreBtn.disabled=false;restoreBtn.textContent=t('restore-from');
     if(!list.length){alert(t('backup-empty'));return;}
-    const opts=list.map(b=>`${b.backup_date} (${new Date(b.created_at).toLocaleDateString()})`).join('\n');
-    const choice=prompt(`${t('restore-from')}:\n${opts}\n\nType the date (YYYY-MM-DD):`);
-    if(!choice) return;
-    const bk=await SB.restoreBackup(choice.trim());
-    if(!bk){alert('Not found');return;}
-    if(bk.history) STATE.history=bk.history;
-    if(bk.today) STATE.today=bk.today;
-    if(bk.diary) STATE.diary=bk.diary;
-    if(bk.streak_overrides) STATE.streakOverrides=bk.streak_overrides;
-    S.set(K.HIST,STATE.history);S.set(K.TODAY,STATE.today);
-    S.set(K.DIARY,STATE.diary);S.set(K.STREAK_OVR,STATE.streakOverrides);
-    SB.push(STATE.history,STATE.today,STATE.diary,STATE.streakOverrides).catch(()=>{});
-    alert(t('backup-restored'));refresh();
+    STATE.restoreList=list;render();
   });
   backupRow.appendChild(restoreBtn);
   bottomWrap.appendChild(backupRow);
@@ -3987,8 +4100,10 @@ function renderCalendar(onPick){
          says what the day was; this says what the day finished. */
       const won=medals.get(key);
       if(won&&won.length){
-        const mk=sp('cal-medal',won.length>1?'🎖️':won[0].kind.icon);
-        mk.title=won.map(x=>`${t(x.kind.name)} · ${x.n}`).join('\n');
+        // The highest one wears the day; the rest are named in the tooltip.
+        const top=won.reduce((a,b)=>b.n>a.n?b:a);
+        const mk=sp('cal-medal',tierOf(top.n).icon);
+        mk.title=won.map(x=>`${t('ms-'+tierOf(x.n).word)} ${x.n} — ${t(x.kind.name)}`).join('\n');
         cell.appendChild(mk);
       }
       const num=sp('cal-num',String(d));num.style.color=bg.txt;cell.appendChild(num);
@@ -4073,8 +4188,9 @@ function renderDayPanel(){
     if(!isToday&&entry?._gap)wrap.appendChild(dv('xs ng mt4',t('day-not-logged')));
     // What this day earned, spelled out — the calendar only has room for a mark.
     const won=medalsByDate().get(key)||[];
-    won.forEach(w=>wrap.appendChild(dv('xs mt4',
-      `<span class="w7" style="color:${w.kind.hue}">${w.kind.icon} ${t(w.kind.name)} · ${w.n}</span>`)));
+    won.forEach(w=>{const ti=tierOf(w.n);wrap.appendChild(dv('xs mt4',
+      `<span class="w7" style="color:${ti.hue}">${ti.icon} ${t('ms-'+ti.word)} ${w.n}</span>`+
+      `<span class="dimmer"> — ${t(w.kind.name)}</span>`));});
   } else {
     wrap.appendChild(dv('xs dimmer',t('no-data')));
   }
@@ -4360,23 +4476,33 @@ function renderStats(total,sc){
   mh.appendChild(sp('xs dimmer up ls',t('medals-title')));
   mh.appendChild(sp('md mo w7 ac',String(allMedals.length)));
   mbox.appendChild(mh);
-  if(!allMedals.length){
-    mbox.appendChild(dv('xs dimmer',t('medals-none')));
-  }else{
-    const mg=dv('row gap6');mg.style.flexWrap='wrap';
-    MEDAL_KINDS.forEach(k=>{
-      const mine=allMedals.filter(m=>m.kind.k===k.k).sort((a,b)=>b.n-a.n);
-      if(!mine.length)return;
-      const chip=dv('row gap4');
-      chip.style.cssText=`background:var(--sur2);border:1px solid ${k.hue}55;border-radius:8px;padding:4px 8px;align-items:baseline`;
-      chip.title=t(k.name)+'\n'+mine.map(m=>m.n+' — '+m.date).join('\n');
-      chip.appendChild(sp('sm',k.icon));
-      chip.appendChild(sp('xs mo w7',String(mine[0].n)));
-      if(mine.length>1)chip.appendChild(sp('xs dimmer','×'+mine.length));
-      mg.appendChild(chip);
-    });
-    mbox.appendChild(mg);
-  }
+  /* All seven, always on the shelf. The ones not yet won stand in silhouette,
+     so what is still ahead is as plain as what is behind — and 200 is visibly
+     not the end of it. */
+  const mg=dv('row gap8');mg.style.cssText='flex-wrap:wrap;justify-content:center';
+  MILESTONES.forEach(ti=>{
+    const won=allMedals.filter(m=>m.n===ti.n).sort((a,b)=>a.date.localeCompare(b.date));
+    const slot=dv('ctr');
+    slot.style.cssText='width:76px;padding:6px 2px;border-radius:10px;'+
+      (won.length?`background:${ti.hue}14;border:1px solid ${ti.hue}55`:'border:1px dashed var(--b2)');
+    const ico=dv('',ti.icon);
+    ico.style.cssText='font-size:26px;line-height:1.1'+
+      (won.length?`;filter:drop-shadow(0 0 10px ${ti.hue}88)`:';filter:grayscale(1) brightness(.45);opacity:.4');
+    slot.appendChild(ico);
+    const n=dv('xs mo w7',String(ti.n));
+    n.style.color=won.length?ti.hue:'var(--t3)';
+    slot.appendChild(n);
+    const w=dv('xs',t('ms-'+ti.word));
+    w.style.cssText='font-size:9px;letter-spacing:.04em;'+(won.length?'color:var(--t2)':'color:var(--t3);opacity:.5');
+    slot.appendChild(w);
+    if(won.length>1)slot.appendChild(dv('xs dimmer','×'+won.length));
+    slot.title=won.length
+      ? won.map(m=>`${t(m.kind.name)} — ${m.date}`).join('\n')
+      : t('medals-locked');
+    mg.appendChild(slot);
+  });
+  mbox.appendChild(mg);
+  if(!allMedals.length)mbox.appendChild(dv('xs dimmer ctr mt8',t('medals-none')));
   body.appendChild(mbox);
 
   // ── 9. Insight ────────────────────────────────────────────────────────────
@@ -4602,39 +4728,94 @@ function renderRules(onClose){
 
 
 
+/* ═══ RESTORE A DAY — pick it off the list ═══ */
+function renderRestoreModal(){
+  const close=()=>{STATE.restoreList=null;render();};
+  const ov=dv('fi');
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:60;'+
+    'display:flex;align-items:flex-start;justify-content:center;padding:20px;overflow:auto';
+  ov.onclick=e=>{if(e.target===ov)close();};
+  const panel=dv('card');
+  panel.style.cssText='max-width:420px;width:100%;margin:auto';
+  const hd=dv('rowb mb4');
+  hd.appendChild(sp('ctit',t('restore-from')));
+  hd.appendChild(bt('btn-icon','✕',close));
+  panel.appendChild(hd);
+  panel.appendChild(dv('xs dimmer mb10',t('restore-help')));
+  const box=dv('s6');box.style.cssText='max-height:320px;overflow:auto';
+  (STATE.restoreList||[]).forEach(b=>{
+    // One date, written out. It used to print the same day twice, in two
+    // different formats, side by side.
+    const label=capFirst(new Date(b.backup_date+'T12:00:00')
+      .toLocaleDateString(STATE.lang==='es'?'es-MX':'en-US',{weekday:'short',day:'numeric',month:'long',year:'numeric'}));
+    const row=bt('btn-ghost btn-sm',label,async()=>{
+      if(!confirm(t('restore-warn').replace('{d}',label)))return;
+      const bk=await SB.restoreBackup(b.backup_date);
+      if(!bk){alert(t('backup-none'));return;}
+      if(bk.history) STATE.history=bk.history;
+      if(bk.today) STATE.today=bk.today;
+      if(bk.diary) STATE.diary=bk.diary;
+      if(bk.streak_overrides) STATE.streakOverrides=bk.streak_overrides;
+      // The task list rides in backups now, so a restore brings it back too.
+      if(bk.planner&&typeof bk.planner==='object'){
+        const{pomo:_p,...rest}=bk.planner;
+        STATE.planner={reminders:[],...rest};
+        S.set(K.PLANNER,STATE.planner);
+      }
+      S.set(K.HIST,STATE.history);S.set(K.TODAY,STATE.today);
+      S.set(K.DIARY,STATE.diary);S.set(K.STREAK_OVR,STATE.streakOverrides);
+      SB.push(STATE.history,STATE.today,STATE.diary,STATE.streakOverrides,{force:true}).catch(()=>{});
+      STATE.restoreList=null;
+      alert(t('backup-restored'));refresh();
+    });
+    row.style.cssText+=';width:100%;text-align:left';
+    box.appendChild(row);
+  });
+  panel.appendChild(box);
+  ov.appendChild(panel);
+  return ov;
+}
+
 /* ═══ ONE TASK AND ITS OWN — opened from a parent's title ═══
    The same rows the list draws, so everything works here exactly as it does
    there: ticking, editing, adding another subtask. Only the surroundings are
    gone. Subtasks already finished today are shown too — a family reads wrong
    with half of it missing. */
 function renderTaskTreeModal(id){
-  const r=reminders().find(x=>x.id===id);
-  if(!r){STATE.taskTree=null;return dv('');}
-  const close=()=>{STATE.taskTree=null;render();};
+  if(!reminders().some(x=>x.id===id)){STATE.taskTree=null;return dv('');}
+  // Closing redraws the page, which has been standing still behind the
+  // overlay while its own rows were being ticked and edited.
+  const close=()=>{STATE.taskTree=null;STATE.editingRem=null;render();};
   const ov=dv('fi');
   ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:60;'+
     'display:flex;align-items:flex-start;justify-content:center;padding:20px;overflow:auto';
   ov.onclick=e=>{if(e.target===ov)close();};
   const panel=dv('card');
   panel.style.cssText='max-width:640px;width:100%;margin:auto';
-  const tk=todayKey();
-  const kids=subtasksOf(r.id).sort((a,b)=>a.due.localeCompare(b.due));
-  const doneN=kids.filter(k=>k.done||k.completedOn===tk).length;
-  const hd=dv('rowb mb12');
-  const lft=dv('row gap6');
-  lft.appendChild(sp('ctit',t('rem-open-tree')));
-  if(kids.length)lft.appendChild(sp('sm mo dim',`${doneN}/${kids.length}`));
-  hd.appendChild(lft);hd.appendChild(bt('btn-icon','✕',close));
-  panel.appendChild(hd);
-  const box=dv('s6');
-  box.appendChild(renderReminderRow(r,tk,{prevTop:null,kids:kids.length}));
-  kids.forEach(c=>{
-    const w=dv('rem-sub');
-    w.appendChild(renderReminderRow(c,tk,{prevTop:r.id}));
-    box.appendChild(w);
-  });
-  panel.appendChild(box);
   ov.appendChild(panel);
+  const draw=()=>{
+    panel.innerHTML='';
+    const r=reminders().find(x=>x.id===id);
+    if(!r){close();return;}
+    const tk=todayKey();
+    const kids=subtasksOf(r.id).sort((a,b)=>a.due.localeCompare(b.due));
+    const doneN=kids.filter(k=>k.done||k.completedOn===tk).length;
+    const hd=dv('rowb mb12');
+    const lft=dv('row gap6');
+    lft.appendChild(sp('ctit',t('rem-open-tree')));
+    if(kids.length)lft.appendChild(sp('sm mo dim',`${doneN}/${kids.length}`));
+    hd.appendChild(lft);hd.appendChild(bt('btn-icon','✕',close));
+    panel.appendChild(hd);
+    const box=dv('s6');
+    box.appendChild(renderReminderRow(r,tk,{prevTop:null,kids:kids.length,redraw:draw}));
+    kids.forEach(c=>{
+      const w=dv('rem-sub');
+      w.appendChild(renderReminderRow(c,tk,{prevTop:r.id,redraw:draw}));
+      box.appendChild(w);
+    });
+    panel.appendChild(box);
+  };
+  draw();
   return ov;
 }
 
@@ -4978,9 +5159,12 @@ document.addEventListener('keydown',e=>{
   if(e.key!=='Escape')return;
   const ms=document.querySelector('.ms-ov');
   if(ms){ms.click();return;}
-  const open=['taskTree','histDay','showTZ','showRules','showSyncPanel','showGoals'].find(k=>STATE[k]);
+  const open=['restoreList','taskTree','histDay','showTZ','showRules','showSyncPanel','showGoals'].find(k=>STATE[k]);
   if(!open)return;
-  STATE[open]=(open==='histDay'||open==='taskTree')?null:false;
+  STATE[open]=(open==='showTZ'||open==='showRules'||open==='showSyncPanel'||open==='showGoals')?false:null;
+  // An editor opened inside the one-task overlay leaves with it, rather than
+  // being left open on the list underneath.
+  if(open==='taskTree')STATE.editingRem=null;
   render();
 });
 
