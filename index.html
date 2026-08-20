@@ -660,6 +660,10 @@ en:{
   'sel-mode':'Select several','sel-count':'selected','sel-one':'selected','sel-all':'All',
   'sel-date':'Move them to this date','sel-prio':'Priority…','sel-flag':'Flag','sel-unflag':'Unflag','sel-del':'Delete',
   'sel-del-warn':'Delete {n} tasks? They go to the bin and can be put back.',
+  'sel-morning':'Morning','sel-unmorning':'Not morning','sel-done':'Complete','sel-undo':'Undo',
+  'sel-nest':'Nest under…','sel-nest-ask':'Nest them under which task? Type a few letters of its name:',
+  'sel-nest-none':'No task found matching {q}.','sel-nest-some':'{n} could not be nested: a task with subtasks of its own cannot become one.',
+  'rem-morning':'Morning routine',
   'rem-bin-h':'Deleted','rem-bin-kids':'subtasks','rem-bin-undo':'Put it back',
   'rem-bin-note':'The last {n} deleted are kept here.',
   'restore-help':'Pick a day. What it holds replaces what is here now.',
@@ -817,6 +821,10 @@ es:{
   'sel-mode':'Seleccionar varias','sel-count':'seleccionadas','sel-one':'seleccionada','sel-all':'Todas',
   'sel-date':'Moverlas a esta fecha','sel-prio':'Prioridad…','sel-flag':'Poner bandera','sel-unflag':'Quitar bandera','sel-del':'Eliminar',
   'sel-del-warn':'¿Eliminar {n} tareas? Se van a la papelera y se pueden devolver.',
+  'sel-morning':'Rutina','sel-unmorning':'Quitar rutina','sel-done':'Completar','sel-undo':'Deshacer',
+  'sel-nest':'Anidar en…','sel-nest-ask':'¿Dentro de qué tarea? Escribe unas letras de su nombre:',
+  'sel-nest-none':'No encontré ninguna tarea que coincida con {q}.','sel-nest-some':'{n} no se pudieron anidar: una tarea que ya tiene subtareas no puede volverse una.',
+  'rem-morning':'Rutina matutina',
   'rem-bin-h':'Eliminadas','rem-bin-kids':'subtareas','rem-bin-undo':'Devolver a la lista',
   'rem-bin-note':'Aquí se guardan las últimas {n} eliminadas.',
   'restore-help':'Elige un día. Lo que tenga reemplaza lo que hay ahora.',
@@ -1207,6 +1215,7 @@ let STATE={
   restoreList: null,
   selecting: false,
   selected: [],
+  bulkUndo: null,
   tzQuery: '',
   tz: localStorage.getItem('st_tz')||'America/Cancun',
   /* The calendar and the panel beside it are two halves of one thing: the day
@@ -1560,6 +1569,14 @@ function sbadge(status){const lb={red:t('Red'),yellow:t('Yellow'),green:t('Green
    decision, not a claim about this list.
    ═══════════════════════════════════════════════════════════════════════ */
 function isoDate(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+/* A date with the year left off, written the way the language writes it:
+   month first in English, day first in Spanish. 08/19 and 19/08 are the same
+   Tuesday, and only one of them reads as a date to the person looking. */
+function fmtShort(dateStr){
+  if(!dateStr)return'';
+  const[,m,d]=dateStr.split('-');
+  return STATE.lang==='es'?`${d}/${m}`:`${m}/${d}`;
+}
 
 function saveView(){S.set('st_view',STATE.view);STATE.today._view=STATE.view;}
 function savePlanner(){
@@ -1703,6 +1720,7 @@ function plannerTodayStats(){
      habit done ten times to 10/1 — more numerator than denominator, and a
      percentage over 100. Doing it once counts it as done; the tally on the
      row is where the repetitions are recorded. */
+  let mornTotal=0,mornDone=0;
   reminders().forEach(r=>{
     const n=doneCount(r,tk);                                  // times ticked today
     const openNow=(!r.done&&r.due&&r.due<=tk)?1:0;            // still pending
@@ -1716,11 +1734,16 @@ function plannerTodayStats(){
     if(finished)done+=1;
     if(openNow&&r.due<tk)overdue++;
     if(r.flagged){flagsTotal+=1;if(finished)flagsDone+=1;}
+    if(r.morning){mornTotal+=1;if(finished)mornDone+=1;}
   });
-  return{total,done,overdue,flagsTotal,flagsDone,
+  return{total,done,overdue,flagsTotal,flagsDone,mornTotal,mornDone,
     // A day with no flags at all is not an annihilated day — otherwise an
     // unplanned day would hand over 100 points times the streak for free.
-    annihilated:flagsTotal>0&&flagsDone===flagsTotal};
+    annihilated:flagsTotal>0&&flagsDone===flagsTotal,
+    /* Same rule for the morning: the routine is done when everything you
+       marked as part of it is done, and a day with none marked says nothing
+       either way — see syncPlannerToToday, which leaves the tick alone then. */
+    morningDone:mornTotal>0&&mornDone===mornTotal};
 }
 
 /* Subtasks are ordinary reminders that point at a parent, capped at two levels.
@@ -1823,7 +1846,7 @@ function logCompletion(r,tk){
   completionLog().unshift({
     logId:uid(),srcId:r.id,date:tk,
     title:r.title,notes:r.notes||'',tags:tagsOf(r).slice(),
-    priority:r.priority||0,flagged:!!r.flagged,
+    priority:r.priority||0,flagged:!!r.flagged,morning:!!r.morning,
     repeat:r.repeat?JSON.parse(JSON.stringify(r.repeat)):null,
     due:r.due,time:r.time||'',parent:r.parent||null
   });
@@ -1876,7 +1899,7 @@ function restoreFromLog(logId){
     reminders().unshift({
       id:entry.srcId||uid(),title:entry.title,notes:entry.notes||'',
       due:entry.due,time:entry.time||'',priority:entry.priority||0,
-      flagged:!!entry.flagged,tags:normTags(entry.tags),
+      flagged:!!entry.flagged,morning:!!entry.morning,tags:normTags(entry.tags),
       parent:reminders().some(x=>x.id===entry.parent)?entry.parent:null,
       repeat:entry.repeat||null,done:false,completedOn:null,
       created:CLOCK.now(),_ts:CLOCK.now()
@@ -1914,7 +1937,7 @@ function addReminder(data){
     // day as a convenience, never as a rule it cannot escape.
     due:data.due||(p?p.due:todayKey()),
     time:data.time||'',
-    priority:data.priority||0,flagged:!!data.flagged,
+    priority:data.priority||0,flagged:!!data.flagged,morning:!!data.morning,
     // A subtask starts in its parent's groups unless it is given its own.
     tags:normTags(data.tags&&data.tags.length?data.tags:(p?tagsOf(p):[])),
     parent:p?p.id:null,
@@ -2011,7 +2034,7 @@ function markManual(field){
 }
 function syncPlannerToToday(){
   const s=plannerTodayStats();
-  const before=JSON.stringify([STATE.today.target,STATE.today.completed,STATE.today.flagCompleted]);
+  const before=JSON.stringify([STATE.today.target,STATE.today.completed,STATE.today.flagCompleted,STATE.today.morningCompleted]);
 
   // TARGET — a manual 0 means "hand it back to the planner"
   let target=(manualHolds('target')&&STATE.today.target>0)?STATE.today.target:s.total;
@@ -2027,7 +2050,13 @@ function syncPlannerToToday(){
   // FLAGS — adding a new unfinished flagged reminder un-annihilates the day
   STATE.today.flagCompleted=manualHolds('flagCompleted')?!!STATE.today.flagCompleted:s.annihilated;
 
-  const changed=before!==JSON.stringify([STATE.today.target,STATE.today.completed,STATE.today.flagCompleted]);
+  /* MORNING — the same idea, driven by the tasks you marked as part of the
+     routine. Only when there are some: with none marked the planner has no
+     opinion, and imposing one would untick the box for everyone who has always
+     ticked it by hand. */
+  if(s.mornTotal>0&&!manualHolds('morningCompleted'))STATE.today.morningCompleted=s.morningDone;
+
+  const changed=before!==JSON.stringify([STATE.today.target,STATE.today.completed,STATE.today.flagCompleted,STATE.today.morningCompleted]);
   if(changed)S.set(K.TODAY,STATE.today);
   return changed;
 }
@@ -2461,7 +2490,12 @@ function renderPlanner(){
   const fi_=dv('f1');fi_.innerHTML=`<div class="tt">🏁 ${t('rem-flag')}</div>`;
   fl.appendChild(fc);fl.appendChild(fi_);
   fl.onclick=e=>{if(e.target!==fc)fc.checked=!fc.checked;fl.classList.toggle('on',fc.checked);};
-  row3.appendChild(fl);form.appendChild(row3);
+  const ml=dv('tog');ml.style.flex='1';ml.style.minWidth='140px';
+  const mcb=ip('checkbox','');mcb.checked=false;
+  const mi_=dv('f1');mi_.innerHTML=`<div class="tt">🌅 ${t('rem-morning')}</div>`;
+  ml.appendChild(mcb);ml.appendChild(mi_);
+  ml.onclick=e=>{if(e.target!==mcb)mcb.checked=!mcb.checked;ml.classList.toggle('on',mcb.checked);};
+  row3.appendChild(fl);row3.appendChild(ml);form.appendChild(row3);
   const wd=weekdayPicker([]);
   const md=monthdayPicker([]);
   wd.el.style.display='none';md.el.style.display='none';
@@ -2476,7 +2510,7 @@ function renderPlanner(){
     if(!title){err.textContent=t('rem-need-title');ti.focus();return;}
     err.textContent='';
     addReminder({title,notes:noi.value,due:di.value||todayKey(),time:hi.value,priority:parseInt(pi.value)||0,
-      flagged:fc.checked,tags:picker.get(),
+      flagged:fc.checked,morning:mcb.checked,tags:picker.get(),
       repeat:ri.value?{unit:ri.value,every:Math.max(1,parseInt(ni.value)||1),
         ...(ri.value==='week'&&wd.get().length?{days:wd.get()}:{}),
         ...(ri.value==='month'&&md.get().length?{doms:md.get()}:{}),
@@ -2909,7 +2943,7 @@ function buildGoals(redraw){
         const back=bt('btn-icon','‹',()=>shift(-1));
         const fwd=bt('btn-icon','›',()=>shift(1));
         [back,fwd].forEach(b=>{b.style.cssText='padding:0 5px;font-size:14px;line-height:1';b.title=t('goal-done-when');});
-        const lbl=sp('xs cg mo',g.doneOn.slice(5).replace('-','/'));
+        const lbl=sp('xs cg mo',fmtShort(g.doneOn));
         lbl.title=t('goal-done-when');
         back.disabled=g.doneOn<=floor;fwd.disabled=g.doneOn>=tk;
         [back,fwd].forEach(b=>{if(b.disabled)b.style.opacity='.25';});
@@ -3102,7 +3136,16 @@ function renderReminderEditor(r){
   const fw=dv('f1');fw.innerHTML=`<div class="tt">🏁 ${t('rem-flag')}</div>`;
   fl.appendChild(fc);fl.appendChild(fw);
   fl.onclick=e=>{if(e.target!==fc)fc.checked=!fc.checked;fl.classList.toggle('on',fc.checked);};
-  r4.appendChild(ri);r4.appendChild(ni);r4.appendChild(fl);box.appendChild(r4);
+  /* Part of the morning routine. Marked the same way a daily goal is marked,
+     because it answers the same kind of question — is this task one of a set
+     the day is scored on — and a tag could not: a tag is yours to invent and
+     Stoic cannot know which of them you meant. */
+  const ml=dv(`tog ${r.morning?'on':''}`);ml.style.flex='1';ml.style.minWidth='130px';
+  const mcb=ip('checkbox','');mcb.checked=!!r.morning;
+  const mw=dv('f1');mw.innerHTML=`<div class="tt">🌅 ${t('rem-morning')}</div>`;
+  ml.appendChild(mcb);ml.appendChild(mw);
+  ml.onclick=e=>{if(e.target!==mcb)mcb.checked=!mcb.checked;ml.classList.toggle('on',mcb.checked);};
+  r4.appendChild(ri);r4.appendChild(ni);r4.appendChild(fl);r4.appendChild(ml);box.appendChild(r4);
   const wd=weekdayPicker(r.repeat&&r.repeat.days||[]);
   const md=monthdayPicker(r.repeat&&r.repeat.doms||[]);
   wd.el.style.display=(r.repeat&&r.repeat.unit==='week')?'':'none';
@@ -3119,7 +3162,7 @@ function renderReminderEditor(r){
     if(!ti.value.trim()){err.textContent=t('rem-need-title');return;}
     const res=updateReminder(r.id,{
       title:ti.value.trim(),notes:no.value.replace(/\s+$/,''),tags:picker.get(),
-      due:di.value||r.due,time:hi.value,priority:parseInt(pi.value)||0,flagged:fc.checked,
+      due:di.value||r.due,time:hi.value,priority:parseInt(pi.value)||0,flagged:fc.checked,morning:mcb.checked,
       repeat:ri.value?{unit:ri.value,every:Math.max(1,parseInt(ni.value)||1),
         ...(ri.value==='week'&&wd.get().length?{days:wd.get()}:{}),
         ...(ri.value==='month'&&md.get().length?{doms:md.get()}:{}),
@@ -3173,12 +3216,13 @@ function renderCompactGrid(items,tk,redraw){
       top.appendChild(cb);
     }
     if(r.flagged)top.appendChild(sp('xs','🏁'));
+    if(r.morning)top.appendChild(sp('xs','🌅'));
     if(r.priority>0){const p=sp('xs w7',PRIO[r.priority][1]);p.style.color=prioColor(r.priority);top.appendChild(p);}
     const ttl=sp('sm rem-chip-t',r.title);
     if(doneToday){ttl.style.textDecoration='line-through';ttl.style.color='var(--t3)';}
     top.appendChild(ttl);
     cell.appendChild(top);
-    const meta=[r.due===tk?t('rem-today-h'):r.due.slice(5).replace('-','/')];
+    const meta=[r.due===tk?t('rem-today-h'):fmtShort(r.due)];
     if(kids)meta.push('↳'+kids);
     const m=dv('xs '+(late?'cr':'dimmer'));m.style.marginTop='3px';m.textContent=meta.join(' · ');
     cell.appendChild(m);
@@ -3196,8 +3240,36 @@ function toggleSelected(id){
 }
 /* Applied one by one through the ordinary edit, so a bulk change follows every
    rule a single change does — nothing here writes to a reminder directly. */
+/* `patch` may be a function of the reminder, for changes that depend on what
+   each one already holds — adding a tag rather than replacing the lot. */
 function bulkApply(patch,redraw){
-  (STATE.selected||[]).forEach(id=>updateReminder(id,patch));
+  (STATE.selected||[]).forEach(id=>{
+    const r=reminders().find(x=>x.id===id);
+    if(!r)return;
+    const p=typeof patch==='function'?patch(r):patch;
+    if(p)updateReminder(id,p);
+  });
+  (redraw||render)();
+}
+/* A selection means every one of them. Pressing ✏ or ✕ on one row of a
+   selection used to act on that row alone, which is the one thing selecting
+   them cannot have meant. */
+function inSelection(id){
+  return STATE.selecting&&isSelected(id)&&(STATE.selected||[]).length>1;
+}
+function bulkDelete(redraw){
+  const n=(STATE.selected||[]).length;
+  if(!confirm(t('sel-del-warn').replace('{n}',n)))return;
+  [...(STATE.selected||[])].forEach(id=>deleteReminder(id));
+  STATE.selected=[];(redraw||render)();
+}
+// Only the ones not yet ticked, so a mixed selection all ends up done rather
+// than half of it being undone.
+function bulkComplete(tk,redraw){
+  (STATE.selected||[]).forEach(id=>{
+    const r=reminders().find(x=>x.id===id);
+    if(r&&r.completedOn!==tk&&!r.done)toggleReminder(id);
+  });
   (redraw||render)();
 }
 function renderBulkBar(visibleIds,redraw){
@@ -3216,26 +3288,82 @@ function renderBulkBar(visibleIds,redraw){
 
   if(n){
     const di=ip('date','','','');di.style.cssText='flex:0 0 140px';di.title=t('sel-date');
-    di.onchange=()=>{if(di.value)bulkApply({due:di.value},rd);};
+    di.onchange=()=>{if(di.value){snapshot();bulkApply({due:di.value},rd);}};
     bar.appendChild(di);
 
     const pi=sk('',[['-1',t('sel-prio')],...PRIO.map(([v,l])=>[v,`${t('rem-prio')} ${l}`])],'-1');
     pi.style.cssText='flex:0 0 130px';
-    pi.onchange=()=>{if(pi.value!=='-1')bulkApply({priority:parseInt(pi.value)||0},rd);};
+    pi.onchange=()=>{if(pi.value!=='-1'){snapshot();bulkApply({priority:parseInt(pi.value)||0},rd);}};
     bar.appendChild(pi);
 
-    bar.appendChild(bt('btn-ghost btn-xs','🏁 '+t('sel-flag'),()=>bulkApply({flagged:true},rd)));
-    bar.appendChild(bt('btn-ghost btn-xs','⚐ '+t('sel-unflag'),()=>bulkApply({flagged:false},rd)));
+    /* One button that says what pressing it will do. Two — put a flag on, take
+       a flag off — asked you to work out which half of a mixed selection you
+       were looking at before either could be trusted. It puts them on while
+       any is missing one, and takes them all off once none is. */
+    const chosen=()=>(STATE.selected||[]).map(id=>reminders().find(x=>x.id===id)).filter(Boolean);
+    const toggleBtn=(key,onLbl,offLbl,onIco,offIco)=>{
+      const allOn=chosen().length&&chosen().every(r=>!!r[key]);
+      const b=bt('btn-ghost btn-xs',(allOn?offIco:onIco)+' '+(allOn?offLbl:onLbl),()=>{
+        snapshot();bulkApply({[key]:!allOn},rd);
+      });
+      return b;
+    };
+    bar.appendChild(toggleBtn('flagged',t('sel-flag'),t('sel-unflag'),'🏁','⚐'));
+    bar.appendChild(toggleBtn('morning',t('sel-morning'),t('sel-unmorning'),'🌅','🌙'));
+
+    /* Nest the lot under one task. Two levels is the cap, so anything that
+       already has subtasks of its own cannot go under another — those are
+       skipped and counted rather than silently dropped. */
+    const nest=bt('btn-ghost btn-xs','↳ '+t('sel-nest'),()=>{
+      const name=prompt(t('sel-nest-ask'));
+      if(!name)return;
+      const q=name.trim().toLowerCase();
+      const hit=reminders().find(x=>!x.parent&&!STATE.selected.includes(x.id)&&
+        (x.title||'').toLowerCase().includes(q));
+      if(!hit){alert(t('sel-nest-none').replace('{q}',name));return;}
+      snapshot();
+      let bad=0;
+      (STATE.selected||[]).forEach(id=>{
+        if(id===hit.id)return;
+        const res=updateReminder(id,{parent:hit.id});
+        if(!res.ok)bad++;
+      });
+      if(bad)alert(t('sel-nest-some').replace('{n}',bad));
+      rd();
+    });
+    bar.appendChild(nest);
+
+    bar.appendChild(bt('btn-ghost btn-xs','✓ '+t('sel-done'),()=>{snapshot();bulkComplete(todayKey(),rd);}));
 
     const del=bt('btn-ng btn-xs','✕ '+t('sel-del'),()=>{
       if(!confirm(t('sel-del-warn').replace('{n}',n)))return;
+      snapshot();
       // Each goes to the bin on its own, so any of them can be put back.
       [...(STATE.selected||[])].forEach(id=>deleteReminder(id));
       STATE.selected=[];rd();
     });
     bar.appendChild(del);
   }
+  /* One step back. A bulk change lands on many tasks at once, which is the
+     whole point of it and also why getting one wrong is expensive — so the
+     list as it stood a moment ago is kept, and one press puts it back. */
+  if(STATE.bulkUndo){
+    const undo=bt('btn-ac btn-xs','↺ '+t('sel-undo'),()=>{
+      STATE.planner.reminders=STATE.bulkUndo.reminders;
+      STATE.planner.bin=STATE.bulkUndo.bin;
+      STATE.bulkUndo=null;savePlanner();rd();
+    });
+    undo.style.marginLeft='auto';
+    bar.appendChild(undo);
+  }
   return bar;
+}
+// The list as it stands, kept whole, so one press can put it back.
+function snapshot(){
+  STATE.bulkUndo={
+    reminders:JSON.parse(JSON.stringify(reminders())),
+    bin:JSON.parse(JSON.stringify(deletedBin()))
+  };
 }
 
 function renderReminderRow(r,tk,opts){
@@ -3309,6 +3437,7 @@ function renderReminderRow(r,tk,opts){
   }
   titleLine.appendChild(tt);
   if(r.flagged)titleLine.appendChild(sp('sm','🏁'));
+  if(r.morning)titleLine.appendChild(sp('sm','🌅'));
   if(r.priority>0){const p=sp('sm w7',PRIO[r.priority][1]);p.style.color=prioColor(r.priority);titleLine.appendChild(p);}
   mid.appendChild(titleLine);
 
@@ -3930,7 +4059,9 @@ function renderTasksCard(sc,sk_){
   const mt=dv(`tog ${STATE.today.morningCompleted?'on':''} mb8`);
   const mc=ip('checkbox','');mc.checked=STATE.today.morningCompleted;mc.readOnly=true;
   const mi=dv('f1');mi.innerHTML=`<div class="tt">${t('morning-routine')}</div><div class="ts">+${25*Math.max(1,sk_.morningStreak)} ${t('streak-pts')}${sk_.morningStreak}d</div>`;
-  mt.appendChild(mc);mt.appendChild(mi);mt.onclick=()=>{STATE.today.morningCompleted=!STATE.today.morningCompleted;commitAndRefresh();};card.appendChild(mt);
+  // Stamped as yours, the way the flag beside it always has been — otherwise
+  // the planner takes the tick straight back off you.
+  mt.appendChild(mc);mt.appendChild(mi);mt.onclick=()=>{STATE.today.morningCompleted=!STATE.today.morningCompleted;markManual('morningCompleted');commitAndRefresh();};card.appendChild(mt);
   const ft=dv(`tog ${STATE.today.flagCompleted?'on':''}`);
   const fc=ip('checkbox','');fc.checked=STATE.today.flagCompleted;fc.readOnly=true;
   const fi_=dv('f1');fi_.innerHTML=`<div class="tt">${t('goals-ann')}</div><div class="ts">+100 ${t('pts-s')} × ${t('streak-lbl')} (${sk_.flagStreak}d)</div>`;
@@ -4523,13 +4654,13 @@ function renderStats(total,sc){
   // Most productive day EVER (highest workDuration)
   let bestWorkDay=null,bestWorkMin=0;
   sortedH.filter(d=>!d._gap).forEach(d=>{if((d.workDuration||0)>bestWorkMin){bestWorkMin=d.workDuration;bestWorkDay=d.date;}});
-  const prodEverStr=bestWorkDay?bestWorkDay.slice(5):'—'; // MM-DD
+  const prodEverStr=bestWorkDay?fmtShort(bestWorkDay):'—';
   const prodEverSub=bestWorkDay?fmtDur(bestWorkMin):(isEs?'Sin datos':'No data');
 
   // Horniest day EVER (most orgasms in one day)
   let bestOrgDay=null,bestOrgCount=0;
   sortedH.filter(d=>!d._gap).forEach(d=>{const c=d.penalties?.filter(p=>p.type==='macanazo').length||0;if(c>bestOrgCount){bestOrgCount=c;bestOrgDay=d.date;}});
-  const hornEverStr=bestOrgDay?bestOrgDay.slice(5):'—';
+  const hornEverStr=bestOrgDay?fmtShort(bestOrgDay):'—';
   const hornEverSub=bestOrgDay?(bestOrgCount+' '+(isEs?'orgasmo(s)':'orgasm(s)')):(isEs?'Sin datos':'No data');
 
   // Most productive & horniest day OF THE WEEK (by average)
@@ -4751,7 +4882,7 @@ function renderRules(onClose){
     <div class="md up ls ac w7 mb10">💰 Cómo ganas puntos</div>
     <div class="s6">
       <div><span class="ac w6">✅ Tareas</span> — +1 pt cada una.</div>
-      <div><span class="ac w6">🌅 Rutina Matutina</span> — márcala: +25 pts × tu racha.</div>
+      <div><span class="ac w6">🌅 Rutina Matutina</span> — márcala: +25 pts × tu racha. Si marcas tareas como <span class="ac w6">🌅 rutina matutina</span> en Plan, se palomea sola cuando las terminas todas.</div>
       <div><span class="ac w6">🏅 Metas Exterminadas alv</span> — tus 3 tareas más importantes: +100 pts × tu racha.</div>
       <div><span class="ac w6">🍅 Pomodoros</span> — +25 pts cada uno.</div>
       <div><span class="ac w6">💼 Trabajo</span> — +1 pt por minuto × tu racha de días trabajados.</div>
@@ -4846,7 +4977,7 @@ function renderRules(onClose){
     <div class="md up ls ac w7 mb10">💰 How you earn points</div>
     <div class="s6">
       <div><span class="ac w6">✅ Tasks</span> — +1 pt each.</div>
-      <div><span class="ac w6">🌅 Morning Routine</span> — check it off: +25 pts × your streak.</div>
+      <div><span class="ac w6">🌅 Morning Routine</span> — check it off: +25 pts × your streak. Mark tasks as <span class="ac w6">🌅 morning routine</span> in Plan and it ticks itself once they are all done.</div>
       <div><span class="ac w6">🏅 Goals Annihilated</span> — your key goals for the day: +100 pts × your streak.</div>
       <div><span class="ac w6">🍅 Pomodoros</span> — +25 pts each.</div>
       <div><span class="ac w6">💼 Work</span> — +1 pt per minute × your consecutive work-day streak.</div>
