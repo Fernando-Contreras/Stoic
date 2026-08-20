@@ -1560,6 +1560,9 @@ function bt(c,t,f){const b=el('button',c,t);b.onclick=f;return b}
 function ip(t,c,v,p){const i=document.createElement('input');i.type=t;i.className=c;i.value=v??'';if(p)i.placeholder=p;return i}
 function sk(c,opts,v){const s=document.createElement('select');s.className=c;opts.forEach(([ov,l])=>{const o=document.createElement('option');o.value=ov;o.textContent=l;if(ov===v)o.selected=true;s.appendChild(o);});return s}
 function sp(c,t){const s=el('span',c);if(t!==undefined)s.textContent=t;return s}
+/* For the few places that build a line with innerHTML and need to put your own
+   words inside it. A task called "<b>" is a task called "<b>", not bold. */
+function escapeHtml(s){return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 function hr(){const h=document.createElement('hr');h.className='dv';return h}
 function sbadge(status){const lb={red:t('Red'),yellow:t('Yellow'),green:t('Green'),purple:t('Purple')};return sp(`badge s-${status}`,lb[status]||status)}
 
@@ -3226,6 +3229,12 @@ function renderCompactGrid(items,tk,redraw){
     if(kids)meta.push('↳'+kids);
     const m=dv('xs '+(late?'cr':'dimmer'));m.style.marginTop='3px';m.textContent=meta.join(' · ');
     cell.appendChild(m);
+    // Standing on its own, a subtask says where it came from.
+    if(r.parent){
+      const par=reminders().find(x=>x.id===r.parent);
+      if(par){const pl=dv('xs cp');pl.style.cssText='margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
+        pl.textContent='↳ '+par.title;pl.title=par.title;cell.appendChild(pl);}
+    }
     g.appendChild(cell);
   });
   return g;
@@ -3300,12 +3309,18 @@ function renderBulkBar(visibleIds,redraw){
        a flag off — asked you to work out which half of a mixed selection you
        were looking at before either could be trusted. It puts them on while
        any is missing one, and takes them all off once none is. */
+    /* The mark itself is the button. What it will do is in the emoji — a flag
+       to add one, a struck flag to take them off — and spelled out on hover
+       for anyone who has not met it yet. A row of words for marks that already
+       have a picture reads as a wall of buttons. */
     const chosen=()=>(STATE.selected||[]).map(id=>reminders().find(x=>x.id===id)).filter(Boolean);
     const toggleBtn=(key,onLbl,offLbl,onIco,offIco)=>{
       const allOn=chosen().length&&chosen().every(r=>!!r[key]);
-      const b=bt('btn-ghost btn-xs',(allOn?offIco:onIco)+' '+(allOn?offLbl:onLbl),()=>{
+      const b=bt('btn-ghost btn-xs',allOn?offIco:onIco,()=>{
         snapshot();bulkApply({[key]:!allOn},rd);
       });
+      b.title=allOn?offLbl:onLbl;
+      b.style.fontSize='15px';
       return b;
     };
     bar.appendChild(toggleBtn('flagged',t('sel-flag'),t('sel-unflag'),'🏁','⚐'));
@@ -3333,7 +3348,9 @@ function renderBulkBar(visibleIds,redraw){
     });
     bar.appendChild(nest);
 
-    bar.appendChild(bt('btn-ghost btn-xs','✓ '+t('sel-done'),()=>{snapshot();bulkComplete(todayKey(),rd);}));
+    const doneBtn=bt('btn-ghost btn-xs','✅',()=>{snapshot();bulkComplete(todayKey(),rd);});
+    doneBtn.title=t('sel-done');doneBtn.style.fontSize='15px';
+    bar.appendChild(doneBtn);
 
     const del=bt('btn-ng btn-xs','✕ '+t('sel-del'),()=>{
       if(!confirm(t('sel-del-warn').replace('{n}',n)))return;
@@ -3466,6 +3483,13 @@ function renderReminderRow(r,tk,opts){
   const n=doneCount(r,tk);
   if(n>0&&r.repeat&&r.repeat.unit==='hour')meta.push(`<span class="cg w6">✓ ${n}× ${t('rem-today-h').toLowerCase()}</span>`);
   if(kids)meta.push(`<span class="cp">${kids} ${kids===1?t('rem-subtask'):t('rem-subtasks')}</span>`);
+  /* Which task it belongs to, said out loud. Nested under its parent it is
+     obvious; sorted flat, or alone in a window, a subtask gave no sign of
+     where it came from — and the arrow that lifts it out named no one. */
+  if(r.parent){
+    const par=reminders().find(x=>x.id===r.parent);
+    if(par)meta.push(`<span class="cp">↳ ${escapeHtml(par.title.slice(0,40))}</span>`);
+  }
   mid.appendChild(dv('xs dimmer mt2',meta.join(' · ')));
 
   // Two levels only, so a subtask cannot spawn its own.
@@ -3484,7 +3508,10 @@ function renderReminderRow(r,tk,opts){
   // dragging, and the reason no dropdown of every task is needed.
   if(r.parent){
     const out_=bt('btn-icon','⤴',()=>{outdentReminder(r.id);rd();});
-    out_.title=t('rem-outdent');tools.appendChild(out_);
+    // The arrow says what it lifts you out of, not just that it lifts.
+    const par=reminders().find(x=>x.id===r.parent);
+    out_.title=par?`${t('rem-outdent')} — ${t('rem-parent-is')} ${par.title}`:t('rem-outdent');
+    tools.appendChild(out_);
   }else if(opts.prevTop&&!kids){
     const in_=bt('btn-icon','⤵',()=>{
       const res=indentReminder(r.id,opts.prevTop);
