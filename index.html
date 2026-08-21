@@ -707,9 +707,9 @@ en:{
   'clean-proc':'No procrastination','clean-org':'No orgasms',
   'restore-from':'☁️ Restore backup','backup-empty':'No backups found.','backup-restored':'✅ Backup restored!',
   'backup-note':'Backup: one copy a day, you can restore the last 30. Data: a full copy you keep yourself; store it outside the project folder.',
-  'danger-zone':'Danger Zone','erase-warn':'This will erase all your data permanently.',
-  'reset-all-btn':'Reset All','del-warn':'⚠ Delete everything? This cannot be undone.',
-  'yes-delete':'Yes, delete','cancel':'Cancel',
+  'danger-zone':'Reset data','erase-warn':'Clears your score history, the day in progress, your notes and your streak overrides. Your task list, your goals and your cloud backups are left alone.',
+  'reset-all-btn':'Reset','del-warn':'⚠ Reset the score? Take a backup first if you might want it back — restore it from ☁️ Restore backup, just below.',
+  'yes-delete':'Yes, reset','cancel':'Cancel',
   'Red':'Red','Yellow':'Yellow','Green':'Green','Purple':'Purple','Today':'TODAY',
   'set-streaks-t':'⚡ Set Historical Streaks','clear-ovr':'Clear all overrides',
   'set-streaks-info':'Set your real streak counts here — useful if you were tracking manually before using this app.','set-streaks-note':'Leave blank to use the calculated value. Press Enter to save. Enter 0 to clear an override.',
@@ -870,9 +870,9 @@ es:{
   'clean-proc':'Sin procrastinación','clean-org':'Sin orgasmos',
   'restore-from':'☁️ Restaurar backup','backup-empty':'No hay backups.','backup-restored':'✅ Backup restaurado!',
   'backup-note':'Backup: una copia al día, puedes restaurar las últimas 30. Datos: copia completa que guardas tú; déjala fuera de la carpeta del proyecto.',
-  'danger-zone':'Zona de Peligro','erase-warn':'Esto borrará todos tus datos permanentemente.',
-  'reset-all-btn':'Borrar Todo','del-warn':'⚠ ¿Borrar todo? No se puede deshacer.',
-  'yes-delete':'Sí, borrar','cancel':'Cancelar',
+  'danger-zone':'Reiniciar datos','erase-warn':'Borra tu historial de puntaje, el día en curso, tus notas y tus ajustes de rachas. Tu lista de tareas, tus metas y tus respaldos en la nube no se tocan.',
+  'reset-all-btn':'Reiniciar','del-warn':'⚠ ¿Reiniciar el puntaje? Haz un backup antes por si lo quieres de vuelta — se restaura desde ☁️ Restaurar backup, aquí abajo.',
+  'yes-delete':'Sí, reiniciar','cancel':'Cancelar',
   'Red':'Rojo','Yellow':'Amarillo','Green':'Verde','Purple':'Morado','Today':'HOY',
   'set-streaks-t':'⚡ Ajustar Rachas','clear-ovr':'Limpiar ajustes',
   'set-streaks-info':'Ajusta tus rachas reales aquí — útil si venías registrando manualmente antes de usar la app.','set-streaks-note':'Deja en blanco para usar el valor calculado. Presiona Enter para guardar. Pon 0 para quitar el ajuste.',
@@ -4318,15 +4318,7 @@ function renderStreaks(sk_){
       /* A clean streak counts the days behind you, because a day is only clean
          once it is over — counting today early would mean the number goes DOWN
          the moment you log honestly, which is no way to ask anyone to log
-         honestly. But today can still be going well, and there is no harm in
-         saying so: the next number, greyed, while nothing has been logged. */
-      const cleanOf={substancesStreak:'drugs',procrastinationStreak:'internet',macanazoStreak:'macanazo'}[item.k];
-      if(cleanOf&&!(STATE.today.penalties||[]).some(p=>p.type===cleanOf)){
-        const soon=sp('xs dimmer','→ '+((sk_[item.k]||0)+1));
-        soon.title=t('streak-today-clean');
-        soon.style.cssText='display:block;margin-top:2px;opacity:.55';
-        c.appendChild(soon);
-      }
+         honestly. Anyone can add one. */
     }
     return c;
   }
@@ -4817,7 +4809,7 @@ function renderStats(total,sc){
   body.appendChild(grid4(
     statCard(isEs?'Día más productivo (ever)':'Most productive day',prodEverStr,'var(--cg)',prodEverSub,'xl',
       bestWorkDay?(isEs?fmtD(bestWorkDay)+' — '+fmtDur(bestWorkMin)+' de trabajo registrado, más que cualquier otro día':fmtD(bestWorkDay)+' — '+fmtDur(bestWorkMin)+' of work logged, more than any other day'):''),
-    statCard(isEs?'Día más productivo (semana)':'Most productive day of week',prodDayStr,'var(--ac)',prodDaySub,'xl',prodDay>=0?(isEs?'Promedio de todos tus '+dowFull[prodDay]:'Average across every '+dowFull[prodDay]):''),
+    statCard(isEs?'Más trabajo (semana)':'Most worked weekday',prodDayStr,'var(--ac)',prodDaySub,'xl',prodDay>=0?(isEs?'Minutos de trabajo, promediados sobre todos tus '+dowFull[prodDay]:'Minutes worked, averaged across every '+dowFull[prodDay]):''),
     statCard(t('work-total'),fmtDur(totalWorkMin),'var(--ac)',null),
     statCard(t('work-days-lbl'),workPct+'%',workPct>=50?'var(--cg)':'var(--ng)',workDays+'d')
   ));
@@ -4833,7 +4825,7 @@ function renderStats(total,sc){
   // ── 5. Orgasms ───────────────────────────────────────────────────────────
   body.appendChild(grid4(
     statCard(isEs?'Día más cachondo (ever)':'Horniest day',hornEverStr,'var(--ng)',hornEverSub,'xl',fmtD(bestOrgDay)),
-    statCard(isEs?'Día más cachondo (semana)':'Horniest day of week',hornDayStr,'var(--ng)',hornDaySub,'xl',hornDay>=0?(isEs?'Promedio de todos tus '+dowFull[hornDay]:'Average across every '+dowFull[hornDay]):''),
+    statCard(isEs?'Día más cachondo (semana)':'Horniest day of week',hornDayStr,'var(--ng)',hornDaySub,'xl',hornDay>=0?(isEs?'Orgasmos, promediados sobre todos tus '+dowFull[hornDay]:'Orgasms, averaged across every '+dowFull[hornDay]):''),
     statCard(isEs?'Total orgasmos':'Total orgasms',String(totalOrgasms),'var(--ng)',null),
     statCard(t('clean-org'),orgFreePct+'%',orgFreePct>=70?'var(--cg)':'var(--ng)',orgFreeDays+'d')
   ));
@@ -4893,12 +4885,12 @@ function renderStats(total,sc){
   const totalNaps=STATE.history.reduce((s,d)=>s+(d.napDuration||0),0);
   const goalsDone=goals().filter(g=>g.doneOn).length;
   body.appendChild(grid4(
-    statCard(isEs?'Mejor día (semana)':'Best weekday',bestDow>=0?dowNames[bestDow]:'—','var(--cg)',
+    statCard(isEs?'Mejor día por puntos':'Best weekday by points',bestDow>=0?dowNames[bestDow]:'—','var(--cg)',
       bestDow>=0?'⌀ '+Math.round(bestDowAvg):null,'xl',
-      bestDow>=0?(isEs?'Promedio de todos tus '+dowFull[bestDow]:'Average across every '+dowFull[bestDow]):''),
-    statCard(isEs?'Peor día (semana)':'Worst weekday',worstDow>=0?dowNames[worstDow]:'—','var(--ng)',
+      bestDow>=0?(isEs?'Puntos del día, promediados sobre todos tus '+dowFull[bestDow]:'Points for the day, averaged across every '+dowFull[bestDow]):''),
+    statCard(isEs?'Peor día por puntos':'Worst weekday by points',worstDow>=0?dowNames[worstDow]:'—','var(--ng)',
       worstDow>=0?'⌀ '+Math.round(worstDowAvg):null,'xl',
-      worstDow>=0?(isEs?'Promedio de todos tus '+dowFull[worstDow]:'Average across every '+dowFull[worstDow]):''),
+      worstDow>=0?(isEs?'Puntos del día, promediados sobre todos tus '+dowFull[worstDow]:'Points for the day, averaged across every '+dowFull[worstDow]):''),
     statCard(isEs?'Siestas':'Naps',fmtDur(totalNaps),'var(--ac)',null),
     statCard(isEs?'Metas logradas':'Goals achieved',String(goalsDone),'var(--ac)',
       goalsTotal()?'+'+goalsTotal().toLocaleString():null)
