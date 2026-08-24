@@ -647,12 +647,12 @@ en:{
   'rw-title':'Your rewards','rw-edit':'Edit your rewards',
   'rw-help':'These are the things you want to keep at bay. Rename them, give them your own icon, drop the ones that mean nothing to you, add your own.',
   'rw-light':'Light','rw-serious':'Medium','rw-grave':'Large',
-  'rw-clears':'The run resets by breaking it, or with a day of this colour:','rw-per-min':'−1 per minute × difficulty',
-  'rw-new':'Something you want to cut back on','rw-add':'+ Add','rw-full':'Five is the limit — more than that and none of them get logged.',
-  'rw-locked':'One of each weight, fixed: your whole history was scored with these costs. The name and the icon are yours.',
+  'rw-clears':'A run resets by breaking it, or with a day of this colour:','rw-per-min':'−1 per minute × difficulty',
+  'rw-new':'Something you want to cut back on','rw-add':'+ Add','rw-full':'Five is the limit.',
+  'rw-locked':'One of each category. Fixed: your whole history was scored with these costs. The name and the icon are yours.',
   'rw-tier-warn':'Changing the weight re-scores every day you have ever logged this on, the way changing difficulty does. Continue?',
   'rw-del':'Remove from the list','rw-del-warn':'Remove {n}? Its entries go with it — {d} logged day(s) will be re-scored without it. Nothing else changes.',
-  'rw-note':'Weight decides two things at once: what one costs, and how good a day has to be to wipe the run. Light is cheap and a decent day forgives it; large is expensive and only a perfect day will. The three that shipped are fixed — one of each weight, so the scale always has all three ends. Their names and icons are yours.',
+  'rw-note':'Weight sets what one costs and what it takes to clear its run. The first three are fixed, one of each; their names and icons are yours.',
   'edit-note':'Edit note','add-note':'Add note','save-note':'Save note','no-data':'No data logged for this day.',
   'day-title-ph':'Title for the day','day-untitled':'Untitled','ctrl-save':'Ctrl + Enter to save',
   'clock-off':"⏰ This device's clock is {n} {dir}. Stoic corrects for it, so your days and your sync are safe — but the system clock is worth fixing.",
@@ -823,12 +823,12 @@ es:{
   'rw-title':'Tus recompensas','rw-edit':'Editar tus recompensas',
   'rw-help':'Son las cosas que quieres mantener a raya. Renómbralas, ponles tu propio ícono, quita las que no te digan nada, agrega las tuyas.',
   'rw-light':'Ligera','rw-serious':'Media','rw-grave':'Grande',
-  'rw-clears':'La racha se resetea rompiéndola o con un día de este color:','rw-per-min':'−1 por minuto × dificultad',
-  'rw-new':'Algo que quieras reducir','rw-add':'+ Agregar','rw-full':'Cinco es el límite — más que eso y no registras ninguna.',
-  'rw-locked':'Una de cada peso, fijas: todo tu historial se calculó con estos costos. El nombre y el ícono sí son tuyos.',
+  'rw-clears':'Una racha se resetea rompiéndola o con un día de este color:','rw-per-min':'−1 por minuto × dificultad',
+  'rw-new':'Algo que quieras reducir','rw-add':'+ Agregar','rw-full':'Cinco es el límite.',
+  'rw-locked':'Una de cada categoría. Fija: todo tu historial se calculó con estos costos. El nombre y el ícono sí son tuyos.',
   'rw-tier-warn':'Cambiar el peso recalcula todos los días en que la hayas registrado, igual que cambiar la dificultad. ¿Continuar?',
   'rw-del':'Quitar de la lista','rw-del-warn':'¿Quitar {n}? Sus registros se van con ella — {d} día(s) se recalculan sin ella. Nada más cambia.',
-  'rw-note':'El peso decide dos cosas a la vez: cuánto cuesta y qué tan bueno tiene que ser el día para limpiar la racha. Ligera es barata y un día decente la perdona; grande es cara y solo un día perfecto la limpia. Las tres originales son fijas — una de cada peso, para que la escala siempre tenga sus tres extremos. Sus nombres e íconos sí son tuyos.',
+  'rw-note':'El peso define cuánto cuesta y qué se necesita para limpiar su racha. Las primeras tres son fijas, una de cada una; sus nombres e íconos sí son tuyos.',
   'edit-note':'Editar nota','add-note':'Agregar nota','save-note':'Guardar nota','no-data':'Sin datos para este día.',
   'day-title-ph':'Título del día','day-untitled':'Sin título','ctrl-save':'Ctrl + Enter para guardar',
   'clock-off':'⏰ El reloj de este dispositivo va {n} {dir}. Stoic lo compensa, así que tus días y tu sincronización están a salvo — pero conviene corregir la hora del sistema.',
@@ -1088,10 +1088,21 @@ const CALC={
     const total=base+mB+fB+pom+wrk+slp+pen+col+latePen;
     return{total,base,status,pct,mB,fB,pom,wrk,slp,pen,col,latePen};
   },
-  // #2 FIX: histTotal must exclude today to avoid double-count
+  /* #2 FIX: histTotal must exclude today to avoid double-count.
+     And it counts the gaps. A day never logged is worth −1,000 and shows that
+     way on the calendar — but the total only ever added up the days actually
+     stored, so a month logged on the 1st and again on the 24th read −800 on
+     the calendar's twenty-two red squares and −1,000 in the corner. Gaps are
+     written into history when the app is open to see a day turn over; a day
+     backdated through Edit History leaves them unwritten, and they existed
+     only as something the calendar drew. The same filled-in list scores both
+     now, so the squares and the corner cannot disagree. */
   histTotal(history){
     const tk=todayKey();
-    return history.filter(h=>h.date!==tk).reduce((s,d)=>s+this.liveScore(d,history),0);
+    const filled=this.fillGaps(history);
+    const map=new Map(filled.map(d=>[d.date,d]));
+    history.forEach(d=>map.set(d.date,d));   // anything real wins over a gap
+    return [...map.values()].filter(h=>h.date!==tk).reduce((s,d)=>s+this.liveScore(d,history),0);
   },
   /* recompute a stored day's score using CURRENT difficulty (penalties scale with mode) */
   // Count consecutive qualifying REGISTERED days ending at idx (inclusive).
@@ -4738,20 +4749,27 @@ function renderHistForm(key){
   g.appendChild(nf(t('daily-tasks'),fst.completed,v=>fst.completed=v));g.appendChild(nf(t('target-ph'),fst.target,v=>fst.target=v));
   g.appendChild(nf(t('pom-lbl'),fst.pomodoros,v=>fst.pomodoros=v));g.appendChild(df(t('work-lbl'),fst.workDuration,v=>fst.workDuration=v));
   g.appendChild(df(t('main-sleep'),fst.sleepDuration,v=>fst.sleepDuration=v));g.appendChild(df(t('nap-lbl'),fst.napDuration,v=>fst.napDuration=v));
-  g.appendChild(nf(t('indulg-hash'),fst.substances,v=>fst.substances=v));g.appendChild(df(t('proc-lbl'),fst.procMins,v=>fst.procMins=v));
-  g.appendChild(nf(t('org-hash'),fst.macanazoCount,v=>fst.macanazoCount=v));
-  /* And a field for every reward of your own. Fixing a day used to be able to
-     fix only the three that shipped, so anything you added could be logged but
-     never corrected. */
-  const custom=rewards().filter(r=>!r.builtin);
+  /* Every reward gets a field, and they are labelled the same way: the name
+     you gave it, whole. They used to be a mixture — two abbreviated, one
+     truncated to "Procrast", three with a # on the end and the ones you added
+     carrying an emoji the others did not have. A row of fields is easier to
+     read when the labels agree with each other. */
+  const rwAll=rewards();
   fst.custom={};
-  custom.forEach(r=>{
-    fst.custom[r.id]=e?.penalties?.filter(p=>p.type===r.id)
-      .reduce((a,p)=>a+(p.count||1),0)||0;
-    if(r.byMinutes)g.appendChild(df(rewardLabel(r),fst.custom[r.id],v=>fst.custom[r.id]=v));
-    else g.appendChild(nf(rewardLabel(r),fst.custom[r.id],v=>fst.custom[r.id]=v));
+  rwAll.forEach(r=>{
+    const label=rewardName(r);
+    if(r.id==='drugs')g.appendChild(nf(label,fst.substances,v=>fst.substances=v));
+    else if(r.id==='internet')g.appendChild(df(label,fst.procMins,v=>fst.procMins=v));
+    else if(r.id==='macanazo')g.appendChild(nf(label,fst.macanazoCount,v=>fst.macanazoCount=v));
+    else{
+      fst.custom[r.id]=e?.penalties?.filter(p=>p.type===r.id)
+        .reduce((a,p)=>a+(p.count||1),0)||0;
+      if(r.byMinutes)g.appendChild(df(label,fst.custom[r.id],v=>fst.custom[r.id]=v));
+      else g.appendChild(nf(label,fst.custom[r.id],v=>fst.custom[r.id]=v));
+    }
   });
   form.appendChild(g);
+  const custom=rwAll.filter(r=>!r.builtin);
   const cks=dv('row gap16 mb10');cks.style.flexWrap='wrap';
   function ck(label,val,onChange){const w=dv('row gap6');w.style.cursor='pointer';const c=ip('checkbox','');c.checked=val;c.onchange=()=>onChange(c.checked);w.appendChild(c);w.appendChild(sp('sm',label));w.onclick=ev=>{if(ev.target!==c){c.checked=!c.checked;c.dispatchEvent(new Event('change'));}};return w;}
   cks.appendChild(ck(t('morning-routine'),fst.morningCompleted,v=>fst.morningCompleted=v));cks.appendChild(ck(t('goals-ann'),fst.flagCompleted,v=>fst.flagCompleted=v));cks.appendChild(ck(t('early-bed'),fst.sleptEarly,v=>fst.sleptEarly=v));cks.appendChild(ck(t('late-bed'),fst.sleptLate,v=>fst.sleptLate=v));form.appendChild(cks);
@@ -5023,14 +5041,19 @@ function renderStats(total,sc){
     sortedH.forEach(d=>{if(!d._gap&&!has(d)){cur++;if(cur>best){best=cur;end=d.date;}}else cur=0;});
     return{r,total,pct,cleanDays,best,end};
   });
-  for(let i=0;i<rwStats.length;i+=2){
-    const pair=rwStats.slice(i,i+2);
-    body.appendChild(grid4(...pair.flatMap(x=>[
-      statCard(`${t('sk-without')} ${rewardName(x.r)}`,x.pct+'%',x.pct>=70?'var(--cg)':'var(--ng)',x.cleanDays+'d'),
-      statCard(`${x.r.icon||''} ${rewardName(x.r)}`.trim(),String(x.total),x.total?'var(--ng)':'var(--cg)',
-        x.best?(isEs?'racha limpia '+x.best+'d':'clean run '+x.best+'d'):null,'xl',spanOf(x.best,x.end))
-    ])));
-  }
+  /* One grid for all of them rather than a grid per pair. Split into rows of
+     four, five rewards left a half-empty row stranded in the middle of the
+     page every time; flowing through one grid puts whatever gap there is at
+     the end, where a grid is allowed to run out. */
+  const rwGrid=dv('g4 mb10');rwGrid.style.gap='8px';
+  rwStats.forEach(x=>{
+    rwGrid.appendChild(statCard(`${t('sk-without')} ${rewardName(x.r)}`,x.pct+'%',
+      x.pct>=70?'var(--cg)':'var(--ng)',x.cleanDays+'d'));
+    rwGrid.appendChild(statCard(`${x.r.icon||''} ${rewardName(x.r)}`.trim(),String(x.total),
+      x.total?'var(--ng)':'var(--cg)',
+      x.best?(isEs?'racha limpia '+x.best+'d':'clean run '+x.best+'d'):null,'xl',spanOf(x.best,x.end)));
+  });
+  const rwBlock=rwGrid;
 
   // ── 7. Sleep ─────────────────────────────────────────────────────────────
   body.appendChild(grid4(
@@ -5048,7 +5071,9 @@ function renderStats(total,sc){
   for(let k=sortedH.length-1;k>=0;k--){const d=sortedH[k];if(d._gap||d.status==='red')break;curNonRed++;}
   let curMornNow=0;
   for(let k=sortedH.length-1;k>=0;k--){const d=sortedH[k];if(d._gap||!didMorning(d))break;curMornNow++;}
-  const gapDays=STATE.history.filter(d=>d._gap).length;
+  // Counted the same way the total counts them: filled in, whether or not the
+  // app happened to be open on the day they were missed.
+  const gapDays=[...histMap().values()].filter(d=>d._gap&&d.date!==todayKey()).length;
   const tasksDone=realDays.reduce((s,d)=>s+(d.completedTasks||0),0);
   // How much of what you set yourself you actually close, averaged over days
   // that had anything to close.
@@ -5089,6 +5114,9 @@ function renderStats(total,sc){
     statCard(isEs?'Metas logradas':'Goals achieved',String(goalsDone),'var(--ac)',
       goalsTotal()?'+'+goalsTotal().toLocaleString():null)
   ));
+
+  // Last of the tiles, so its ragged end is the end of the tiles.
+  body.appendChild(rwBlock);
 
   // ── 8. Day color counts ───────────────────────────────────────────────────
   const dr=dv('row gap8 mb10');
@@ -5434,8 +5462,10 @@ function renderRewardsModal(){
       }else{
         const tierSel=sk('',Object.keys(REWARD_TIERS).map(k=>[k,t(REWARD_TIERS[k].name)]),r.tier);
         tierSel.style.cssText='flex:0 0 120px';
+        // Only worth asking about once there is something to re-score. On a
+        // reward you have never logged, changing the weight costs nothing.
         tierSel.onchange=()=>{
-          if(!confirm(t('rw-tier-warn')))return draw();
+          if(daysWithReward(r.id)&&!confirm(t('rw-tier-warn')))return draw();
           r.tier=tierSel.value;savePlanner();draw();
         };
         top.appendChild(tierSel);
@@ -5451,12 +5481,17 @@ function renderRewardsModal(){
         top.appendChild(del);
       }
       row.appendChild(top);
-      const cost=r.byMinutes?t('rw-per-min'):`−${rewardCost(r).toLocaleString()}`;
+      // What it costs. How a run ends is the same for every reward, so it is
+      // said once, under the whole list, instead of five times over.
       row.appendChild(dv('xs dimmer mt4',
-        `${cost} · ${t('rw-clears')} ${rewardResets(r).map(s=>({yellow:'🟡',green:'🟢',purple:'🟣'})[s]).join(' ')}`));
+        r.byMinutes?t('rw-per-min'):`−${rewardCost(r).toLocaleString()}`));
       box.appendChild(row);
     });
     panel.appendChild(box);
+    const legend=dv('xs dimmer mt8');
+    legend.innerHTML=t('rw-clears')+' '+Object.keys(REWARD_TIERS).map(k=>
+      `<span class="w6">${t(REWARD_TIERS[k].name)}</span> ${REWARD_TIERS[k].resetOn.map(s=>({yellow:'🟡',green:'🟢',purple:'🟣'})[s]).join('')}`).join(' · ');
+    panel.appendChild(legend);
 
     if(rewards().length<REWARD_MAX){
       const add=dv('row gap6 mt10');add.style.flexWrap='wrap';
