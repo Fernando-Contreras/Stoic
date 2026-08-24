@@ -620,6 +620,8 @@ en:{
   'sync-held':'🛑 UPLOAD ON HOLD — this device looks out of date','sync-held-fix':'This device has fewer days than the cloud, so uploading was stopped to protect your data. Open this panel and use Pull from cloud to get the good copy.',
   'push-warn':'You are about to REPLACE the cloud with what is in this browser.\n\nThis browser: {local} days\nCloud: {cloud} days\n\nThe cloud has more. Continue anyway?',
   'push-ok':'✅ Uploaded to the cloud.','push-fail':'❌ Upload failed. Check the sync status.',
+  'pull-ok':'✅ Synced from the cloud.','pull-fail':'❌ Nothing came back. Check the sync status.',
+  'pass-min':'min. 6 characters',
   'export-btn':'⬇️ Export data','import-btn':'⬆️ Import data',
   'import-warn':'This REPLACES every bit of data in this browser with the file contents.\n\nCurrent: {n} days logged.\n\nContinue?',
   'import-bad':'That file does not look like a Stoic backup.','import-ok':'✅ Restored: {n} days. Reloading.',
@@ -632,17 +634,15 @@ en:{
   'daily-tasks':'Daily Tasks','comp-target':'Completed / Target','done-ph':'Done','target-ph':'Target',
   'morning-routine':'🌞 Morning Routine','goals-ann':'🏁 Goals Annihilated',
   'pts-each':'pts · ×25 each','streak-pts':'pts · streak: ',
-  'pen-indulg':'💊 Stimulants','pen-proc':'🌐 Procrastination','pen-org':'💦 Orgasm',
   'num-subs':'# substances','eg-time':'e.g. 45m, 1h30m','min-1':'Min. 1',
   'enter-time':'Enter time','add-btn':'+ Add',
-  'procrast-s':'Procrastination','base-lbl':'base','streak-lbl':'streak',
+  'base-lbl':'base','streak-lbl':'streak',
   'set-btn':'Set','eg-work':'e.g. 3h, 90m, 2h30m',
   'main-sleep':'Main Sleep','nap-lbl':'Nap','slept-early':'Slept Early',
   'slept-late':'Slept Late','total-sleep':'Total sleep',
   'streaks-title':'Streaks','pos-streaks':'✅ Positive Streaks','rew-streaks':'🤤 Reward Streaks',
   'sk-morning':'Morning Routine','sk-goals':'Goals','sk-work':'Work',
-  'sk-ci':'No Stimulants','sk-cp':'No Procrastination','sk-co':'No Orgasm :(',
-  'sk-i':'Stimulants 💊','sk-p':'Procrastination 🌐','sk-o':'Orgasm 💦','sk-l':'Late Nights 🌙',
+  'sk-l':'Late Nights 🌙',
   'sk-without':'No',
   'rw-title':'Your rewards','rw-edit':'Edit your rewards',
   'rw-help':'These are the things you want to keep at bay. Rename them, give them your own icon, drop the ones that mean nothing to you, add your own.',
@@ -652,7 +652,7 @@ en:{
   'rw-locked':'One of each category. Fixed: your whole history was scored with these costs. The name and the icon are yours.',
   'rw-tier-warn':'Changing the weight re-scores every day you have ever logged this on, the way changing difficulty does. Continue?',
   'rw-del':'Remove from the list','rw-del-warn':'Remove {n}? Its entries go with it — {d} logged day(s) will be re-scored without it. Nothing else changes.',
-  'rw-note':'Weight sets what one costs and what it takes to clear its run. The first three are fixed, one of each; their names and icons are yours.',
+  'rw-note':'Weight sets what one costs and what it takes to clear its run. The first three are fixed, one of each.',
   'edit-note':'Edit note','add-note':'Add note','save-note':'Save note','no-data':'No data logged for this day.',
   'day-title-ph':'Title for the day','day-untitled':'Untitled','ctrl-save':'Ctrl + Enter to save',
   'clock-off':"⏰ This device's clock is {n} {dir}. Stoic corrects for it, so your days and your sync are safe — but the system clock is worth fixing.",
@@ -691,29 +691,29 @@ en:{
   'tpl-feel':'I feel:','tpl-feel-why':'Why?:',
   'tpl-cool':'Something cool I did:','tpl-improve':'Something I can improve:',
   'tpl-summary':'Summary:',
-  'ver-mas':'Ver más','ver-menos':'Ver menos',
-  'edit-hist':'Edit History','save-btn':'Save',
+  'ver-mas':'See more','ver-menos':'See less',
+  'edit-hist':'Edit History','save-btn':'Save','edit-done':'Done',
+  'diary-ph':'Write your thoughts about this day…',
+  'sync-login-hint':'Log in with your Supabase account to enable cross-device sync.',
   'day-panel':'The day','pick-day':'Pick a day on the calendar to read it and write its note.',
   'early-bed':'Early bed','late-bed':'Late bed',
-  'indulg-hash':'Stimulants #','proc-lbl':'Procrast','org-hash':'Orgasm #','gap-warn':'⚠gap',
+  'gap-warn':'⚠gap',
   'reset-work':'Work streak reset','reset-indulg':'Stimulants streak reset',
   'reset-ip':'Stimulants & Procrastination streaks reset','reset-all':'All streaks reset',
   'stats-title':'Stats',
   'best-day':'Best day','worst-day':'Worst day','all-avg':'All-time avg','last7-avg':'Last 7 avg',
   'total-poms':'Pomodoros','work-total':'Work total','sleep-total':'Sleep total','clean-streak':'Clean streak',
-  'purple-days':'Purple days','best-streak':'Best streak','clean-drugs':'No stimulants',
+  'purple-days':'Purple days','best-streak':'Best streak',
   'early-nights':'Early nights','avg-sleep':'Avg sleep','poms-day':'Pomodoros / day',
   'work-days-lbl':'Work days','late-nights-lbl':'Late nights',
   'pts-s':'pts','pts-day':'pts / day','poms-sub':'total','worked-sub':'total',
   'rested-sub':'total','rf-sub':'no rewards','of-total':'of total days','non-red':'non-red days',
-  'no-subs':'stimulant-free','no-proc':'procrastination-free','no-org':'orgasm-free',
   'se-sub':'nights','per-night':'per night',
   'focused-sub':'per day','of-logged':'of logged days','stayed-up':'nights',
   'total-logged':'total','streak-now':'current streak',
-  'total-days-lbl':'Days logged','best-morn-lbl':'Best morning streak','best-drug-free':'Longest stimulant-free','total-proc-lbl':'Total procrastination',
-  'horniest-day':'Horniest day','prod-day':'Most productive day','day-of-week':'day of week','not-enough':'Need more data','no-day':'—',
+  'total-days-lbl':'Days logged','best-morn-lbl':'Best morning streak','total-proc-lbl':'Total procrastination',
+  'prod-day':'Most productive day','day-of-week':'day of week','not-enough':'Need more data','no-day':'—',
   'show-more-stats':'Show more stats ▼','show-less-stats':'Show less ▲',
-  'clean-proc':'No procrastination','clean-org':'No orgasms',
   'restore-from':'☁️ Restore backup','backup-empty':'No backups found.','backup-restored':'✅ Backup restored!',
   'backup-note':'Backup: one copy a day, you can restore the last 30. Data: a full copy you keep yourself; store it outside the project folder.',
   'danger-zone':'Reset everything','erase-warn':'Empties the app: your history, your tasks, your goals, your notes — all of it.',
@@ -744,6 +744,7 @@ en:{
   'tab-plan':'Plan','tab-score':'Score','made-by':'Stoic · Made by JuanFer',
   'rem-title':'Reminders','rem-new':'New reminder','rem-what':'What needs doing?',
   'rem-add':'+ Add reminder','rem-need-title':'Give it a name first',
+  'rem-discard':'Close without adding this one? What you typed will be lost.',
   'rem-prio':'Priority','rem-flag':'Goal of the day','rem-every':'Every',
   'rem-time':'Time (optional)','rep-hour':'Hourly',
   'weekdays':'Sun,Mon,Tue,Wed,Thu,Fri,Sat',
@@ -788,7 +789,7 @@ en:{
   'pomo-done':'Session finished. Take a break.','pomo-from-timer':'from the timer today',
   'pomo-note':'1 focused minute = 1 point. Breaks pay nothing. Every 25 focused minutes counts as one 🍅, so a 50-minute session reads as 2.',
   'use-dur':'Use: 5h, 300m, 2h30m or number (minutes)',
-  'ej-dur':'ej. 2h30m','indulg-x':'Stimulants ×',
+  'ej-dur':'e.g. 2h30m',
 },
 es:{
   'lang-btn':'🇺🇸 EN','Auto-saved':'Guardado','Synced':'☁️ Sincronizado','Local':'💾 Local',
@@ -796,6 +797,8 @@ es:{
   'sync-held':'🛑 SUBIDA DETENIDA — este dispositivo se ve desactualizado','sync-held-fix':'Este dispositivo tiene menos días que la nube, así que se detuvo la subida para proteger tus datos. Abre este panel y usa Traer de la nube para bajar la copia buena.',
   'push-warn':'Estás a punto de REEMPLAZAR la nube con lo que hay en este navegador.\n\nEste navegador: {local} días\nNube: {cloud} días\n\nLa nube tiene más. ¿Continuar de todos modos?',
   'push-ok':'✅ Subido a la nube.','push-fail':'❌ Falló la subida. Revisa el estado de sincronización.',
+  'pull-ok':'✅ Bajado de la nube.','pull-fail':'❌ No llegó nada. Revisa el estado de sincronización.',
+  'pass-min':'mín. 6 caracteres',
   'export-btn':'⬇️ Exportar datos','import-btn':'⬆️ Importar datos',
   'import-warn':'Esto REEMPLAZA todos los datos de este navegador con los del archivo.\n\nAhorita tienes: {n} días registrados.\n\n¿Continuar?',
   'import-bad':'Ese archivo no parece un respaldo de Stoic.','import-ok':'✅ Restaurado: {n} días. Se recarga la página.',
@@ -808,17 +811,15 @@ es:{
   'daily-tasks':'Tareas del Día','comp-target':'Completadas / Meta','done-ph':'Hechas','target-ph':'Meta',
   'morning-routine':'🌞 Rutina Matutina','goals-ann':'🏁 Metas Exterminadas alv',
   'pts-each':'pts · ×25 c/u','streak-pts':'pts · racha: ',
-  'pen-indulg':'💊 Estimulantes','pen-proc':'🌐 Procrastinación','pen-org':'💦 Orgasmo',
   'num-subs':'# sustancias','eg-time':'ej. 45m, 1h30m','min-1':'Mín. 1',
   'enter-time':'Ingresa tiempo','add-btn':'+ Agregar',
-  'procrast-s':'Procrastinación','base-lbl':'base','streak-lbl':'racha',
+  'base-lbl':'base','streak-lbl':'racha',
   'set-btn':'Guardar','eg-work':'ej. 3h, 90m, 2h30m',
   'main-sleep':'Horas Dormidas','nap-lbl':'Siesta','slept-early':'Dormí Temprano',
   'slept-late':'Dormí Tarde','total-sleep':'Sueño total',
   'streaks-title':'Rachas','pos-streaks':'✅ Rachas Positivas','rew-streaks':'🤤 Rachas de Recompensas',
   'sk-morning':'Rutina Matutina','sk-goals':'Metas','sk-work':'Trabajo',
-  'sk-ci':'Sin Estimulantes','sk-cp':'Sin Procrastinación','sk-co':'Sin Orgasmo (¿todo bien?)',
-  'sk-i':'Estimulantes 💊','sk-p':'Procrastinación 🌐','sk-o':'Orgasmo 💦','sk-l':'Trasnoche 🌙',
+  'sk-l':'Trasnoche 🌙',
   'sk-without':'Sin',
   'rw-title':'Tus recompensas','rw-edit':'Editar tus recompensas',
   'rw-help':'Son las cosas que quieres mantener a raya. Renómbralas, ponles tu propio ícono, quita las que no te digan nada, agrega las tuyas.',
@@ -828,7 +829,7 @@ es:{
   'rw-locked':'Una de cada categoría. Fija: todo tu historial se calculó con estos costos. El nombre y el ícono sí son tuyos.',
   'rw-tier-warn':'Cambiar el peso recalcula todos los días en que la hayas registrado, igual que cambiar la dificultad. ¿Continuar?',
   'rw-del':'Quitar de la lista','rw-del-warn':'¿Quitar {n}? Sus registros se van con ella — {d} día(s) se recalculan sin ella. Nada más cambia.',
-  'rw-note':'El peso define cuánto cuesta y qué se necesita para limpiar su racha. Las primeras tres son fijas, una de cada una; sus nombres e íconos sí son tuyos.',
+  'rw-note':'El peso define cuánto cuesta y qué se necesita para limpiar su racha. Las primeras tres son fijas, una de cada una.',
   'edit-note':'Editar nota','add-note':'Agregar nota','save-note':'Guardar nota','no-data':'Sin datos para este día.',
   'day-title-ph':'Título del día','day-untitled':'Sin título','ctrl-save':'Ctrl + Enter para guardar',
   'clock-off':'⏰ El reloj de este dispositivo va {n} {dir}. Stoic lo compensa, así que tus días y tu sincronización están a salvo — pero conviene corregir la hora del sistema.',
@@ -868,28 +869,28 @@ es:{
   'tpl-cool':'Algo chido que hice:','tpl-improve':'Algo que puedo mejorar:',
   'tpl-summary':'Resumen:',
   'ver-mas':'Ver más','ver-menos':'Ver menos',
-  'edit-hist':'Editar Historial','save-btn':'Guardar',
+  'edit-hist':'Editar Historial','save-btn':'Guardar','edit-done':'Listo',
+  'diary-ph':'Escribe lo que pienses de este día…',
+  'sync-login-hint':'Inicia sesión con tu cuenta de Supabase para sincronizar entre dispositivos.',
   'day-panel':'El día','pick-day':'Elige un día del calendario para verlo y escribir su nota.',
   'early-bed':'Dormí temprano','late-bed':'Dormí tarde',
-  'indulg-hash':'Estimulantes #','proc-lbl':'Procrast','org-hash':'Orgasmo #','gap-warn':'⚠vacío',
+  'gap-warn':'⚠vacío',
   'reset-work':'Racha de trabajo reiniciada','reset-indulg':'Racha de Estimulantes reiniciada',
   'reset-ip':'Rachas de indulg. y procrast. reiniciadas','reset-all':'Todas las rachas reiniciadas',
   'stats-title':'Estadísticas',
   'best-day':'Mejor día','worst-day':'Peor día','all-avg':'Promedio total','last7-avg':'Últimos 7 días',
   'total-poms':'Pomodoros','work-total':'Trabajo total','sleep-total':'Sueño total','clean-streak':'Racha limpia',
-  'purple-days':'Días morados','best-streak':'Mejor racha','clean-drugs':'Sin estimulantes',
+  'purple-days':'Días morados','best-streak':'Mejor racha',
   'early-nights':'Noches temprano','avg-sleep':'Sueño promedio','poms-day':'Pomodoros / día',
   'work-days-lbl':'Días trabajados','late-nights-lbl':'Desveladas',
   'pts-s':'pts','pts-day':'pts / día','poms-sub':'total','worked-sub':'total',
   'rested-sub':'total','rf-sub':'sin recompensas','of-total':'del total','non-red':'días no rojos',
-  'no-subs':'estimulantes','no-proc':'procrastinación','no-org':'orgasmos',
   'se-sub':'noches','per-night':'por noche',
   'focused-sub':'por día','of-logged':'de días registrados','stayed-up':'noches',
   'total-logged':'total','streak-now':'racha actual',
-  'total-days-lbl':'Días registrados','best-morn-lbl':'Mejor racha matutina','best-drug-free':'Racha sin estimulantes','total-proc-lbl':'Procrast. total',
-  'horniest-day':'Día más caliente','prod-day':'Día más productivo','day-of-week':'día de la semana','not-enough':'Faltan datos','no-day':'—',
+  'total-days-lbl':'Días registrados','best-morn-lbl':'Mejor racha matutina','total-proc-lbl':'Procrast. total',
+  'prod-day':'Día más productivo','day-of-week':'día de la semana','not-enough':'Faltan datos','no-day':'—',
   'show-more-stats':'Ver más estadísticas ▼','show-less-stats':'Ver menos ▲',
-  'clean-proc':'Sin procrastinación','clean-org':'Sin orgasmos',
   'restore-from':'☁️ Restaurar backup','backup-empty':'No hay backups.','backup-restored':'✅ Backup restaurado!',
   'backup-note':'Backup: una copia al día, puedes restaurar las últimas 30. Datos: copia completa que guardas tú; déjala fuera de la carpeta del proyecto.',
   'danger-zone':'Reiniciar todo','erase-warn':'Vacía la app: tu historial, tus tareas, tus metas, tus notas — todo.',
@@ -920,6 +921,7 @@ es:{
   'tab-plan':'Plan','tab-score':'Puntaje','made-by':'Stoic · Hecho por JuanFer',
   'rem-title':'Recordatorios','rem-new':'Nuevo recordatorio','rem-what':'¿Qué hay que hacer?',
   'rem-add':'+ Agregar recordatorio','rem-need-title':'Ponle nombre primero',
+  'rem-discard':'¿Cerrar sin agregarlo? Se pierde lo que escribiste.',
   'rem-prio':'Prioridad','rem-flag':'Meta del día','rem-every':'Cada',
   'rem-time':'Hora (opcional)','rep-hour':'Cada hora',
   'weekdays':'Dom,Lun,Mar,Mié,Jue,Vie,Sáb',
@@ -964,7 +966,7 @@ es:{
   'pomo-done':'Sesión terminada. Tómate un descanso.','pomo-from-timer':'del timer hoy',
   'pomo-note':'1 minuto enfocado = 1 punto. Los descansos no pagan. Cada 25 minutos enfocados cuenta como un 🍅, así que una sesión de 50 min cuenta como 2.',
   'use-dur':'Usa: 5h, 300m, 2h30m o número (minutos)',
-  'ej-dur':'ej. 2h30m','indulg-x':'Estimulantes ×',
+  'ej-dur':'ej. 2h30m',
 }};
 function t(k){return T[STATE?.lang||'en']?.[k]??T.en[k]??k}
 function toggleLang(){STATE.lang=STATE.lang==='en'?'es':'en';localStorage.setItem('st_lang',STATE.lang);refresh();SB.push(STATE.history,STATE.today,STATE.diary,STATE.streakOverrides).catch(()=>{});}
@@ -1612,7 +1614,8 @@ function isEditing(){
      and at one sync every five seconds that reads as the overlay blinking out
      and back while you are looking straight at it. The sync itself still runs
      on time; what it brought is drawn the moment the overlay is closed. */
-  return ['taskTree','histDay','restoreList','showTZ','showRules','showSyncPanel','showGoals']
+  return ['taskTree','histDay','restoreList','showTZ','showRules','showSyncPanel','showGoals',
+          'showAddForm','showRewards']
     .some(k=>STATE[k]);
 }
 /* The sync itself never waits — only the redraw does. What the cloud brought
@@ -2051,7 +2054,7 @@ function updateReminder(id,patch){
 /* Nothing deleted is gone. A parent takes its subtasks with it — otherwise
    they are orphaned and invisible while still counting toward the day — which
    is exactly what makes one wrong press expensive: thirteen tasks can leave on
-   a single ✕. They go to the bin whole, family and all, and come back the same
+   a single 🗑. They go to the bin whole, family and all, and come back the same
    way. The last 200 are kept, the way completions are. */
 const BIN_MAX=200;
 function deletedBin(){return STATE.planner.bin||(STATE.planner.bin=[]);}
@@ -2327,7 +2330,18 @@ function rewardName(r){
   if(r.builtin&&!r.renamed)return STATE.lang==='es'?r.name:(r.nameEn||r.name);
   return r.name;
 }
-function rewardLabel(r){return (r.icon?r.icon+' ':'')+rewardName(r);}
+function rewardLabel(r){return (r?.icon?r.icon+' ':'')+rewardName(r);}
+/* Whether a built-in is still the thing it shipped as. Some of what the app
+   says is written about the thing and not about the slot — "Día más cachondo",
+   counted in orgasmo(s), a medal called "Sin orgasmo". That wording is true
+   only while the grave one is still Orgasmo; rename it to anything else and
+   the flavour is about something it is not, so the plain wording takes over
+   ("Día con más X"). Nothing is deleted, only hidden: type the original name
+   back in and the flavour comes back with it. The icon is not part of this —
+   swapping 💦 for another picture does not change what the thing is. */
+function isOriginal(r){return !!(r&&r.builtin&&!r.renamed);}
+// The default a built-in was born with, so a rename can be recognised as undone.
+function rewardDefault(r){return r&&r.builtin?REWARD_DEFAULTS.find(d=>d.id===r.id)||null:null;}
 // Which day colours wipe its run, and what one costs at the current difficulty.
 function rewardResets(r){return REWARD_TIERS[r?.tier||'light'].resetOn;}
 function rewardCost(r){return Math.round(REWARD_TIERS[r?.tier||'light'].base*CALC.diffMult());}
@@ -2618,70 +2632,6 @@ function renderPlanner(){
   top.appendChild(renderPomoCard());
   wrap.appendChild(top);
 
-  /* ── add form — folded away behind the + in the list header, so the page is
-     the list by default rather than a form you have to scroll past ── */
-  const form=dv('fi mt10 mb4');
-  form.style.cssText='background:var(--sur3);border:1px solid var(--b2);border-radius:10px;padding:12px';
-  form.appendChild(sp('ctit',t('rem-new')));
-  const ti=ip('text','','',t('rem-what'));
-  const noi=taEl('',t('rem-notes-ph'));noi.style.marginTop='6px';
-  form.appendChild(ti);form.appendChild(noi);
-  const row2=dv('row gap8 mt8');row2.style.flexWrap='wrap';
-  const di=ip('date','',todayKey(),'');di.style.cssText='flex:0 0 148px;min-width:130px';
-  const hi=ip('time','','','');hi.style.cssText='flex:0 0 104px';hi.title=t('rem-time');
-  const pi=sk('',PRIO.map(([v,l])=>[v,`${t('rem-prio')} ${l}`]),'0');pi.style.cssText='flex:1;min-width:120px';
-  row2.appendChild(di);row2.appendChild(hi);row2.appendChild(pi);form.appendChild(row2);
-  const dl=document.createElement('datalist');dl.id='st-tags';
-  allTags().forEach(tg=>{const o=document.createElement('option');o.value=tg;dl.appendChild(o);});
-  form.appendChild(dl);
-  const picker=tagPicker([]);
-  picker.el.style.marginTop='8px';
-  form.appendChild(picker.el);
-
-  const row3=dv('row gap8 mt8');row3.style.flexWrap='wrap';
-  const ri=sk('',[['','🔁 '+t('rep-none')],['hour',t('rep-hour')],['day',t('rep-day')],['week',t('rep-week')],['month',t('rep-month')],['year',t('rep-year')]],'');
-  ri.style.flex='1';ri.style.minWidth='120px';
-  const ni=ip('number','',1,'');ni.min=1;ni.style.width='70px';ni.title=t('rem-every');
-  row3.appendChild(ri);row3.appendChild(ni);
-  const fl=dv('tog');fl.style.flex='1';fl.style.minWidth='140px';
-  const fc=ip('checkbox','');fc.checked=false;
-  const fi_=dv('f1');fi_.innerHTML=`<div class="tt">🏁 ${t('rem-flag')}</div>`;
-  fl.appendChild(fc);fl.appendChild(fi_);
-  fl.onclick=e=>{if(e.target!==fc)fc.checked=!fc.checked;fl.classList.toggle('on',fc.checked);};
-  const ml=dv('tog');ml.style.flex='1';ml.style.minWidth='140px';
-  const mcb=ip('checkbox','');mcb.checked=false;
-  const mi_=dv('f1');mi_.innerHTML=`<div class="tt">🌅 ${t('rem-morning')}</div>`;
-  ml.appendChild(mcb);ml.appendChild(mi_);
-  ml.onclick=e=>{if(e.target!==mcb)mcb.checked=!mcb.checked;ml.classList.toggle('on',mcb.checked);};
-  row3.appendChild(fl);row3.appendChild(ml);form.appendChild(row3);
-  const wd=weekdayPicker([]);
-  const md=monthdayPicker([]);
-  wd.el.style.display='none';md.el.style.display='none';
-  ri.addEventListener('change',()=>{
-    wd.el.style.display=ri.value==='week'?'':'none';
-    md.el.style.display=ri.value==='month'?'':'none';
-  });
-  form.appendChild(wd.el);form.appendChild(md.el);
-  const err=dv('xs ng mt6');form.appendChild(err);
-  function doAdd(){
-    const title=ti.value.trim();
-    if(!title){err.textContent=t('rem-need-title');ti.focus();return;}
-    err.textContent='';
-    addReminder({title,notes:noi.value,due:di.value||todayKey(),time:hi.value,priority:parseInt(pi.value)||0,
-      flagged:fc.checked,morning:mcb.checked,tags:picker.get(),
-      repeat:ri.value?{unit:ri.value,every:Math.max(1,parseInt(ni.value)||1),
-        ...(ri.value==='week'&&wd.get().length?{days:wd.get()}:{}),
-        ...(ri.value==='month'&&md.get().length?{doms:md.get()}:{}),
-        // Remember which day of the month was meant, so clamping short months
-        // never drags the date down permanently.
-        ...(ri.value==='month'||ri.value==='year'
-            ?{dom:new Date((di.value||todayKey())+'T12:00:00').getDate()}:{})}:null});
-    render();
-  }
-  ti.onkeydown=e=>{if(e.key==='Enter')doAdd();};
-  const ab=bt('btn-ac btn-sm w100 mt8',t('rem-add'),doAdd);ab.style.width='100%';
-  form.appendChild(ab);
-
   /* ── the list: three columns so the day fits on one screen ── */
   const list=reminders();
   /* Filtering is a view, never a fact: the counts fed to the score tab are
@@ -2849,22 +2799,22 @@ function renderPlanner(){
   h.appendChild(left);
   /* Pick several and act on all of them at once. Thirteen tasks that need the
      same new date, or the same priority, are thirteen trips through the editor
-     otherwise — and one wrong ✕ away from the afternoon that prompted this. */
+     otherwise — and one wrong 🗑 away from the afternoon that prompted this. */
   const selBtn=bt(STATE.selecting?'btn-ac btn-sm':'btn-ghost btn-sm','☑',()=>{
     STATE.selecting=!STATE.selecting;STATE.selected=[];render();
   });
   selBtn.title=t('sel-mode');
   h.appendChild(selBtn);
-  const addBtn=bt(STATE.showAddForm?'btn-ghost btn-sm':'btn-ac btn-sm',STATE.showAddForm?'✕':'＋',()=>{
-    STATE.showAddForm=!STATE.showAddForm;render();
-  });
+  /* The + stays a +. It used to turn into an ✕ while the form was unfolded,
+     one row above a list where every ✕ deletes a task — the same mark meaning
+     "close this" and "throw this away" within a thumb's width of each other. */
+  const addBtn=bt('btn-ac btn-sm','＋',()=>{STATE.showAddForm=true;render();});
   addBtn.title=t('rem-new');
   h.appendChild(addBtn);
   card.appendChild(h);
   if(!V.closedOpen){
     card.appendChild(ctrl);
     if(tagBar)card.appendChild(tagBar);
-    if(STATE.showAddForm)card.appendChild(form);
     // At a glance, only the names on screen can be picked; on the full list,
     // everything drawn can — so "All" means the same thing in both.
     const grid=(V.layout||'list')==='grid'&&tops.length;
@@ -2950,11 +2900,13 @@ function renderPlanner(){
         const undo=bt('btn-icon','↺',()=>{restoreFromLog(x.logId);render();});
         undo.title=t('rem-reopen');
         row.appendChild(undo);
-        row.appendChild(bt('btn-icon','✕',()=>{
+        const drop=bt('btn-icon','🗑',()=>{
           // Only the record goes; the reminder itself is left alone.
           STATE.planner.log=completionLog().filter(y=>y.logId!==x.logId);
           savePlanner();render();
-        }));
+        });
+        drop.title=t('sel-del');
+        row.appendChild(drop);
         box.appendChild(row);
       });
       card.appendChild(box);
@@ -3123,9 +3075,11 @@ function buildGoals(redraw){
         }
       }
       row.appendChild(mid);
-      row.appendChild(bt('btn-icon','✕',()=>{
+      const gdel=bt('btn-icon','🗑',()=>{
         if(confirm(t('rem-del-warn').replace('{t}',g.title))){deleteGoal(g.id);redraw();}
-      }));
+      });
+      gdel.title=t('sel-del');
+      row.appendChild(gdel);
       box.appendChild(row);
     });
     card.appendChild(box);
@@ -3415,7 +3369,7 @@ function bulkApply(patch,redraw){
   });
   (redraw||render)();
 }
-/* A selection means every one of them. Pressing ✏ or ✕ on one row of a
+/* A selection means every one of them. Pressing ✏ or 🗑 on one row of a
    selection used to act on that row alone, which is the one thing selecting
    them cannot have meant. */
 function inSelection(id){
@@ -3507,7 +3461,7 @@ function renderBulkBar(visibleIds,redraw){
     doneBtn.title=t('sel-done');doneBtn.style.fontSize='15px';
     bar.appendChild(doneBtn);
 
-    const del=bt('btn-ng btn-xs','✕ '+t('sel-del'),()=>{
+    const del=bt('btn-ng btn-xs','🗑 '+t('sel-del'),()=>{
       if(!confirm(t('sel-del-warn').replace('{n}',n)))return;
       snapshot();
       // Each goes to the bin on its own, so any of them can be put back.
@@ -3604,7 +3558,7 @@ function renderReminderRow(r,tk,opts){
     tt.title=t('rem-open-tree');
     // Opened fresh every time. An editor left open inside it used to still be
     // open when it was next opened, which reads as a task already being changed
-    // — and a ✕ pressed in that state is a task deleted by surprise.
+    // — and a 🗑 pressed in that state is a task deleted by surprise.
     tt.onclick=e=>{e.stopPropagation();STATE.editingRem=null;STATE.taskTree=r.id;render();};
   }
   titleLine.appendChild(tt);
@@ -3678,12 +3632,18 @@ function renderReminderRow(r,tk,opts){
   const ed=bt('btn-icon','✏️',()=>{STATE.editingRem=STATE.editingRem===r.id?null:r.id;rd();});
   ed.title=t('rem-edit');
   tools.appendChild(ed);
-  tools.appendChild(bt('btn-icon','✕',()=>{
+  /* 🗑 throws away, ✕ closes — one mark each, everywhere in the app. They used
+     to share the ✕, so the mark that dismissed a popup and the mark that
+     deleted a task were the same picture a thumb's width apart, and the wrong
+     one of the two is not undoable. */
+  const del=bt('btn-icon','🗑',()=>{
     const kids=r.parent?0:subtasksOf(r.id).length;
     const msg=kids?t('rem-del-warn-kids').replace('{t}',r.title).replace('{n}',kids)
                   :t('rem-del-warn').replace('{t}',r.title);
     if(confirm(msg)){deleteReminder(r.id);rd();}
-  }));
+  });
+  del.title=t('sel-del');
+  tools.appendChild(del);
   row.appendChild(tools);
 
   if(STATE.editingRem===r.id){
@@ -3693,6 +3653,99 @@ function renderReminderRow(r,tk,opts){
     return outer;
   }
   return row;
+}
+
+/* ═══ NEW TASK — a popup, not a panel that pushes the day out of the way ═══
+   The + used to unfold this form inside the list card, so writing a task began
+   by shoving the list you were reading down the page, and on a phone the two
+   could not be seen at once. It opens over the page now, the way everything
+   else in the app opens, and closes when the task is in.
+
+   A half-written task is the one thing in this app that a close can throw
+   away, so a close with something typed in it asks first — the backdrop, the
+   ✕ and Escape all come through here. */
+let _addFormDirty=null;
+function closeAddForm(){
+  if(_addFormDirty&&_addFormDirty()&&!confirm(t('rem-discard')))return;
+  _addFormDirty=null;STATE.showAddForm=false;render();
+}
+function renderAddModal(){
+  const ov=dv('fi');
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:60;'+
+    'display:flex;align-items:flex-start;justify-content:center;padding:20px;overflow:auto';
+  ov.onclick=e=>{if(e.target===ov)closeAddForm();};
+  const panel=dv('card');
+  panel.style.cssText='max-width:560px;width:100%;margin:auto';
+  ov.appendChild(panel);
+  const hd=dv('rowb mb10');
+  hd.appendChild(sp('ctit',t('rem-new')));
+  hd.appendChild(bt('btn-icon','✕',closeAddForm));
+  panel.appendChild(hd);
+
+  const ti=ip('text','','',t('rem-what'));
+  const noi=taEl('',t('rem-notes-ph'));noi.style.marginTop='6px';
+  panel.appendChild(ti);panel.appendChild(noi);
+  const row2=dv('row gap8 mt8');row2.style.flexWrap='wrap';
+  const di=ip('date','',todayKey(),'');di.style.cssText='flex:0 0 148px;min-width:130px';
+  const hi=ip('time','','','');hi.style.cssText='flex:0 0 104px';hi.title=t('rem-time');
+  const pi=sk('',PRIO.map(([v,l])=>[v,`${t('rem-prio')} ${l}`]),'0');pi.style.cssText='flex:1;min-width:120px';
+  row2.appendChild(di);row2.appendChild(hi);row2.appendChild(pi);panel.appendChild(row2);
+  const dl=document.createElement('datalist');dl.id='st-tags';
+  allTags().forEach(tg=>{const o=document.createElement('option');o.value=tg;dl.appendChild(o);});
+  panel.appendChild(dl);
+  const picker=tagPicker([]);
+  picker.el.style.marginTop='8px';
+  panel.appendChild(picker.el);
+
+  const row3=dv('row gap8 mt8');row3.style.flexWrap='wrap';
+  const ri=sk('',[['','🔁 '+t('rep-none')],['hour',t('rep-hour')],['day',t('rep-day')],['week',t('rep-week')],['month',t('rep-month')],['year',t('rep-year')]],'');
+  ri.style.flex='1';ri.style.minWidth='120px';
+  const ni=ip('number','',1,'');ni.min=1;ni.style.width='70px';ni.title=t('rem-every');
+  row3.appendChild(ri);row3.appendChild(ni);
+  const fl=dv('tog');fl.style.flex='1';fl.style.minWidth='140px';
+  const fc=ip('checkbox','');fc.checked=false;
+  const fi_=dv('f1');fi_.innerHTML=`<div class="tt">🏁 ${t('rem-flag')}</div>`;
+  fl.appendChild(fc);fl.appendChild(fi_);
+  fl.onclick=e=>{if(e.target!==fc)fc.checked=!fc.checked;fl.classList.toggle('on',fc.checked);};
+  const ml=dv('tog');ml.style.flex='1';ml.style.minWidth='140px';
+  const mcb=ip('checkbox','');mcb.checked=false;
+  const mi_=dv('f1');mi_.innerHTML=`<div class="tt">🌅 ${t('rem-morning')}</div>`;
+  ml.appendChild(mcb);ml.appendChild(mi_);
+  ml.onclick=e=>{if(e.target!==mcb)mcb.checked=!mcb.checked;ml.classList.toggle('on',mcb.checked);};
+  row3.appendChild(fl);row3.appendChild(ml);panel.appendChild(row3);
+  const wd=weekdayPicker([]);
+  const md=monthdayPicker([]);
+  wd.el.style.display='none';md.el.style.display='none';
+  ri.addEventListener('change',()=>{
+    wd.el.style.display=ri.value==='week'?'':'none';
+    md.el.style.display=ri.value==='month'?'':'none';
+  });
+  panel.appendChild(wd.el);panel.appendChild(md.el);
+  const err=dv('xs ng mt6');panel.appendChild(err);
+  function doAdd(){
+    const title=ti.value.trim();
+    if(!title){err.textContent=t('rem-need-title');ti.focus();return;}
+    err.textContent='';
+    addReminder({title,notes:noi.value,due:di.value||todayKey(),time:hi.value,priority:parseInt(pi.value)||0,
+      flagged:fc.checked,morning:mcb.checked,tags:picker.get(),
+      repeat:ri.value?{unit:ri.value,every:Math.max(1,parseInt(ni.value)||1),
+        ...(ri.value==='week'&&wd.get().length?{days:wd.get()}:{}),
+        ...(ri.value==='month'&&md.get().length?{doms:md.get()}:{}),
+        // Remember which day of the month was meant, so clamping short months
+        // never drags the date down permanently.
+        ...(ri.value==='month'||ri.value==='year'
+            ?{dom:new Date((di.value||todayKey())+'T12:00:00').getDate()}:{})}:null});
+    // The task is in; the popup goes, and the list behind it shows what landed.
+    _addFormDirty=null;STATE.showAddForm=false;render();
+  }
+  ti.onkeydown=e=>{if(e.key==='Enter')doAdd();};
+  const ab=bt('btn-ac btn-sm w100 mt8',t('rem-add'),doAdd);ab.style.width='100%';
+  panel.appendChild(ab);
+  // What counts as "something to lose" — a title or a note. Everything else on
+  // this form has a default, so a date left as today is not work in progress.
+  _addFormDirty=()=>!!(ti.value.trim()||noi.value.trim());
+  setTimeout(()=>ti.focus(),0);
+  return ov;
 }
 
 /* ═══ RENDER ═══ */
@@ -3730,10 +3783,20 @@ const MEDAL_KINDS=[
   {k:'morning',name:'md-morning',ok:d=>d.morning},
   {k:'flags',  name:'md-flags',  ok:d=>d.flags},
   {k:'work',   name:'md-work',   ok:d=>d.work>0},
-  {k:'cleand', name:'md-cleand', ok:d=>!d.drugs},
-  {k:'cleanp', name:'md-cleanp', ok:d=>!d.proc},
-  {k:'cleano', name:'md-cleano', ok:d=>!d.org}
+  {k:'cleand', name:'md-cleand', rw:'drugs',    ok:d=>!d.drugs},
+  {k:'cleanp', name:'md-cleanp', rw:'internet', ok:d=>!d.proc},
+  {k:'cleano', name:'md-cleano', rw:'macanazo', ok:d=>!d.org}
 ];
+/* What a medal is called. The three reward medals were named in the language
+   file — "Sin orgasmo" — which stops being true the moment that reward is
+   renamed, and the medal is on the calendar forever. They ask the list
+   instead, and keep their written name only while the built-in is still the
+   one that shipped. */
+function medalName(kind){
+  if(!kind.rw)return t(kind.name);
+  const r=rewardById(kind.rw);
+  return isOriginal(r)?t(kind.name):t('sk-without')+' '+rewardName(r);
+}
 function tierOf(n){return MILESTONES.find(x=>x.n===n)||MILESTONES[0];}
 /* One day reduced to the handful of yes-or-no answers a streak is built from,
    read the same way whether the day is closed or still being lived. */
@@ -3800,7 +3863,7 @@ function showMilestone(m){
   card.innerHTML=`<div class="ms-ico">${tier.icon}</div>`+
     `<div class="ms-n">${m.n}</div>`+
     `<div class="ms-w">${t('ms-'+tier.word)}</div>`+
-    `<div class="ms-sub">${t(m.kind.name)} · ${t('ms-sub')}</div>`;
+    `<div class="ms-sub">${medalName(m.kind)} · ${t('ms-sub')}</div>`;
   for(let i=0;i<16;i++){
     const s=dv('ms-spark',tier.icon);
     const a=(Math.PI*2*i)/16+Math.random()*.4, r=120+Math.random()*160;
@@ -3848,7 +3911,7 @@ function renderLogin(){
   const ew=dv('s4');ew.style.marginTop='12px';ew.innerHTML=`<div class="xs dimmer up ls">${t('email-lbl')}</div>`;
   const ei=ip('email','','','you@email.com');ew.appendChild(ei);card.appendChild(ew);
   const pw=dv('s4');pw.style.marginTop='8px';pw.innerHTML=`<div class="xs dimmer up ls">${t('pass-lbl')}</div>`;
-  const pi=ip('password','','','min. 6 characters');pw.appendChild(pi);card.appendChild(pw);
+  const pi=ip('password','','',t('pass-min'));pw.appendChild(pi);card.appendChild(pw);
 
   // feedback
   const err=dv('xs ng');err.style.marginTop='8px';card.appendChild(err);
@@ -4038,6 +4101,7 @@ function renderApp(){
   if(STATE.restoreList)wrap.appendChild(renderRestoreModal());
   if(STATE.showReset)wrap.appendChild(renderResetModal());
   if(STATE.showRewards)wrap.appendChild(renderRewardsModal());
+  if(STATE.showAddForm)wrap.appendChild(renderAddModal());
 
   /* ── TABS ── */
   const st=plannerTodayStats();
@@ -4350,16 +4414,20 @@ function renderPenCard(sk_){
       else mult=Math.max(1,sk_[penKey(p.type)]||1);
       const actual=base*mult;
       const rw=rewardById(p.type);
-      const lbl=p.type==='drugs'?`${t('indulg-x')}${p.details?.substances||1}`
-        :p.type==='internet'?`${t('procrast-s')} ${fmtDur(p.details?.minutes||0)}`
-        :p.type==='macanazo'?t('pen-org').replace('💦 ','')
-        :rw?rewardLabel(rw)+(p.count>1?' ×'+p.count:''):p.type;
+      /* Every line asks the list for its name. The three originals used to be
+         written out here instead, so renaming one left today's own log calling
+         it by the name it no longer has. */
+      const lbl=!rw?p.type
+        :p.type==='drugs'?`${rewardLabel(rw)} ×${p.details?.substances||1}`
+        :p.type==='internet'?`${rewardLabel(rw)} ${fmtDur(p.details?.minutes||0)}`
+        :rewardLabel(rw)+(p.count>1?' ×'+p.count:'');
       const row=dv('pen-it');
       const info=dv('f1');
       // Show label + breakdown: base × streak = actual
       const breakdown = mult>1 ? `<span class="xs dimmer">${base} × ${mult} ${t('streak-lbl')}</span>` : `<span class="xs dimmer">${t('base-lbl')}</span>`;
       info.innerHTML=`<div class="md dim">${lbl}</div><div class="row gap6 mt2">${breakdown}<span class="sm mo w7 ng">${actual}</span></div>`;
-      const rm=bt('btn-icon','✕',()=>{STATE.today.penalties=STATE.today.penalties.filter(x=>x.id!==p.id);commitAndRefresh();});
+      const rm=bt('btn-icon','🗑',()=>{STATE.today.penalties=STATE.today.penalties.filter(x=>x.id!==p.id);commitAndRefresh();});
+      rm.title=t('sel-del');
       row.appendChild(info);row.appendChild(rm);list.appendChild(row);
     });card.appendChild(list);
   }
@@ -4381,7 +4449,7 @@ function renderWorkCard(sk_){
 
 /* ═══ SLEEP CARD ═══ */
 function renderSleepCard(sk_){
-  const sl=STATE.today.sleep;const card=dv('card s12');card.appendChild(sp('ctit','Sleep'));
+  const sl=STATE.today.sleep;const card=dv('card s12');card.appendChild(sp('ctit',t('sleep-lbl')));
   function sleepRow(label,val,onSet){
     const w=dv('');const lr=dv('rowb mb6');lr.innerHTML=`<span class="xs dimmer up ls">${label}</span><span class="md mo ac w6">${fmtDur(val)}</span>`;w.appendChild(lr);
     const errD=dv('xs ng mt4');const si=ip('text','','',t('eg-work'));
@@ -4425,7 +4493,7 @@ function renderStreaks(sk_){
   const card=dv('card mt12');
   const hdr=dv('rowb mb8');
   hdr.appendChild(dv('ctit',t('streaks-title')));
-  const editBtn=bt('btn-ghost btn-sm',STATE.editingStreaks?'✕ Done':'✏️ Edit',()=>{STATE.editingStreaks=!STATE.editingStreaks;refresh();});
+  const editBtn=bt('btn-ghost btn-sm',STATE.editingStreaks?'✕ '+t('edit-done'):'✏️ '+t('rem-edit'),()=>{STATE.editingStreaks=!STATE.editingStreaks;refresh();});
   hdr.appendChild(editBtn);
   card.appendChild(hdr);
 
@@ -4582,7 +4650,7 @@ function renderCalendar(onPick){
         // The highest one wears the day; the rest are named in the tooltip.
         const top=won.reduce((a,b)=>b.n>a.n?b:a);
         const mk=sp('cal-medal',tierOf(top.n).icon);
-        mk.title=won.map(x=>`${t('ms-'+tierOf(x.n).word)} ${x.n} — ${t(x.kind.name)}`).join('\n');
+        mk.title=won.map(x=>`${t('ms-'+tierOf(x.n).word)} ${x.n} — ${medalName(x.kind)}`).join('\n');
         cell.appendChild(mk);
       }
       const num=sp('cal-num',String(d));num.style.color=bg.txt;cell.appendChild(num);
@@ -4669,7 +4737,7 @@ function renderDayPanel(){
     const won=medalsByDate().get(key)||[];
     won.forEach(w=>{const ti=tierOf(w.n);wrap.appendChild(dv('xs mt4',
       `<span class="w7" style="color:${ti.hue}">${ti.icon} ${t('ms-'+ti.word)} ${w.n}</span>`+
-      `<span class="dimmer"> — ${t(w.kind.name)}</span>`));});
+      `<span class="dimmer"> — ${medalName(w.kind)}</span>`));});
   } else {
     wrap.appendChild(dv('xs dimmer',t('no-data')));
   }
@@ -4873,6 +4941,11 @@ function renderStats(total,sc){
   const earlyNights=STATE.history.filter(d=>d.sleptEarly).length;
   const lateNights=STATE.history.filter(d=>d.sleptLate).length;
 
+  /* The advice at the bottom talks about two of the built-ins by name, and any
+     of them can be renamed, so it asks the list rather than saying the word. */
+  const rwDrugs=rewardById('drugs'),rwProc=rewardById('internet');
+  const nmDrugs=rewardName(rwDrugs),nmProc=rewardName(rwProc);
+
   // Discipline %
   const drugFreeDays=STATE.history.filter(d=>!d.penalties?.some(p=>p.type==='drugs')&&!d._gap).length;
   const dfPct=totalTracked?Math.round(drugFreeDays/totalTracked*100):100;
@@ -4893,11 +4966,25 @@ function renderStats(total,sc){
   const prodEverStr=bestWorkDay?fmtShort(bestWorkDay):'—';
   const prodEverSub=bestWorkDay?fmtDur(bestWorkMin):(isEs?'Sin datos':'No data');
 
-  // Horniest day EVER (most orgasms in one day)
+  /* The peak day for the grave reward, and what it is called. The tile was
+     written about Orgasmo — "Día más cachondo", counted in "orgasmo(s)" — and
+     that reward is renameable, so the joke could end up being about a habit it
+     has nothing to do with. The numbers are the same either way; only the
+     wording is held back until the name earns it. See isOriginal(). */
+  const grave=rewardById('macanazo');
+  const graveLbl=rewardLabel(grave);           // raw, for the hover title
+  const graveEsc=escapeHtml(graveLbl);         // for the tiles, which use innerHTML
+  const graveFun=isOriginal(grave);
   let bestOrgDay=null,bestOrgCount=0;
   sortedH.filter(d=>!d._gap).forEach(d=>{const c=d.penalties?.filter(p=>p.type==='macanazo').length||0;if(c>bestOrgCount){bestOrgCount=c;bestOrgDay=d.date;}});
   const hornEverStr=bestOrgDay?fmtShort(bestOrgDay):'—';
-  const hornEverSub=bestOrgDay?(bestOrgCount+' '+(isEs?'orgasmo(s)':'orgasm(s)')):(isEs?'Sin datos':'No data');
+  const hornEverSub=bestOrgDay
+    ?(graveFun?bestOrgCount+' '+(isEs?'orgasmo(s)':'orgasm(s)'):bestOrgCount+' × '+graveEsc)
+    :(isEs?'Sin datos':'No data');
+  const hornEverLbl=graveFun?(isEs?'Día más cachondo (ever)':'Horniest day')
+    :(isEs?'Día con más '+graveEsc:'Peak day for '+graveEsc);
+  const hornDowLbl=graveFun?(isEs?'Día más cachondo (semana)':'Horniest day of week')
+    :(isEs?'Día con más '+graveEsc+' (semana)':'Peak weekday for '+graveEsc);
 
   // Most productive & horniest day OF THE WEEK (by average)
   const dowNames=isEs?['Dom','Lun','Mar','Mié','Jue','Vie','Sáb']:['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
@@ -4922,7 +5009,7 @@ function renderStats(total,sc){
   if(totalTracked<3)insight=isEs?'Sigue registrando días para ver estadísticas personalizadas.':'Keep logging days to see personalized insights.';
   else if(momentum>20)insight=isEs?`🚀 Momentum +${momentum}% — tu última semana supera tu promedio histórico.`:`🚀 Momentum +${momentum}% — your last week beats your all-time average.`;
   else if(momentum<-20)insight=isEs?`📉 Semana difícil (${momentum}%). El progreso no es una línea recta.`:`📉 Tough week (${momentum}%). Progress isn't linear.`;
-  else if(dfPct===100)insight=isEs?'🌟 100% de días sin estimulantes. Disciplina consistente.':'🌟 100% stimulant-free days. Consistent discipline.';
+  else if(dfPct===100)insight=isEs?`🌟 100% de tus días sin ${nmDrugs}. Disciplina consistente.`:`🌟 100% of your days without ${nmDrugs}. Consistent discipline.`;
   else if(pfStrk>7)insight=isEs?`✨ ${pfStrk} días sin penalizaciones. ¡Racha limpia!`:`✨ ${pfStrk} days with no rewards. Clean streak!`;
   else if(totalPoms>50)insight=isEs?`🍅 ${totalPoms} pomodoros = ${Math.round(totalPoms*25/60)}h de trabajo enfocado.`:`🍅 ${totalPoms} pomodoros = ${Math.round(totalPoms*25/60)}h of focused work.`;
   else insight=isEs?'📊 Construyendo historial. Más datos = mejores estadísticas.':'📊 Building history. More data = better insights.';
@@ -4969,7 +5056,7 @@ function renderStats(total,sc){
     slot.appendChild(w);
     if(won.length>1)slot.appendChild(dv('xs dimmer','×'+won.length));
     slot.title=won.length
-      ? won.map(m=>`${t(m.kind.name)} — ${m.date}`).join('\n')
+      ? won.map(m=>`${medalName(m.kind)} — ${m.date}`).join('\n')
       : t('medals-locked');
     mg.appendChild(slot);
   });
@@ -5018,10 +5105,12 @@ function renderStats(total,sc){
     statCard(t('total-proc-lbl'),fmtDur(totalProcMin),'var(--ng)',null)
   ));
 
-  // ── 5. Orgasms ───────────────────────────────────────────────────────────
+  // ── 5. The grave reward, its peak day and its peak weekday ───────────────
   body.appendChild(grid4(
-    statCard(isEs?'Día más cachondo (ever)':'Horniest day',hornEverStr,'var(--ng)',hornEverSub,'xl',fmtD(bestOrgDay)),
-    statCard(isEs?'Día más cachondo (semana)':'Horniest day of week',hornDayStr,'var(--ng)',hornDaySub,'xl',hornDay>=0?(isEs?'Orgasmos, promediados sobre todos tus '+dowFull[hornDay]:'Orgasms, averaged across every '+dowFull[hornDay]):''),
+    statCard(hornEverLbl,hornEverStr,'var(--ng)',hornEverSub,'xl',fmtD(bestOrgDay)),
+    statCard(hornDowLbl,hornDayStr,'var(--ng)',hornDaySub,'xl',hornDay>=0?(isEs?(graveFun?'Orgasmos':graveLbl)+', promediados sobre todos tus '+dowFull[hornDay]:(graveFun?'Orgasms':graveLbl)+', averaged across every '+dowFull[hornDay]):''),
+    // Two tiles that already have their own place on the page, kept only
+    // because a grid row wants four. Left as they were.
     statCard(t('total-proc-lbl'),fmtDur(totalProcMin),'var(--ng)',null),
     statCard(isEs?'Días registrados':'Days logged',String(totalTracked),'var(--ac)',null)
   ));
@@ -5029,8 +5118,8 @@ function renderStats(total,sc){
   /* ── 6. One row per reward, whatever your list holds ──────────────────────
      The three that shipped were written into these tiles by name, so anything
      you added to the list scored, streaked and showed on the calendar while
-     being invisible here. Read from the list instead: how many, how many days
-     clean, and the longest run without it. */
+     being invisible here. Read from the list instead. */
+  const lastDay=sortedH.length?sortedH[sortedH.length-1].date:'';
   const rwStats=rewards().map(r=>{
     const has=d=>(d.penalties||[]).some(p=>p.type===r.id);
     const total=realDays.reduce((s,d)=>s+((d.penalties||[]).filter(p=>p.type===r.id)
@@ -5039,19 +5128,32 @@ function renderStats(total,sc){
     const pct=totalTracked?Math.round(cleanDays/totalTracked*100):100;
     let best=0,cur=0,end='';
     sortedH.forEach(d=>{if(!d._gap&&!has(d)){cur++;if(cur>best){best=cur;end=d.date;}}else cur=0;});
-    return{r,total,pct,cleanDays,best,end};
+    // Where the run stands right now, which is a different question from the
+    // best one ever: the best says what you are capable of, this one says what
+    // you are doing. Counted from the last day you closed, like every other
+    // current streak on this page.
+    let now=0;
+    for(let k=sortedH.length-1;k>=0;k--){const d=sortedH[k];if(d._gap||has(d))break;now++;}
+    return{r,total,pct,cleanDays,best,end,now};
   });
-  /* One grid for all of them rather than a grid per pair. Split into rows of
-     four, five rewards left a half-empty row stranded in the middle of the
-     page every time; flowing through one grid puts whatever gap there is at
-     the end, where a grid is allowed to run out. */
+  /* Four tiles per reward, so each one owns a whole row of the grid and its
+     numbers stay together at every width. It used to be two, and the second
+     stacked the total over a "racha limpia 9d" subtitle: two numbers with
+     nothing to do with each other, one of them explaining the wrong one. Each
+     tile answers one question now — how many, how many days without, the
+     longest run without, the run you are on. */
   const rwGrid=dv('g4 mb10');rwGrid.style.gap='8px';
   rwStats.forEach(x=>{
-    rwGrid.appendChild(statCard(`${t('sk-without')} ${rewardName(x.r)}`,x.pct+'%',
-      x.pct>=70?'var(--cg)':'var(--ng)',x.cleanDays+'d'));
-    rwGrid.appendChild(statCard(`${x.r.icon||''} ${rewardName(x.r)}`.trim(),String(x.total),
+    const nm=escapeHtml(rewardLabel(x.r));   // the tiles render their label as HTML
+    rwGrid.appendChild(statCard(nm,String(x.total),
       x.total?'var(--ng)':'var(--cg)',
-      x.best?(isEs?'racha limpia '+x.best+'d':'clean run '+x.best+'d'):null,'xl',spanOf(x.best,x.end)));
+      x.r.byMinutes?(isEs?'registros':'entries'):(isEs?'veces':'times')));
+    rwGrid.appendChild(statCard(`${t('sk-without')} ${nm}`,x.pct+'%',
+      x.pct>=70?'var(--cg)':'var(--ng)',x.cleanDays+'d'));
+    rwGrid.appendChild(statCard(isEs?'Mejor racha limpia':'Best clean run',x.best+'d',
+      'var(--cp)',nm,'xl',spanOf(x.best,x.end)));
+    rwGrid.appendChild(statCard(isEs?'Racha limpia actual':'Current clean run',x.now+'d',
+      x.now?'var(--cg)':'var(--ng)',nm,'xl',x.now?spanOf(x.now,lastDay):''));
   });
   const rwBlock=rwGrid;
 
@@ -5148,15 +5250,15 @@ function renderStats(total,sc){
     if(avgSleepMin>0&&avgSleepMin<420)add(75,'😴',
       `Duermes ${fmtDur(avgSleepMin)} en promedio. Cada minuto vale +1, así que media hora más son ~30 pts diarios — casi 1,000 al mes, sin hacer nada extra. Y la racha de dormir temprano es la forma más rentable de sacar puntos que hay.`,
       `You sleep ${fmtDur(avgSleepMin)} on average. Every minute is +1, so half an hour more is ~30 pts a day — nearly 1,000 a month for nothing extra. And the early-bed streak is the most profitable run of points there is.`);
-    if(procFreePct<70)add(70,'🌐',
-      `Procrastinaste en ${100-procFreePct}% de tus días. Los primeros 30 minutos no llevan multiplicador: si vas a caer, que sea corto.`,
-      `You procrastinated on ${100-procFreePct}% of your days. The first 30 minutes carry no multiplier: if you are going to slip, keep it short.`);
+    if(procFreePct<70)add(70,rwProc?.icon||'🌐',
+      `Caíste en ${nmProc} en ${100-procFreePct}% de tus días. Los primeros 30 minutos no llevan multiplicador: si vas a caer, que sea corto.`,
+      `You logged ${nmProc} on ${100-procFreePct}% of your days. The first 30 minutes carry no multiplier: if you are going to slip, keep it short.`);
     if(workPct<50)add(65,'💼',
       `Solo registraste trabajo en ${workPct}% de tus días. La racha de trabajo multiplica cada minuto, y basta con no romperla.`,
       `You logged work on only ${workPct}% of your days. The work streak multiplies every minute, and it only needs to stay alive.`);
-    if(dfPct<70)add(60,'💊',
-      `${100-dfPct}% de tus días llevan estimulantes, y cuestan × los días seguidos que llevas. Cortar uno solo rompe el multiplicador.`,
-      `${100-dfPct}% of your days carry stimulants, and they cost × how many days in a row you have had them. Breaking one day breaks the multiplier.`);
+    if(dfPct<70)add(60,rwDrugs?.icon||'💊',
+      `${100-dfPct}% de tus días llevan ${nmDrugs}, y cuestan × los días seguidos que llevas. Cortar uno solo rompe el multiplicador.`,
+      `${100-dfPct}% of your days carry ${nmDrugs}, and they cost × how many days in a row you have had them. Breaking one day breaks the multiplier.`);
     if(pomPerDay<2)add(55,'🍅',
       `Vas en ${pomPerDay} pomodoros por día. Cada uno son +25 pts y 25 minutos: tres al día son +75, todos los días.`,
       `You average ${pomPerDay} pomodoros a day. Each is +25 pts for 25 minutes: three a day is +75, every day.`);
@@ -5215,6 +5317,16 @@ function renderRules(onClose){
   hd.appendChild(sp('ctit',t('rules-title')));
   hd.appendChild(bt('btn-icon','✕',onClose));
   wrap.appendChild(hd);
+  /* The difficulty and streak-reset lines used to name the three originals and
+     their costs by hand. Two things were wrong with that: rename one and the
+     rules describe a habit you no longer have, and the per-minute figures had
+     drifted — they said −10/−50/−100 a minute where penBase has always charged
+     −1 × difficulty. Both lines are read off the list and the constants now, so
+     they cannot say anything the app does not do. */
+  const costsAt=m=>rewards().map(r=>escapeHtml(rewardName(r))+' '+
+    (r.byMinutes?`−${m}/min`:'−'+(REWARD_TIERS[r.tier].base*m).toLocaleString())).join(' · ');
+  const clearedBy=c=>rewards().filter(r=>rewardResets(r).includes(c))
+    .map(r=>escapeHtml(rewardLabel(r))).join(' + ');
   const body=dv('fi');
   body.innerHTML=STATE.lang==='es'?`<div class="s16 dim">
   <div>
@@ -5290,19 +5402,19 @@ function renderRules(onClose){
     <div class="md up ls dimmer w7 mb10">🌱⚖️💪 Modo de Dificultad</div>
     <div class="s6">
       <div>Cámbiala en la barra superior. Escala qué tan duro pegan las <em>Recompensas</em>; los puntos positivos son iguales en todos los modos.</div>
-      <div><span class="w6" style="color:var(--cg)">🌱 Fácil</span> — para principiantes o formación de hábitos. Estimulantes −25 · Procrastinación −10/min · Orgasmo −100.</div>
-      <div><span class="w6" style="color:var(--cy)">⚖️ Medio</span> — balanceado. Estimulantes −125 · Procrastinación −50/min · Orgasmo −500.</div>
-      <div><span class="w6" style="color:var(--cr)">💪 Difícil</span> — modo disciplina total. Estimulantes −250 · Procrastinación −100/min · Orgasmo −1,000.</div>
+      <div><span class="w6" style="color:var(--cg)">🌱 Fácil</span> — para principiantes o formación de hábitos. ${costsAt(1)}.</div>
+      <div><span class="w6" style="color:var(--cy)">⚖️ Medio</span> — balanceado. ${costsAt(5)}.</div>
+      <div><span class="w6" style="color:var(--cr)">💪 Difícil</span> — modo disciplina total. ${costsAt(10)}.</div>
     </div>
   </div>
   <hr class="dv">
   <div>
     <div class="md up ls dimmer w7 mb10">🔄 Cómo se reinician las rachas</div>
     <div class="s6">
-      <div>Todas se rompen al saltarte un día, excepto procrastinación, que permite 30 minutos diarios. Además, el color del día reinicia algunas:</div>
+      <div>Todas se rompen al saltarte un día, excepto ${escapeHtml(rewardName(rewardById('internet')))}, que permite 30 minutos diarios. Además, el color del día reinicia algunas:</div>
       <div><span class="cr w6">🔴 Rojo</span> — reinicia tu racha de Trabajo 💼</div>
-      <div><span class="cy w6">🟡 Amarillo</span> — reinicia Estimulantes 💊</div>
-      <div><span class="cg w6">🟢 Verde</span> — reinicia Estimulantes 💊 + Procrastinación 🌐</div>
+      <div><span class="cy w6">🟡 Amarillo</span> — reinicia ${clearedBy('yellow')}</div>
+      <div><span class="cg w6">🟢 Verde</span> — reinicia ${clearedBy('green')}</div>
       <div><span class="cp w6">🟣 Morado</span> — reinicia TODAS las de recompensas, incluyendo Desvelo 🌙</div>
       <div><span class="ac w6">🎖️ Medallas</span> — cada racha <em>positiva</em> que llega a 10, 20, 50, 100, 200, 500 o 1000 días deja su medalla en ese día del calendario. Las recompensas nunca dan medalla.</div>
       <div class="xs dimmer">Los días que olvidas registrar cuentan como −1,000 pts y día Rojo. ¡Registra diario!</div>
@@ -5384,19 +5496,19 @@ function renderRules(onClose){
     <div class="md up ls dimmer w7 mb10">🌱⚖️💪 Difficulty Mode</div>
     <div class="s6">
       <div>Switch it in the top bar. It scales how hard the <em>Rewards</em> hit; positive points stay the same in all modes.</div>
-      <div><span class="w6" style="color:var(--cg)">🌱 Easy</span> — good for beginners or habit formation. Stimulants −25 · Procrastination −10/min · Orgasm −100.</div>
-      <div><span class="w6" style="color:var(--cy)">⚖️ Medium</span> — balanced. Stimulants −125 · Procrastination −50/min · Orgasm −500.</div>
-      <div><span class="w6" style="color:var(--cr)">💪 Hard</span> — full discipline mode. Stimulants −250 · Procrastination −100/min · Orgasm −1,000.</div>
+      <div><span class="w6" style="color:var(--cg)">🌱 Easy</span> — good for beginners or habit formation. ${costsAt(1)}.</div>
+      <div><span class="w6" style="color:var(--cy)">⚖️ Medium</span> — balanced. ${costsAt(5)}.</div>
+      <div><span class="w6" style="color:var(--cr)">💪 Hard</span> — full discipline mode. ${costsAt(10)}.</div>
     </div>
   </div>
   <hr class="dv">
   <div>
     <div class="md up ls dimmer w7 mb10">🔄 How streaks reset</div>
     <div class="s6">
-      <div>All of them break the moment you skip a day, except procrastination, which allows 30 minutes a day. On top of that, the day's colour resets some:</div>
+      <div>All of them break the moment you skip a day, except ${escapeHtml(rewardName(rewardById('internet')))}, which allows 30 minutes a day. On top of that, the day's colour resets some:</div>
       <div><span class="cr w6">🔴 Red</span> — resets your Work streak 💼</div>
-      <div><span class="cy w6">🟡 Yellow</span> — resets Stimulants 💊</div>
-      <div><span class="cg w6">🟢 Green</span> — resets Stimulants 💊 + Procrastination 🌐</div>
+      <div><span class="cy w6">🟡 Yellow</span> — resets ${clearedBy('yellow')}</div>
+      <div><span class="cg w6">🟢 Green</span> — resets ${clearedBy('green')}</div>
       <div><span class="cp w6">🟣 Purple</span> — resets ALL reward streaks, including Late Night 🌙</div>
       <div><span class="ac w6">🎖️ Medals</span> — every <em>positive</em> streak that reaches 10, 20, 50, 100, 200, 500 or 1000 days leaves its medal on that day in the calendar. Rewards never earn one.</div>
       <div class="xs dimmer">Days you forget to log count as −1,000 pts and a Red day. Don't skip!</div>
@@ -5447,9 +5559,16 @@ function renderRewardsModal(){
       ico.onchange=()=>{r.icon=ico.value.slice(0,3);savePlanner();draw();};
       const nm=ip('text','',rewardName(r),'');
       nm.style.cssText='flex:1;min-width:120px';
+      /* Typing the original name back in undoes the rename outright rather than
+         setting the same word as a new one, so everything that only speaks for
+         the original — its flavoured stats, its medal — comes back with it. */
       nm.onchange=()=>{
         const v=nm.value.trim();if(!v)return draw();
-        r.name=v;r.renamed=true;savePlanner();draw();
+        const d=rewardDefault(r);
+        if(d&&[d.name,d.nameEn].some(n=>n&&n.toLowerCase()===v.toLowerCase())){
+          r.name=d.name;delete r.renamed;
+        }else{r.name=v;r.renamed=true;}
+        savePlanner();draw();
       };
       top.appendChild(ico);top.appendChild(nm);
       /* The three originals show their weight and cannot change it — a control
@@ -5469,7 +5588,7 @@ function renderRewardsModal(){
           r.tier=tierSel.value;savePlanner();draw();
         };
         top.appendChild(tierSel);
-        const del=bt('btn-icon','✕',()=>{
+        const del=bt('btn-icon','🗑',()=>{
           const days=daysWithReward(r.id);
           if(!confirm(t('rw-del-warn').replace('{n}',rewardName(r))
             .replace('{d}',days)))return;
@@ -5800,8 +5919,8 @@ function renderSyncPanel(){
         if(remote.streak_overrides) STATE.streakOverrides=remote.streak_overrides;
         S.set(K.HIST,STATE.history);S.set(K.TODAY,STATE.today);
         S.set(K.DIARY,STATE.diary);S.set(K.STREAK_OVR,STATE.streakOverrides);
-        refresh();alert('✅ Synced from cloud!');
-      } else alert('Pull failed or no data.');
+        refresh();alert(t('pull-ok'));
+      } else alert(t('pull-fail'));
     }));
     row.appendChild(bt('btn-ghost btn-sm',t('push-cloud'),async()=>{
       // Deliberate: show what is being replaced before overwriting the cloud.
@@ -5823,17 +5942,17 @@ function renderSyncPanel(){
     return card;
   }
   // Not logged in — show login form
-  card.appendChild(dv('sm dim mb10','Log in with your Supabase account to enable cross-device sync.'));
+  card.appendChild(dv('sm dim mb10',t('sync-login-hint')));
   const ew=dv('s4 mb8');ew.innerHTML=`<div class="xs dimmer up ls">${t('email-lbl')}</div>`;
   const ei=ip('email','','','you@email.com');ew.appendChild(ei);card.appendChild(ew);
   const pw=dv('s4 mb8');pw.innerHTML=`<div class="xs dimmer up ls">${t('pass-lbl')}</div>`;
-  const pi=ip('password','','','password');pw.appendChild(pi);card.appendChild(pw);
+  const pi=ip('password','','',t('pass-min'));pw.appendChild(pi);card.appendChild(pw);
   const err=dv('xs ng mb8');card.appendChild(err);
-  const loginBtn=bt('btn-ac btn-sm','Log In',async()=>{
-    err.textContent='';loginBtn.disabled=true;loginBtn.textContent='Logging in...';
+  const loginBtn=bt('btn-ac btn-sm',t('log-in'),async()=>{
+    err.textContent='';loginBtn.disabled=true;loginBtn.textContent=t('signing-in');
     const res=await SB.login(ei.value.trim(),pi.value);
     if(res.ok){STATE.showSyncPanel=false;refresh();}
-    else{err.textContent=res.error||t('login-failed');loginBtn.disabled=false;loginBtn.textContent='Log In';}
+    else{err.textContent=res.error||t('login-failed');loginBtn.disabled=false;loginBtn.textContent=t('log-in');}
   });
   pi.onkeydown=e=>{if(e.key==='Enter')loginBtn.click();};
   card.appendChild(loginBtn);
@@ -5937,7 +6056,7 @@ function renderDiaryFor(dateKey,onSave){
 
   const ta=document.createElement('textarea');
   ta.className='diary-area';
-  ta.placeholder='Write your thoughts about this day...';
+  ta.placeholder=t('diary-ph');
   ta.value=hasNote?noteBody(existing):diaryTemplate();
   ta.style.minHeight='260px';
   /* Whose day this is, and whether it has been touched. Picking another day on
@@ -6041,6 +6160,9 @@ document.addEventListener('keydown',e=>{
   if(e.key!=='Escape')return;
   const ms=document.querySelector('.ms-ov');
   if(ms){ms.click();return;}
+  // Its own line, because closing it can throw a half-written task away and so
+  // it goes through the same question the ✕ and the backdrop ask.
+  if(STATE.showAddForm){closeAddForm();return;}
   const open=['showReset','showRewards','restoreList','taskTree','histDay','showTZ','showRules','showSyncPanel','showGoals'].find(k=>STATE[k]);
   if(!open)return;
   STATE[open]=(open==='showTZ'||open==='showRules'||open==='showSyncPanel'||open==='showGoals'||open==='showRewards')?false:(open==='showReset'?0:null);
@@ -6069,7 +6191,10 @@ setInterval(()=>{
       if(wasFocus&&'Notification' in window&&Notification.permission==='granted'){
         try{new Notification('Stoic',{body:t('pomo-done')});}catch(e){}
       }
-      render();
+      /* A pomodoro landing while you are writing a task must not take the
+         half-written one with it. The phase has already switched either way;
+         only the screen waits, and closing the popup redraws it. */
+      if(!STATE.showAddForm)render();
     }
   }
   const nd=todayKey();
