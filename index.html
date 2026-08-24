@@ -2223,12 +2223,20 @@ function fmtClock(secs){
   const m=Math.floor(secs/60),s=secs%60;
   return String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');
 }
-/* A short two-tone chime, built in code so the app stays a single file. */
+/* A two-tone chime, built in code so the app stays a single file. It rings
+   three times over rather than once: a single figure was gone in half a second
+   — over before you looked up from the thing it was telling you to stop doing,
+   which is the one moment it exists for. Same two notes, three times through,
+   so it is longer without being louder or turning into an alarm. */
+const POMO_CHIME=[[880,0],[1320,.18]];  // note, and how far into the figure it starts
+const POMO_FIGURE=.58;                  // how long one figure runs, tail included
+const POMO_RINGS=3;
 function pomoBeep(){
   try{
     const AC=window.AudioContext||window.webkitAudioContext;if(!AC)return;
     const ctx=new AC();
-    [[880,0],[1320,.18]].forEach(([f,at])=>{
+    for(let n=0;n<POMO_RINGS;n++)POMO_CHIME.forEach(([f,at0])=>{
+      const at=at0+n*POMO_FIGURE;
       const o=ctx.createOscillator(),g=ctx.createGain();
       o.frequency.value=f;o.type='sine';o.connect(g);g.connect(ctx.destination);
       g.gain.setValueAtTime(.0001,ctx.currentTime+at);
@@ -2236,7 +2244,8 @@ function pomoBeep(){
       g.gain.exponentialRampToValueAtTime(.0001,ctx.currentTime+at+.35);
       o.start(ctx.currentTime+at);o.stop(ctx.currentTime+at+.4);
     });
-    setTimeout(()=>{try{ctx.close();}catch{}},1200);
+    // Closed only once the last note has finished, or it is cut off mid-ring.
+    setTimeout(()=>{try{ctx.close();}catch{}},(POMO_RINGS*POMO_FIGURE+.6)*1000);
   }catch(e){/* audio blocked — the visual change is enough */}
 }
 
@@ -3179,9 +3188,11 @@ function taEl(v,ph){
 function renderReminderEditor(r){
   const box=dv('fi mt8');
   box.style.cssText='background:var(--sur3);border:1px solid var(--b2);border-radius:8px;padding:10px';
-  const ti=ip('text','',r.title,t('rem-what'));
-  const no=taEl(r.notes||'',t('rem-notes-ph'));no.style.marginTop='6px';
-  box.appendChild(ti);box.appendChild(no);
+  /* No title field. It sat at the top of this box with the very same words
+     already on the row above it, which read as two names for one task and left
+     you guessing which one counted. The name is edited where the name is. */
+  const no=taEl(r.notes||'',t('rem-notes-ph'));
+  box.appendChild(no);
 
   const picker=tagPicker(tagsOf(r));
   picker.el.style.marginTop='6px';
@@ -3271,9 +3282,8 @@ function renderReminderEditor(r){
   const err=dv('xs ng mt6');box.appendChild(err);
   const acts=dv('row gap8 mt8');
   acts.appendChild(bt('btn-ac btn-sm f1',t('save-btn'),()=>{
-    if(!ti.value.trim()){err.textContent=t('rem-need-title');return;}
     const res=updateReminder(r.id,{
-      title:ti.value.trim(),notes:no.value.replace(/\s+$/,''),tags:picker.get(),
+      notes:no.value.replace(/\s+$/,''),tags:picker.get(),
       due:di.value||r.due,time:hi.value,priority:parseInt(pi.value)||0,flagged:fc.checked,morning:mcb.checked,
       repeat:ri.value?{unit:ri.value,every:Math.max(1,parseInt(ni.value)||1),
         ...(ri.value==='week'&&wd.get().length?{days:wd.get()}:{}),
@@ -3288,7 +3298,14 @@ function renderReminderEditor(r){
   }));
   acts.appendChild(bt('btn-ghost btn-sm',t('cancel'),()=>{STATE.editingRem=null;render();}));
   box.appendChild(acts);
-  ti.onkeydown=e=>{if(e.key==='Escape'){STATE.editingRem=null;render();}};
+  // Escape leaves the editor from anywhere inside it, not only from the field
+  // that used to be at the top of it.
+  box.onkeydown=e=>{
+    if(e.key!=='Escape')return;
+    // Innermost first: the editor closes, and the overlay it may be sitting in
+    // stays where it is.
+    e.stopPropagation();STATE.editingRem=null;render();
+  };
   return box;
 }
 
@@ -3550,17 +3567,27 @@ function renderReminderRow(r,tk,opts){
   const titleLine=dv('row gap6');titleLine.style.flexWrap='wrap';
   const tt=sp('md',r.title);
   if(doneToday){tt.style.textDecoration='line-through';tt.style.color='var(--t3)';}
-  /* A task with subtasks opens on its title: the whole family on one screen,
-     away from the rest of the day. A task that carries a project inside it is
-     easier to work through when nothing else is on the page. */
-  if(!r.parent&&subtasksOf(r.id).length){
-    tt.style.cursor='pointer';
-    tt.title=t('rem-open-tree');
-    // Opened fresh every time. An editor left open inside it used to still be
-    // open when it was next opened, which reads as a task already being changed
-    // — and a 🗑 pressed in that state is a task deleted by surprise.
-    tt.onclick=e=>{e.stopPropagation();STATE.editingRem=null;STATE.taskTree=r.id;render();};
-  }
+  /* Rewriting a task starts on the task itself, exactly the way a goal's does.
+     The editor underneath carried a second copy of the title, so the name you
+     were looking at was never the one that changed — you pressed ✏️, scrolled
+     past a form, and found the same words again in a box. The name is the box
+     now, and the editor keeps everything that genuinely needs a form. */
+  tt.style.cursor='text';tt.title=t('goal-edit');
+  tt.onclick=e=>{
+    e.stopPropagation();
+    const inp=ip('text','',r.title,t('rem-what'));
+    inp.style.cssText='width:100%;min-width:160px';
+    const put=()=>{
+      const v=inp.value.trim();
+      if(v&&v!==r.title)updateReminder(r.id,{title:v});
+      rd();
+    };
+    inp.onkeydown=ev=>{if(ev.key==='Enter')put();if(ev.key==='Escape')rd();};
+    inp.onblur=put;
+    // A row you can drag is a row that fights being selected with the mouse.
+    row.draggable=false;
+    titleLine.replaceChild(inp,tt);inp.focus();inp.select();
+  };
   titleLine.appendChild(tt);
   if(r.flagged)titleLine.appendChild(sp('sm','🏁'));
   if(r.morning)titleLine.appendChild(sp('sm','🌅'));
@@ -3591,7 +3618,6 @@ function renderReminderRow(r,tk,opts){
   // Several times a day means the tally matters more than a tick.
   const n=doneCount(r,tk);
   if(n>0&&r.repeat&&r.repeat.unit==='hour')meta.push(`<span class="cg w6">✓ ${n}× ${t('rem-today-h').toLowerCase()}</span>`);
-  if(kids)meta.push(`<span class="cp">${kids} ${kids===1?t('rem-subtask'):t('rem-subtasks')}</span>`);
   /* Which task it belongs to, said out loud. Nested under its parent it is
      obvious; sorted flat, or alone in a window, a subtask gave no sign of
      where it came from — and the arrow that lifts it out named no one. */
@@ -3599,7 +3625,26 @@ function renderReminderRow(r,tk,opts){
     const par=reminders().find(x=>x.id===r.parent);
     if(par)meta.push(`<span class="cp">↳ ${escapeHtml(par.title.slice(0,40))}</span>`);
   }
-  mid.appendChild(dv('xs dimmer mt2',meta.join(' · ')));
+  const metaLine=dv('xs dimmer mt2',meta.join(' · '));
+  /* Opening the whole family in a window of its own — the title used to do
+     this, and the title now belongs to renaming. It reads better on the count
+     anyway: what you press is the thing telling you there is something inside.
+     Counted from the family itself, not from what the filters happen to be
+     showing, so a project whose steps are all hidden still says it is one.
+     Opened fresh every time: an editor left open in there used to still be
+     open next time, which reads as a task already being changed — and a 🗑
+     pressed in that state is a task deleted by surprise. */
+  const own=r.parent?0:subtasksOf(r.id).length;
+  if(own){
+    if(meta.length)metaLine.appendChild(sp('',' · '));
+    const openTree=bt('btn-icon xs',
+      `↳ ${own} ${own===1?t('rem-subtask'):t('rem-subtasks')}`,
+      e=>{e.stopPropagation();STATE.editingRem=null;STATE.taskTree=r.id;render();});
+    openTree.style.cssText='padding:0 4px;color:var(--cp)';
+    openTree.title=t('rem-open-tree');
+    metaLine.appendChild(openTree);
+  }
+  mid.appendChild(metaLine);
 
   // Two levels only, so a subtask cannot spawn its own.
   if(!r.parent&&!doneToday){
