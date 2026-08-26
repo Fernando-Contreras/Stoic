@@ -2,7 +2,9 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<!-- viewport-fit=cover lets the page reach under the notch and the home bar, so
+     the safe-area insets below have real numbers to work with. -->
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
 <title>Stoic</title>
 <!-- Browser-tab icon: inline SVG emoji, so it stays single-file and works offline -->
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🏛️%3C/text%3E%3C/svg%3E">
@@ -42,7 +44,21 @@
 }
 /* #9: base font 17px, max-width 1100px = natural 125–150% feel */
 html,body{background:var(--bg);color:var(--t1);font-family:var(--ff);font-size:20px;min-height:100vh;-webkit-font-smoothing:antialiased;line-height:1.55}
+/* A phone's 100vh is the height with the URL bar hidden, so the page is always
+   a bar taller than the screen and always slightly scrollable. dvh is the one
+   that means what it says; the line above stays for anything that lacks it. */
+@supports(min-height:100dvh){html,body{min-height:100dvh}}
 #root{max-width:1280px;margin:0 auto;padding:18px 24px 60px}
+/* Every overlay in the app opens the same way. It was written out nine times
+   as an inline style, which is nine copies no rule could reach — and a phone
+   needs to reach them, to open them as sheets off the bottom edge instead. */
+.ovl{position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:60;
+  display:flex;align-items:flex-start;justify-content:center;padding:20px;overflow:auto}
+/* Likewise the tab switcher: described here so a phone can move it to the
+   bottom of the screen, where a thumb already is. */
+.tabbar{justify-content:center;border:1px solid var(--b2);border-radius:11px;
+  padding:3px;background:var(--sur2);max-width:420px;margin-left:auto;margin-right:auto}
+.apphdr{padding:20px 0 16px}
 
 /* ── TYPOGRAPHY ── */
 .mo{font-family:var(--mo)}
@@ -241,6 +257,76 @@ button{cursor:pointer;font-family:var(--ff);font-size:15px;font-weight:600;borde
 
 @media(max-width:900px){.g4{grid-template-columns:repeat(2,1fr)}.g3{grid-template-columns:1fr}.sk-g{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:580px){.g4{grid-template-columns:1fr}.g2{grid-template-columns:1fr}.xxxl{font-size:30px}.xxl{font-size:24px}}
+/* One column is right for the four cards you type into. It is wrong for the
+   stat tiles, which are a number and a caption each and were stacking forty
+   deep — the whole reason the score tab read as a mile of scrolling on a
+   phone. The tiles say so themselves now, and stay two across. */
+@media(max-width:580px){.g4.tiles{grid-template-columns:repeat(2,1fr)}}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   ── PHONE ──
+   Everything below this line is inside a phone-width query and cannot be
+   reached by a desktop browser. The layout on a big screen is untouched,
+   to the pixel; what changes here is only what a thumb has to deal with.
+   ═══════════════════════════════════════════════════════════════════════ */
+@media(max-width:700px){
+  /* The tabs go to the bottom edge, where a thumb already rests, and stay
+     there while the page scrolls under them. This is most of what separates
+     "a website on a phone" from "an app". */
+  .tabbar{
+    position:fixed;left:0;right:0;bottom:0;z-index:50;
+    max-width:none;margin:0;border-radius:0;border:none;
+    border-top:1px solid var(--b2);background:var(--sur);
+    /* Every env() carries a 0px fallback. Without one, a browser that does not
+       know the function throws the whole declaration away — and that is the
+       declaration holding the bar off the bottom of the screen. */
+    padding:7px 12px calc(7px + env(safe-area-inset-bottom,0px));
+    gap:8px;box-shadow:0 -8px 24px rgba(0,0,0,.30);
+  }
+  .tabbar button{padding:11px 8px;font-size:15px;border-radius:10px}
+  /* Room at the bottom so the last row of the page is not sitting under the
+     bar, and room at the sides for a rounded screen held in landscape. */
+  #root{
+    padding:10px 16px calc(84px + env(safe-area-inset-bottom,0px));
+    padding-left:calc(16px + env(safe-area-inset-left,0px));
+    padding-right:calc(16px + env(safe-area-inset-right,0px));
+  }
+
+  /* Overlays become sheets: anchored to the bottom edge, rounded only at the
+     top, sized to their content up to most of the screen. A centred box with
+     20px of backdrop showing all round is a desktop dialog on a phone. */
+  .ovl{padding:0;align-items:flex-end}
+  .ovl>*{
+    max-width:none!important;width:100%!important;margin:0!important;
+    border-radius:20px 20px 0 0!important;
+    max-height:92vh;overflow-y:auto;
+    padding-bottom:calc(22px + env(safe-area-inset-bottom,0px))!important;
+  }
+
+  /* Anything you have to hit with a finger. The icon buttons were sized for a
+     mouse pointer, and the tick box for finishing a task — the press this
+     whole app exists for — was 16 pixels square. */
+  .btn-icon{padding:9px 11px;font-size:17px}
+  input[type=checkbox]{width:22px;height:22px}
+  .btn-sm{padding:9px 14px;font-size:14px}
+  /* Safari zooms the whole page in when it focuses a field under 16px, and
+     then leaves you zoomed. The text fields were already 16; these two were
+     never in that rule and were the ones doing it. */
+  input[type=date],input[type=time],textarea{font-size:16px}
+  /* The header was taking a third of the first screen before a single number
+     appeared on it, and its row of switches ran off the side rather than
+     wrapping. */
+  .apphdr{padding:8px 0 10px}
+  .apphdr .row{flex-wrap:wrap;justify-content:center}
+  .card{padding:16px;border-radius:14px}
+  .card2{padding:12px}
+  /* A grey flash on every tap is a browser telling on itself. The buttons
+     answer with their own press instead. */
+  body{-webkit-tap-highlight-color:transparent}
+  button:active{transform:scale(.97)}
+  .rem-grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}
+}
+@media(max-width:700px) and (prefers-reduced-motion:reduce){button:active{transform:none}}
 
 /* ── LIGHT MODE ── */
 body.light{--bg:#f4f4f0;--sur:#ffffff;--sur2:#efefeb;--sur3:#e5e5e0;--b1:#ddddd8;--b2:#cacac4;--b3:#b0b0aa;--t1:#1a1a1a;--t2:#555550;--t3:#888880}
@@ -3027,8 +3113,7 @@ function renderPlanner(){
   if(STATE.showGoals){
     const close=()=>{STATE.showGoals=false;render();};
     const ov=dv('fi');
-    ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:60;'+
-      'display:flex;align-items:flex-start;justify-content:center;padding:20px;overflow:auto';
+    ov.classList.add('ovl');
     ov.onclick=e=>{if(e.target===ov)close();};
     const panel=dv('card');
     panel.style.cssText='max-width:1100px;width:100%;margin:auto;max-height:none';
@@ -3788,8 +3873,7 @@ function closeAddForm(){
 }
 function renderAddModal(){
   const ov=dv('fi');
-  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:60;'+
-    'display:flex;align-items:flex-start;justify-content:center;padding:20px;overflow:auto';
+  ov.classList.add('ovl');
   ov.onclick=e=>{if(e.target===ov)closeAddForm();};
   const panel=dv('card');
   panel.style.cssText='max-width:560px;width:100%;margin:auto';
@@ -4154,7 +4238,9 @@ function renderApp(){
 
   const wrap=dv('');
   // HEADER
-  const hdr=dv('ctr');hdr.style.padding='20px 0 16px';
+  // Padding lives in .apphdr so a phone can give the header less of the first
+  // screen — it was taking a third of it before anything useful appeared.
+  const hdr=dv('ctr apphdr');
   const now=new Date();
   const tz=appTZ();
   /* The title opens the rules. It is left looking exactly like a title —
@@ -4222,8 +4308,9 @@ function renderApp(){
 
   /* ── TABS ── */
   const st=plannerTodayStats();
-  const tabs=dv('row gap6 mt4 mb4');
-  tabs.style.cssText='justify-content:center;border:1px solid var(--b2);border-radius:11px;padding:3px;background:var(--sur2);max-width:420px;margin-left:auto;margin-right:auto';
+  // .tabbar carries what used to be written here inline, so a phone can move
+  // the whole thing to the bottom of the screen. Same look on a big screen.
+  const tabs=dv('row gap6 mt4 mb4 tabbar');
   [['plan',`📋 ${t('tab-plan')}`,st.total?`${st.done}/${st.total}`:''],
    ['score',`📊 ${t('tab-score')}`,'']].forEach(([id,label,badge])=>{
     const active=STATE.tab===id;
@@ -4900,8 +4987,7 @@ function summaryCut(body){
 function renderHistModal(key){
   const close=()=>{STATE.histDay=null;render();};
   const ov=dv('fi');
-  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:60;'+
-    'display:flex;align-items:flex-start;justify-content:center;padding:20px;overflow:auto';
+  ov.classList.add('ovl');
   ov.onclick=e=>{if(e.target===ov)close();};
   const panel=dv('card');
   panel.style.cssText='max-width:560px;width:100%;margin:auto';
@@ -5140,7 +5226,9 @@ function renderStats(total,sc){
     if(when){s.title=when;s.style.cursor='help';}
     return s;
   }
-  function grid4(...cards){const g=dv('g4 mb10');g.style.gap='8px';cards.forEach(c=>g.appendChild(c));return g;}
+  /* `tiles` says these are read-only stat tiles rather than the four cards you
+     type into, so a phone can keep them two across instead of stacking them. */
+  function grid4(...cards){const g=dv('g4 tiles mb10');g.style.gap='8px';cards.forEach(c=>g.appendChild(c));return g;}
 
   // ── 8b. Medals ────────────────────────────────────────────────────────────
   /* The whole collection in one place. The calendar keeps each one on its own
@@ -5182,7 +5270,7 @@ function renderStats(total,sc){
   body.appendChild(mbox);
 
   // ── 1. Score highlights ──────────────────────────────────────────────────
-  const gA=dv('g4 mb10');gA.style.gap='8px';
+  const gA=dv('g4 tiles mb10');gA.style.gap='8px';
   /* The colours mean something now. Green is a number you want to see, orange
      is one that costs you, purple is the rare kind, and gold is a plain fact
      that is neither. Everything used to be gold, which said nothing at all. */
@@ -5259,7 +5347,7 @@ function renderStats(total,sc){
      nothing to do with each other, one of them explaining the wrong one. Each
      tile answers one question now — how many, how many days without, the
      longest run without, the run you are on. */
-  const rwGrid=dv('g4 mb10');rwGrid.style.gap='8px';
+  const rwGrid=dv('g4 tiles mb10');rwGrid.style.gap='8px';
   rwStats.forEach(x=>{
     const nm=escapeHtml(rewardLabel(x.r));   // the tiles render their label as HTML
     rwGrid.appendChild(statCard(nm,String(x.total),
@@ -5419,8 +5507,7 @@ function renderStats(total,sc){
 function renderRulesModal(){
   const close=()=>{STATE.showRules=false;render();};
   const ov=dv('fi');
-  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:60;'+
-    'display:flex;align-items:flex-start;justify-content:center;padding:20px;overflow:auto';
+  ov.classList.add('ovl');
   ov.onclick=e=>{if(e.target===ov)close();};
   const panel=renderRules(close);
   panel.style.cssText='max-width:900px;width:100%;margin:auto';
@@ -5649,8 +5736,7 @@ function renderRules(onClose){
 function renderRewardsModal(){
   const close=()=>{STATE.showRewards=false;render();};
   const ov=dv('fi');
-  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:60;'+
-    'display:flex;align-items:flex-start;justify-content:center;padding:20px;overflow:auto';
+  ov.classList.add('ovl');
   ov.onclick=e=>{if(e.target===ov)close();};
   const panel=dv('card');
   panel.style.cssText='max-width:560px;width:100%;margin:auto';
@@ -5820,8 +5906,7 @@ function renderResetModal(){
 function renderRestoreModal(){
   const close=()=>{STATE.restoreList=null;render();};
   const ov=dv('fi');
-  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:60;'+
-    'display:flex;align-items:flex-start;justify-content:center;padding:20px;overflow:auto';
+  ov.classList.add('ovl');
   ov.onclick=e=>{if(e.target===ov)close();};
   const panel=dv('card');
   panel.style.cssText='max-width:420px;width:100%;margin:auto';
@@ -5875,8 +5960,7 @@ function renderTaskTreeModal(id){
   // overlay while its own rows were being ticked and edited.
   const close=()=>{STATE.taskTree=null;STATE.editingRem=null;render();};
   const ov=dv('fi');
-  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:60;'+
-    'display:flex;align-items:flex-start;justify-content:center;padding:20px;overflow:auto';
+  ov.classList.add('ovl');
   ov.onclick=e=>{if(e.target===ov)close();};
   const panel=dv('card');
   panel.style.cssText='max-width:640px;width:100%;margin:auto';
@@ -5936,8 +6020,7 @@ function tzList(){
 function renderTZModal(){
   const close=()=>{STATE.showTZ=false;render();};
   const ov=dv('fi');
-  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:60;'+
-    'display:flex;align-items:flex-start;justify-content:center;padding:20px;overflow:auto';
+  ov.classList.add('ovl');
   ov.onclick=e=>{if(e.target===ov)close();};
   const panel=dv('card');
   panel.style.cssText='max-width:420px;width:100%;margin:auto';
@@ -5984,8 +6067,7 @@ function renderTZModal(){
 function renderSyncModal(){
   const close=()=>{STATE.showSyncPanel=false;render();};
   const ov=dv('fi');
-  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:60;'+
-    'display:flex;align-items:flex-start;justify-content:center;padding:20px;overflow:auto';
+  ov.classList.add('ovl');
   ov.onclick=e=>{if(e.target===ov)close();};
   const panel=renderSyncPanel();
   panel.style.maxWidth='460px';panel.style.width='100%';panel.style.margin='auto';
