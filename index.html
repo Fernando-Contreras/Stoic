@@ -33,6 +33,9 @@
   /* Rest blue. Sits opposite the amber accent so focus and break read apart at
      a glance, and carries no meaning of its own the way the day colours do. */
   --cb:#5b9df9;
+  /* How long a finished task takes to leave. One place, so the CSS and the
+     timer that follows it can never drift apart. */
+  --done-ms:.26s;
   --rd:rgba(255,85,102,.13);--yd:rgba(245,200,66,.13);--gd:rgba(52,211,153,.13);--pd:rgba(167,139,250,.13);
   --rb:rgba(255,85,102,.30);--yb:rgba(245,200,66,.30);--gb:rgba(52,211,153,.30);--pb:rgba(167,139,250,.30);
   --ff:'Outfit',sans-serif;--mo:'JetBrains Mono',monospace;
@@ -205,6 +208,26 @@ button{cursor:pointer;font-family:var(--ff);font-size:15px;font-weight:600;borde
 @keyframes pulse{0%,100%{opacity:.4}50%{opacity:1}}
 @keyframes fi{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
 .fi{animation:fi .18s ease}
+/* Ticking one off. The row used to blink out of existence between one frame
+   and the next, which is no way to mark the one press the day is actually for.
+   It leans back, slides out to the right and fades, and the list closes over
+   the space it left — the box collapses on the same curve, so nothing below it
+   jumps. Kept to 260ms: long enough to read as a thing leaving, short enough
+   that the next row is under your thumb before you look for it. */
+@keyframes doneGo{
+  0%  {opacity:1;transform:translateX(0) scale(1)}
+  26% {opacity:1;transform:translateX(-6px) scale(1.02)}
+  100%{opacity:0;transform:translateX(40px) scale(.95)}
+}
+.done-go{
+  animation:doneGo var(--done-ms) cubic-bezier(.36,0,.5,1) forwards;
+  transition:height var(--done-ms) cubic-bezier(.36,0,.5,1),
+             padding var(--done-ms) cubic-bezier(.36,0,.5,1),
+             border-width var(--done-ms) cubic-bezier(.36,0,.5,1),
+             margin var(--done-ms) cubic-bezier(.36,0,.5,1);
+  overflow:hidden;pointer-events:none;
+}
+@media(prefers-reduced-motion:reduce){.done-go{animation:none;transition:none}}
 /* Celebration for a day whose flags are all down */
 @keyframes pop{0%{transform:scale(.7);opacity:0}55%{transform:scale(1.08)}100%{transform:scale(1);opacity:1}}
 @keyframes shine{0%,100%{box-shadow:0 0 0 0 rgba(212,160,23,.35)}50%{box-shadow:0 0 22px 4px rgba(212,160,23,.35)}}
@@ -1641,6 +1664,38 @@ function sp(c,t){const s=el('span',c);if(t!==undefined)s.textContent=t;return s}
 /* For the few places that build a line with innerHTML and need to put your own
    words inside it. A task called "<b>" is a task called "<b>", not bold. */
 function escapeHtml(s){return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+/* Let a row leave before anything is written down. The tick itself is instant
+   either way — this only holds the redraw back for as long as the row takes to
+   go, so the list is not rebuilt out from under the thing that is animating.
+   Whoever has asked their system for less motion gets the old instant
+   behaviour, and so does a row that is not on the page to animate. */
+const DONE_MS=260;   // must match --done-ms
+function reducedMotion(){
+  try{return window.matchMedia('(prefers-reduced-motion: reduce)').matches;}
+  catch(e){return false;}
+}
+function leaveThen(el,fn){
+  if(!el||!el.isConnected||reducedMotion())return fn();
+  let done=false;const go=()=>{if(done)return;done=true;fn();};
+  /* A transition needs a number to leave from, and the browser has to have
+     committed that number before the new one arrives — reading the height back
+     is what forces it to. Done on the spot rather than in the next animation
+     frame, because frames stop being handed out in a tab nobody is looking at
+     and the row would sit there half-marked until one was. */
+  el.style.height=el.offsetHeight+'px';
+  void el.offsetHeight;
+  el.classList.add('done-go');
+  el.style.height='0px';
+  el.style.paddingTop='0px';el.style.paddingBottom='0px';
+  el.style.borderTopWidth='0px';el.style.borderBottomWidth='0px';
+  // The row's own animation, not one bubbling up from something inside it.
+  const onEnd=e=>{if(e.target!==el)return;el.removeEventListener('animationend',onEnd);go();};
+  el.addEventListener('animationend',onEnd);
+  /* The animation is what normally ends this. The timer is for when it never
+     runs at all — a backgrounded tab, a dropped frame budget — because a tick
+     that is never written down is far worse than one that jumps. */
+  setTimeout(go,DONE_MS+140);
+}
 function hr(){const h=document.createElement('hr');h.className='dv';return h}
 function sbadge(status){const lb={red:t('Red'),yellow:t('Yellow'),green:t('Green'),purple:t('Purple')};return sp(`badge s-${status}`,lb[status]||status)}
 
@@ -2628,7 +2683,9 @@ function renderPlanner(){
         const row=dv('row gap8');
         row.style.cssText='background:var(--sur2);border:1px solid var(--b1);border-radius:8px;padding:6px 9px';
         const cb=ip('checkbox','');cb.checked=false;
-        cb.onchange=()=>{toggleReminder(r.id);render();};
+        // The last flags of the day leave the same way, and the one that empties
+        // this list hands straight over to the celebration that replaces it.
+        cb.onchange=()=>{leaveThen(row,()=>{toggleReminder(r.id);render();});};
         row.appendChild(cb);
         row.appendChild(sp('sm f1',r.title));
         box.appendChild(row);
@@ -3341,7 +3398,12 @@ function renderCompactGrid(items,tk,redraw){
       const cb=ip('checkbox','');cb.checked=doneToday;
       cb.style.cssText='margin:0;flex:0 0 auto';
       cb.onclick=e=>e.stopPropagation();
-      cb.onchange=e=>{e.stopPropagation();toggleReminder(r.id);rd();};
+      // Same rule as the list: only when the chip is actually leaving the grid.
+      cb.onchange=e=>{
+        e.stopPropagation();
+        if(doneToday||(STATE.view.scope==='all'&&r.repeat)){toggleReminder(r.id);return rd();}
+        leaveThen(cell,()=>{toggleReminder(r.id);rd();});
+      };
       top.appendChild(cb);
     }
     if(r.flagged)top.appendChild(sp('xs','🏁'));
@@ -3559,7 +3621,17 @@ function renderReminderRow(r,tk,opts){
     if(isSelected(r.id)){row.style.borderColor='var(--ac)';row.style.background='var(--acd)';}
   }else{
     const cb=ip('checkbox','');cb.checked=doneToday;cb.style.marginTop='3px';
-    cb.onchange=()=>{toggleReminder(r.id);rd();};
+    /* Animated only when the row is genuinely about to go. A repeating task
+       under All keeps its place with the date of its next turn, the one-task
+       window deliberately keeps what is already done, and putting one back is
+       a correction — none of those should be performed at you, and a row that
+       slid away only to reappear would be a lie about what just happened. */
+    const leaves=!doneToday&&!opts.keepsDone&&
+                 !(STATE.view.scope==='all'&&r.repeat);
+    cb.onchange=()=>{
+      if(!leaves){toggleReminder(r.id);return rd();}
+      leaveThen(row,()=>{toggleReminder(r.id);rd();});
+    };
     row.appendChild(cb);
   }
 
@@ -5837,10 +5909,10 @@ function renderTaskTreeModal(id){
     panel.appendChild(hd);
     if(STATE.selecting&&kids.length)panel.appendChild(renderBulkBar([r.id,...kids.map(k=>k.id)],draw));
     const box=dv('s6');
-    box.appendChild(renderReminderRow(r,tk,{prevTop:null,kids:kids.length,redraw:draw}));
+    box.appendChild(renderReminderRow(r,tk,{prevTop:null,kids:kids.length,redraw:draw,keepsDone:true}));
     kids.forEach(c=>{
       const w=dv('rem-sub');
-      w.appendChild(renderReminderRow(c,tk,{prevTop:r.id,redraw:draw}));
+      w.appendChild(renderReminderRow(c,tk,{prevTop:r.id,redraw:draw,keepsDone:true}));
       box.appendChild(w);
     });
     panel.appendChild(box);
