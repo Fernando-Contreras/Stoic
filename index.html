@@ -300,9 +300,24 @@ button{cursor:pointer;font-family:var(--ff);font-size:15px;font-weight:600;borde
   .ovl>*{
     max-width:none!important;width:100%!important;margin:0!important;
     border-radius:20px 20px 0 0!important;
-    max-height:92vh;overflow-y:auto;
+    /* The cap and the scroll are !important because one panel — the goals one
+       — carries max-height:none in an inline style, which a plain rule cannot
+       reach. Uncapped, it grew taller than the screen; and a flex child that
+       overflows a flex-end container overflows UPWARDS, past the origin, where
+       no scrollbar can follow it. The top of the sheet and its ✕ were simply
+       gone, with the page behind it frozen: a modal you have to restart the
+       app to escape. Nothing may be taller than the screen it opens on. */
+    max-height:88vh!important;
+    overflow-y:auto!important;
+    /* Scrolling the sheet to its end must not start dragging the page behind. */
+    overscroll-behavior:contain;
     padding-bottom:calc(22px + env(safe-area-inset-bottom,0px))!important;
   }
+  /* dvh is the honest height on a phone; vh above is the fallback. */
+  @supports(max-height:88dvh){.ovl>*{max-height:88dvh!important}}
+  /* A card inside a card inside a sheet was three sets of padding deep, and
+     the goals modal is exactly that. The inner ones give theirs back. */
+  .ovl .card .card{padding:12px}
 
   /* Anything you have to hit with a finger. The icon buttons were sized for a
      mouse pointer, and the tick box for finishing a task — the press this
@@ -5936,8 +5951,12 @@ function wipeEverything(){
 function renderResetModal(){
   const close=()=>{STATE.showReset=0;render();};
   const ov=dv('fi');
-  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:60;'+
-    'display:flex;align-items:flex-start;justify-content:center;padding:20px;overflow:auto';
+  /* The only overlay that had written its own out by hand rather than sharing
+     the class, because its backdrop is a shade darker — so it was the only one
+     left as a centred desktop dialog on a phone while every other opened as a
+     sheet. It shares the class now and keeps its darker ground on top. */
+  ov.classList.add('ovl');
+  ov.style.background='rgba(0,0,0,.72)';
   ov.onclick=e=>{if(e.target===ov)close();};
   const panel=dv('card');
   panel.style.cssText='max-width:460px;width:100%;margin:auto;border-color:var(--ngb);background:var(--sur)';
