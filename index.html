@@ -911,6 +911,7 @@ en:{
   'view-today':'Today','view-all':'All',
   'sort-date-asc':'earliest first','sort-date-desc':'latest first','sort-prio':'by priority','sort-alpha':'alphabetical',
   'view-hidden':'later ones hidden','view-hidden-1':'later one hidden',
+  'view-hidden-f':'hidden by the filter','view-hidden-f-1':'hidden by the filter',
   'view-flat':'flat list','view-grouped':'grouped under parents',
   'rep-none':'Does not repeat','rep-day':'Daily','rep-week':'Weekly','rep-month':'Monthly','rep-year':'Yearly',
   'rem-overdue':'overdue','rem-overdue-1':'overdue','rem-overdue-h':'Overdue','rem-open-h':'To do',
@@ -919,6 +920,7 @@ en:{
   'rem-was-due':'was due','rem-empty':'Nothing here yet. Add your first reminder above.',
   'rem-del-warn':'Delete "{t}"?','rem-del-warn-kids':'Delete "{t}" and its {n} subtask(s)?',
   'rem-tag-ph':'New tag (work, home, gym…)','rem-filter':'Filter by tag','rem-filter-clear':'clear',
+  'rem-filter-all':'· must have all of them',
   'rem-subtask':'subtask','rem-subtask-ask':'Subtask of "{t}":',
   'rem-notes-ph':'Note (optional)','rem-edit':'Edit','rem-no-parent':'↳ Not a subtask',
   'rem-has-kids':'This one has subtasks of its own, so it cannot become one. Two levels is the limit.',
@@ -1089,6 +1091,7 @@ es:{
   'view-today':'Hoy','view-all':'Todos',
   'sort-date-asc':'más temprano primero','sort-date-desc':'más tarde primero','sort-prio':'por prioridad','sort-alpha':'alfabético',
   'view-hidden':'de más adelante, ocultos','view-hidden-1':'de más adelante, oculto',
+  'view-hidden-f':'ocultas por el filtro','view-hidden-f-1':'oculta por el filtro',
   'view-flat':'lista plana','view-grouped':'agrupadas por madre',
   'rep-none':'No se repite','rep-day':'Diario','rep-week':'Semanal','rep-month':'Mensual','rep-year':'Anual',
   'rem-overdue':'atrasados','rem-overdue-1':'atrasado','rem-overdue-h':'Atrasados','rem-open-h':'Pendientes',
@@ -1097,6 +1100,7 @@ es:{
   'rem-was-due':'era para','rem-empty':'Nada por aquí. Agrega tu primer recordatorio arriba.',
   'rem-del-warn':'¿Borrar "{t}"?','rem-del-warn-kids':'¿Borrar "{t}" y sus {n} subtarea(s)?',
   'rem-tag-ph':'Etiqueta nueva (trabajo, casa, gym…)','rem-filter':'Filtrar por etiqueta','rem-filter-clear':'limpiar',
+  'rem-filter-all':'· deben tener todas',
   'rem-subtask':'subtarea','rem-subtask-ask':'Subtarea de "{t}":',
   'rem-notes-ph':'Nota (opcional)','rem-edit':'Editar','rem-no-parent':'↳ No es subtarea',
   'rem-has-kids':'Esta ya tiene subtareas, así que no puede volverse una. El límite son 2 niveles.',
@@ -2045,6 +2049,20 @@ function allTags(){
   reminders().forEach(r=>tagsOf(r).forEach(tg=>set.add(tg)));
   return [...set].sort((a,b)=>a.localeCompare(b));
 }
+/* Two filters mean both of them, not either one. Picking a second tag used to
+   WIDEN the list — everything carrying gym or casa — which is the opposite of
+   what reaching for another filter is for: you add one to narrow down, and the
+   list grew instead. A task has to carry every tag you have picked.
+
+   One rule, read from the three places that filter, so they cannot drift apart
+   again: what is still to do, what was finished today, and the archive of what
+   was finished before. All three had their own copy of the old one. */
+function passesTags(tags){
+  const F=STATE.view.tags||[];
+  if(!F.length)return true;
+  const has=normTags(tags);
+  return F.every(tg=>has.includes(tg));
+}
 function hasTag(r,tg){return tagsOf(r).includes(tg);}
 /* Which tags are being filtered on lives in the view, alongside the sort and
    the scope — so it survives a reload and travels to the other device with
@@ -2930,6 +2948,9 @@ function renderPlanner(){
       c.style.cssText+=';cursor:pointer'+(on?';outline:2px solid var(--ac)':';opacity:.55');
       tagBar.appendChild(c);
     });
+    /* Said out loud once a second tag is on, because that is the moment the
+       list gets smaller instead of bigger and the reason has to be visible. */
+    if((STATE.view.tags||[]).length>1)tagBar.appendChild(sp('xs dimmer',t('rem-filter-all')));
     if((STATE.view.tags||[]).length)tagBar.appendChild(bt('btn-icon xs','✕ '+t('rem-filter-clear'),()=>{STATE.view.tags=[];saveView();commitAndRefresh();}));
   }
   /* What is still to do. A repeating task ticked today is not finished — it has
@@ -2988,8 +3009,7 @@ function renderPlanner(){
     'alpha':(a,b)=>(a.title||'').localeCompare(b.title||'',undefined,{numeric:true,sensitivity:'base'}),
   }[V.sort]||((a,b)=>a.due.localeCompare(b.due));
   const F=STATE.view.tags||[];
-  const passes=r=>(V.scope==='all'||r.due<=tk)&&
-                  (!F.length||tagsOf(r).some(tg=>F.includes(tg)));
+  const passes=r=>(V.scope==='all'||r.due<=tk)&&passesTags(tagsOf(r));
   /* Subtasks are judged by the very same rule as the rows above them. They had
      their own, older one, so a repeating subtask ticked today vanished from
      under its parent even under All — the family read 9 on the list and 13 in
@@ -3059,14 +3079,19 @@ function renderPlanner(){
     if(STATE.selecting)card.appendChild(renderBulkBar(grid?tops.map(r=>r.id):[...shownIds]));
     if(grid)card.appendChild(renderCompactGrid(tops,tk));
     else fillCard(card,tops,kidsFor);
+    /* What is doing the hiding. With no tag picked, the only thing that can
+       hide a row is the scope, so "later ones" was true. With one picked, most
+       of what is missing is missing because of the filter — and blaming the
+       dates for it sends you looking for a bug that is not there. */
     if(hidden>0)card.appendChild(dv('xs dimmer ctr mt8',
-      `${hidden} ${hidden===1?t('view-hidden-1'):t('view-hidden')}`));
+      F.length?`${hidden} ${hidden===1?t('view-hidden-f-1'):t('view-hidden-f')}`
+              :`${hidden} ${hidden===1?t('view-hidden-1'):t('view-hidden')}`));
   }
   wrap.appendChild(card);
 
   // Same rule for what was finished today: the tag filter applies per row here
   // too. Scope is not applied — anything ticked today belongs to today.
-  const tagOk=r=>!(STATE.view.tags||[]).length||tagsOf(r).some(tg=>(STATE.view.tags||[]).includes(tg));
+  const tagOk=r=>passesTags(tagsOf(r));
   // Same rule here: a subtask ticked today shows up even when its parent is
   // not done, standing on its own row instead of going missing.
   const doneAll=list.filter(r=>r.completedOn===tk&&tagOk(r));
@@ -3084,8 +3109,7 @@ function renderPlanner(){
      individually recorded. */
   const ARCHIVE_MAX=LOG_MAX;
   const past=completionLog()
-    .filter(x=>x.date!==tk&&(!(STATE.view.tags||[]).length||
-      normTags(x.tags).some(tg=>(STATE.view.tags||[]).includes(tg))))
+    .filter(x=>x.date!==tk&&passesTags(x.tags))
     .sort((a,b)=>b.date.localeCompare(a.date));
 
   /* One Done, with Today and Before inside it, the way the list above has
