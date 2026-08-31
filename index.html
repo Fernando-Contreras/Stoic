@@ -2877,7 +2877,13 @@ function renderPlanner(){
         // this list hands straight over to the celebration that replaces it.
         cb.onchange=()=>{leaveThen(row,()=>{toggleReminder(r.id);render();});};
         row.appendChild(cb);
-        row.appendChild(sp('sm f1',r.title));
+        /* The day's flags are your three most important tasks, and this was the
+           one list in the app showing a task as a plain label — the name you
+           most want to sharpen sat in the only place that would not let you.
+           Same words, same press, same result as everywhere else. */
+        const ttl=sp('sm f1',r.title);
+        editableTitle(ttl,r,render);
+        row.appendChild(ttl);
         box.appendChild(row);
       });
       sum.appendChild(box);
@@ -3768,6 +3774,31 @@ function snapshot(){
   };
 }
 
+/* Click the words, type, done. The same on every list in the app that shows a
+   task by name, because a name you can change in one list and not in another
+   is a name you have to remember which list to go to. `after` is how the list
+   that owns the element redraws itself; `row` is passed where the row can be
+   dragged, since a draggable row fights being selected with the mouse.
+   Enter and clicking away save it; Escape leaves it alone, and so does empty. */
+function editableTitle(el,r,after,row){
+  el.style.cursor='text';el.title=t('goal-edit');
+  el.onclick=e=>{
+    e.stopPropagation();
+    const inp=ip('text','',r.title,t('rem-what'));
+    inp.style.cssText='flex:1 1 100%;min-width:120px';
+    const put=()=>{
+      const v=inp.value.trim();
+      if(v&&v!==r.title)updateReminder(r.id,{title:v});
+      after();
+    };
+    inp.onkeydown=ev=>{if(ev.key==='Enter')put();if(ev.key==='Escape')after();};
+    inp.onblur=put;
+    if(row)row.draggable=false;
+    el.replaceWith(inp);inp.focus();inp.select();
+  };
+  return el;
+}
+
 function renderReminderRow(r,tk,opts){
   opts=opts||{};
   /* Where this row asks to be redrawn. On the list that is the whole page;
@@ -3841,22 +3872,7 @@ function renderReminderRow(r,tk,opts){
      were looking at was never the one that changed — you pressed ✏️, scrolled
      past a form, and found the same words again in a box. The name is the box
      now, and the editor keeps everything that genuinely needs a form. */
-  tt.style.cursor='text';tt.title=t('goal-edit');
-  tt.onclick=e=>{
-    e.stopPropagation();
-    const inp=ip('text','',r.title,t('rem-what'));
-    inp.style.cssText='width:100%;min-width:160px';
-    const put=()=>{
-      const v=inp.value.trim();
-      if(v&&v!==r.title)updateReminder(r.id,{title:v});
-      rd();
-    };
-    inp.onkeydown=ev=>{if(ev.key==='Enter')put();if(ev.key==='Escape')rd();};
-    inp.onblur=put;
-    // A row you can drag is a row that fights being selected with the mouse.
-    row.draggable=false;
-    titleLine.replaceChild(inp,tt);inp.focus();inp.select();
-  };
+  editableTitle(tt,r,rd,row);
   titleLine.appendChild(tt);
   if(r.flagged)titleLine.appendChild(sp('sm','🏁'));
   if(r.morning)titleLine.appendChild(sp('sm','🌅'));
