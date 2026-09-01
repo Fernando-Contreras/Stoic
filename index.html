@@ -798,6 +798,7 @@ en:{
   'rw-help':'These are the things you want to keep at bay. Rename them, give them your own icon, drop the ones that mean nothing to you, add your own.',
   'rw-light':'Light','rw-serious':'Medium','rw-grave':'Large',
   'rw-clears':'A run resets by breaking it, or with a day of this colour:','rw-per-min':'−1 per minute × difficulty',
+  'rw-only-break':'(only by breaking it)',
   'rw-new':'Something you want to cut back on','rw-add':'+ Add','rw-full':'Five is the limit.',
   'rw-locked':'One of each category. Fixed: your whole history was scored with these costs. The name and the icon are yours.',
   'rw-tier-warn':'Changing the weight re-scores every day you have ever logged this on, the way changing difficulty does. Continue?',
@@ -929,6 +930,13 @@ en:{
   'goals-title':'Goals','goal-week':'📅 Weekly','goal-quarter':'📈 Quarterly','goal-year':'🏆 Yearly',
   'goal-new':'A goal that excites you','goal-add':'+ Add goal','goal-day':'day left','goal-days':'days left',
   'goal-earned':'earned from goals','goal-daily':'Goals to annihilate',
+  'rules-clears-day':'A {c} day clears it','rules-clears-never':'Only breaking it clears it',
+  'rules-resets':'resets',
+  'rules-no-forgive':'⚠ On this difficulty no colour forgives a reward run. The only way one ends is by not doing the thing.',
+  'cap-note':'No run multiplies by more than {n}, for you or against you. The run keeps counting; only what it pays stops growing.',
+  'src-title':'Where your points come from','src-tasks':'Tasks','src-morning':'Morning','src-flags':'Goals',
+  'src-pom':'Pomodoros','src-work':'Work','src-sleep':'Sleep','src-color':'Day colour',
+  'src-rewards':'Rewards','src-late':'Late nights','src-gaps':'Days not logged','src-none':'Log a few days first.',
   'goal-nudge':'Your biggest goals are your compass',
   'goal-day-done':'Goals annihilated!','goal-day-done-sub':'Every flag of the day is down.',
   'goal-worth':'worth','goal-tomorrow':'tomorrow','goal-past-due':'⚠ was due',
@@ -978,6 +986,7 @@ es:{
   'rw-help':'Son las cosas que quieres mantener a raya. Renómbralas, ponles tu propio ícono, quita las que no te digan nada, agrega las tuyas.',
   'rw-light':'Ligera','rw-serious':'Media','rw-grave':'Grande',
   'rw-clears':'Una racha se resetea rompiéndola o con un día de este color:','rw-per-min':'−1 por minuto × dificultad',
+  'rw-only-break':'(solo rompiéndola)',
   'rw-new':'Algo que quieras reducir','rw-add':'+ Agregar','rw-full':'Cinco es el límite.',
   'rw-locked':'Una de cada categoría. Fija: todo tu historial se calculó con estos costos. El nombre y el ícono sí son tuyos.',
   'rw-tier-warn':'Cambiar el peso recalcula todos los días en que la hayas registrado, igual que cambiar la dificultad. ¿Continuar?',
@@ -1109,6 +1118,13 @@ es:{
   'goals-title':'Metas','goal-week':'📅 Semanales','goal-quarter':'📈 Trimestrales','goal-year':'🏆 Anuales',
   'goal-new':'Una meta que te emocione','goal-add':'+ Agregar meta','goal-day':'día restante','goal-days':'días restantes',
   'goal-earned':'ganados en metas','goal-daily':'Metas por exterminar alv',
+  'rules-clears-day':'La limpia un día {c}','rules-clears-never':'Solo se limpia rompiéndola',
+  'rules-resets':'reinicia',
+  'rules-no-forgive':'⚠ En esta dificultad ningún color perdona una racha de recompensa. La única forma de romperla es no hacer la cosa.',
+  'cap-note':'Ninguna racha multiplica más de ×{n}, ni a tu favor ni en tu contra. La racha sigue contando; lo que deja de crecer es lo que paga.',
+  'src-title':'De dónde salen tus puntos','src-tasks':'Tareas','src-morning':'Mañanas','src-flags':'Metas',
+  'src-pom':'Pomodoros','src-work':'Trabajo','src-sleep':'Sueño','src-color':'Color del día',
+  'src-rewards':'Recompensas','src-late':'Trasnoches','src-gaps':'Días sin registrar','src-none':'Registra unos días primero.',
   'goal-nudge':'Tus metas más grandes son tu brújula',
   'goal-day-done':'¡Metas exterminadas alv!','goal-day-done-sub':'Cayeron todas las banderas de hoy.',
   'goal-worth':'vale','goal-tomorrow':'mañana','goal-past-due':'⚠ era para',
@@ -1127,6 +1143,59 @@ es:{
 function t(k){return T[STATE?.lang||'en']?.[k]??T.en[k]??k}
 function toggleLang(){STATE.lang=STATE.lang==='en'?'es':'en';localStorage.setItem('st_lang',STATE.lang);refresh();SB.push(STATE.history,STATE.today,STATE.diary,STATE.streakOverrides).catch(()=>{});}
 function capFirst(s){return s?s.charAt(0).toUpperCase()+s.slice(1):s;}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   THE TWO RULES THAT DECIDE WHETHER THE SCORE MEANS ANYTHING
+   ═══════════════════════════════════════════════════════════════════════
+
+   1. No run multiplies more than seven, for you or against you.
+
+   Work paid minutes × the run, early bed paid sleep × the run, and neither
+   had a ceiling. Day 32 of a work streak paid thirty-two times what day 1
+   paid for the very same five hours, so the total grew faster the longer it
+   went and could not fall no matter how the week actually went. Measured on
+   one real account: 1,383,924 points of positives against 113,005 of
+   penalties — eight per cent. Even on hard, where penalties cost ten times
+   as much, they only reached eighty per cent. Procrastinating could not
+   show up in the number, arithmetically, at any difficulty.
+
+   Seven, because a week is the unit this app already thinks in — the stats
+   compare your last seven days against your average — and because past a
+   week the habit is the reward, not the multiplier. The run itself still
+   counts up on the streaks page, and a hundred days is still a hundred
+   days. It just stops paying like a hundred.
+
+   The cap is deliberately symmetric. A penalty that compounded forever
+   would be the same runaway pointing the other way.
+
+   2. What a day's colour forgives depends on the difficulty.
+
+   Positive runs only ever broke when you stopped doing the thing. Penalty
+   runs broke when you stopped AND on any decent day — so good days quietly
+   wiped the multiplier on the habits you were trying to drop, while nothing
+   ever wiped the one on work. On hard, nothing forgives a reward run any
+   more; on medium the two lightest still are; on easy it stays as it was.
+   Work still dies on a red day at every difficulty. That is what those
+   three words should have meant all along.
+
+   Both rules are read live, so switching difficulty re-scores every day you
+   have ever logged — exactly as changing difficulty already did.
+   ═══════════════════════════════════════════════════════════════════════ */
+const STREAK_CAP=7;
+function capStreak(n){return Math.min(STREAK_CAP,Math.max(1,n||1));}
+const TIER_RESETS={
+  light:  {easy:['yellow','green','purple'],medium:['yellow','green','purple'],hard:[]},
+  serious:{easy:['green','purple'],         medium:['green','purple'],         hard:[]},
+  grave:  {easy:['purple'],                 medium:[],                         hard:[]}
+};
+function difficulty(){return (typeof STATE!=='undefined'?STATE.difficulty:null)||'easy';}
+// Which day colours wipe a run of this weight, at the difficulty you are on.
+function tierResets(tier){return (TIER_RESETS[tier]||TIER_RESETS.light)[difficulty()]||[];}
+/* The three that shipped are one of each weight, and the late night behaves
+   like the heaviest — so they all answer the same table rather than carrying
+   the colours written out beside them in four different places. */
+const BUILTIN_TIER={drugs:'light',internet:'serious',macanazo:'grave',late:'grave'};
+function builtinResets(kind){return tierResets(BUILTIN_TIER[kind]||'light');}
 
 /* ═══ CALC — SINGLE SOURCE OF TRUTH ═══ */
 const CALC={
@@ -1157,7 +1226,7 @@ const CALC={
   // single source of truth for the procrastination-penalty multiplier —
   // was previously duplicated 3x with mismatched thresholds/fallbacks
   procMult(procMins,streak){
-    return procMins>30?Math.max(1,streak||1):1;
+    return procMins>30?capStreak(streak):1;
   },
   streaks(history,today){
     const tk=todayKey();
@@ -1171,7 +1240,7 @@ const CALC={
     function wStrk(){let c=0;for(let i=hist.length-1;i>=0;i--){if(hist[i].status==='red')break;c++;}return c;}
     function eStrk(){let c=0;for(let i=hist.length-1;i>=0;i--){if(!hist[i].sleptEarly)break;c++;}return c;}
     function cStrk(){let c=0;for(let i=hist.length-1;i>=0;i--){if(hist[i].status==='red'||hist[i]._gap)break;c++;}return c;}
-    function lStrk(){let c=0;for(let i=hist.length-1;i>=0;i--){if(!hist[i].sleptLate||hist[i].status==='purple')break;c++;}return c;}
+    function lStrk(resetOn){let c=0;for(let i=hist.length-1;i>=0;i--){if(!hist[i].sleptLate||(resetOn||[]).includes(hist[i].status))break;c++;}return c;}
     const tD=today.penalties.some(p=>p.type==='drugs');
     const tN=today.penalties.some(p=>p.type==='internet');
     const tM=today.penalties.some(p=>p.type==='macanazo');
@@ -1181,21 +1250,21 @@ const CALC={
     const pct=today.target>0?Math.round((today.completed||0)/today.target*100):0;
     const todayStatus=CALC.status(pct, today.flagCompleted||false);
 
-    // Rules:
-    // Yellow+ → resets Substances
-    // Green+  → resets Substances + Procrastination
-    // Purple  → resets Substances + Procrastination + Orgasm + Slept Late
-    // Red     → cuts Work streak (handled in wStrk)
-    const todayResetsSubstances = ['yellow','green','purple'].includes(todayStatus);
-    const todayResetsProcrast   = ['green','purple'].includes(todayStatus);
-    const todayResetsMacanazo   = todayStatus==='purple';
-    const todayResetsLate       = todayStatus==='purple';  // ONLY purple
+    /* Which colours forgive what is no longer written out here — it is the
+       one table, read at the difficulty you are on. Red still cuts the work
+       streak at every difficulty (handled in wStrk). */
+    const rD=builtinResets('drugs'),rN=builtinResets('internet'),
+          rM=builtinResets('macanazo'),rL=builtinResets('late');
+    const todayResetsSubstances = rD.includes(todayStatus);
+    const todayResetsProcrast   = rN.includes(todayStatus);
+    const todayResetsMacanazo   = rM.includes(todayStatus);
+    const todayResetsLate       = rL.includes(todayStatus);
 
     return{
-      substancesPenaltyStreak:      todayResetsSubstances ? 0 : pStrk('drugs',['yellow','green','purple']) + (tD?1:0),
-      procrastinationPenaltyStreak: todayResetsProcrast   ? 0 : pStrk('internet',['green','purple']) + (tN?1:0),
-      macanazoPenaltyStreak:        todayResetsMacanazo   ? 0 : pStrk('macanazo',['purple']) + (tM?1:0),
-      lateStreak:                   todayResetsLate        ? 0 : lStrk() + (tLate?1:0),
+      substancesPenaltyStreak:      todayResetsSubstances ? 0 : pStrk('drugs',rD) + (tD?1:0),
+      procrastinationPenaltyStreak: todayResetsProcrast   ? 0 : pStrk('internet',rN) + (tN?1:0),
+      macanazoPenaltyStreak:        todayResetsMacanazo   ? 0 : pStrk('macanazo',rM) + (tM?1:0),
+      lateStreak:                   todayResetsLate        ? 0 : lStrk(rL) + (tLate?1:0),
       // Positive streaks: unaffected by day color
       substancesStreak:tD?0:aStrk('drugs'),
       procrastinationStreak:tN?0:aStrk('internet'),
@@ -1222,27 +1291,29 @@ const CALC={
   score(day,sk){
     const{completed=0,target=0,morningCompleted=false,flagCompleted=false,pomodoros=0,penalties=[],sleep={},work={}}=day;
     const s=sk||{morningStreak:0,flagStreak:0,substancesPenaltyStreak:1,procrastinationPenaltyStreak:1,macanazoPenaltyStreak:1};
+    // Every run is read through the cap — see STREAK_CAP. The run itself is
+    // still whatever it is; this is only what it is allowed to multiply by.
     const base=completed;
-    const mB=morningCompleted?25*Math.max(1,s.morningStreak):0;
-    const fB=flagCompleted?100*Math.max(1,s.flagStreak):0;
+    const mB=morningCompleted?25*capStreak(s.morningStreak):0;
+    const fB=flagCompleted?100*capStreak(s.flagStreak):0;
     const pom=pomodoros*25;
-    const wrk=(work.workDuration||0)*Math.max(1,s.workStreak);
-    const earlyBedStreak=Math.max(1,s.earlyBedStreak||1);
+    const wrk=(work.workDuration||0)*capStreak(s.workStreak);
+    const earlyBedStreak=capStreak(s.earlyBedStreak);
     const slp=(sleep.sleepDuration||0)+(sleep.napDuration||0)+(sleep.sleptEarly?(sleep.sleepDuration||0)*earlyBedStreak:0);
-    const latePen=sleep.sleptLate?-100*this.diffMult()*Math.max(1,s.lateStreak||1):0;
+    const latePen=sleep.sleptLate?-100*this.diffMult()*capStreak(s.lateStreak):0;
     const procMins=penalties.filter(p=>p.type==='internet').reduce((a,p)=>a+(p.details?.minutes||0),0);
     const pen=penalties.reduce((sum,p)=>{
       const b=this.penBase(p);let mult=1;
-      if(p.type==='drugs')mult=Math.max(1,s.substancesPenaltyStreak);
+      if(p.type==='drugs')mult=capStreak(s.substancesPenaltyStreak);
       else if(p.type==='internet')mult=this.procMult(procMins,s.procrastinationPenaltyStreak);
-      else if(p.type==='macanazo')mult=Math.max(1,s.macanazoPenaltyStreak);
+      else if(p.type==='macanazo')mult=capStreak(s.macanazoPenaltyStreak);
       // Yours multiply by their own run, the same way.
-      else if(typeof penKey==='function')mult=Math.max(1,s[penKey(p.type)]||1);
+      else if(typeof penKey==='function')mult=capStreak(s[penKey(p.type)]);
       return sum+b*mult;
     },0);
     const pct=target>0?Math.round(completed/target*100):0;
     const status=this.status(pct,flagCompleted);
-    const col=this.colorBonus(status)*Math.max(1,s.colorStreak||0);
+    const col=this.colorBonus(status)*capStreak(s.colorStreak);
     const total=base+mB+fB+pom+wrk+slp+pen+col+latePen;
     return{total,base,status,pct,mB,fB,pom,wrk,slp,pen,col,latePen};
   },
@@ -1276,13 +1347,18 @@ const CALC={
     }
     return count;
   },
-  liveScore(e, allHistory){
-    if(e._gap)return e.todayPoints||-1000;
+  /* A stored day, taken apart into where its points came from. liveScore is
+     the sum of these and nothing else, so the two can never disagree about a
+     day — and the stats can finally say which of these is the number that
+     grew, instead of leaving you to guess from a single total. */
+  liveParts(e, allHistory){
+    const zero={base:0,mB:0,fB:0,pom:0,wrk:0,slp:0,col:0,latePen:0,pen:0};
+    if(e._gap)return{...zero,gap:e.todayPoints||-1000};
     const st=e.status||'red';
-    const subsReset  =['yellow','green','purple'].includes(st);
-    const procReset  =['green','purple'].includes(st);
-    const macReset   = st==='purple';
-    const lateReset  = st==='purple';
+    const subsReset  =builtinResets('drugs').includes(st);
+    const procReset  =builtinResets('internet').includes(st);
+    const macReset   =builtinResets('macanazo').includes(st);
+    const lateReset  =builtinResets('late').includes(st);
 
     // Default to the streak that was saved at the time (fallback if no history array given)
     let morningStreak=e.streaksUsed?.morningStreak||1;
@@ -1310,10 +1386,10 @@ const CALC={
         flagStreak=this.streakAtDay(sorted,idx,d=>d.streaks?.some(s=>s.type==='flags'&&s.active))||1;
         workStreak=this.streakAtDay(sorted,idx,d=>(d.workDuration||0)>0,['red'])||1;
         earlyBedStreak=this.streakAtDay(sorted,idx,d=>d.sleptEarly)||1;
-        lateStreak=this.streakAtDay(sorted,idx,d=>d.sleptLate,['purple'])||1;
-        subsStreak=this.streakAtDay(sorted,idx,d=>d.penalties?.some(p=>p.type==='drugs'),['yellow','green','purple'])||1;
-        procStreak=this.streakAtDay(sorted,idx,d=>d.penalties?.some(p=>p.type==='internet'),['green','purple'])||1;
-        macStreak=this.streakAtDay(sorted,idx,d=>d.penalties?.some(p=>p.type==='macanazo'),['purple'])||1;
+        lateStreak=this.streakAtDay(sorted,idx,d=>d.sleptLate,builtinResets('late'))||1;
+        subsStreak=this.streakAtDay(sorted,idx,d=>d.penalties?.some(p=>p.type==='drugs'),builtinResets('drugs'))||1;
+        procStreak=this.streakAtDay(sorted,idx,d=>d.penalties?.some(p=>p.type==='internet'),builtinResets('internet'))||1;
+        macStreak=this.streakAtDay(sorted,idx,d=>d.penalties?.some(p=>p.type==='macanazo'),builtinResets('macanazo'))||1;
         // Consecutive non-red days BEFORE this one — gaps are already excluded
         // from `sorted`, and the day itself never counts toward its own streak.
         colorMult=Math.max(1,this.streakAtDay(sorted,idx-1,d=>d.status!=='red'));
@@ -1342,22 +1418,26 @@ const CALC={
       }
     }
 
-    const pos=(e.completedTasks||0)
-      +((e.streaks?.some(s=>s.type==='morning'&&s.active))?25*morningStreak:0)
-      +((e.streaks?.some(s=>s.type==='flags'&&s.active))?100*flagStreak:0)
-      +((e.pomodoros||0)*25)
-      +((e.workDuration||0)*workStreak)
-      +((e.sleepDuration||0)+(e.napDuration||0)+(e.sleptEarly?(e.sleepDuration||0)*earlyBedStreak:0))
-      +(this.colorBonus(e.status)*colorMult)
-      +(e.sleptLate&&!lateReset?-100*this.diffMult()*lateStreak:0);
+    // Read through the cap, exactly as CALC.score does for today.
+    const parts={
+      base:(e.completedTasks||0),
+      mB:((e.streaks?.some(s=>s.type==='morning'&&s.active))?25*capStreak(morningStreak):0),
+      fB:((e.streaks?.some(s=>s.type==='flags'&&s.active))?100*capStreak(flagStreak):0),
+      pom:((e.pomodoros||0)*25),
+      wrk:((e.workDuration||0)*capStreak(workStreak)),
+      slp:((e.sleepDuration||0)+(e.napDuration||0)+(e.sleptEarly?(e.sleepDuration||0)*capStreak(earlyBedStreak):0)),
+      col:(this.colorBonus(e.status)*capStreak(colorMult)),
+      latePen:(e.sleptLate&&!lateReset?-100*this.diffMult()*capStreak(lateStreak):0),
+      pen:0
+    };
 
-    const pen=(e.penalties||[]).reduce((sum,p)=>{
+    parts.pen=(e.penalties||[]).reduce((sum,p)=>{
       const det=p.type==='drugs'?{substances:p.count}:p.type==='internet'?{minutes:p.count}:{isPositive:false};
       const b=this.penBase({type:p.type,details:det,count:p.count});
       let mult=1;
-      if(p.type==='drugs'&&!subsReset) mult=subsStreak;
-      else if(p.type==='internet'&&!procReset) mult=procStreak;
-      else if(p.type==='macanazo'&&!macReset) mult=macStreak;
+      if(p.type==='drugs'&&!subsReset) mult=capStreak(subsStreak);
+      else if(p.type==='internet'&&!procReset) mult=capStreak(procStreak);
+      else if(p.type==='macanazo'&&!macReset) mult=capStreak(macStreak);
       /* One you added. Its run through history is counted here the same way
          the three above are, and its own weight says which day colours end it
          — so a past day is re-scored by what was true then, not by what its
@@ -1367,13 +1447,19 @@ const CALC={
         if(r&&!rewardResets(r).includes(st)&&Array.isArray(allHistory)){
           const sorted=[...allHistory].filter(h=>!h._gap).sort((a,b)=>a.date.localeCompare(b.date));
           const idx=sorted.findIndex(h=>h.date===e.date);
-          if(idx>=0)mult=Math.max(1,this.streakAtDay(sorted,idx,
+          if(idx>=0)mult=capStreak(this.streakAtDay(sorted,idx,
             d=>d.penalties?.some(x=>x.type===p.type),rewardResets(r)));
         }
       }
       return sum+b*mult;
     },0);
-    return pos+pen;
+    return parts;
+  },
+  // The day's number is the sum of its parts and nothing besides.
+  liveScore(e, allHistory){
+    const p=this.liveParts(e,allHistory);
+    if(p.gap!==undefined)return p.gap;
+    return p.base+p.mB+p.fB+p.pom+p.wrk+p.slp+p.col+p.latePen+p.pen;
   },
   buildEntry(today,streaks,date){
     const sc=this.score(today,streaks);
@@ -2597,7 +2683,8 @@ function isOriginal(r){return !!(r&&r.builtin&&!r.renamed);}
 // The default a built-in was born with, so a rename can be recognised as undone.
 function rewardDefault(r){return r&&r.builtin?REWARD_DEFAULTS.find(d=>d.id===r.id)||null:null;}
 // Which day colours wipe its run, and what one costs at the current difficulty.
-function rewardResets(r){return REWARD_TIERS[r?.tier||'light'].resetOn;}
+// Reads the difficulty, so the same reward is forgiven on easy and never on hard.
+function rewardResets(r){return tierResets(r?.tier||'light');}
 function rewardCost(r){return Math.round(REWARD_TIERS[r?.tier||'light'].base*CALC.diffMult());}
 /* Streak keys. The originals keep the names they were stored under so nothing
    already saved has to be migrated; anything you add gets its own pair. */
@@ -5414,6 +5501,63 @@ function renderStats(total,sc){
     gA.appendChild(s);
   });body.appendChild(gA);
 
+  /* ── Where the total actually comes from ─────────────────────────────────
+     One number cannot tell you which of eight sources built it, and the
+     source that built most of it is not usually the one you would name. This
+     is the same arithmetic the total is — every stored day taken apart and
+     the parts added back up — just not collapsed into a single figure. */
+  const SRC=[['src-work','💼','wrk'],['src-sleep','😴','slp'],['src-flags','🏁','fB'],
+             ['src-morning','🌞','mB'],['src-pom','🍅','pom'],['src-color','🎨','col'],
+             ['src-tasks','✅','base'],['src-rewards','🤤','pen'],['src-late','🌙','latePen']];
+  const srcTot={};SRC.forEach(([,,k])=>srcTot[k]=0);
+  let gapTot=0;
+  // The same day list the total adds up: gaps filled in, real days laid over.
+  [...histMap().values()].filter(d=>d.date!==todayKey()).forEach(d=>{
+    const p=CALC.liveParts(d,STATE.history);
+    if(p.gap!==undefined){gapTot+=p.gap;return;}
+    SRC.forEach(([,,k])=>srcTot[k]+=p[k]||0);
+  });
+  SRC.forEach(([,,k])=>srcTot[k]+=sc[k]||0);   // and today, as it stands
+  const srcBox=dv('card2 mb10');
+  srcBox.appendChild(dv('xs dimmer up ls mb8',t('src-title')));
+  const pos=SRC.filter(([,,k])=>srcTot[k]>0).sort((a,b)=>srcTot[b[2]]-srcTot[a[2]]);
+  const neg=SRC.filter(([,,k])=>srcTot[k]<0).sort((a,b)=>srcTot[a[2]]-srcTot[b[2]]);
+  const posSum=pos.reduce((s,[,,k])=>s+srcTot[k],0);
+  if(!pos.length&&!neg.length&&!gapTot)srcBox.appendChild(dv('xs dimmer',t('src-none')));
+  else{
+    const line=(icon,label,val,share,color)=>{
+      const row=dv('row gap8');row.style.alignItems='center';
+      row.appendChild(sp('sm',icon));
+      const mid=dv('f1');
+      mid.appendChild(dv('xs dim',label));
+      // The bar is the share of the positives, so the big one is obvious at
+      // a glance rather than needing the numbers read and compared.
+      const track=dv('');track.style.cssText='height:5px;border-radius:3px;background:var(--b1);margin-top:3px;overflow:hidden';
+      const fill=dv('');fill.style.cssText=`height:100%;width:${Math.max(1,Math.round(share*100))}%;background:${color}`;
+      track.appendChild(fill);mid.appendChild(track);
+      row.appendChild(mid);
+      const n=sp('sm mo w7',(val>0?'+':'')+val.toLocaleString());
+      n.style.cssText='color:'+color+';min-width:96px;text-align:right';
+      row.appendChild(n);
+      if(share>0){const pc=sp('xs dimmer mo',Math.round(share*100)+'%');pc.style.cssText='min-width:34px;text-align:right';row.appendChild(pc);}
+      return row;
+    };
+    const list=dv('s6');
+    pos.forEach(([key,icon,k])=>list.appendChild(
+      line(icon,t(key),srcTot[k],posSum?srcTot[k]/posSum:0,'var(--cg)')));
+    const negSum=neg.reduce((s,[,,k])=>s+srcTot[k],0)+gapTot;
+    neg.forEach(([key,icon,k])=>list.appendChild(
+      line(icon,t(key),srcTot[k],negSum?srcTot[k]/negSum:0,'var(--ng)')));
+    if(gapTot)list.appendChild(line('📅',t('src-gaps'),gapTot,negSum?gapTot/negSum:0,'var(--ng)'));
+    srcBox.appendChild(list);
+    /* The one line that answers the question this whole panel exists for:
+       how much of what you do is being cancelled by what you indulge. */
+    if(posSum>0)srcBox.appendChild(dv('xs dimmer mt8 ctr',
+      `${(-negSum).toLocaleString()} / ${posSum.toLocaleString()} · ${Math.round(-negSum/posSum*100)}%`));
+    srcBox.appendChild(dv('xs dimmer mt6',t('cap-note').replace('{n}',STREAK_CAP)));
+  }
+  body.appendChild(srcBox);
+
   // ── 2. Overview ──────────────────────────────────────────────────────────
   body.appendChild(grid4(
     statCard(t('total-days-lbl'),String(totalTracked),'var(--ac)',null),
@@ -5658,8 +5802,25 @@ function renderRules(onClose){
      they cannot say anything the app does not do. */
   const costsAt=m=>rewards().map(r=>escapeHtml(rewardName(r))+' '+
     (r.byMinutes?`−${m}/min`:'−'+(REWARD_TIERS[r.tier].base*m).toLocaleString())).join(' · ');
-  const clearedBy=c=>rewards().filter(r=>rewardResets(r).includes(c))
-    .map(r=>escapeHtml(rewardLabel(r))).join(' + ');
+  /* Who a colour forgives, the late night included — it carries no weight of
+     its own but is forgiven like the heaviest one. Empty is a real answer on
+     hard, and the caller drops the whole line rather than printing "resets
+     nothing", which is a sentence about nothing. */
+  const clearedBy=c=>{
+    const who=rewards().filter(r=>rewardResets(r).includes(c)).map(r=>escapeHtml(rewardLabel(r)));
+    if(builtinResets('late').includes(c))who.push('🌙 '+t('late-night-lbl'));
+    return who.join(' + ');
+  };
+  const resetLine=(dot,cls,c)=>{
+    const who=clearedBy(c);
+    return who?`<div><span class="${cls} w6">${dot}</span> — ${t('rules-resets')} ${who}</div>`:'';
+  };
+  const anyForgiven=['yellow','green','purple'].some(c=>clearedBy(c));
+  // On hard nothing is forgiven by a colour, so a run only ends by breaking it.
+  const clearsRun=r=>{
+    const cs=rewardResets(r).map(s=>({yellow:'🟡',green:'🟢',purple:'🟣'})[s]).join(' ');
+    return cs?t('rules-clears-day').replace('{c}',cs):t('rules-clears-never');
+  };
   const body=dv('fi');
   body.innerHTML=STATE.lang==='es'?`<div class="s16 dim">
   <div>
@@ -5725,7 +5886,7 @@ function renderRules(onClose){
     <div class="md up ls ng w7 mb10">🤤 Recompensas (costos en puntos 💸)</div>
     <div class="s6">
       <div>Premios que quieres mantener a raya. Cada uno cuesta puntos, y cuanto más seguido los haces, más cuestan (× racha). <span class="ac w6">La lista es tuya</span>: renómbralas, cámbiales el ícono, quita las que no te digan nada o agrega las tuyas (hasta 5) con el ⚙ de la tarjeta de Recompensas.</div>
-      ${rewards().map(r=>`<div><span class="ng w6">${escapeHtml(rewardLabel(r))}</span> — ${r.byMinutes?'registra los minutos; pasados 30 min entra el multiplicador':t(REWARD_TIERS[r.tier].name).toLowerCase()+', −'+rewardCost(r).toLocaleString()+' × su racha'}. La limpia un día ${rewardResets(r).map(s=>({yellow:'🟡',green:'🟢',purple:'🟣'})[s]).join(' ')}.</div>`).join('')}
+      ${rewards().map(r=>`<div><span class="ng w6">${escapeHtml(rewardLabel(r))}</span> — ${r.byMinutes?'registra los minutos; pasados 30 min entra el multiplicador':t(REWARD_TIERS[r.tier].name).toLowerCase()+', −'+rewardCost(r).toLocaleString()+' × su racha'}. ${clearsRun(r)}.</div>`).join('')}
       <div><span class="ng w6">🌙 Trasnoché</span> — cuesta bastante × tu racha de desvelo. La limpia un día 🟣.</div>
       <div class="xs dimmer">El <span class="ac w6">peso</span> de cada una decide dos cosas: cuánto cuesta y qué tan bueno tiene que ser el día para limpiar su racha. Los costos exactos dependen de tu modo de dificultad — ver abajo.</div>
     </div>
@@ -5746,9 +5907,10 @@ function renderRules(onClose){
     <div class="s6">
       <div>Todas se rompen al saltarte un día, excepto ${escapeHtml(rewardName(rewardById('internet')))}, que permite 30 minutos diarios. Además, el color del día reinicia algunas:</div>
       <div><span class="cr w6">🔴 Rojo</span> — reinicia tu racha de Trabajo 💼</div>
-      <div><span class="cy w6">🟡 Amarillo</span> — reinicia ${clearedBy('yellow')}</div>
-      <div><span class="cg w6">🟢 Verde</span> — reinicia ${clearedBy('green')}</div>
-      <div><span class="cp w6">🟣 Morado</span> — reinicia TODAS las de recompensas, incluyendo Desvelo 🌙</div>
+      ${resetLine('🟡 Amarillo','cy','yellow')}
+      ${resetLine('🟢 Verde','cg','green')}
+      ${resetLine('🟣 Morado','cp','purple')}
+      ${anyForgiven?'':'<div class="w6" style="color:var(--ng)">'+t('rules-no-forgive')+'</div>'}
       <div><span class="ac w6">🎖️ Medallas</span> — cada racha <em>positiva</em> que llega a 10, 20, 50, 100, 200, 500 o 1000 días deja su medalla en ese día del calendario. Las recompensas nunca dan medalla.</div>
       <div class="xs dimmer">Los días que olvidas registrar cuentan como −1,000 pts y día Rojo. ¡Registra diario!</div>
     </div>
@@ -5819,7 +5981,7 @@ function renderRules(onClose){
     <div class="md up ls ng w7 mb10">🤤 Rewards (point costs 💸)</div>
     <div class="s6">
       <div>Behaviours you want to keep at bay. Each costs points, and the more often you do them, the more they cost (× streak). <span class="ac w6">The list is yours</span>: rename them, change their icon, drop the ones that mean nothing to you or add your own (up to 5) from the ⚙ on the Rewards card.</div>
-      ${rewards().map(r=>`<div><span class="ng w6">${escapeHtml(rewardLabel(r))}</span> — ${r.byMinutes?'log the minutes; past 30 min the multiplier kicks in':t(REWARD_TIERS[r.tier].name).toLowerCase()+', −'+rewardCost(r).toLocaleString()+' × its streak'}. A ${rewardResets(r).map(s=>({yellow:'🟡',green:'🟢',purple:'🟣'})[s]).join(' ')} day clears it.</div>`).join('')}
+      ${rewards().map(r=>`<div><span class="ng w6">${escapeHtml(rewardLabel(r))}</span> — ${r.byMinutes?'log the minutes; past 30 min the multiplier kicks in':t(REWARD_TIERS[r.tier].name).toLowerCase()+', −'+rewardCost(r).toLocaleString()+' × its streak'}. ${clearsRun(r)}.</div>`).join('')}
       <div><span class="ng w6">🌙 Slept Late</span> — costs a lot × your late-night streak. A 🟣 day clears it.</div>
       <div class="xs dimmer">Each one's <span class="ac w6">weight</span> decides two things: what it costs, and how good a day has to be to clear its streak. Exact costs depend on your difficulty mode — see below.</div>
     </div>
@@ -5840,9 +6002,10 @@ function renderRules(onClose){
     <div class="s6">
       <div>All of them break the moment you skip a day, except ${escapeHtml(rewardName(rewardById('internet')))}, which allows 30 minutes a day. On top of that, the day's colour resets some:</div>
       <div><span class="cr w6">🔴 Red</span> — resets your Work streak 💼</div>
-      <div><span class="cy w6">🟡 Yellow</span> — resets ${clearedBy('yellow')}</div>
-      <div><span class="cg w6">🟢 Green</span> — resets ${clearedBy('green')}</div>
-      <div><span class="cp w6">🟣 Purple</span> — resets ALL reward streaks, including Late Night 🌙</div>
+      ${resetLine('🟡 Yellow','cy','yellow')}
+      ${resetLine('🟢 Green','cg','green')}
+      ${resetLine('🟣 Purple','cp','purple')}
+      ${anyForgiven?'':'<div class="w6" style="color:var(--ng)">'+t('rules-no-forgive')+'</div>'}
       <div><span class="ac w6">🎖️ Medals</span> — every <em>positive</em> streak that reaches 10, 20, 50, 100, 200, 500 or 1000 days leaves its medal on that day in the calendar. Rewards never earn one.</div>
       <div class="xs dimmer">Days you forget to log count as −1,000 pts and a Red day. Don't skip!</div>
     </div>
@@ -5941,7 +6104,7 @@ function renderRewardsModal(){
     panel.appendChild(box);
     const legend=dv('xs dimmer mt8');
     legend.innerHTML=t('rw-clears')+' '+Object.keys(REWARD_TIERS).map(k=>
-      `<span class="w6">${t(REWARD_TIERS[k].name)}</span> ${REWARD_TIERS[k].resetOn.map(s=>({yellow:'🟡',green:'🟢',purple:'🟣'})[s]).join('')}`).join(' · ');
+      `<span class="w6">${t(REWARD_TIERS[k].name)}</span> ${tierResets(k).map(s=>({yellow:'🟡',green:'🟢',purple:'🟣'})[s]).join('')||t('rw-only-break')}`).join(' · ');
     panel.appendChild(legend);
 
     if(rewards().length<REWARD_MAX){
