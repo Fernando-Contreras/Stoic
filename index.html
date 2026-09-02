@@ -1236,9 +1236,14 @@ const CALC={
     const hasSt=(d,t)=>d.streaks?.some(s=>s.type===t&&s.active)||false;
     function pStrk(type,resetOn){let c=0;for(let i=hist.length-1;i>=0;i--){if(!hasPen(hist[i],type))break;if(resetOn.includes(hist[i].status))break;c++;}return c;}
     function aStrk(type){let c=0;for(let i=hist.length-1;i>=0;i--){if(hasPen(hist[i],type))break;c++;}return c;}
-    function sStrk(type){let c=0;for(let i=hist.length-1;i>=0;i--){if(!hasSt(hist[i],type))break;c++;}return c;}
+    /* A red day ends every positive run, not only work. It is the one rule
+       simple enough to hold in your head — have a bad day and you start over
+       — and it is a fair one, because a day with its flags down cannot be red
+       in the first place. No other colour touches a positive run: they are
+       capped at ×7 now, so there is nothing left to rein in. */
+    function sStrk(type){let c=0;for(let i=hist.length-1;i>=0;i--){if(hist[i].status==='red')break;if(!hasSt(hist[i],type))break;c++;}return c;}
     function wStrk(){let c=0;for(let i=hist.length-1;i>=0;i--){if(hist[i].status==='red')break;c++;}return c;}
-    function eStrk(){let c=0;for(let i=hist.length-1;i>=0;i--){if(!hist[i].sleptEarly)break;c++;}return c;}
+    function eStrk(){let c=0;for(let i=hist.length-1;i>=0;i--){if(hist[i].status==='red')break;if(!hist[i].sleptEarly)break;c++;}return c;}
     function cStrk(){let c=0;for(let i=hist.length-1;i>=0;i--){if(hist[i].status==='red'||hist[i]._gap)break;c++;}return c;}
     function lStrk(resetOn){let c=0;for(let i=hist.length-1;i>=0;i--){if(!hist[i].sleptLate||(resetOn||[]).includes(hist[i].status))break;c++;}return c;}
     const tD=today.penalties.some(p=>p.type==='drugs');
@@ -1382,10 +1387,11 @@ const CALC={
       const sorted=[...allHistory].filter(d=>!d._gap).sort((a,b)=>a.date.localeCompare(b.date));
       const idx=sorted.findIndex(d=>d.date===e.date);
       if(idx>=0){
-        morningStreak=this.streakAtDay(sorted,idx,d=>d.streaks?.some(s=>s.type==='morning'&&s.active))||1;
-        flagStreak=this.streakAtDay(sorted,idx,d=>d.streaks?.some(s=>s.type==='flags'&&s.active))||1;
+        // Red ends every positive run — see sStrk/eStrk in CALC.streaks.
+        morningStreak=this.streakAtDay(sorted,idx,d=>d.streaks?.some(s=>s.type==='morning'&&s.active),['red'])||1;
+        flagStreak=this.streakAtDay(sorted,idx,d=>d.streaks?.some(s=>s.type==='flags'&&s.active),['red'])||1;
         workStreak=this.streakAtDay(sorted,idx,d=>(d.workDuration||0)>0,['red'])||1;
-        earlyBedStreak=this.streakAtDay(sorted,idx,d=>d.sleptEarly)||1;
+        earlyBedStreak=this.streakAtDay(sorted,idx,d=>d.sleptEarly,['red'])||1;
         lateStreak=this.streakAtDay(sorted,idx,d=>d.sleptLate,builtinResets('late'))||1;
         subsStreak=this.streakAtDay(sorted,idx,d=>d.penalties?.some(p=>p.type==='drugs'),builtinResets('drugs'))||1;
         procStreak=this.streakAtDay(sorted,idx,d=>d.penalties?.some(p=>p.type==='internet'),builtinResets('internet'))||1;
@@ -1726,13 +1732,22 @@ function applyRemote(remote){
   // TODAY: remote wins if it was pushed more recently than our last push
   if(remote.today){
     const R=remote.today;
-    // Settings always sync regardless of who is newer
-    if(R._difficulty&&R._difficulty!==STATE.difficulty){STATE.difficulty=R._difficulty;localStorage.setItem('st_difficulty',R._difficulty);changed=true;}
-    if(R._theme&&R._theme!==STATE.theme){STATE.theme=R._theme;S.set(K.THEME,R._theme);applyTheme();changed=true;}
-    if(R._lang&&R._lang!==STATE.lang){STATE.lang=R._lang;localStorage.setItem('st_lang',R._lang);changed=true;}
-    // The zone travels with the settings so both devices keep the same day.
-    if(R._tz&&R._tz!==appTZ()){STATE.tz=R._tz;localStorage.setItem('st_tz',R._tz);changed=true;}
     if(remoteIsNewer){
+      /* The settings used to be applied here unconditionally, above this
+         check, under the note "settings always sync regardless of who is
+         newer". They do not need to ignore it, and ignoring it is what made
+         the difficulty buttons bounce back: press one, and a pull already in
+         flight — carrying the copy from before the press — put the old value
+         straight back a moment later, so it took two presses to stick. The
+         view toggles were moved in here for exactly this, one block down,
+         with the same symptom described. The settings belong on this side of
+         the line too. Another device still wins: its push carries a newer
+         saved_at, which is what this check is asking about. */
+      if(R._difficulty&&R._difficulty!==STATE.difficulty){STATE.difficulty=R._difficulty;localStorage.setItem('st_difficulty',R._difficulty);changed=true;}
+      if(R._theme&&R._theme!==STATE.theme){STATE.theme=R._theme;S.set(K.THEME,R._theme);applyTheme();changed=true;}
+      if(R._lang&&R._lang!==STATE.lang){STATE.lang=R._lang;localStorage.setItem('st_lang',R._lang);changed=true;}
+      // The zone travels with the settings so both devices keep the same day.
+      if(R._tz&&R._tz!==appTZ()){STATE.tz=R._tz;localStorage.setItem('st_tz',R._tz);changed=true;}
       /* How the list is drawn follows you across, but only from a copy that is
          actually newer. Applied unconditionally, like the settings above, the
          cloud's older copy overwrote every toggle within seconds of making it:
@@ -5906,7 +5921,8 @@ function renderRules(onClose){
     <div class="md up ls dimmer w7 mb10">🔄 Cómo se reinician las rachas</div>
     <div class="s6">
       <div>Todas se rompen al saltarte un día, excepto ${escapeHtml(rewardName(rewardById('internet')))}, que permite 30 minutos diarios. Además, el color del día reinicia algunas:</div>
-      <div><span class="cr w6">🔴 Rojo</span> — reinicia tu racha de Trabajo 💼</div>
+      <div><span class="cr w6">🔴 Rojo</span> — reinicia <strong>TODAS tus rachas positivas</strong>: Trabajo 💼, Rutina 🌞, Metas 🏁, Dormir temprano 😴 y la de días sin rojo. Un día con sus banderas abajo nunca es rojo, así que esto solo pasa si de verdad se te fue el día.</div>
+      <div class="xs dimmer">Ningún otro color toca una racha positiva — ya tienen tope de ×${STREAK_CAP}, así que no hay nada más que frenar.</div>
       ${resetLine('🟡 Amarillo','cy','yellow')}
       ${resetLine('🟢 Verde','cg','green')}
       ${resetLine('🟣 Morado','cp','purple')}
@@ -6001,7 +6017,8 @@ function renderRules(onClose){
     <div class="md up ls dimmer w7 mb10">🔄 How streaks reset</div>
     <div class="s6">
       <div>All of them break the moment you skip a day, except ${escapeHtml(rewardName(rewardById('internet')))}, which allows 30 minutes a day. On top of that, the day's colour resets some:</div>
-      <div><span class="cr w6">🔴 Red</span> — resets your Work streak 💼</div>
+      <div><span class="cr w6">🔴 Red</span> — resets <strong>ALL your positive streaks</strong>: Work 💼, Morning 🌞, Goals 🏁, Early bed 😴 and the non-red run. A day with its flags down is never red, so this only happens when the day really did get away from you.</div>
+      <div class="xs dimmer">No other colour touches a positive run — they are capped at ×${STREAK_CAP} now, so there is nothing left to rein in.</div>
       ${resetLine('🟡 Yellow','cy','yellow')}
       ${resetLine('🟢 Green','cg','green')}
       ${resetLine('🟣 Purple','cp','purple')}
