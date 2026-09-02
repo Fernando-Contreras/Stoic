@@ -933,7 +933,7 @@ en:{
   'rules-clears-day':'A {c} day clears it','rules-clears-never':'Only breaking it clears it',
   'rules-resets':'resets',
   'rules-no-forgive':'⚠ On this difficulty no colour forgives a reward run. The only way one ends is by not doing the thing.',
-  'cap-note':'On this difficulty a positive run multiplies by at most ×{n}; a reward run always reaches ×{p}. The runs keep counting — only what they pay stops growing.',
+  'cap-note':'Your positive runs pay by square root — 100 days is ×{n} in this mode — so they never stop growing. Reward runs reach ×{p}.',
   'src-title':'Where your points come from','src-tasks':'Tasks','src-morning':'Morning','src-flags':'Goals',
   'src-pom':'Pomodoros','src-work':'Work','src-sleep':'Sleep','src-color':'Day colour',
   'src-rewards':'Rewards','src-late':'Late nights','src-gaps':'Days not logged','src-none':'Log a few days first.',
@@ -1121,7 +1121,7 @@ es:{
   'rules-clears-day':'La limpia un día {c}','rules-clears-never':'Solo se limpia rompiéndola',
   'rules-resets':'reinicia',
   'rules-no-forgive':'⚠ En esta dificultad ningún color perdona una racha de recompensa. La única forma de romperla es no hacer la cosa.',
-  'cap-note':'En esta dificultad una racha positiva multiplica hasta ×{n}; una de recompensa siempre llega a ×{p}. Las rachas siguen contando — lo que deja de crecer es lo que pagan.',
+  'cap-note':'Tus rachas positivas pagan por raíz cuadrada — 100 días valen ×{n} en este modo — así que nunca dejan de crecer. Las de recompensa llegan hasta ×{p}.',
   'src-title':'De dónde salen tus puntos','src-tasks':'Tareas','src-morning':'Mañanas','src-flags':'Metas',
   'src-pom':'Pomodoros','src-work':'Trabajo','src-sleep':'Sueño','src-color':'Color del día',
   'src-rewards':'Recompensas','src-late':'Trasnoches','src-gaps':'Días sin registrar','src-none':'Registra unos días primero.',
@@ -1191,12 +1191,36 @@ function capFirst(s){return s?s.charAt(0).toUpperCase()+s.slice(1):s;}
    and a red day ends every positive run. Both rules are read live, so
    switching modes re-scores every day you have ever logged.
    ═══════════════════════════════════════════════════════════════════════ */
-const CAP_BY_DIFF={easy:7,medium:4,hard:2};
+/* A flat ceiling answered the runaway and created a new hole: past day seven
+   the run paid nothing extra, so there was no reason left to keep one going
+   except the medals. A streak that stops meaning anything is not a streak.
+
+   The square root keeps both ends honest. It never stops growing, so day 100
+   is always worth more than day 8 — and it grows slowly enough that it cannot
+   run away: over a year the cumulative rises as N^1.5 rather than the N^2 that
+   broke this in the first place. It is also sayable out loud, which a cap at
+   least had going for it: a hundred days pays ten, four hundred pays twenty.
+
+   The difficulty scales the curve, exactly as it scaled the ceiling. */
+/* Calibrated so a month-long run pays what the old ceiling paid — 1.3×√30 ≈ 7
+   — and then keeps going. Below a month it pays less than the ceiling did,
+   which is the point: a ceiling paid a three-day run and a three-hundred-day
+   run the same, and the whole complaint was that this left nothing to keep
+   one going for. The ratios between modes are the ones the ceiling had. */
+const CURVE_BY_DIFF={easy:1.3,medium:.9,hard:.65};
 const PEN_CAP=7;      // what a penalty run may multiply by, at any difficulty
 const PEN_RATE=5;     // what a reward costs, at any difficulty
 function difficulty(){return (typeof STATE!=='undefined'?STATE.difficulty:null)||'easy';}
-function streakCap(){return CAP_BY_DIFF[difficulty()]||CAP_BY_DIFF.easy;}
-function capStreak(n){return Math.min(streakCap(),Math.max(1,n||1));}
+function curveK(){const k=CURVE_BY_DIFF[difficulty()];return k===undefined?1:k;}
+// What a positive run of n days multiplies by. Never below 1.
+function streakMult(n){return Math.max(1,curveK()*Math.sqrt(Math.max(1,n||1)));}
+// What that run pays on a hundred days — the number the rules quote.
+function multAt(n){return Math.round(streakMult(n)*10)/10;}
+// The same, for a difficulty you are not on — the rules quote all three.
+function mAt(diff,n){
+  const k=CURVE_BY_DIFF[diff]===undefined?1:CURVE_BY_DIFF[diff];
+  return Math.round(Math.max(1,k*Math.sqrt(Math.max(1,n)))*10)/10;
+}
 function capPenStreak(n){return Math.min(PEN_CAP,Math.max(1,n||1));}
 /* Nothing a colour does forgives a reward run any more, at any difficulty.
    Only not doing the thing ends it. Kept as a table because the rules screen
@@ -1304,15 +1328,20 @@ const CALC={
   score(day,sk){
     const{completed=0,target=0,morningCompleted=false,flagCompleted=false,pomodoros=0,penalties=[],sleep={},work={}}=day;
     const s=sk||{morningStreak:0,flagStreak:0,substancesPenaltyStreak:1,procrastinationPenaltyStreak:1,macanazoPenaltyStreak:1};
-    // Every run is read through the cap — see STREAK_CAP. The run itself is
-    // still whatever it is; this is only what it is allowed to multiply by.
-    const base=completed;
-    const mB=morningCompleted?25*capStreak(s.morningStreak):0;
-    const fB=flagCompleted?100*capStreak(s.flagStreak):0;
+    // Every run is read through the curve — see streakMult. The run itself is
+    // still whatever it is; this is only what it multiplies by.
+    /* Finished tasks were the one positive with no run behind them: a flat
+       +1 each, which on a real month came to about one per cent of everything
+       earned. They ride the flag run now — the days you got your three most
+       important things down — so being consistent about what matters makes
+       everything else you finish count for more. */
+    const base=Math.round(completed*streakMult(s.flagStreak));
+    const mB=morningCompleted?Math.round(25*streakMult(s.morningStreak)):0;
+    const fB=flagCompleted?Math.round(100*streakMult(s.flagStreak)):0;
     const pom=pomodoros*25;
-    const wrk=(work.workDuration||0)*capStreak(s.workStreak);
-    const earlyBedStreak=capStreak(s.earlyBedStreak);
-    const slp=(sleep.sleepDuration||0)+(sleep.napDuration||0)+(sleep.sleptEarly?(sleep.sleepDuration||0)*earlyBedStreak:0);
+    const wrk=Math.round((work.workDuration||0)*streakMult(s.workStreak));
+    const earlyBedStreak=streakMult(s.earlyBedStreak);
+    const slp=Math.round((sleep.sleepDuration||0)+(sleep.napDuration||0)+(sleep.sleptEarly?(sleep.sleepDuration||0)*earlyBedStreak:0));
     const latePen=sleep.sleptLate?-100*this.diffMult()*capPenStreak(s.lateStreak):0;
     const procMins=penalties.filter(p=>p.type==='internet').reduce((a,p)=>a+(p.details?.minutes||0),0);
     /* Penalty runs keep the full seven at every difficulty. Only the positive
@@ -1328,7 +1357,7 @@ const CALC={
     },0);
     const pct=target>0?Math.round(completed/target*100):0;
     const status=this.status(pct,flagCompleted);
-    const col=this.colorBonus(status)*capStreak(s.colorStreak);
+    const col=Math.round(this.colorBonus(status)*streakMult(s.colorStreak));
     const total=base+mB+fB+pom+wrk+slp+pen+col+latePen;
     return{total,base,status,pct,mB,fB,pom,wrk,slp,pen,col,latePen};
   },
@@ -1434,15 +1463,15 @@ const CALC={
       }
     }
 
-    // Read through the cap, exactly as CALC.score does for today.
+    // Read through the curve, exactly as CALC.score does for today.
     const parts={
-      base:(e.completedTasks||0),
-      mB:((e.streaks?.some(s=>s.type==='morning'&&s.active))?25*capStreak(morningStreak):0),
-      fB:((e.streaks?.some(s=>s.type==='flags'&&s.active))?100*capStreak(flagStreak):0),
+      base:Math.round((e.completedTasks||0)*streakMult(flagStreak)),
+      mB:((e.streaks?.some(s=>s.type==='morning'&&s.active))?Math.round(25*streakMult(morningStreak)):0),
+      fB:((e.streaks?.some(s=>s.type==='flags'&&s.active))?Math.round(100*streakMult(flagStreak)):0),
       pom:((e.pomodoros||0)*25),
-      wrk:((e.workDuration||0)*capStreak(workStreak)),
-      slp:((e.sleepDuration||0)+(e.napDuration||0)+(e.sleptEarly?(e.sleepDuration||0)*capStreak(earlyBedStreak):0)),
-      col:(this.colorBonus(e.status)*capStreak(colorMult)),
+      wrk:Math.round((e.workDuration||0)*streakMult(workStreak)),
+      slp:Math.round((e.sleepDuration||0)+(e.napDuration||0)+(e.sleptEarly?(e.sleepDuration||0)*streakMult(earlyBedStreak):0)),
+      col:Math.round(this.colorBonus(e.status)*streakMult(colorMult)),
       latePen:(e.sleptLate&&!lateReset?-100*this.diffMult()*capPenStreak(lateStreak):0),
       pen:0
     };
@@ -5528,10 +5557,24 @@ function renderStats(total,sc){
      is one that costs you, purple is the rare kind, and gold is a plain fact
      that is neither. Everything used to be gold, which said nothing at all. */
   /* The two averages moved up into the Momentum row, where they mean
-     something next to each other. They were here as well, and a number shown
-     twice on one page reads as two different numbers that happen to agree. */
+     something next to each other. Rather than leave the hole they left in the
+     middle of the page, two numbers that were missing fill it: the median,
+     which one enormous day cannot drag the way the mean can, and how often a
+     day finished above zero at all. */
+  const sortedPts=[...allPts].sort((a,b)=>a-b);
+  const median=sortedPts.length
+    ? (sortedPts.length%2?sortedPts[(sortedPts.length-1)/2]
+       :Math.round((sortedPts[sortedPts.length/2-1]+sortedPts[sortedPts.length/2])/2)):0;
+  const posDays=allPts.filter(v=>v>0).length;
+  const posPct=allPts.length?Math.round(posDays/allPts.length*100):0;
   [[t('best-day'),best,'var(--cg)',fmtD(dayOfPts(best))],
-   [t('worst-day'),worst,'var(--ng)',fmtD(dayOfPts(worst))]].forEach(([l,v,c,when])=>{
+   [t('worst-day'),worst,'var(--ng)',fmtD(dayOfPts(worst))],
+   [isEs?'Día mediano':'Median day',median,median>0?'var(--cg)':'var(--ng)',
+    isEs?'La mitad de tus días quedan arriba de esto y la mitad abajo. Un solo día enorme no lo mueve, como sí mueve al promedio.'
+        :'Half your days land above this and half below. One enormous day cannot drag it the way it drags the mean.'],
+   [isEs?'Días en positivo':'Days in the black',posPct+'%',posPct>=50?'var(--cg)':'var(--ng)',
+    isEs?posDays+' de '+allPts.length+' días cerraron arriba de cero':posDays+' of '+allPts.length+' days closed above zero']
+  ].forEach(([l,v,c,when])=>{
     const s=dv('card2 ctr');const n=dv('xxl w7 mo');n.style.color=c;n.textContent=String(v);
     s.appendChild(n);s.appendChild(dv('xs dimmer mt4',l));
     if(when){s.title=when;s.style.cursor='help';}
@@ -5592,7 +5635,7 @@ function renderStats(total,sc){
     if(posSum>0)srcBox.appendChild(dv('xs dimmer mt8 ctr',
       `${(-negSum).toLocaleString()} / ${posSum.toLocaleString()} · ${Math.round(-negSum/posSum*100)}%`));
     srcBox.appendChild(dv('xs dimmer mt6',
-      t('cap-note').replace('{n}',streakCap()).replace('{p}',PEN_CAP)));
+      t('cap-note').replace('{n}',multAt(100)).replace('{p}',PEN_CAP)));
   }
   body.appendChild(srcBox);
 
@@ -5974,10 +6017,10 @@ function renderRules(onClose){
     <div class="md up ls dimmer w7 mb10">🌱⚖️💪 Modo de Dificultad</div>
     <div class="s6">
       <div>Cámbiala en la barra superior. <span class="ac w6">Las recompensas cuestan lo mismo en los tres modos</span> — ${costsAt(PEN_RATE)} — y sus rachas llegan hasta ×${PEN_CAP} siempre. Caer cuesta igual dondequiera que juegues.</div>
-      <div>Lo que cambia es <span class="ac w6">hasta dónde crecen tus multiplicadores positivos</span>, o sea qué tan rápido subes:</div>
-      <div><span class="w6" style="color:var(--cg)">🌱 Fácil</span> — tope ×${CAP_BY_DIFF.easy}. Generoso: un día limpio te rinde el triple que en difícil.</div>
-      <div><span class="w6" style="color:var(--cy)">⚖️ Medio</span> — tope ×${CAP_BY_DIFF.medium}. Balanceado.</div>
-      <div><span class="w6" style="color:var(--cr)">💪 Difícil</span> — tope ×${CAP_BY_DIFF.hard}. Subir cuesta, pero se puede: un día limpio sigue sumando.</div>
+      <div>Lo que cambia es <span class="ac w6">cuánto pagan tus rachas positivas</span>, o sea qué tan rápido subes. Una racha multiplica por la <span class="ac w6">raíz cuadrada</span> de sus días: <strong>nunca deja de crecer</strong>, pero tampoco se dispara. El día 100 siempre vale más que el día 8.</div>
+      <div><span class="w6" style="color:var(--cg)">🌱 Fácil</span> — 9 días ×${mAt('easy',9)} · 100 días ×${mAt('easy',100)} · 400 días ×${mAt('easy',400)}.</div>
+      <div><span class="w6" style="color:var(--cy)">⚖️ Medio</span> — 9 días ×${mAt('medium',9)} · 100 días ×${mAt('medium',100)} · 400 días ×${mAt('medium',400)}.</div>
+      <div><span class="w6" style="color:var(--cr)">💪 Difícil</span> — 9 días ×${mAt('hard',9)} · 100 días ×${mAt('hard',100)} · 400 días ×${mAt('hard',400)}. Subir cuesta, pero se puede: un día limpio siempre suma.</div>
       <div class="xs dimmer">La dificultad no te hace perder más rápido, te hace ganar más lento. Un día malo se siente igual de malo en los tres — que es justo para lo que sirve el aviso.</div>
     </div>
   </div>
@@ -5987,7 +6030,7 @@ function renderRules(onClose){
     <div class="s6">
       <div>Todas se rompen al saltarte un día, excepto ${escapeHtml(rewardName(rewardById('internet')))}, que permite 30 minutos diarios. Además, el color del día reinicia algunas:</div>
       <div><span class="cr w6">🔴 Rojo</span> — reinicia <strong>TODAS tus rachas positivas</strong>: Trabajo 💼, Rutina 🌞, Metas 🏁, Dormir temprano 😴 y la de días sin rojo. Un día con sus banderas abajo nunca es rojo, así que esto solo pasa si de verdad se te fue el día.</div>
-      <div class="xs dimmer">Ningún otro color toca una racha positiva — ya tienen tope (×${streakCap()} en este modo), así que no hay nada más que frenar.</div>
+      <div class="xs dimmer">Ningún otro color toca una racha positiva: crecen por raíz cuadrada, así que no hay nada que frenar.</div>
       ${resetLine('🟡 Amarillo','cy','yellow')}
       ${resetLine('🟢 Verde','cg','green')}
       ${resetLine('🟣 Morado','cp','purple')}
@@ -6072,10 +6115,10 @@ function renderRules(onClose){
     <div class="md up ls dimmer w7 mb10">🌱⚖️💪 Difficulty Mode</div>
     <div class="s6">
       <div>Switch it in the top bar. <span class="ac w6">Rewards cost the same in all three modes</span> — ${costsAt(PEN_RATE)} — and their runs reach ×${PEN_CAP} everywhere. Slipping costs the same wherever you play.</div>
-      <div>What changes is <span class="ac w6">how far your positive multipliers grow</span> — how fast you climb:</div>
-      <div><span class="w6" style="color:var(--cg)">🌱 Easy</span> — cap ×${CAP_BY_DIFF.easy}. Generous: a clean day pays three times what it pays on hard.</div>
-      <div><span class="w6" style="color:var(--cy)">⚖️ Medium</span> — cap ×${CAP_BY_DIFF.medium}. Balanced.</div>
-      <div><span class="w6" style="color:var(--cr)">💪 Hard</span> — cap ×${CAP_BY_DIFF.hard}. Climbing is slow, but it climbs: a clean day still adds up.</div>
+      <div>What changes is <span class="ac w6">how much your positive runs pay</span> — how fast you climb. A run multiplies by the <span class="ac w6">square root</span> of its days: it <strong>never stops growing</strong>, and it never runs away. Day 100 is always worth more than day 8.</div>
+      <div><span class="w6" style="color:var(--cg)">🌱 Easy</span> — 9 days ×${mAt('easy',9)} · 100 days ×${mAt('easy',100)} · 400 days ×${mAt('easy',400)}.</div>
+      <div><span class="w6" style="color:var(--cy)">⚖️ Medium</span> — 9 days ×${mAt('medium',9)} · 100 days ×${mAt('medium',100)} · 400 days ×${mAt('medium',400)}.</div>
+      <div><span class="w6" style="color:var(--cr)">💪 Hard</span> — 9 days ×${mAt('hard',9)} · 100 days ×${mAt('hard',100)} · 400 days ×${mAt('hard',400)}. Climbing is slow, but it climbs: a clean day always adds up.</div>
       <div class="xs dimmer">Difficulty does not make you lose faster, it makes you gain slower. A bad day feels equally bad in all three — which is the whole point of the warning.</div>
     </div>
   </div>
@@ -6085,7 +6128,7 @@ function renderRules(onClose){
     <div class="s6">
       <div>All of them break the moment you skip a day, except ${escapeHtml(rewardName(rewardById('internet')))}, which allows 30 minutes a day. On top of that, the day's colour resets some:</div>
       <div><span class="cr w6">🔴 Red</span> — resets <strong>ALL your positive streaks</strong>: Work 💼, Morning 🌞, Goals 🏁, Early bed 😴 and the non-red run. A day with its flags down is never red, so this only happens when the day really did get away from you.</div>
-      <div class="xs dimmer">No other colour touches a positive run — they are capped now (×${streakCap()} in this mode), so there is nothing left to rein in.</div>
+      <div class="xs dimmer">No other colour touches a positive run: they grow by square root, so there is nothing to rein in.</div>
       ${resetLine('🟡 Yellow','cy','yellow')}
       ${resetLine('🟢 Green','cg','green')}
       ${resetLine('🟣 Purple','cp','purple')}
