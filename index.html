@@ -5389,6 +5389,18 @@ function renderStats(total,sc){
   const rwDrugs=rewardById('drugs'),rwProc=rewardById('internet');
   const nmDrugs=rewardName(rwDrugs),nmProc=rewardName(rwProc);
 
+  /* Two things the page kept implying and never actually said: how often the
+     day's flags went down, and how often a day carried no reward at all.
+     The first is the one people reach for when they read "Completion" and
+     find a number lower than they expected — Completion is about tasks, and
+     a day's colour is bumped a whole level by the flags, so plenty of green
+     days sit on a task figure well under half. Two different questions,
+     answered separately now. */
+  const flagDays=realDays.filter(d=>d.streaks?.some(s=>s.type==='flags'&&s.active)).length;
+  const flagPct=totalTracked?Math.round(flagDays/totalTracked*100):0;
+  const cleanDaysAll=realDays.filter(d=>!(d.penalties||[]).length).length;
+  const cleanPct=totalTracked?Math.round(cleanDaysAll/totalTracked*100):0;
+
   // Discipline %
   const drugFreeDays=STATE.history.filter(d=>!d.penalties?.some(p=>p.type==='drugs')&&!d._gap).length;
   const dfPct=totalTracked?Math.round(drugFreeDays/totalTracked*100):100;
@@ -5515,16 +5527,16 @@ function renderStats(total,sc){
   /* The colours mean something now. Green is a number you want to see, orange
      is one that costs you, purple is the rare kind, and gold is a plain fact
      that is neither. Everything used to be gold, which said nothing at all. */
+  /* The two averages moved up into the Momentum row, where they mean
+     something next to each other. They were here as well, and a number shown
+     twice on one page reads as two different numbers that happen to agree. */
   [[t('best-day'),best,'var(--cg)',fmtD(dayOfPts(best))],
-   [t('worst-day'),worst,'var(--ng)',fmtD(dayOfPts(worst))],
-   [t('all-avg'),avg,'var(--ac)',''],
-   [t('last7-avg'),avg7,avg7>avg?'var(--cg)':(avg7<avg?'var(--ng)':'var(--ac)'),
-    isEs?'Contra tu promedio de siempre: '+avg:'Against your all-time average: '+avg]].forEach(([l,v,c,when])=>{
+   [t('worst-day'),worst,'var(--ng)',fmtD(dayOfPts(worst))]].forEach(([l,v,c,when])=>{
     const s=dv('card2 ctr');const n=dv('xxl w7 mo');n.style.color=c;n.textContent=String(v);
     s.appendChild(n);s.appendChild(dv('xs dimmer mt4',l));
     if(when){s.title=when;s.style.cursor='help';}
     gA.appendChild(s);
-  });body.appendChild(gA);
+  });
 
   /* ── Where the total actually comes from ─────────────────────────────────
      One number cannot tell you which of eight sources built it, and the
@@ -5584,7 +5596,33 @@ function renderStats(total,sc){
   }
   body.appendChild(srcBox);
 
-  // ── 2. Overview ──────────────────────────────────────────────────────────
+  /* ── Momentum: the one row that answers "how am I doing", as opposed to
+     "how have I ever done" ─────────────────────────────────────────────────
+     The total is an odometer — months of history drown any single week, by
+     construction. This is the speedometer, and it was buried in a sentence
+     at the bottom of the page where the number it names never appeared.
+     Where you stand right now sits beside it: a best streak says what you
+     are capable of, the one you are on says what you are doing. */
+  let curNonRed=0;
+  for(let k=sortedH.length-1;k>=0;k--){const d=sortedH[k];if(d._gap||d.status==='red')break;curNonRed++;}
+  const momCol=momentum>0?'var(--cg)':(momentum<0?'var(--ng)':'var(--ac)');
+  body.appendChild(grid4(
+    statCard(isEs?'Momentum':'Momentum',(momentum>0?'+':'')+momentum+'%',momCol,
+      isEs?'últimos 7 vs siempre':'last 7 vs all-time','xl',
+      momentum===0&&Math.abs(avg)<100
+        ?(isEs?'Tu promedio es aún muy chico para dividir entre él sin decir tonterías.'
+              :'Your average is still too small to divide by without saying nonsense.')
+        :(isEs?'Qué tanto tu última semana supera (o no) tu promedio de siempre.'
+              :'How far your last week beats — or misses — your all-time average.')),
+    statCard(t('last7-avg'),String(avg7),avg7>avg?'var(--cg)':(avg7<avg?'var(--ng)':'var(--ac)'),
+      isEs?'por día':'per day'),
+    statCard(t('all-avg'),String(avg),'var(--ac)',isEs?'por día':'per day'),
+    statCard(isEs?'Racha actual':'Current streak',curNonRed+'d','var(--cp)',isEs?'sin rojo':'non-red','xl',
+      curNonRed?spanOf(curNonRed,sortedH[sortedH.length-1].date):'')
+  ));
+
+  // ── Records and overview ─────────────────────────────────────────────────
+  body.appendChild(gA);
   body.appendChild(grid4(
     statCard(t('total-days-lbl'),String(totalTracked),'var(--ac)',null),
     statCard(t('best-streak'),bStrk+'d','var(--cp)',isEs?'sin rojo':'non-red','xl',spanOf(bStrk,bStrkEnd)),
@@ -5613,10 +5651,18 @@ function renderStats(total,sc){
   body.appendChild(grid4(
     statCard(hornEverLbl,hornEverStr,'var(--ng)',hornEverSub,'xl',fmtD(bestOrgDay)),
     statCard(hornDowLbl,hornDayStr,'var(--ng)',hornDaySub,'xl',hornDay>=0?(isEs?(graveFun?'Orgasmos':graveLbl)+', promediados sobre todos tus '+dowFull[hornDay]:(graveFun?'Orgasms':graveLbl)+', averaged across every '+dowFull[hornDay]):''),
-    // Two tiles that already have their own place on the page, kept only
-    // because a grid row wants four. Left as they were.
-    statCard(t('total-proc-lbl'),fmtDur(totalProcMin),'var(--ng)',null),
-    statCard(isEs?'Días registrados':'Days logged',String(totalTracked),'var(--ac)',null)
+    /* This row used to be padded out with a second copy of Total
+       procrastination and a second copy of Days logged, both of which have
+       their own place on this page. Two numbers that earn the space instead:
+       how often the day's flags actually went down, and how often the day
+       carried no reward at all. */
+    statCard(isEs?'Días con banderas':'Days with flags',flagPct+'%',
+      flagPct>=70?'var(--cg)':'var(--ac)',flagDays+'d','xl',
+      isEs?'Días en que exterminaste tus banderas — esto no mira tus tareas.'
+          :'Days you annihilated your flags — this does not look at your tasks.'),
+    statCard(isEs?'Días limpios':'Clean days',cleanPct+'%',
+      cleanPct>=50?'var(--cg)':'var(--ng)',cleanDaysAll+'d','xl',
+      isEs?'Días sin una sola recompensa registrada.':'Days with no reward logged at all.')
   ));
 
   /* ── 6. One row per reward, whatever your list holds ──────────────────────
@@ -5670,11 +5716,7 @@ function renderStats(total,sc){
   ));
 
   // ── 7b. More of the same day, from other angles ──────────────────────────
-  /* Where you stand right now, not only where you have stood. A best streak
-     tells you what you are capable of; the one you are on tells you what you
-     are doing. */
-  let curNonRed=0;
-  for(let k=sortedH.length-1;k>=0;k--){const d=sortedH[k];if(d._gap||d.status==='red')break;curNonRed++;}
+  // The current non-red run moved up to the Momentum row and is not recounted.
   let curMornNow=0;
   for(let k=sortedH.length-1;k>=0;k--){const d=sortedH[k];if(d._gap||!didMorning(d))break;curMornNow++;}
   // Counted the same way the total counts them: filled in, whether or not the
@@ -5687,13 +5729,23 @@ function renderStats(total,sc){
   const hitPct=withTarget.length
     ? Math.round(withTarget.reduce((s,d)=>s+Math.min(1,(d.completedTasks||0)/d.totalTasks),0)/withTarget.length*100):0;
   body.appendChild(grid4(
-    statCard(isEs?'Racha actual':'Current streak',curNonRed+'d','var(--cp)',isEs?'sin rojo':'non-red','xl',
-      curNonRed?spanOf(curNonRed,sortedH[sortedH.length-1].date):''),
+    statCard(isEs?'Racha matutina actual':'Current morning streak',curMornNow+'d',
+      curMornNow?'var(--cg)':'var(--ng)',null,'xl',
+      curMornNow?spanOf(curMornNow,sortedH[sortedH.length-1].date):''),
     statCard(isEs?'Días sin registrar':'Days not logged',String(gapDays),gapDays?'var(--ng)':'var(--cg)',
       gapDays?(isEs?'−1,000 c/u':'−1,000 each'):null),
     statCard(isEs?'Tareas completadas':'Tasks completed',String(tasksDone),'var(--ac)',null),
-    statCard(isEs?'Cumplimiento':'Completion',hitPct+'%',hitPct>=85?'var(--cg)':(hitPct>=50?'var(--ac)':'var(--ng)'),
-      isEs?'de tu meta diaria':'of your daily target')
+    /* Said as what it is. "Completion / of your daily target" was read as
+       covering the flags too, and it never has: it is the share of the day's
+       TASK target you closed. The flags bump the day's colour up a whole
+       level on their own, so a run of green days can sit on a task figure
+       well under half without anything being wrong. Days with flags, up in
+       the row above, is the number that question was actually asking for. */
+    statCard(isEs?'Cumplimiento de tareas':'Task completion',hitPct+'%',
+      hitPct>=85?'var(--cg)':(hitPct>=50?'var(--ac)':'var(--ng)'),
+      isEs?'de tu meta de tareas':'of your task target','xl',
+      isEs?'Cuánto de tu meta de TAREAS cierras, en promedio. No mira tus banderas — esas suben el color del día por su cuenta.'
+          :'How much of your TASK target you close, on average. It does not look at your flags — those lift the day’s colour on their own.')
   ));
 
   /* Which weekday actually scores, averaged across every one of them. The
