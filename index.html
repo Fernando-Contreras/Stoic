@@ -777,13 +777,14 @@ en:{
   'import-bad':'That file does not look like a Stoic backup.','import-ok':'✅ Restored: {n} days. Reloading.',
   'pull-warn':'This THROWS AWAY what is in this browser and takes the cloud copy instead.\n\nThis browser: {local} days\nCloud: {cloud} days\n\nIf the cloud number is smaller, you are about to lose days. Continue?',
   'set-streaks':'⚡ Set Streaks','logout':'Logout','dark':'🌙 Dark','light':'☀️ Light',
-  'easy':'🌱 Easy','medium':'⚖️ Medium','hard':'💪 Hard',
   'score':'Score','today-lbl':'Today','tasks-lbl':'tasks',
+  'score-prev-month':'Previous month','score-next-month':'Next month',
+  'score-past-month':'A closed month — nothing here changes anymore.',
   'morning-lbl':'Morning','flags-lbl':'Goals','pom-lbl':'Pomodoros','work-lbl':'Work',
   'sleep-lbl':'Sleep','color-lbl':'Color','rewards-lbl':'Rewards','late-night-lbl':'Late night',
   'daily-tasks':'Daily Tasks','comp-target':'Completed / Target','done-ph':'Done','target-ph':'Target',
   'morning-routine':'🌞 Morning Routine','goals-ann':'🏁 Goals Annihilated',
-  'pts-each':'pts · ×25 each','streak-pts':'pts · streak: ',
+  'streak-pts':'pts · streak: ',
   'num-subs':'# substances','eg-time':'e.g. 45m, 1h30m','min-1':'Min. 1',
   'enter-time':'Enter time','add-btn':'+ Add',
   'base-lbl':'base','streak-lbl':'streak',
@@ -791,17 +792,17 @@ en:{
   'main-sleep':'Main Sleep','nap-lbl':'Nap','slept-early':'Slept Early',
   'slept-late':'Slept Late','total-sleep':'Total sleep',
   'streaks-title':'Streaks','pos-streaks':'✅ Positive Streaks','rew-streaks':'🤤 Reward Streaks',
-  'sk-morning':'Morning Routine','sk-goals':'Goals','sk-work':'Work',
+  'sk-morning':'Morning Routine','sk-goals':'Goals','sk-work':'Work','sk-pom':'Pomodoros',
   'sk-l':'Late Nights 🌙',
   'sk-without':'No',
   'rw-title':'Your rewards','rw-edit':'Edit your rewards',
   'rw-help':'These are the things you want to keep at bay. Rename them, give them your own icon, drop the ones that mean nothing to you, add your own.',
   'rw-light':'Light','rw-serious':'Medium','rw-grave':'Large',
-  'rw-clears':'A run resets by breaking it, or with a day of this colour:','rw-per-min':'−1 per minute × difficulty',
-  'rw-only-break':'(only by breaking it)',
+  'rw-per-min':'−{r} per minute',
+  'rw-clears-flat':'A run only ends by not doing the thing — no colour clears one.',
   'rw-new':'Something you want to cut back on','rw-add':'+ Add','rw-full':'Five is the limit.',
   'rw-locked':'One of each category. Fixed: your whole history was scored with these costs. The name and the icon are yours.',
-  'rw-tier-warn':'Changing the weight re-scores every day you have ever logged this on, the way changing difficulty does. Continue?',
+  'rw-tier-warn':'Changing the weight re-scores every day you have ever logged this on. Continue?',
   'rw-del':'Remove from the list','rw-del-warn':'Remove {n}? Its entries go with it — {d} logged day(s) will be re-scored without it. Nothing else changes.',
   'rw-note':'Weight sets what one costs and what it takes to clear its run. The first three are fixed, one of each.',
   'edit-note':'Edit note','add-note':'Add note','save-note':'Save note','no-data':'No data logged for this day.',
@@ -870,7 +871,7 @@ en:{
   'danger-zone':'Reset everything','erase-warn':'Empties the app: your history, your tasks, your goals, your notes — all of it.',
   'reset-all-btn':'Reset','yes-delete':'Erase it all','cancel':'Cancel',
   'reset-what':'This clears everything you have entered: the score history, the day in progress, your task list, your goals, the bin, the archive, your notes, the pomodoro and your streak overrides.',
-  'reset-keeps':'Your language, theme, difficulty, timezone and session stay. Your cloud backups stay too — this is what makes it undoable.',
+  'reset-keeps':'Your language, theme, timezone and session stay. Your cloud backups stay too — this is what makes it undoable.',
   'reset-backup':'💾 Back up first','reset-backup-ok':'✅ Backed up','reset-backup-fail':'❌ Backup failed',
   'reset-continue':'Continue','reset-sure':'⚠ Last chance. Erase everything?',
   'reset-sure-sub':'If you took a backup, you can bring it all back from ☁️ Restore backup.',
@@ -930,10 +931,7 @@ en:{
   'goals-title':'Goals','goal-week':'📅 Weekly','goal-quarter':'📈 Quarterly','goal-year':'🏆 Yearly',
   'goal-new':'A goal that excites you','goal-add':'+ Add goal','goal-day':'day left','goal-days':'days left',
   'goal-earned':'earned from goals','goal-daily':'Goals to annihilate',
-  'rules-clears-day':'A {c} day clears it','rules-clears-never':'Only breaking it clears it',
-  'rules-resets':'resets',
-  'rules-no-forgive':'⚠ On this difficulty no colour forgives a reward run. The only way one ends is by not doing the thing.',
-  'cap-note':'Your positive runs pay by square root — 100 days is ×{n} in this mode — so they never stop growing. Reward runs reach ×{p}.',
+  'cap-note':'Your positive runs pay by square root — 100 days is ×{n} — so they never stop growing. Reward runs reach ×{p}.',
   'src-title':'Where your points come from','src-tasks':'Tasks','src-morning':'Morning','src-flags':'Goals',
   'src-pom':'Pomodoros','src-work':'Work','src-sleep':'Sleep','src-color':'Day colour',
   'src-rewards':'Rewards','src-late':'Late nights','src-gaps':'Days not logged','src-none':'Log a few days first.',
@@ -965,13 +963,14 @@ es:{
   'import-bad':'Ese archivo no parece un respaldo de Stoic.','import-ok':'✅ Restaurado: {n} días. Se recarga la página.',
   'pull-warn':'Esto TIRA lo que hay en este navegador y se queda con lo de la nube.\n\nEste navegador: {local} días\nNube: {cloud} días\n\nSi el número de la nube es menor, estás a punto de perder días. ¿Continuar?',
   'set-streaks':'⚡ Rachas','logout':'Salir','dark':'🌙 Oscuro','light':'☀️ Claro',
-  'easy':'🌱 Fácil','medium':'⚖️ Medio','hard':'💪 Difícil',
   'score':'Puntaje','today-lbl':'Hoy','tasks-lbl':'tareas',
+  'score-prev-month':'Mes anterior','score-next-month':'Mes siguiente',
+  'score-past-month':'Un mes cerrado — ya nada de esto cambia.',
   'morning-lbl':'Mañana','flags-lbl':'Metas','pom-lbl':'Pomodoros','work-lbl':'Trabajo',
   'sleep-lbl':'Sueño','color-lbl':'Color','rewards-lbl':'Recompensas','late-night-lbl':'Trasnoche',
   'daily-tasks':'Tareas del Día','comp-target':'Completadas / Meta','done-ph':'Hechas','target-ph':'Meta',
   'morning-routine':'🌞 Rutina Matutina','goals-ann':'🏁 Metas Exterminadas alv',
-  'pts-each':'pts · ×25 c/u','streak-pts':'pts · racha: ',
+  'streak-pts':'pts · racha: ',
   'num-subs':'# sustancias','eg-time':'ej. 45m, 1h30m','min-1':'Mín. 1',
   'enter-time':'Ingresa tiempo','add-btn':'+ Agregar',
   'base-lbl':'base','streak-lbl':'racha',
@@ -979,17 +978,17 @@ es:{
   'main-sleep':'Horas Dormidas','nap-lbl':'Siesta','slept-early':'Dormí Temprano',
   'slept-late':'Dormí Tarde','total-sleep':'Sueño total',
   'streaks-title':'Rachas','pos-streaks':'✅ Rachas Positivas','rew-streaks':'🤤 Rachas de Recompensas',
-  'sk-morning':'Rutina Matutina','sk-goals':'Metas','sk-work':'Trabajo',
+  'sk-morning':'Rutina Matutina','sk-goals':'Metas','sk-work':'Trabajo','sk-pom':'Pomodoros',
   'sk-l':'Trasnoche 🌙',
   'sk-without':'Sin',
   'rw-title':'Tus recompensas','rw-edit':'Editar tus recompensas',
   'rw-help':'Son las cosas que quieres mantener a raya. Renómbralas, ponles tu propio ícono, quita las que no te digan nada, agrega las tuyas.',
   'rw-light':'Ligera','rw-serious':'Media','rw-grave':'Grande',
-  'rw-clears':'Una racha se resetea rompiéndola o con un día de este color:','rw-per-min':'−1 por minuto × dificultad',
-  'rw-only-break':'(solo rompiéndola)',
+  'rw-per-min':'−{r} por minuto',
+  'rw-clears-flat':'Una racha solo termina no haciendo la cosa — ningún color la limpia.',
   'rw-new':'Algo que quieras reducir','rw-add':'+ Agregar','rw-full':'Cinco es el límite.',
   'rw-locked':'Una de cada categoría. Fija: todo tu historial se calculó con estos costos. El nombre y el ícono sí son tuyos.',
-  'rw-tier-warn':'Cambiar el peso recalcula todos los días en que la hayas registrado, igual que cambiar la dificultad. ¿Continuar?',
+  'rw-tier-warn':'Cambiar el peso recalcula todos los días en que la hayas registrado. ¿Continuar?',
   'rw-del':'Quitar de la lista','rw-del-warn':'¿Quitar {n}? Sus registros se van con ella — {d} día(s) se recalculan sin ella. Nada más cambia.',
   'rw-note':'El peso define cuánto cuesta y qué se necesita para limpiar su racha. Las primeras tres son fijas, una de cada una.',
   'edit-note':'Editar nota','add-note':'Agregar nota','save-note':'Guardar nota','no-data':'Sin datos para este día.',
@@ -1058,7 +1057,7 @@ es:{
   'danger-zone':'Reiniciar todo','erase-warn':'Vacía la app: tu historial, tus tareas, tus metas, tus notas — todo.',
   'reset-all-btn':'Reiniciar','yes-delete':'Borrar todo','cancel':'Cancelar',
   'reset-what':'Esto borra todo lo que has metido: el historial de puntaje, el día en curso, tu lista de tareas, tus metas, la papelera, el archivo, tus notas, el pomodoro y tus ajustes de rachas.',
-  'reset-keeps':'Se quedan tu idioma, tema, dificultad, zona horaria y tu sesión. Tus respaldos en la nube también — eso es lo que hace que esto se pueda deshacer.',
+  'reset-keeps':'Se quedan tu idioma, tema, zona horaria y tu sesión. Tus respaldos en la nube también — eso es lo que hace que esto se pueda deshacer.',
   'reset-backup':'💾 Hacer backup antes','reset-backup-ok':'✅ Backup hecho','reset-backup-fail':'❌ Falló el backup',
   'reset-continue':'Continuar','reset-sure':'⚠ Última oportunidad. ¿Borrar todo?',
   'reset-sure-sub':'Si hiciste backup, puedes traerlo todo de vuelta desde ☁️ Restaurar backup.',
@@ -1118,10 +1117,7 @@ es:{
   'goals-title':'Metas','goal-week':'📅 Semanales','goal-quarter':'📈 Trimestrales','goal-year':'🏆 Anuales',
   'goal-new':'Una meta que te emocione','goal-add':'+ Agregar meta','goal-day':'día restante','goal-days':'días restantes',
   'goal-earned':'ganados en metas','goal-daily':'Metas por exterminar alv',
-  'rules-clears-day':'La limpia un día {c}','rules-clears-never':'Solo se limpia rompiéndola',
-  'rules-resets':'reinicia',
-  'rules-no-forgive':'⚠ En esta dificultad ningún color perdona una racha de recompensa. La única forma de romperla es no hacer la cosa.',
-  'cap-note':'Tus rachas positivas pagan por raíz cuadrada — 100 días valen ×{n} en este modo — así que nunca dejan de crecer. Las de recompensa llegan hasta ×{p}.',
+  'cap-note':'Tus rachas positivas pagan por raíz cuadrada — 100 días valen ×{n} — así que nunca dejan de crecer. Las de recompensa llegan hasta ×{p}.',
   'src-title':'De dónde salen tus puntos','src-tasks':'Tareas','src-morning':'Mañanas','src-flags':'Metas',
   'src-pom':'Pomodoros','src-work':'Trabajo','src-sleep':'Sueño','src-color':'Color del día',
   'src-rewards':'Recompensas','src-late':'Trasnoches','src-gaps':'Días sin registrar','src-none':'Registra unos días primero.',
@@ -1168,28 +1164,24 @@ function capFirst(s){return s?s.charAt(0).toUpperCase()+s.slice(1):s;}
    The cap is deliberately symmetric. A penalty that compounded forever
    would be the same runaway pointing the other way.
 
-   2. The difficulty is that cap, and nothing else.
+   2. One game, not three.
 
-   It used to multiply what a reward cost — ×1, ×5, ×10 — and then a later
-   pass also stopped colours forgiving reward runs on hard, which let those
-   multipliers climb to seven. Two effects stacked on one axis: hard came out
-   roughly fifty times harsher than easy, not ten. On one real account easy
-   read +221,235 and hard read −1,446,730 for the same months. Easy could not
-   be lost and hard could not be won, and neither of those is a difficulty —
-   they are two different broken games.
+   Difficulty modes used to multiply what a reward cost — ×1, ×5, ×10 — and
+   then a later pass also stopped colours forgiving reward runs on hard,
+   which let those multipliers climb to seven on top of that. Two effects
+   stacked on one axis: hard came out roughly fifty times harsher than easy,
+   not ten. On one real account easy read +221,235 and hard read −1,446,730
+   for the same months. Easy could not be lost and hard could not be won,
+   and neither of those is a difficulty — they are two different broken
+   games, and a third knob (which month you are looking at, below) made a
+   fourth. Three sliders calibrating one number was already too many; there
+   is one now.
 
-   So the price list is now the same in all three modes: a reward costs what
-   a reward costs, and falling costs the same wherever you are playing.
-   Penalty runs keep the full seven everywhere too. What the mode changes is
-   the ceiling on the POSITIVE runs — seven on easy, four on medium, two on
-   hard — so the same clean day is worth about 6,900, 4,100 or 2,300. Easy is
-   generous, hard is slow, and every one of them can be climbed and can be
-   lost. One knob, pointing the way the words already promised: what changes
-   is how hard it is to gain, not how cheap it is to slip.
-
-   Nothing a colour does forgives a reward run any more, at any difficulty,
-   and a red day ends every positive run. Both rules are read live, so
-   switching modes re-scores every day you have ever logged.
+   The price list is fixed: a reward costs what a reward costs, the same
+   every day, and falling never gets cheaper or more expensive depending on
+   a setting. Nothing a colour does forgives a reward run either — the only
+   way one ends is by not doing the thing. A red day ends every positive
+   run. That is the whole rulebook.
    ═══════════════════════════════════════════════════════════════════════ */
 /* A flat ceiling answered the runaway and created a new hole: past day seven
    the run paid nothing extra, so there was no reason left to keep one going
@@ -1199,28 +1191,14 @@ function capFirst(s){return s?s.charAt(0).toUpperCase()+s.slice(1):s;}
    is always worth more than day 8 — and it grows slowly enough that it cannot
    run away: over a year the cumulative rises as N^1.5 rather than the N^2 that
    broke this in the first place. It is also sayable out loud, which a cap at
-   least had going for it: a hundred days pays ten, four hundred pays twenty.
-
-   The difficulty scales the curve, exactly as it scaled the ceiling. */
-/* Calibrated so a month-long run pays what the old ceiling paid — 1.3×√30 ≈ 7
-   — and then keeps going. Below a month it pays less than the ceiling did,
-   which is the point: a ceiling paid a three-day run and a three-hundred-day
-   run the same, and the whole complaint was that this left nothing to keep
-   one going for. The ratios between modes are the ones the ceiling had. */
-const CURVE_BY_DIFF={easy:1.3,medium:.9,hard:.65};
-const PEN_CAP=7;      // what a penalty run may multiply by, at any difficulty
-const PEN_RATE=5;     // what a reward costs, at any difficulty
-function difficulty(){return (typeof STATE!=='undefined'?STATE.difficulty:null)||'easy';}
-function curveK(){const k=CURVE_BY_DIFF[difficulty()];return k===undefined?1:k;}
+   least had going for it: a hundred days pays ten, four hundred pays twenty. */
+const CURVE_K=1;      // day 100 pays ×10, day 400 pays ×20 — see streakMult
+const PEN_CAP=7;      // the most a penalty run may ever multiply by
+const PEN_RATE=5;     // what a reward costs
 // What a positive run of n days multiplies by. Never below 1.
-function streakMult(n){return Math.max(1,curveK()*Math.sqrt(Math.max(1,n||1)));}
-// What that run pays on a hundred days — the number the rules quote.
+function streakMult(n){return Math.max(1,CURVE_K*Math.sqrt(Math.max(1,n||1)));}
+// What that run pays at n days — the number the rules quote.
 function multAt(n){return Math.round(streakMult(n)*10)/10;}
-// The same, for a difficulty you are not on — the rules quote all three.
-function mAt(diff,n){
-  const k=CURVE_BY_DIFF[diff]===undefined?1:CURVE_BY_DIFF[diff];
-  return Math.round(Math.max(1,k*Math.sqrt(Math.max(1,n)))*10)/10;
-}
 function capPenStreak(n){return Math.min(PEN_CAP,Math.max(1,n||1));}
 /* Nothing a colour does forgives a reward run any more, at any difficulty.
    Only not doing the thing ends it. Kept as a table because the rules screen
@@ -1242,8 +1220,7 @@ const CALC={
     return s;
   },
   colorBonus(s){return{purple:60,green:30,yellow:10,red:0}[s]||0},
-  /* One price list, the same in all three modes. What a thing costs you is a
-     fact about the thing, not about the setting you happen to be on. */
+  /* One price list. What a thing costs you is a fact about the thing. */
   penBase(p){
     const mult=PEN_RATE;
     if(p.type==='drugs')return Math.round(-25*mult*(p.details?.substances||1));
@@ -1254,7 +1231,8 @@ const CALC={
     if(r)return Math.round(-REWARD_TIERS[r.tier].base*mult*(p.count||1));
     return 0;
   },
-  diffMult(){return PEN_RATE;},
+  // Renamed from diffMult — there is no difficulty left for it to read.
+  penMult(){return PEN_RATE;},
   // single source of truth for the procrastination-penalty multiplier —
   // was previously duplicated 3x with mismatched thresholds/fallbacks
   procMult(procMins,streak){
@@ -1274,7 +1252,15 @@ const CALC={
        in the first place. No other colour touches a positive run: they are
        capped at ×7 now, so there is nothing left to rein in. */
     function sStrk(type){let c=0;for(let i=hist.length-1;i>=0;i--){if(hist[i].status==='red')break;if(!hasSt(hist[i],type))break;c++;}return c;}
-    function wStrk(){let c=0;for(let i=hist.length-1;i>=0;i--){if(hist[i].status==='red')break;c++;}return c;}
+    /* This used to stop only at red, without ever checking whether you had
+       worked on the days it was counting — so it read the same as the plain
+       non-red streak below, and a run of red-free days with three actual work
+       days in it still paid as if you had worked all of them. The historical
+       recompute (liveParts, via streakAtDay) already checked workDuration>0;
+       today's own number simply disagreed with what that same day would score
+       once it became history. It now asks the question its name promises. */
+    function wStrk(){let c=0;for(let i=hist.length-1;i>=0;i--){if(hist[i].status==='red')break;if(!((hist[i].workDuration||0)>0))break;c++;}return c;}
+    function pomStrk(){let c=0;for(let i=hist.length-1;i>=0;i--){if(hist[i].status==='red')break;if(!((hist[i].pomodoros||0)>0))break;c++;}return c;}
     function eStrk(){let c=0;for(let i=hist.length-1;i>=0;i--){if(hist[i].status==='red')break;if(!hist[i].sleptEarly)break;c++;}return c;}
     function cStrk(){let c=0;for(let i=hist.length-1;i>=0;i--){if(hist[i].status==='red'||hist[i]._gap)break;c++;}return c;}
     function lStrk(resetOn){let c=0;for(let i=hist.length-1;i>=0;i--){if(!hist[i].sleptLate||(resetOn||[]).includes(hist[i].status))break;c++;}return c;}
@@ -1288,8 +1274,9 @@ const CALC={
     const todayStatus=CALC.status(pct, today.flagCompleted||false);
 
     /* Which colours forgive what is no longer written out here — it is the
-       one table, read at the difficulty you are on. Red still cuts the work
-       streak at every difficulty (handled in wStrk). */
+       one table, and the table is always empty (see TIER_RESETS): nothing
+       forgives a reward run. Red still cuts the work streak (handled in
+       wStrk), the one rule that survived. */
     const rD=builtinResets('drugs'),rN=builtinResets('internet'),
           rM=builtinResets('macanazo'),rL=builtinResets('late');
     const todayResetsSubstances = rD.includes(todayStatus);
@@ -1309,6 +1296,7 @@ const CALC={
       morningStreak:sStrk('morning')+(today.morningCompleted?1:0),
       flagStreak:sStrk('flags')+(today.flagCompleted?1:0),
       workStreak:wStrk()+(today.work?.workDuration>0?1:0),
+      pomoStreak:pomStrk()+((today.pomodoros||0)>0?1:0),
       earlyBedStreak:eStrk()+(today.sleep?.sleptEarly?1:0),
       colorStreak:cStrk(),
       /* Anything you added to the list gets the same pair of runs the three
@@ -1338,14 +1326,16 @@ const CALC={
     const base=Math.round(completed*streakMult(s.flagStreak));
     const mB=morningCompleted?Math.round(25*streakMult(s.morningStreak)):0;
     const fB=flagCompleted?Math.round(100*streakMult(s.flagStreak)):0;
-    const pom=pomodoros*25;
+    // Same curve as everything else — a day with pomodoros logged on top of
+    // yesterday's and the day before's pays more than one on its own.
+    const pom=Math.round(pomodoros*25*streakMult(s.pomoStreak));
     const wrk=Math.round((work.workDuration||0)*streakMult(s.workStreak));
     const earlyBedStreak=streakMult(s.earlyBedStreak);
     const slp=Math.round((sleep.sleepDuration||0)+(sleep.napDuration||0)+(sleep.sleptEarly?(sleep.sleepDuration||0)*earlyBedStreak:0));
-    const latePen=sleep.sleptLate?-100*this.diffMult()*capPenStreak(s.lateStreak):0;
+    const latePen=sleep.sleptLate?-100*this.penMult()*capPenStreak(s.lateStreak):0;
     const procMins=penalties.filter(p=>p.type==='internet').reduce((a,p)=>a+(p.details?.minutes||0),0);
-    /* Penalty runs keep the full seven at every difficulty. Only the positive
-       side is throttled by the mode — falling costs the same everywhere. */
+    // Penalty runs keep the full seven regardless. Only the positive side has
+    // ever been throttled — falling never gets cheaper or more expensive.
     const pen=penalties.reduce((sum,p)=>{
       const b=this.penBase(p);let mult=1;
       if(p.type==='drugs')mult=capPenStreak(s.substancesPenaltyStreak);
@@ -1377,7 +1367,21 @@ const CALC={
     history.forEach(d=>map.set(d.date,d));   // anything real wins over a gap
     return [...map.values()].filter(h=>h.date!==tk).reduce((s,d)=>s+this.liveScore(d,history),0);
   },
-  /* recompute a stored day's score using CURRENT difficulty (penalties scale with mode) */
+  /* Same arithmetic as histTotal, bounded to one stretch of dates rather than
+     the whole of history. This is what makes a monthly score possible without
+     inventing a second scoring system — a month is just the range you ask
+     for, still excluding today (the caller adds today's live number back in
+     only when today actually falls inside the range being shown). */
+  rangeTotal(history,from,to){
+    const tk=todayKey();
+    const filled=this.fillGaps(history);
+    const map=new Map(filled.map(d=>[d.date,d]));
+    history.forEach(d=>map.set(d.date,d));
+    return [...map.values()].filter(h=>h.date!==tk&&h.date>=from&&h.date<=to)
+      .reduce((s,d)=>s+this.liveScore(d,history),0);
+  },
+  /* recompute a stored day's score using the current price list and curve —
+     touching either rewrites every day that ever used it */
   // Count consecutive qualifying REGISTERED days ending at idx (inclusive).
   // Only looks at real, registered history entries — never invents or assumes anything
   // about unregistered days. resetStatuses = day colors that break the chain.
@@ -1408,6 +1412,7 @@ const CALC={
     let morningStreak=e.streaksUsed?.morningStreak||1;
     let flagStreak=e.streaksUsed?.flagStreak||1;
     let workStreak=e.streaksUsed?.workStreak||1;
+    let pomoStreak=e.streaksUsed?.pomoStreak||1;
     let earlyBedStreak=e.streaksUsed?.earlyBedStreak||1;
     let lateStreak=e.streaksUsed?.lateStreak||1;
     let subsStreak=e.streaksUsed?.substancesPenaltyStreak||1;
@@ -1430,6 +1435,7 @@ const CALC={
         morningStreak=this.streakAtDay(sorted,idx,d=>d.streaks?.some(s=>s.type==='morning'&&s.active),['red'])||1;
         flagStreak=this.streakAtDay(sorted,idx,d=>d.streaks?.some(s=>s.type==='flags'&&s.active),['red'])||1;
         workStreak=this.streakAtDay(sorted,idx,d=>(d.workDuration||0)>0,['red'])||1;
+        pomoStreak=this.streakAtDay(sorted,idx,d=>(d.pomodoros||0)>0,['red'])||1;
         earlyBedStreak=this.streakAtDay(sorted,idx,d=>d.sleptEarly,['red'])||1;
         lateStreak=this.streakAtDay(sorted,idx,d=>d.sleptLate,builtinResets('late'))||1;
         subsStreak=this.streakAtDay(sorted,idx,d=>d.penalties?.some(p=>p.type==='drugs'),builtinResets('drugs'))||1;
@@ -1455,6 +1461,7 @@ const CALC={
         morningStreak=_applyOvr('morningStreak',morningStreak);
         flagStreak=_applyOvr('flagStreak',flagStreak);
         workStreak=_applyOvr('workStreak',workStreak);
+        pomoStreak=_applyOvr('pomoStreak',pomoStreak);
         earlyBedStreak=_applyOvr('earlyBedStreak',earlyBedStreak);
         lateStreak=_applyOvr('lateStreak',lateStreak);
         subsStreak=_applyOvr('substancesPenaltyStreak',subsStreak);
@@ -1468,11 +1475,11 @@ const CALC={
       base:Math.round((e.completedTasks||0)*streakMult(flagStreak)),
       mB:((e.streaks?.some(s=>s.type==='morning'&&s.active))?Math.round(25*streakMult(morningStreak)):0),
       fB:((e.streaks?.some(s=>s.type==='flags'&&s.active))?Math.round(100*streakMult(flagStreak)):0),
-      pom:((e.pomodoros||0)*25),
+      pom:Math.round((e.pomodoros||0)*25*streakMult(pomoStreak)),
       wrk:Math.round((e.workDuration||0)*streakMult(workStreak)),
       slp:Math.round((e.sleepDuration||0)+(e.napDuration||0)+(e.sleptEarly?(e.sleepDuration||0)*streakMult(earlyBedStreak):0)),
       col:Math.round(this.colorBonus(e.status)*streakMult(colorMult)),
-      latePen:(e.sleptLate&&!lateReset?-100*this.diffMult()*capPenStreak(lateStreak):0),
+      latePen:(e.sleptLate&&!lateReset?-100*this.penMult()*capPenStreak(lateStreak):0),
       pen:0
     };
 
@@ -1550,7 +1557,8 @@ let STATE={
   showSyncPanel:false,
   _lastSavedAt:0,
   penType:'drugs', // #3: persist penalty type selection
-  difficulty: localStorage.getItem('st_difficulty')||'easy',
+  // Browses the score card independently of the calendar's own month.
+  scoreYM:null,
   lang: localStorage.getItem('st_lang')||'en',
   // Tab 1 (planner) feeds tab 2 (score). Never the other way around.
   tab: localStorage.getItem('st_tab')||'score',
@@ -1601,7 +1609,8 @@ let STATE={
 function loadToday(){
   const t=S.get(K.TODAY,null);
   if(t){STATE.today={...STATE.today,...t};if(t._penType)STATE.penType=t._penType;
-    if(t._difficulty){STATE.difficulty=t._difficulty;localStorage.setItem('st_difficulty',t._difficulty);}
+    // t._difficulty may still show up in old synced records — harmless to
+    // ignore, since nothing reads STATE.difficulty any more.
     if(t._lang){STATE.lang=t._lang;localStorage.setItem('st_lang',t._lang);}
     // Read before the date is worked out below — it decides what the date is.
     if(t._tz){STATE.tz=t._tz;localStorage.setItem('st_tz',t._tz);}
@@ -1714,7 +1723,6 @@ function save(){
   const tk=todayKey();
   STATE.today._date=tk;
   STATE.today._penType=STATE.penType;
-  STATE.today._difficulty=STATE.difficulty;
   STATE.today._lang=STATE.lang;
   STATE.today._theme=STATE.theme;
   STATE.today._tzOffset=new Date().getTimezoneOffset();
@@ -1781,8 +1789,10 @@ function applyRemote(remote){
          view toggles were moved in here for exactly this, one block down,
          with the same symptom described. The settings belong on this side of
          the line too. Another device still wins: its push carries a newer
-         saved_at, which is what this check is asking about. */
-      if(R._difficulty&&R._difficulty!==STATE.difficulty){STATE.difficulty=R._difficulty;localStorage.setItem('st_difficulty',R._difficulty);changed=true;}
+         saved_at, which is what this check is asking about.
+
+         R._difficulty may still arrive from an old synced record; there is
+         nothing left to apply it to, so it is simply not read any more. */
       if(R._theme&&R._theme!==STATE.theme){STATE.theme=R._theme;S.set(K.THEME,R._theme);applyTheme();changed=true;}
       if(R._lang&&R._lang!==STATE.lang){STATE.lang=R._lang;localStorage.setItem('st_lang',R._lang);changed=true;}
       // The zone travels with the settings so both devices keep the same day.
@@ -2736,10 +2746,10 @@ function rewardLabel(r){return (r?.icon?r.icon+' ':'')+rewardName(r);}
 function isOriginal(r){return !!(r&&r.builtin&&!r.renamed);}
 // The default a built-in was born with, so a rename can be recognised as undone.
 function rewardDefault(r){return r&&r.builtin?REWARD_DEFAULTS.find(d=>d.id===r.id)||null:null;}
-// Which day colours wipe its run, and what one costs at the current difficulty.
-// Reads the difficulty, so the same reward is forgiven on easy and never on hard.
+// Which day colours wipe its run (none, for any weight — see TIER_RESETS)
+// and what one costs, fixed regardless of anything else going on.
 function rewardResets(r){return tierResets(r?.tier||'light');}
-function rewardCost(r){return Math.round(REWARD_TIERS[r?.tier||'light'].base*CALC.diffMult());}
+function rewardCost(r){return Math.round(REWARD_TIERS[r?.tier||'light'].base*CALC.penMult());}
 /* Streak keys. The originals keep the names they were stored under so nothing
    already saved has to be migrated; anything you add gets its own pair. */
 const LEGACY_PEN={drugs:'substancesPenaltyStreak',internet:'procrastinationPenaltyStreak',macanazo:'macanazoPenaltyStreak'};
@@ -4500,10 +4510,45 @@ function renderApp(){
   const sk_=applyStreakOverrides(sk_raw);
   // earlyBedStreak for display only — read from sk_ but don't mutate STATE here
   const sc=CALC.score(STATE.today,sk_);
-  // #2: histTotal excludes today, score.total is today — no double count.
-  // Long-goal points ride on the grand total only: they are big enough that
-  // landing them on a day would own "best day" forever and skew every average.
-  const total=CALC.histTotal(STATE.history)+sc.total+goalsTotal();
+  /* ═══ THE HEADLINE NUMBER IS A MONTH, NOT A LIFETIME ═══
+     A running lifetime total has three properties that no amount of
+     recalibrating the arithmetic can fix. It remembers forever, so three
+     good months ago are still sitting in a number that is supposed to say
+     how you are doing right now. It gets harder to move the deeper it goes —
+     recovering from six figures in the red takes the same iron discipline as
+     never slipping at all, so there is no difference left between "trying"
+     and "not trying" once you are far enough under. And it has no scale: a
+     good day is +0.9% of a total in the hundred-thousands, which is not a
+     number a person can feel. On the account that prompted this, easy read
+     +221,235 the same week hard read −1,446,730 for identical behaviour —
+     the total was already telling two different stories about one person.
+
+     A month resets on its own on the 1st, whatever happened in August. It is
+     always close enough to zero that a single day moves it by a percentage
+     worth noticing. And a closed month becomes a fact you can compare against
+     the next one — which is the actual question ("am I doing better than I
+     was"), the one the lifetime number was never able to answer no matter
+     how its multipliers were tuned. Browsing an old month is free: the
+     arithmetic per day never changed, only which stretch of days is being
+     added up — see CALC.rangeTotal. */
+  if(!STATE.scoreYM)STATE.scoreYM={y:(new Date(tk)).getFullYear(),m:(new Date(tk)).getMonth()};
+  const scY=STATE.scoreYM.y,scM=STATE.scoreYM.m;
+  const monStart=isoDate(new Date(scY,scM,1));
+  const monEnd=isoDate(new Date(scY,scM+1,0));
+  const nowD=new Date(tk+'T12:00:00');
+  const isCurMonth=scY===nowD.getFullYear()&&scM===nowD.getMonth();
+  // Long goals ride the month they were actually finished in, not the day —
+  // they are big enough that landing one on a single day would own "best
+  // day" forever and skew every average that reads off it.
+  const monthGoals=goals().filter(g=>g.doneOn&&g.doneOn>=monStart&&g.doneOn<=monEnd)
+    .reduce((s,g)=>s+goalPoints(g),0);
+  const total=CALC.rangeTotal(STATE.history,monStart,monEnd)+(isCurMonth?sc.total:0)+monthGoals;
+  const monthLabel=capFirst(new Date(scY,scM,1).toLocaleDateString(STATE.lang==='es'?'es-MX':'en-US',{month:'long',year:'numeric'}));
+  const scoreNav={
+    label:monthLabel,isCurMonth,
+    onPrev:()=>{let m=scM-1,y=scY;if(m<0){m=11;y--;}STATE.scoreYM={y,m};render();},
+    onNext:()=>{if(isCurMonth)return;let m=scM+1,y=scY;if(m>11){m=0;y++;}STATE.scoreYM={y,m};render();}
+  };
 
   const wrap=dv('');
   // HEADER
@@ -4548,16 +4593,8 @@ function renderApp(){
   const acts=dv('row gap8 mt10');acts.style.justifyContent='center';
   const themeBtn=bt('btn-ghost btn-sm',STATE.theme==='light'?t('dark'):t('light'),toggleTheme);
   acts.appendChild(themeBtn);
-  
-  // Difficulty switch
-  const diffWrap=dv('row gap4');diffWrap.style.cssText='border:1px solid var(--b2);border-radius:9px;padding:2px;background:var(--sur2);';
-  [{d:'easy',lbl:t('easy')},{d:'medium',lbl:t('medium')},{d:'hard',lbl:t('hard')}].forEach(({d,lbl})=>{
-    const active=STATE.difficulty===d;
-    const b=bt(active?'btn-ac btn-xs':'btn-xs',lbl,()=>{STATE.difficulty=d;localStorage.setItem('st_difficulty',d);commitAndRefresh();});
-    if(!active){b.style.cssText='background:none;border:none;color:var(--t3);font-size:12px;padding:3px 8px;border-radius:5px;cursor:pointer';}
-    diffWrap.appendChild(b);
-  });
-  acts.appendChild(diffWrap);
+  // The difficulty switch that used to live here is gone along with the
+  // three modes it switched between — see the note above CURVE_K.
   acts.appendChild(bt('btn-ghost btn-sm',t('lang-btn'),toggleLang));
   hdr.appendChild(acts);wrap.appendChild(hdr);
 
@@ -4599,9 +4636,9 @@ function renderApp(){
   }
 
   const grid=dv('g4 mt4');
-  const c1=dv('s12');c1.appendChild(renderScoreCard(total,sc,sk_));c1.appendChild(renderWorkCard(sk_));grid.appendChild(c1);
+  const c1=dv('s12');c1.appendChild(renderScoreCard(total,sc,sk_,scoreNav));c1.appendChild(renderWorkCard(sk_));grid.appendChild(c1);
   grid.appendChild(renderTasksCard(sc,sk_));
-  const c3=dv('s12');c3.appendChild(renderPomCard());c3.appendChild(renderPenCard(sk_));grid.appendChild(c3);
+  const c3=dv('s12');c3.appendChild(renderPomCard(sk_));c3.appendChild(renderPenCard(sk_));grid.appendChild(c3);
   grid.appendChild(renderSleepCard(sk_));
   wrap.appendChild(grid);
   wrap.appendChild(renderStreaks(sk_));
@@ -4720,11 +4757,29 @@ function renderApp(){
 }
 
 /* ═══ SCORE CARD ═══ */
-function renderScoreCard(total,sc,sk_){
+function renderScoreCard(total,sc,sk_,nav){
   const card=dv('card s12');
   const tr=dv('rowb mb4');tr.appendChild(sp('ctit',t('score')));tr.appendChild(sbadge(sc.status));card.appendChild(tr);
+  /* The big number used to be everything you had ever done, added up. It
+     browses one month at a time now — see the note in renderApp — with the
+     month it is showing named right above it, and arrows either side. Next is
+     disabled on the current month: there is nothing to browse forward into
+     that has not happened yet. */
+  const mnav=dv('rowb');mnav.style.cssText='align-items:center';
+  const pv=bt('btn-icon','‹',nav.onPrev);pv.title=t('score-prev-month');
+  const lbl=sp('xs dimmer up ls',nav.label);
+  const nx=bt('btn-icon','›',nav.onNext);nx.title=t('score-next-month');
+  if(nav.isCurMonth){nx.disabled=true;nx.style.opacity='.3';nx.style.cursor='default';}
+  mnav.appendChild(pv);mnav.appendChild(lbl);mnav.appendChild(nx);
+  card.appendChild(mnav);
   const big=dv('');
-  big.innerHTML=`<div class="xxxl w8 ac mo">${total.toLocaleString()}</div><div class="sm dim mt4">${t('today-lbl')}: <span class="ac w7">${sc.total>=0?'+':''}${sc.total}</span></div>`;
+  /* Today's live number only means anything while looking at the month today
+     belongs to — on any other month it would be added to a total it is not
+     part of, which is exactly the double-count rangeTotal's caller avoids. */
+  const sub=nav.isCurMonth
+    ?`${t('today-lbl')}: <span class="ac w7">${sc.total>=0?'+':''}${sc.total}</span>`
+    :t('score-past-month');
+  big.innerHTML=`<div class="xxxl w8 ac mo">${total>=0?'':'−'}${Math.abs(total).toLocaleString()}</div><div class="sm dim mt4">${sub}</div>`;
   card.appendChild(big);
   const pct=sc.pct,R=28,circ=2*Math.PI*R,off=circ-(pct/100)*circ;
   const cr=dv('row gap12 mt10');cr.style.justifyContent='center';
@@ -4768,26 +4823,35 @@ function renderTasksCard(sc,sk_){
   card.appendChild(hr());
   const mt=dv(`tog ${STATE.today.morningCompleted?'on':''} mb8`);
   const mc=ip('checkbox','');mc.checked=STATE.today.morningCompleted;mc.readOnly=true;
-  const mi=dv('f1');mi.innerHTML=`<div class="tt">${t('morning-routine')}</div><div class="ts">+${25*Math.max(1,sk_.morningStreak)} ${t('streak-pts')}${sk_.morningStreak}d</div>`;
+  // Read through the same curve CALC.score pays it by — this used to assume
+  // a flat ×streak and so showed a bigger number than the day actually paid.
+  const mi=dv('f1');mi.innerHTML=`<div class="tt">${t('morning-routine')}</div><div class="ts">+${Math.round(25*streakMult(sk_.morningStreak))} ${t('streak-pts')}${sk_.morningStreak}d</div>`;
   // Stamped as yours, the way the flag beside it always has been — otherwise
   // the planner takes the tick straight back off you.
   mt.appendChild(mc);mt.appendChild(mi);mt.onclick=()=>{STATE.today.morningCompleted=!STATE.today.morningCompleted;markManual('morningCompleted');commitAndRefresh();};card.appendChild(mt);
   const ft=dv(`tog ${STATE.today.flagCompleted?'on':''}`);
   const fc=ip('checkbox','');fc.checked=STATE.today.flagCompleted;fc.readOnly=true;
-  const fi_=dv('f1');fi_.innerHTML=`<div class="tt">${t('goals-ann')}</div><div class="ts">+100 ${t('pts-s')} × ${t('streak-lbl')} (${sk_.flagStreak}d)</div>`;
+  // This used to print the raw formula ("× streak (Nd)") rather than a value
+  // — harmless while the multiplier was the streak itself, misleading once it
+  // became a square root: reading it as 100×N days overstated what an old
+  // streak actually pays several times over.
+  const fi_=dv('f1');fi_.innerHTML=`<div class="tt">${t('goals-ann')}</div><div class="ts">+${Math.round(100*streakMult(sk_.flagStreak))} ${t('streak-pts')}${sk_.flagStreak}d</div>`;
   ft.appendChild(fc);ft.appendChild(fi_);ft.onclick=()=>{STATE.today.flagCompleted=!STATE.today.flagCompleted;markManual('flagCompleted');commitAndRefresh();};card.appendChild(ft);
   return card;
 }
 
 /* ═══ POMODORO ═══ */
-function renderPomCard(){
+function renderPomCard(sk_){
   const card=dv('card');
   // The timer can bank part of a pomodoro, so this shows one decimal and the
   // buttons step by whole ones without ever rounding the fraction away.
   const val=Math.round((STATE.today.pomodoros||0)*10)/10;
   const shown=Number.isInteger(val)?String(val):val.toFixed(1);
   const tr=dv('rowb mb8');tr.appendChild(sp('ctit',t('pom-lbl')));tr.appendChild(sp('xxl w7 ac mo',shown));card.appendChild(tr);
-  card.appendChild(sp('xs dim',`+${Math.round(val*25)} ${t('pts-each')}`));
+  // Pomodoros ride a streak now, the same as work and sleep — a day on top of
+  // a run of others pays more than the same pomodoros on their own.
+  const pomoStreak=sk_?.pomoStreak||1;
+  card.appendChild(sp('xs dim',`+${Math.round(val*25*streakMult(pomoStreak))} ${t('streak-pts')}${pomoStreak}d`));
   const step=d=>{
     STATE.today.pomodoros=Math.max(0,Math.round(((STATE.today.pomodoros||0)+d)*10)/10);
     markManual('pomodoros');commitAndRefresh();
@@ -4807,12 +4871,16 @@ function renderPomCard(){
 function renderPenCard(sk_){
   const card=dv('card');
   card.style.borderColor='var(--ngb)';
+  // Read through the same cap CALC.score pays every penalty by — a raw
+  // Math.max(1,n) let this total run past what the day was actually charged
+  // once a streak passed seven.
   const penPts=STATE.today.penalties.reduce((sum,p)=>{
     const b=CALC.penBase(p);const procMins=STATE.today.penalties.filter(x=>x.type==='internet').reduce((s,x)=>s+(x.details?.minutes||0),0);
     let m=1;
-    if(p.type==='drugs')m=Math.max(1,sk_.substancesPenaltyStreak);
+    if(p.type==='drugs')m=capPenStreak(sk_.substancesPenaltyStreak);
     else if(p.type==='internet')m=CALC.procMult(procMins,sk_.procrastinationPenaltyStreak);
-    else if(p.type==='macanazo')m=Math.max(1,sk_.macanazoPenaltyStreak);
+    else if(p.type==='macanazo')m=capPenStreak(sk_.macanazoPenaltyStreak);
+    else m=capPenStreak(sk_[penKey(p.type)]);
     return sum+b*m;
   },0);
   const tr=dv('rowb mb10');
@@ -4881,10 +4949,10 @@ function renderPenCard(sk_){
     STATE.today.penalties.forEach(p=>{
       const base=CALC.penBase(p);
       let mult=1;
-      if(p.type==='drugs') mult=Math.max(1,sk_.substancesPenaltyStreak);
+      if(p.type==='drugs') mult=capPenStreak(sk_.substancesPenaltyStreak);
       else if(p.type==='internet') mult=CALC.procMult(procMinsTotal,sk_.procrastinationPenaltyStreak);
-      else if(p.type==='macanazo') mult=Math.max(1,sk_.macanazoPenaltyStreak);
-      else mult=Math.max(1,sk_[penKey(p.type)]||1);
+      else if(p.type==='macanazo') mult=capPenStreak(sk_.macanazoPenaltyStreak);
+      else mult=capPenStreak(sk_[penKey(p.type)]);
       const actual=base*mult;
       const rw=rewardById(p.type);
       /* Every line asks the list for its name. The three originals used to be
@@ -4911,7 +4979,9 @@ function renderPenCard(sk_){
 function renderWorkCard(sk_){
   const card=dv('card');
   const tr=dv('rowb mb6');tr.appendChild(sp('ctit',t('work-lbl')));tr.appendChild(sp('md mo ac w6',fmtDur(STATE.today.work.workDuration)));card.appendChild(tr);
-  card.appendChild(sp('xs dim mb8',`+${STATE.today.work.workDuration} ${t('streak-pts')}${sk_.workStreak}d`));
+  // This showed the raw minute count with the streak's day-length tacked on
+  // as if it were the point value — never the actual, multiplied points.
+  card.appendChild(sp('xs dim mb8',`+${Math.round(STATE.today.work.workDuration*streakMult(sk_.workStreak))} ${t('streak-pts')}${sk_.workStreak}d`));
   const errD=dv('xs ng mt4');
   const wi=ip('text','','',t('eg-work'));
   function doSet(){const r=parseDur(wi.value);if(r.v===null){errD.textContent=r.err;return;}STATE.today.work.workDuration=r.v;wi.value='';errD.textContent='';commitAndRefresh();}
@@ -4946,10 +5016,11 @@ function renderSleepCard(sk_){
   };
   card.appendChild(et);
   const lateStreak=sk_?.lateStreak||1;
-  const latePenShow=sl.sleptLate?-100*CALC.diffMult()*Math.max(1,lateStreak):0;
+  // Read through the same cap CALC.score pays it by, not a raw Math.max(1,n).
+  const latePenShow=sl.sleptLate?-100*CALC.penMult()*capPenStreak(lateStreak):0;
   const ltt=dv(`tog ${sl.sleptLate?'on':''} mt8`);if(sl.sleptLate){ltt.style.borderColor='var(--ng)';ltt.style.background='var(--ngd)';}
   const ltc=ip('checkbox','');ltc.checked=sl.sleptLate;ltc.readOnly=true;ltc.style.accentColor='var(--ng)';
-  const lti=dv('f1');lti.innerHTML=`<div class="tt" style="color:${sl.sleptLate?'var(--ng)':'var(--t2)'}">${t('slept-late')}</div>${sl.sleptLate?`<div class="ts">${latePenShow} pts · ×${lateStreak} streak</div>`:''}`;
+  const lti=dv('f1');lti.innerHTML=`<div class="tt" style="color:${sl.sleptLate?'var(--ng)':'var(--t2)'}">${t('slept-late')}</div>${sl.sleptLate?`<div class="ts">${latePenShow} pts · ×${capPenStreak(lateStreak)} streak</div>`:''}`;
   ltt.appendChild(ltc);ltt.appendChild(lti);
   ltt.onclick=()=>{
     STATE.today.sleep.sleptLate=!sl.sleptLate;
@@ -5040,7 +5111,7 @@ function renderStreaks(sk_){
   card.appendChild(dv('xs dimmer up ls mb8',t('pos-streaks')));
   const pg=dv('sk-g mb16');
   [{k:'morningStreak',l:t('sk-morning')},{k:'flagStreak',l:t('sk-goals')},{k:'workStreak',l:t('sk-work')},
-   {k:'earlyBedStreak',l:t('slept-early')},
+   {k:'pomoStreak',l:t('sk-pom')},{k:'earlyBedStreak',l:t('slept-early')},
    ...rwItems.map(r=>({k:cleanKey(r.id),l:t('sk-without')+' '+rewardName(r)}))]
   .forEach(item=>pg.appendChild(makeStreakItem(item,'pos','ac')));
   card.appendChild(pg);
@@ -5325,7 +5396,7 @@ function renderHistForm(key){
     const mockDay={completed:fst.completed,target:fst.target,morningCompleted:fst.morningCompleted,flagCompleted:fst.flagCompleted,pomodoros:fst.pomodoros,
       penalties:pens.map(p=>({type:p.type,count:p.count,details:p.type==='drugs'?{substances:p.count}:p.type==='internet'?{minutes:p.count}:{isPositive:false}})),
       sleep:{sleepDuration:fst.sleepDuration,napDuration:fst.napDuration,sleptEarly:fst.sleptEarly,sleptLate:fst.sleptLate||false,earlyBedStreak:1},work:{workDuration:fst.workDuration}};
-    const fsk={morningStreak:1,flagStreak:1,substancesPenaltyStreak:1,procrastinationPenaltyStreak:1,macanazoPenaltyStreak:1,lateStreak:1,substancesStreak:0,procrastinationStreak:0,macanazoStreak:0,workStreak:0};
+    const fsk={morningStreak:1,flagStreak:1,substancesPenaltyStreak:1,procrastinationPenaltyStreak:1,macanazoPenaltyStreak:1,lateStreak:1,substancesStreak:0,procrastinationStreak:0,macanazoStreak:0,workStreak:0,pomoStreak:0};
     const sc_=CALC.score(mockDay,fsk);
     upsertHist({date:key,_ts:CLOCK.now(),todayPoints:sc_.total,status:sc_.status,completedTasks:fst.completed,totalTasks:fst.target,pomodoros:fst.pomodoros,sleepDuration:fst.sleepDuration,napDuration:fst.napDuration,sleptEarly:fst.sleptEarly,sleptLate:fst.sleptLate||false,workDuration:fst.workDuration,penalties:pens,_gap:false,
       streaks:[{type:'morning',count:fst.morningCompleted?1:0,active:fst.morningCompleted},{type:'flags',count:fst.flagCompleted?1:0,active:fst.flagCompleted}]},key);
@@ -5915,33 +5986,12 @@ function renderRules(onClose){
   hd.appendChild(sp('ctit',t('rules-title')));
   hd.appendChild(bt('btn-icon','✕',onClose));
   wrap.appendChild(hd);
-  /* The difficulty and streak-reset lines used to name the three originals and
-     their costs by hand. Two things were wrong with that: rename one and the
-     rules describe a habit you no longer have, and the per-minute figures had
-     drifted — they said −10/−50/−100 a minute where penBase has always charged
-     −1 × difficulty. Both lines are read off the list and the constants now, so
-     they cannot say anything the app does not do. */
-  const costsAt=m=>rewards().map(r=>escapeHtml(rewardName(r))+' '+
-    (r.byMinutes?`−${m}/min`:'−'+(REWARD_TIERS[r.tier].base*m).toLocaleString())).join(' · ');
-  /* Who a colour forgives, the late night included — it carries no weight of
-     its own but is forgiven like the heaviest one. Empty is a real answer on
-     hard, and the caller drops the whole line rather than printing "resets
-     nothing", which is a sentence about nothing. */
-  const clearedBy=c=>{
-    const who=rewards().filter(r=>rewardResets(r).includes(c)).map(r=>escapeHtml(rewardLabel(r)));
-    if(builtinResets('late').includes(c))who.push('🌙 '+t('late-night-lbl'));
-    return who.join(' + ');
-  };
-  const resetLine=(dot,cls,c)=>{
-    const who=clearedBy(c);
-    return who?`<div><span class="${cls} w6">${dot}</span> — ${t('rules-resets')} ${who}</div>`:'';
-  };
-  const anyForgiven=['yellow','green','purple'].some(c=>clearedBy(c));
-  // On hard nothing is forgiven by a colour, so a run only ends by breaking it.
-  const clearsRun=r=>{
-    const cs=rewardResets(r).map(s=>({yellow:'🟡',green:'🟢',purple:'🟣'})[s]).join(' ');
-    return cs?t('rules-clears-day').replace('{c}',cs):t('rules-clears-never');
-  };
+  /* Every reward is fixed-cost and never forgiven by a colour any more — see
+     the note above CURVE_K — so the per-colour and per-reward machinery that
+     used to sit here (asking each reward what forgives it, building a line
+     only when something did) is gone along with the modes it varied by. What
+     it printed was, by construction, always the same sentence; the rules say
+     that sentence once, directly, below. */
   const body=dv('fi');
   body.innerHTML=STATE.lang==='es'?`<div class="s16 dim">
   <div>
@@ -5974,7 +6024,7 @@ function renderRules(onClose){
       <div>Las <strong>diarias</strong> son tus banderas 🏁 en los recordatorios. Se recomiendan 3 al día.</div>
       <div><span class="ac w6">La fecha límite se fija al crearla</span> y no se mueve. Una meta vencida <span class="cy w6">se arrastra</span> y la puedes cerrar, pero ya solo paga el mínimo (1,000): <strong>postergar nunca conviene</strong>.</div>
       <div>Si la palomeaste tarde, <span class="ac w6">corrige la fecha</span> junto a sus puntos: se pagan por el día en que de verdad la terminaste, no por el día en que te acordaste. El título también se edita con un click.</div>
-      <div>Sus puntos van a tu <span class="ac w6">puntaje total</span>, no al día, para no descuadrar tus promedios.</div>
+      <div>Sus puntos van al <span class="ac w6">puntaje del mes en que las cierras</span>, no al día, para no descuadrar tus promedios.</div>
     </div>
   </div>
   <hr class="dv">
@@ -5993,48 +6043,33 @@ function renderRules(onClose){
   <div>
     <div class="md up ls ac w7 mb10">💰 Cómo ganas puntos</div>
     <div class="s6">
-      <div><span class="ac w6">✅ Tareas</span> — +1 pt cada una.</div>
+      <div><span class="ac w6">✅ Tareas</span> — +1 pt cada una × tu racha de banderas (abajo).</div>
       <div><span class="ac w6">🌅 Rutina Matutina</span> — márcala: +25 pts × tu racha. Si marcas tareas como <span class="ac w6">🌅 rutina matutina</span> en Plan, se palomea sola cuando las terminas todas.</div>
       <div><span class="ac w6">🏅 Metas Exterminadas alv</span> — tus 3 tareas más importantes: +100 pts × tu racha.</div>
-      <div><span class="ac w6">🍅 Pomodoros</span> — +25 pts cada uno.</div>
+      <div><span class="ac w6">🍅 Pomodoros</span> — +25 pts cada uno × tu racha de días con pomodoro.</div>
       <div><span class="ac w6">💼 Trabajo</span> — +1 pt por minuto × tu racha de días trabajados.</div>
       <div><span class="ac w6">😴 Sueño</span> — sueño y siestas: +1 pt por minuto. Dormir temprano da bonus × racha.</div>
       <div><span class="ac w6">🎨 Bonus de color</span> — <em>se acumula</em>: <span class="cy">Amarillo</span> +10 · <span class="cg">Verde</span> +30 · <span class="cp">Morado</span> +60, × tu racha de días no rojos.</div>
+      <div class="xs dimmer">Casi todo esto multiplica por una racha, y una racha paga por <span class="ac w6">raíz cuadrada</span> de sus días: <strong>nunca deja de crecer</strong>, pero tampoco se dispara. 9 días ×${multAt(9)} · 100 días ×${multAt(100)} · 400 días ×${multAt(400)}. El día 100 siempre vale más que el día 8, y solo un día 🔴 la reinicia.</div>
     </div>
   </div>
   <hr class="dv">
   <div>
     <div class="md up ls ng w7 mb10">🤤 Recompensas (costos en puntos 💸)</div>
     <div class="s6">
-      <div>Premios que quieres mantener a raya. Cada uno cuesta puntos, y cuanto más seguido los haces, más cuestan (× racha). <span class="ac w6">La lista es tuya</span>: renómbralas, cámbiales el ícono, quita las que no te digan nada o agrega las tuyas (hasta 5) con el ⚙ de la tarjeta de Recompensas.</div>
-      ${rewards().map(r=>`<div><span class="ng w6">${escapeHtml(rewardLabel(r))}</span> — ${r.byMinutes?'registra los minutos; pasados 30 min entra el multiplicador':t(REWARD_TIERS[r.tier].name).toLowerCase()+', −'+rewardCost(r).toLocaleString()+' × su racha'}. ${clearsRun(r)}.</div>`).join('')}
-      <div><span class="ng w6">🌙 Trasnoché</span> — cuesta bastante × tu racha de desvelo. La limpia un día 🟣.</div>
-      <div class="xs dimmer">El <span class="ac w6">peso</span> de cada una decide dos cosas: cuánto cuesta y qué tan bueno tiene que ser el día para limpiar su racha. Los costos exactos dependen de tu modo de dificultad — ver abajo.</div>
-    </div>
-  </div>
-  <hr class="dv">
-  <div>
-    <div class="md up ls dimmer w7 mb10">🌱⚖️💪 Modo de Dificultad</div>
-    <div class="s6">
-      <div>Cámbiala en la barra superior. <span class="ac w6">Las recompensas cuestan lo mismo en los tres modos</span> — ${costsAt(PEN_RATE)} — y sus rachas llegan hasta ×${PEN_CAP} siempre. Caer cuesta igual dondequiera que juegues.</div>
-      <div>Lo que cambia es <span class="ac w6">cuánto pagan tus rachas positivas</span>, o sea qué tan rápido subes. Una racha multiplica por la <span class="ac w6">raíz cuadrada</span> de sus días: <strong>nunca deja de crecer</strong>, pero tampoco se dispara. El día 100 siempre vale más que el día 8.</div>
-      <div><span class="w6" style="color:var(--cg)">🌱 Fácil</span> — 9 días ×${mAt('easy',9)} · 100 días ×${mAt('easy',100)} · 400 días ×${mAt('easy',400)}.</div>
-      <div><span class="w6" style="color:var(--cy)">⚖️ Medio</span> — 9 días ×${mAt('medium',9)} · 100 días ×${mAt('medium',100)} · 400 días ×${mAt('medium',400)}.</div>
-      <div><span class="w6" style="color:var(--cr)">💪 Difícil</span> — 9 días ×${mAt('hard',9)} · 100 días ×${mAt('hard',100)} · 400 días ×${mAt('hard',400)}. Subir cuesta, pero se puede: un día limpio siempre suma.</div>
-      <div class="xs dimmer">La dificultad no te hace perder más rápido, te hace ganar más lento. Un día malo se siente igual de malo en los tres — que es justo para lo que sirve el aviso.</div>
+      <div>Premios que quieres mantener a raya. Cada uno cuesta puntos, y cuanto más seguido los haces, más cuestan (× racha, hasta ×${PEN_CAP}). <span class="ac w6">La lista es tuya</span>: renómbralas, cámbiales el ícono, quita las que no te digan nada o agrega las tuyas (hasta 5) con el ⚙ de la tarjeta de Recompensas.</div>
+      ${rewards().map(r=>`<div><span class="ng w6">${escapeHtml(rewardLabel(r))}</span> — ${r.byMinutes?'registra los minutos; pasados 30 min entra el multiplicador':t(REWARD_TIERS[r.tier].name).toLowerCase()+', −'+rewardCost(r).toLocaleString()+' × su racha'}.</div>`).join('')}
+      <div><span class="ng w6">🌙 Trasnoché</span> — cuesta bastante × tu racha de desvelo.</div>
+      <div class="xs dimmer">El <span class="ac w6">peso</span> de cada una decide cuánto cuesta. Nada de esto cambia con el mes que estés viendo ni con ningún ajuste — el precio es el precio.</div>
     </div>
   </div>
   <hr class="dv">
   <div>
     <div class="md up ls dimmer w7 mb10">🔄 Cómo se reinician las rachas</div>
     <div class="s6">
-      <div>Todas se rompen al saltarte un día, excepto ${escapeHtml(rewardName(rewardById('internet')))}, que permite 30 minutos diarios. Además, el color del día reinicia algunas:</div>
-      <div><span class="cr w6">🔴 Rojo</span> — reinicia <strong>TODAS tus rachas positivas</strong>: Trabajo 💼, Rutina 🌞, Metas 🏁, Dormir temprano 😴 y la de días sin rojo. Un día con sus banderas abajo nunca es rojo, así que esto solo pasa si de verdad se te fue el día.</div>
-      <div class="xs dimmer">Ningún otro color toca una racha positiva: crecen por raíz cuadrada, así que no hay nada que frenar.</div>
-      ${resetLine('🟡 Amarillo','cy','yellow')}
-      ${resetLine('🟢 Verde','cg','green')}
-      ${resetLine('🟣 Morado','cp','purple')}
-      ${anyForgiven?'':'<div class="w6" style="color:var(--ng)">'+t('rules-no-forgive')+'</div>'}
+      <div>Todas se rompen al saltarte un día, excepto ${escapeHtml(rewardName(rewardById('internet')))}, que permite 30 minutos diarios.</div>
+      <div><span class="cr w6">🔴 Rojo</span> — reinicia <strong>TODAS tus rachas positivas</strong>: Trabajo 💼, Rutina 🌞, Metas 🏁, Pomodoros 🍅, Dormir temprano 😴 y la de días sin rojo. Un día con sus banderas abajo nunca es rojo, así que esto solo pasa si de verdad se te fue el día. Ningún otro color las toca.</div>
+      <div class="w6" style="color:var(--ng)">⚠ Ningún color perdona una racha de recompensa. La única forma de terminarla es no hacer la cosa.</div>
       <div><span class="ac w6">🎖️ Medallas</span> — cada racha <em>positiva</em> que llega a 10, 20, 50, 100, 200, 500 o 1000 días deja su medalla en ese día del calendario. Las recompensas nunca dan medalla.</div>
       <div class="xs dimmer">Los días que olvidas registrar cuentan como −1,000 pts y día Rojo. ¡Registra diario!</div>
     </div>
@@ -6072,7 +6107,7 @@ function renderRules(onClose){
       <div><strong>Daily</strong> goals are your 🏁 flags on reminders. Three a day is the sweet spot.</div>
       <div><span class="ac w6">The deadline is set when you create the goal</span> and never moves. One you did not finish <span class="cy w6">carries over</span> and can still be closed, but past its deadline it only pays the floor (1,000): <strong>postponing never wins</strong>.</div>
       <div>Ticked it late? <span class="ac w6">Correct the date</span> next to its points: they are paid for the day you actually finished it, not the day you remembered. The wording is editable with a click too.</div>
-      <div>Their points go to your <span class="ac w6">total score</span>, not to the day, so they never skew your averages.</div>
+      <div>Their points go to <span class="ac w6">the month you close them in</span>, not to the day, so they never skew your averages.</div>
     </div>
   </div>
   <hr class="dv">
@@ -6094,45 +6129,30 @@ function renderRules(onClose){
       <div><span class="ac w6">✅ Tasks</span> — +1 pt each.</div>
       <div><span class="ac w6">🌅 Morning Routine</span> — check it off: +25 pts × your streak. Mark tasks as <span class="ac w6">🌅 morning routine</span> in Plan and it ticks itself once they are all done.</div>
       <div><span class="ac w6">🏅 Goals Annihilated</span> — your key goals for the day: +100 pts × your streak.</div>
-      <div><span class="ac w6">🍅 Pomodoros</span> — +25 pts each.</div>
+      <div><span class="ac w6">🍅 Pomodoros</span> — +25 pts each × your streak of days with a pomodoro.</div>
       <div><span class="ac w6">💼 Work</span> — +1 pt per minute × your consecutive work-day streak.</div>
       <div><span class="ac w6">😴 Sleep</span> — sleep and naps: +1 pt per minute. Going to bed early adds a bonus × streak.</div>
       <div><span class="ac w6">🎨 Day colour bonus</span> — it <em>stacks</em>: <span class="cy">Yellow</span> +10 · <span class="cg">Green</span> +30 · <span class="cp">Purple</span> +60, × your consecutive non-red streak.</div>
+      <div class="xs dimmer">Almost all of this multiplies by a streak, and a streak pays by the <span class="ac w6">square root</span> of its days: <strong>it never stops growing</strong>, and it never runs away. 9 days ×${multAt(9)} · 100 days ×${multAt(100)} · 400 days ×${multAt(400)}. Day 100 is always worth more than day 8, and only a 🔴 day resets it.</div>
     </div>
   </div>
   <hr class="dv">
   <div>
     <div class="md up ls ng w7 mb10">🤤 Rewards (point costs 💸)</div>
     <div class="s6">
-      <div>Behaviours you want to keep at bay. Each costs points, and the more often you do them, the more they cost (× streak). <span class="ac w6">The list is yours</span>: rename them, change their icon, drop the ones that mean nothing to you or add your own (up to 5) from the ⚙ on the Rewards card.</div>
-      ${rewards().map(r=>`<div><span class="ng w6">${escapeHtml(rewardLabel(r))}</span> — ${r.byMinutes?'log the minutes; past 30 min the multiplier kicks in':t(REWARD_TIERS[r.tier].name).toLowerCase()+', −'+rewardCost(r).toLocaleString()+' × its streak'}. ${clearsRun(r)}.</div>`).join('')}
-      <div><span class="ng w6">🌙 Slept Late</span> — costs a lot × your late-night streak. A 🟣 day clears it.</div>
-      <div class="xs dimmer">Each one's <span class="ac w6">weight</span> decides two things: what it costs, and how good a day has to be to clear its streak. Exact costs depend on your difficulty mode — see below.</div>
-    </div>
-  </div>
-  <hr class="dv">
-  <div>
-    <div class="md up ls dimmer w7 mb10">🌱⚖️💪 Difficulty Mode</div>
-    <div class="s6">
-      <div>Switch it in the top bar. <span class="ac w6">Rewards cost the same in all three modes</span> — ${costsAt(PEN_RATE)} — and their runs reach ×${PEN_CAP} everywhere. Slipping costs the same wherever you play.</div>
-      <div>What changes is <span class="ac w6">how much your positive runs pay</span> — how fast you climb. A run multiplies by the <span class="ac w6">square root</span> of its days: it <strong>never stops growing</strong>, and it never runs away. Day 100 is always worth more than day 8.</div>
-      <div><span class="w6" style="color:var(--cg)">🌱 Easy</span> — 9 days ×${mAt('easy',9)} · 100 days ×${mAt('easy',100)} · 400 days ×${mAt('easy',400)}.</div>
-      <div><span class="w6" style="color:var(--cy)">⚖️ Medium</span> — 9 days ×${mAt('medium',9)} · 100 days ×${mAt('medium',100)} · 400 days ×${mAt('medium',400)}.</div>
-      <div><span class="w6" style="color:var(--cr)">💪 Hard</span> — 9 days ×${mAt('hard',9)} · 100 days ×${mAt('hard',100)} · 400 days ×${mAt('hard',400)}. Climbing is slow, but it climbs: a clean day always adds up.</div>
-      <div class="xs dimmer">Difficulty does not make you lose faster, it makes you gain slower. A bad day feels equally bad in all three — which is the whole point of the warning.</div>
+      <div>Behaviours you want to keep at bay. Each costs points, and the more often you do them, the more they cost (× streak, up to ×${PEN_CAP}). <span class="ac w6">The list is yours</span>: rename them, change their icon, drop the ones that mean nothing to you or add your own (up to 5) from the ⚙ on the Rewards card.</div>
+      ${rewards().map(r=>`<div><span class="ng w6">${escapeHtml(rewardLabel(r))}</span> — ${r.byMinutes?'log the minutes; past 30 min the multiplier kicks in':t(REWARD_TIERS[r.tier].name).toLowerCase()+', −'+rewardCost(r).toLocaleString()+' × its streak'}.</div>`).join('')}
+      <div><span class="ng w6">🌙 Slept Late</span> — costs a lot × your late-night streak.</div>
+      <div class="xs dimmer">Each one's <span class="ac w6">weight</span> decides what it costs. None of this changes with the month you are looking at, or with any setting — the price is the price.</div>
     </div>
   </div>
   <hr class="dv">
   <div>
     <div class="md up ls dimmer w7 mb10">🔄 How streaks reset</div>
     <div class="s6">
-      <div>All of them break the moment you skip a day, except ${escapeHtml(rewardName(rewardById('internet')))}, which allows 30 minutes a day. On top of that, the day's colour resets some:</div>
-      <div><span class="cr w6">🔴 Red</span> — resets <strong>ALL your positive streaks</strong>: Work 💼, Morning 🌞, Goals 🏁, Early bed 😴 and the non-red run. A day with its flags down is never red, so this only happens when the day really did get away from you.</div>
-      <div class="xs dimmer">No other colour touches a positive run: they grow by square root, so there is nothing to rein in.</div>
-      ${resetLine('🟡 Yellow','cy','yellow')}
-      ${resetLine('🟢 Green','cg','green')}
-      ${resetLine('🟣 Purple','cp','purple')}
-      ${anyForgiven?'':'<div class="w6" style="color:var(--ng)">'+t('rules-no-forgive')+'</div>'}
+      <div>All of them break the moment you skip a day, except ${escapeHtml(rewardName(rewardById('internet')))}, which allows 30 minutes a day.</div>
+      <div><span class="cr w6">🔴 Red</span> — resets <strong>ALL your positive streaks</strong>: Work 💼, Morning 🌞, Goals 🏁, Pomodoros 🍅, Early bed 😴 and the non-red run. A day with its flags down is never red, so this only happens when the day really did get away from you. No other colour touches them.</div>
+      <div class="w6" style="color:var(--ng)">⚠ No colour forgives a reward run. The only way one ends is by not doing the thing.</div>
       <div><span class="ac w6">🎖️ Medals</span> — every <em>positive</em> streak that reaches 10, 20, 50, 100, 200, 500 or 1000 days leaves its medal on that day in the calendar. Rewards never earn one.</div>
       <div class="xs dimmer">Days you forget to log count as −1,000 pts and a Red day. Don't skip!</div>
     </div>
@@ -6147,11 +6167,11 @@ function renderRules(onClose){
 
 /* ═══ YOUR REWARDS — the list itself ═══
    Renaming one is free. Changing what it weighs is not: every stored day is
-   re-scored from the current weights each time it is read, exactly as changing
-   the difficulty already does, so a light habit made grave makes every past
-   day of it cost four times as much. That is said out loud rather than
-   discovered. The three originals cannot have their weight changed at all —
-   their arithmetic is what months of history was written against. */
+   re-scored from the current weights each time it is read, so a light habit
+   made grave makes every past day of it cost four times as much. That is
+   said out loud rather than discovered. The three originals cannot have
+   their weight changed at all — their arithmetic is what months of history
+   was written against. */
 function renderRewardsModal(){
   const close=()=>{STATE.showRewards=false;render();};
   const ov=dv('fi');
@@ -6225,14 +6245,14 @@ function renderRewardsModal(){
       // What it costs. How a run ends is the same for every reward, so it is
       // said once, under the whole list, instead of five times over.
       row.appendChild(dv('xs dimmer mt4',
-        r.byMinutes?t('rw-per-min'):`−${rewardCost(r).toLocaleString()}`));
+        r.byMinutes?t('rw-per-min').replace('{r}',PEN_RATE):`−${rewardCost(r).toLocaleString()}`));
       box.appendChild(row);
     });
     panel.appendChild(box);
-    const legend=dv('xs dimmer mt8');
-    legend.innerHTML=t('rw-clears')+' '+Object.keys(REWARD_TIERS).map(k=>
-      `<span class="w6">${t(REWARD_TIERS[k].name)}</span> ${tierResets(k).map(s=>({yellow:'🟡',green:'🟢',purple:'🟣'})[s]).join('')||t('rw-only-break')}`).join(' · ');
-    panel.appendChild(legend);
+    // No tier's resetOn table has anything in it any more — see TIER_RESETS —
+    // so this used to build the same "(only by breaking it)" three times over,
+    // once per weight. One flat sentence says the same thing once.
+    panel.appendChild(dv('xs dimmer mt8',t('rw-clears-flat')));
 
     if(rewards().length<REWARD_MAX){
       const add=dv('row gap6 mt10');add.style.flexWrap='wrap';
@@ -6258,8 +6278,8 @@ function renderRewardsModal(){
    It used to clear the scoring and leave the task list, the goals and the bin
    standing, while calling itself a permanent erasure of all your data. Now it
    does what it says: everything you have entered goes. What stays is what is
-   not data — the language, the theme, the difficulty, the zone, and your
-   session, so you are not thrown out of the app you just emptied.
+   not data — the language, the theme, the zone, and your session, so you
+   are not thrown out of the app you just emptied.
 
    Two presses, with the backup offered between them, because the cloud copy
    is what makes this survivable and it is worth taking one on the way past. */
@@ -6272,7 +6292,7 @@ function wipeEverything(){
   STATE.streakOverrides={};
   STATE.planner={reminders:[],goals:[],log:[],bin:[],collapsed:{},_ts:CLOCK.now()};
   STATE.pomo={focus:25,brk:5,longBrk:15,cycle:4,running:false,phase:'focus',startedAt:0,elapsed:0,doneInCycle:0,minutesToday:0,day:''};
-  STATE.calSel=null;STATE.calYM=null;STATE.histDay=null;STATE.diaryFold={};
+  STATE.calSel=null;STATE.calYM=null;STATE.scoreYM=null;STATE.histDay=null;STATE.diaryFold={};
   STATE.selected=[];STATE.selecting=false;STATE.bulkUndo=null;
   [K.TODAY,K.HIST,K.DIARY,K.STREAK_OVR,K.PLANNER,'st_pomo','st_milestones','st_last_backup']
     .forEach(k=>localStorage.removeItem(k));
