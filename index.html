@@ -287,6 +287,52 @@ button{cursor:pointer;font-family:var(--ff);font-size:15px;font-weight:600;borde
    phone. The tiles say so themselves now, and stay two across. */
 @media(max-width:580px){.g4.tiles{grid-template-columns:repeat(2,1fr)}}
 
+/* ── THE FLOATING TIMER ──
+   A running pomodoro is the one number in the app that changes while you are
+   looking somewhere else, so it is the one thing worth following you down the
+   page. It shows up only while a session is underway and only while the real
+   card is off screen: with the card in front of you the bubble would be the
+   same clock twice, which is clutter, not help. Nothing on it is a control —
+   pressing it only takes you back to the card that does have the controls. */
+#pomo-pill{
+  position:fixed;z-index:60;right:18px;bottom:18px;
+  width:74px;height:74px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  background:var(--sur);border:1px solid var(--b2);
+  box-shadow:0 6px 22px rgba(0,0,0,.34);
+  cursor:pointer;padding:0;
+  /* It arrives and leaves rather than blinking in and out. */
+  opacity:0;transform:scale(.82);
+  transition:opacity .22s ease,transform .22s cubic-bezier(.2,.9,.3,1.3);
+  -webkit-tap-highlight-color:transparent;
+}
+#pomo-pill.on{opacity:1;transform:scale(1)}
+/* Paused, it stays legible but stops asking for attention. */
+#pomo-pill.paused{opacity:.62}
+#pomo-pill.paused.on{opacity:.62}
+#pomo-pill svg{position:absolute;inset:0;width:100%;height:100%;transform:rotate(-90deg)}
+#pomo-pill .pp-ring{fill:none;stroke:var(--b2);stroke-width:4}
+/* No transition on the ring. Over a 25-minute leg it advances a fifteen-
+   hundredth of the circle per second — a step nobody can see — while a
+   transition retriggered every second leaves the page animating forever,
+   which is a compositor that never sleeps for no visible gain. */
+#pomo-pill .pp-fill{fill:none;stroke-width:4;stroke-linecap:round}
+#pomo-pill .pp-in{position:relative;text-align:center;line-height:1.1}
+#pomo-pill .pp-ph{font-size:13px;display:block}
+#pomo-pill .pp-cl{font-size:14px;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:.2px}
+@media(max-width:700px){
+  /* Clear of the tab bar and of a rounded corner, on the right where the
+     thumb already is but not where it rests. */
+  #pomo-pill{
+    right:calc(14px + env(safe-area-inset-right,0px));
+    bottom:calc(80px + env(safe-area-inset-bottom,0px));
+    width:66px;height:66px;
+  }
+  #pomo-pill .pp-ph{font-size:12px}
+  #pomo-pill .pp-cl{font-size:12px;letter-spacing:0}
+}
+@media(prefers-reduced-motion:reduce){#pomo-pill{transition:none}}
+
 /* ═══════════════════════════════════════════════════════════════════════
    ── PHONE ──
    Everything below this line is inside a phone-width query and cannot be
@@ -2649,6 +2695,85 @@ function fmtClock(secs){
   const m=Math.floor(secs/60),s=secs%60;
   return String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');
 }
+/* ── The bubble that follows the page ──
+   The timer lives at the top of tab 1, and the whole reason to run one is to
+   go and do something else — which on this app means scrolling down the list
+   or crossing to tab 2, and losing sight of the only number still moving.
+   The bubble is that number, and nothing more: it appears while a session is
+   underway, it disappears the moment the real card is back on screen, and it
+   carries no buttons, because a stop button you can hit by accident from
+   anywhere on the page is worse than no bubble at all. Pressing it only takes
+   you to the card that does have the controls.
+
+   It hangs off <body> rather than inside #root, which render() empties: built
+   into the tree it would be destroyed and rebuilt every draw, and a ring that
+   restarts its animation every few seconds is exactly the fidget the corner
+   of a screen must not have. */
+const PP_R=32;                       // ring radius, in the SVG's own 74×74 box
+const PP_C=2*Math.PI*PP_R;           // its circumference: the dash length
+let _pomoPill=null;
+function pomoPillEl(){
+  if(_pomoPill&&document.body.contains(_pomoPill))return _pomoPill;
+  const b=document.createElement('button');
+  b.id='pomo-pill';b.type='button';
+  b.innerHTML=
+    `<svg viewBox="0 0 74 74" aria-hidden="true">`+
+    `<circle class="pp-ring" cx="37" cy="37" r="${PP_R}"></circle>`+
+    `<circle class="pp-fill" cx="37" cy="37" r="${PP_R}" stroke-dasharray="${PP_C}" stroke-dashoffset="${PP_C}"></circle>`+
+    `</svg>`+
+    `<span class="pp-in"><span class="pp-ph"></span><span class="pp-cl">00:00</span></span>`;
+  b.onclick=()=>{
+    if(STATE.tab!=='plan'){STATE.tab='plan';localStorage.setItem('st_tab','plan');render();}
+    const c=document.getElementById('pomo-clock');
+    if(c)c.scrollIntoView({behavior:'smooth',block:'center'});
+  };
+  document.body.appendChild(b);
+  _pomoPill=b;
+  return b;
+}
+/* Whether the real clock is in front of you right now. Off screen entirely,
+   or scrolled far enough that only an edge of it shows, counts as gone. */
+function pomoCardVisible(){
+  const c=document.getElementById('pomo-clock');
+  if(!c)return false;
+  const r=c.getBoundingClientRect();
+  if(!r.height)return false;
+  const h=window.innerHeight||document.documentElement.clientHeight;
+  return r.bottom>8&&r.top<h-8;
+}
+function syncPomoPill(){
+  const p=STATE.pomo;
+  // Underway means running, or paused partway through — a session left paused
+  // and forgotten is precisely the one worth a reminder in the corner.
+  const live=!!p&&(p.running||(p.elapsed||0)>0);
+  // Never over a dialog: what is open is what you are dealing with.
+  const busy=!!document.querySelector('.ovl')||!STATE.authed;
+  const show=live&&!busy&&!pomoCardVisible();
+  if(!show){
+    if(_pomoPill&&document.body.contains(_pomoPill)){
+      _pomoPill.classList.remove('on');
+      // Left in the tree, only faded: removing it would cost the ring its
+      // state and make the next appearance a jump rather than a fade.
+      _pomoPill.style.pointerEvents='none';
+    }
+    return;
+  }
+  const el=pomoPillEl();
+  const focusing=p.phase==='focus';
+  const accent=focusing?'var(--ac)':'var(--cb)';
+  const left=pomoRemaining(p);
+  const done=1-left/Math.max(1,pomoPhaseLen(p));
+  el.querySelector('.pp-cl').textContent=fmtClock(left);
+  el.querySelector('.pp-ph').textContent=focusing?'🍅':'☕';
+  const fill=el.querySelector('.pp-fill');
+  fill.style.stroke=accent;
+  fill.style.strokeDashoffset=String(PP_C*(1-Math.min(1,Math.max(0,done))));
+  el.style.pointerEvents='auto';
+  el.classList.toggle('paused',!p.running);
+  const lbl=(focusing?t('pomo-focus'):(p.phase==='long'?t('pomo-long'):t('pomo-short')))+' · '+fmtClock(left);
+  el.title=lbl;el.setAttribute('aria-label',t('pomo-title')+': '+lbl);
+  el.classList.add('on');
+}
 /* A two-tone chime, built in code so the app stays a single file. It rings
    three times over rather than once: a single figure was gone in half a second
    — over before you looked up from the thing it was telling you to stop doing,
@@ -4399,6 +4524,7 @@ function render(){
   if(!STATE.authed){root.appendChild(renderLogin());return;}
   root.appendChild(renderApp());
   checkMilestone();
+  syncPomoPill();
 }
 
 /* ═══ MILESTONES ═════════════════════════════════════════════════════════
@@ -6989,6 +7115,17 @@ document.addEventListener('keydown',e=>{
   render();
 });
 
+/* Scrolling is when the bubble is meant to arrive, so it answers the scroll
+   itself rather than waiting for the next tick — a second of lag reads as the
+   thing being slow to notice you. Throttled to one frame, and passive, so it
+   can never make the scroll itself stutter. */
+let _ppQueued=false;
+['scroll','resize'].forEach(ev=>window.addEventListener(ev,()=>{
+  if(_ppQueued)return;
+  _ppQueued=true;
+  requestAnimationFrame(()=>{_ppQueued=false;syncPomoPill();});
+},{passive:true}));
+
 // Start clock ticker once (not inside renderApp to prevent accumulation)
 let _lastDay=todayKey();
 setInterval(()=>{
@@ -6997,6 +7134,9 @@ setInterval(()=>{
   // Pomodoro tick. The clock text is patched in place rather than re-rendering
   // the whole app every second, which would fight anything you are typing.
   const p=STATE.pomo;
+  // The bubble is patched on the same beat and by the same rule as the card:
+  // one second, no re-render, nothing you are typing gets touched.
+  syncPomoPill();
   if(p&&p.running){
     const left=pomoRemaining(p);
     const cl2=document.getElementById('pomo-clock');
