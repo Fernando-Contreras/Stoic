@@ -923,7 +923,7 @@ en:{
   'rem-prio':'Quadrant','rem-flag':'Goal of the day','rem-every':'Every',
   'quad-0':'No quadrant','quad-1':'Urgent and important','quad-2':'Important, not urgent',
   'quad-3':'Urgent, not important','quad-4':'Neither',
-  'quad-1-do':'Do it now','quad-2-do':'Schedule it','quad-3-do':'Delegate or batch it','quad-4-do':'Drop it',
+  'quad-1-do':'Do it now','quad-2-do':'Schedule it','quad-3-do':'Delegate or batch it','quad-4-do':'Postpone it',
   'view-quad':'quadrants','quad-empty':'Nothing here.',
   'rem-time':'Time (optional)','rep-hour':'Hourly',
   'weekdays':'Sun,Mon,Tue,Wed,Thu,Fri,Sat',
@@ -1113,7 +1113,7 @@ es:{
   'rem-prio':'Cuadrante','rem-flag':'Meta del día','rem-every':'Cada',
   'quad-0':'Sin cuadrante','quad-1':'Urgente e importante','quad-2':'Importante, no urgente',
   'quad-3':'Urgente, no importante','quad-4':'Ni urgente ni importante',
-  'quad-1-do':'Hazla ya','quad-2-do':'Agéndala','quad-3-do':'Delégala o júntala','quad-4-do':'Bórrala',
+  'quad-1-do':'Hazla ya','quad-2-do':'Agéndala','quad-3-do':'Delégala o júntala','quad-4-do':'Postérgala',
   'view-quad':'cuadrantes','quad-empty':'Nada aquí.',
   'rem-time':'Hora (opcional)','rep-hour':'Cada hora',
   'weekdays':'Dom,Lun,Mar,Mié,Jue,Vie,Sáb',
@@ -1228,6 +1228,25 @@ const PEN_CAP=7;      // the most a penalty run may ever multiply by
 const PEN_RATE=5;     // what a reward costs
 // What a positive run of n days multiplies by. Never below 1.
 function streakMult(n){return Math.max(1,CURVE_K*Math.sqrt(Math.max(1,n||1)));}
+/* And what it multiplies by on a given day — which is the same thing, unless
+   the day went red.
+
+   A red day used to END every positive run. That was one rule and easy to
+   hold, but it was not true: a work run counts days you worked, and you did
+   work — the day being red is a statement about how much of your list you
+   closed, which is a different axis entirely. Ninety days of work erased by
+   one afternoon that got away from you is not a correction, it is a fine. It
+   was not even applied evenly: a day with its flags down cannot be red, so
+   the flag run was immune to the rule by construction while every other run
+   paid it.
+
+   So a red day no longer ends a run — it makes that day pay base, exactly the
+   way a good day makes a reward charge base. One rule with two faces: a run
+   counts what you actually did, and the day's colour decides what that run is
+   worth THAT DAY. The bad day still costs real points (a ninety-day work run
+   pays about 2,850 on a normal day and 300 on a red one) without costing the
+   ninety days as well. */
+function posMult(n,status){return status==='red'?1:streakMult(n);}
 // What that run pays at n days — the number the rules quote.
 function multAt(n){return Math.round(streakMult(n)*10)/10;}
 function capPenStreak(n){return Math.min(PEN_CAP,Math.max(1,n||1));}
@@ -1290,22 +1309,19 @@ const CALC={
     const hasSt=(d,t)=>d.streaks?.some(s=>s.type===t&&s.active)||false;
     function pStrk(type,resetOn){let c=0;for(let i=hist.length-1;i>=0;i--){if(!hasPen(hist[i],type))break;if(resetOn.includes(hist[i].status))break;c++;}return c;}
     function aStrk(type){let c=0;for(let i=hist.length-1;i>=0;i--){if(hasPen(hist[i],type))break;c++;}return c;}
-    /* A red day ends every positive run, not only work. It is the one rule
-       simple enough to hold in your head — have a bad day and you start over
-       — and it is a fair one, because a day with its flags down cannot be red
-       in the first place. No other colour touches a positive run: they are
-       capped at ×7 now, so there is nothing left to rein in. */
-    function sStrk(type){let c=0;for(let i=hist.length-1;i>=0;i--){if(hist[i].status==='red')break;if(!hasSt(hist[i],type))break;c++;}return c;}
-    /* This used to stop only at red, without ever checking whether you had
-       worked on the days it was counting — so it read the same as the plain
-       non-red streak below, and a run of red-free days with three actual work
-       days in it still paid as if you had worked all of them. The historical
-       recompute (liveParts, via streakAtDay) already checked workDuration>0;
-       today's own number simply disagreed with what that same day would score
-       once it became history. It now asks the question its name promises. */
-    function wStrk(){let c=0;for(let i=hist.length-1;i>=0;i--){if(hist[i].status==='red')break;if(!((hist[i].workDuration||0)>0))break;c++;}return c;}
-    function pomStrk(){let c=0;for(let i=hist.length-1;i>=0;i--){if(hist[i].status==='red')break;if(!((hist[i].pomodoros||0)>0))break;c++;}return c;}
-    function eStrk(){let c=0;for(let i=hist.length-1;i>=0;i--){if(hist[i].status==='red')break;if(!hist[i].sleptEarly)break;c++;}return c;}
+    /* Each of these counts one thing and nothing else: days in a row you did
+       it. A red day no longer breaks them — see posMult, where the red day
+       pays base instead. The only run a colour still ends is the non-red run
+       below, because that is literally what that one counts.
+
+       (wStrk used to stop at red without ever checking whether you had worked
+       on the days it counted, so it read the same as the non-red run and paid
+       for days you had not worked. It asks the question its name promises
+       now, which is also what the historical recompute always asked.) */
+    function sStrk(type){let c=0;for(let i=hist.length-1;i>=0;i--){if(!hasSt(hist[i],type))break;c++;}return c;}
+    function wStrk(){let c=0;for(let i=hist.length-1;i>=0;i--){if(!((hist[i].workDuration||0)>0))break;c++;}return c;}
+    function pomStrk(){let c=0;for(let i=hist.length-1;i>=0;i--){if(!((hist[i].pomodoros||0)>0))break;c++;}return c;}
+    function eStrk(){let c=0;for(let i=hist.length-1;i>=0;i--){if(!hist[i].sleptEarly)break;c++;}return c;}
     function cStrk(){let c=0;for(let i=hist.length-1;i>=0;i--){if(hist[i].status==='red'||hist[i]._gap)break;c++;}return c;}
     function lStrk(resetOn){let c=0;for(let i=hist.length-1;i>=0;i--){if(!hist[i].sleptLate||(resetOn||[]).includes(hist[i].status))break;c++;}return c;}
     const tD=today.penalties.some(p=>p.type==='drugs');
@@ -1349,26 +1365,27 @@ const CALC={
   score(day,sk){
     const{completed=0,target=0,morningCompleted=false,flagCompleted=false,pomodoros=0,penalties=[],sleep={},work={}}=day;
     const s=sk||{morningStreak:0,flagStreak:0,substancesPenaltyStreak:1,procrastinationPenaltyStreak:1,macanazoPenaltyStreak:1};
-    // Every run is read through the curve — see streakMult. The run itself is
-    // still whatever it is; this is only what it multiplies by.
+    /* The day's colour has to be known before anything is priced: it decides
+       both what a reward is charged and what a positive run is paid. */
+    const pct=target>0?Math.round(completed/target*100):0;
+    const status=this.status(pct,flagCompleted);
+    // Every run is read through the curve — see streakMult — and through the
+    // day, which pays base when the day went red. See posMult.
+    const pm=n=>posMult(n,status);
     /* Finished tasks were the one positive with no run behind them: a flat
        +1 each, which on a real month came to about one per cent of everything
        earned. They ride the flag run now — the days you got your three most
        important things down — so being consistent about what matters makes
        everything else you finish count for more. */
-    const base=Math.round(completed*streakMult(s.flagStreak));
-    const mB=morningCompleted?Math.round(25*streakMult(s.morningStreak)):0;
-    const fB=flagCompleted?Math.round(100*streakMult(s.flagStreak)):0;
+    const base=Math.round(completed*pm(s.flagStreak));
+    const mB=morningCompleted?Math.round(25*pm(s.morningStreak)):0;
+    const fB=flagCompleted?Math.round(100*pm(s.flagStreak)):0;
     // Same curve as everything else — a day with pomodoros logged on top of
     // yesterday's and the day before's pays more than one on its own.
-    const pom=Math.round(pomodoros*25*streakMult(s.pomoStreak));
-    const wrk=Math.round((work.workDuration||0)*streakMult(s.workStreak));
-    const earlyBedStreak=streakMult(s.earlyBedStreak);
+    const pom=Math.round(pomodoros*25*pm(s.pomoStreak));
+    const wrk=Math.round((work.workDuration||0)*pm(s.workStreak));
+    const earlyBedStreak=pm(s.earlyBedStreak);
     const slp=Math.round((sleep.sleepDuration||0)+(sleep.napDuration||0)+(sleep.sleptEarly?(sleep.sleepDuration||0)*earlyBedStreak:0));
-    /* The day's colour has to be known before anything is charged, because a
-       good enough day charges the reward at base and leaves its run alone. */
-    const pct=target>0?Math.round(completed/target*100):0;
-    const status=this.status(pct,flagCompleted);
     const freeToday=kind=>builtinForgives(kind).includes(status);
     const latePen=sleep.sleptLate
       ?-100*this.penMult()*(freeToday('late')?1:capPenStreak(s.lateStreak)):0;
@@ -1472,13 +1489,14 @@ const CALC={
       const sorted=[...allHistory].filter(d=>!d._gap).sort((a,b)=>a.date.localeCompare(b.date));
       const idx=sorted.findIndex(d=>d.date===e.date);
       if(idx>=0){
-        // Red ends every positive run — see sStrk/eStrk in CALC.streaks.
-        morningStreak=this.streakAtDay(sorted,idx,d=>d.streaks?.some(s=>s.type==='morning'&&s.active),['red'])||1;
-        flagStreak=this.streakAtDay(sorted,idx,d=>d.streaks?.some(s=>s.type==='flags'&&s.active),['red'])||1;
-        workStreak=this.streakAtDay(sorted,idx,d=>(d.workDuration||0)>0,['red'])||1;
-        pomoStreak=this.streakAtDay(sorted,idx,d=>(d.pomodoros||0)>0,['red'])||1;
-        earlyBedStreak=this.streakAtDay(sorted,idx,d=>d.sleptEarly,['red'])||1;
-        // No colour breaks a reward run — it only discounts the day, above.
+        /* No colour breaks any run, positive or otherwise — each counts days
+           you did the thing, and the day's colour only changes what it is
+           worth or charged on that day. See posMult and TIER_FORGIVES. */
+        morningStreak=this.streakAtDay(sorted,idx,d=>d.streaks?.some(s=>s.type==='morning'&&s.active))||1;
+        flagStreak=this.streakAtDay(sorted,idx,d=>d.streaks?.some(s=>s.type==='flags'&&s.active))||1;
+        workStreak=this.streakAtDay(sorted,idx,d=>(d.workDuration||0)>0)||1;
+        pomoStreak=this.streakAtDay(sorted,idx,d=>(d.pomodoros||0)>0)||1;
+        earlyBedStreak=this.streakAtDay(sorted,idx,d=>d.sleptEarly)||1;
         lateStreak=this.streakAtDay(sorted,idx,d=>d.sleptLate)||1;
         subsStreak=this.streakAtDay(sorted,idx,d=>d.penalties?.some(p=>p.type==='drugs'))||1;
         procStreak=this.streakAtDay(sorted,idx,d=>d.penalties?.some(p=>p.type==='internet'))||1;
@@ -1512,14 +1530,15 @@ const CALC={
       }
     }
 
-    // Read through the curve, exactly as CALC.score does for today.
+    // Read through the curve AND through the day, exactly as CALC.score does.
+    const pm=n=>posMult(n,st);
     const parts={
-      base:Math.round((e.completedTasks||0)*streakMult(flagStreak)),
-      mB:((e.streaks?.some(s=>s.type==='morning'&&s.active))?Math.round(25*streakMult(morningStreak)):0),
-      fB:((e.streaks?.some(s=>s.type==='flags'&&s.active))?Math.round(100*streakMult(flagStreak)):0),
-      pom:Math.round((e.pomodoros||0)*25*streakMult(pomoStreak)),
-      wrk:Math.round((e.workDuration||0)*streakMult(workStreak)),
-      slp:Math.round((e.sleepDuration||0)+(e.napDuration||0)+(e.sleptEarly?(e.sleepDuration||0)*streakMult(earlyBedStreak):0)),
+      base:Math.round((e.completedTasks||0)*pm(flagStreak)),
+      mB:((e.streaks?.some(s=>s.type==='morning'&&s.active))?Math.round(25*pm(morningStreak)):0),
+      fB:((e.streaks?.some(s=>s.type==='flags'&&s.active))?Math.round(100*pm(flagStreak)):0),
+      pom:Math.round((e.pomodoros||0)*25*pm(pomoStreak)),
+      wrk:Math.round((e.workDuration||0)*pm(workStreak)),
+      slp:Math.round((e.sleepDuration||0)+(e.napDuration||0)+(e.sleptEarly?(e.sleepDuration||0)*pm(earlyBedStreak):0)),
       col:Math.round(this.colorBonus(e.status)*streakMult(colorMult)),
       /* A good enough night still costs the base — it used to cost nothing at
          all, which is not what "charged at base" means. */
@@ -1964,8 +1983,11 @@ function isEditing(){
      and at one sync every five seconds that reads as the overlay blinking out
      and back while you are looking straight at it. The sync itself still runs
      on time; what it brought is drawn the moment the overlay is closed. */
+  /* Picking several tasks counts as well. It is not an overlay, but it is an
+     unfinished action held entirely on screen — a redraw underneath it is the
+     same interruption an overlay blinking out would be. */
   return ['taskTree','histDay','restoreList','showTZ','showRules','showSyncPanel','showGoals',
-          'showAddForm','showRewards']
+          'showAddForm','showRewards','selecting']
     .some(k=>STATE[k]);
 }
 /* The sync itself never waits — only the redraw does. What the cloud brought
@@ -2041,7 +2063,15 @@ function fmtShort(dateStr){
   return STATE.lang==='es'?`${d}/${m}`:`${m}/${d}`;
 }
 
-function saveView(){S.set('st_view',STATE.view);STATE.today._view=STATE.view;}
+/* Pressing a view button is a user action like any other, and it has to say
+   so. This used to write to localStorage, stash the view into today, and stop
+   — never bumping _lastSavedAt, never pushing. The cloud went on holding the
+   copy from before the press, and _lastSavedAt went on pointing at some older
+   commit, so the next pull looked newer than us and restored that old copy
+   over the new one. That is the bounce: press a layout, a tag filter or the
+   scope, and a second or two later it flicks back. commit() is the marker
+   that says "we are the writer now", which is exactly what a press is. */
+function saveView(){S.set('st_view',STATE.view);STATE.today._view=STATE.view;commit();}
 function savePlanner(){
   STATE.planner._ts=CLOCK.now();
   S.set(K.PLANNER,STATE.planner);
@@ -3142,12 +3172,18 @@ function renderPlanner(){
      the parent it belongs to instead of being dragged down beneath it. Press
      the active one again and the same order returns with parents back in
      charge of their subtasks. */
+  /* In the cross there is nothing to flatten — every task of the day is shown
+     inside its box, subtasks included — so there the buttons only pick an
+     order, one of them is always on, and the one you picked last stays on. */
+  const isQuad=(V.layout||'list')==='quad';
+  const flatView=(V.layout||'list')!=='list';
   const sortSeg=dv('row gap4');
   sortSeg.style.cssText='border:1px solid var(--b2);border-radius:9px;padding:2px;background:var(--sur2)';
   [['date-asc','📅 ↑'],['date-desc','📅 ↓'],['prio','1️⃣'],['alpha','A→Z']].forEach(([val,lbl])=>{
-    const on=V.sort===val&&V.flat;
+    const on=V.sort===val&&(flatView||V.flat);
     const b=bt(on?'btn-ac btn-xs':'btn-xs',lbl,()=>{
-      if(V.sort===val&&V.flat)V.flat=false;
+      if(flatView)V.sort=val;
+      else if(V.sort===val&&V.flat)V.flat=false;
       else{V.sort=val;V.flat=true;}
       saveView();render();
     });
@@ -3158,9 +3194,9 @@ function renderPlanner(){
   /* In the cross the sort does not decide the shape — the quadrants do — so
      saying "grouped under parents" there would describe a list that is not
      on screen. */
-  ctrl.appendChild(sp('xs dimmer',(V.layout||'list')==='quad'
+  ctrl.appendChild(sp('xs dimmer',isQuad
     ? t('view-quad')
-    : t('sort-'+V.sort)+' · '+(V.flat?t('view-flat'):t('view-grouped'))));
+    : t('sort-'+V.sort)+' · '+((V.flat||flatView)?t('view-flat'):t('view-grouped'))));
 
   const tags=allTags();
   let tagBar=null;
@@ -3250,7 +3286,11 @@ function renderPlanner(){
      top of a list scoped to today just because one daily step lived under it.
      Now a subtask whose parent is filtered out simply stands on its own row. */
   let tops,kidsFor;
-  if(V.flat){
+  /* The grid and the cross draw one chip per task with no room to nest, so
+     "grouped under parents" there did not group anything — it simply dropped
+     every subtask off the screen. Both are always flat, whatever the list
+     was last left as; the sort buttons still choose the order inside them. */
+  if(V.flat||flatView){
     // Flat: every row stands alone, judged and placed purely by the sort.
     tops=open.filter(passes).sort(order);
     kidsFor=()=>[];
@@ -3872,7 +3912,7 @@ function remChip(r,tk,redraw){
    who has seen this matrix already knows, so the position of a task is read
    before its name is. Each box says what it is asking of you rather than
    just naming itself: the point of sorting into 4 is to notice how much of
-   the week lives in a box whose instruction is "drop it". */
+   the week lives in a box whose instruction is "postpone it". */
 function renderQuadrants(items,tk,redraw){
   const rd=redraw||render;
   const g=dv('quad-grid');
@@ -4761,9 +4801,9 @@ function renderApp(){
   }
 
   const grid=dv('g4 mt4');
-  const c1=dv('s12');c1.appendChild(renderScoreCard(total,sc,sk_,scoreNav));c1.appendChild(renderWorkCard(sk_));grid.appendChild(c1);
+  const c1=dv('s12');c1.appendChild(renderScoreCard(total,sc,sk_,scoreNav));c1.appendChild(renderWorkCard(sk_,sc.status));grid.appendChild(c1);
   grid.appendChild(renderTasksCard(sc,sk_));
-  const c3=dv('s12');c3.appendChild(renderPomCard(sk_));c3.appendChild(renderPenCard(sk_,sc.status));grid.appendChild(c3);
+  const c3=dv('s12');c3.appendChild(renderPomCard(sk_,sc.status));c3.appendChild(renderPenCard(sk_,sc.status));grid.appendChild(c3);
   grid.appendChild(renderSleepCard(sk_,sc.status));
   wrap.appendChild(grid);
   wrap.appendChild(renderStreaks(sk_));
@@ -4950,7 +4990,8 @@ function renderTasksCard(sc,sk_){
   const mc=ip('checkbox','');mc.checked=STATE.today.morningCompleted;mc.readOnly=true;
   // Read through the same curve CALC.score pays it by — this used to assume
   // a flat ×streak and so showed a bigger number than the day actually paid.
-  const mi=dv('f1');mi.innerHTML=`<div class="tt">${t('morning-routine')}</div><div class="ts">+${Math.round(25*streakMult(sk_.morningStreak))} ${t('streak-pts')}${sk_.morningStreak}d</div>`;
+  // Through posMult, so on a red day it shows the base it will actually pay.
+  const mi=dv('f1');mi.innerHTML=`<div class="tt">${t('morning-routine')}</div><div class="ts">+${Math.round(25*posMult(sk_.morningStreak,sc.status))} ${t('streak-pts')}${sk_.morningStreak}d</div>`;
   // Stamped as yours, the way the flag beside it always has been — otherwise
   // the planner takes the tick straight back off you.
   mt.appendChild(mc);mt.appendChild(mi);mt.onclick=()=>{STATE.today.morningCompleted=!STATE.today.morningCompleted;markManual('morningCompleted');commitAndRefresh();};card.appendChild(mt);
@@ -4960,13 +5001,13 @@ function renderTasksCard(sc,sk_){
   // — harmless while the multiplier was the streak itself, misleading once it
   // became a square root: reading it as 100×N days overstated what an old
   // streak actually pays several times over.
-  const fi_=dv('f1');fi_.innerHTML=`<div class="tt">${t('goals-ann')}</div><div class="ts">+${Math.round(100*streakMult(sk_.flagStreak))} ${t('streak-pts')}${sk_.flagStreak}d</div>`;
+  const fi_=dv('f1');fi_.innerHTML=`<div class="tt">${t('goals-ann')}</div><div class="ts">+${Math.round(100*posMult(sk_.flagStreak,sc.status))} ${t('streak-pts')}${sk_.flagStreak}d</div>`;
   ft.appendChild(fc);ft.appendChild(fi_);ft.onclick=()=>{STATE.today.flagCompleted=!STATE.today.flagCompleted;markManual('flagCompleted');commitAndRefresh();};card.appendChild(ft);
   return card;
 }
 
 /* ═══ POMODORO ═══ */
-function renderPomCard(sk_){
+function renderPomCard(sk_,todayStatus){
   const card=dv('card');
   // The timer can bank part of a pomodoro, so this shows one decimal and the
   // buttons step by whole ones without ever rounding the fraction away.
@@ -4976,7 +5017,7 @@ function renderPomCard(sk_){
   // Pomodoros ride a streak now, the same as work and sleep — a day on top of
   // a run of others pays more than the same pomodoros on their own.
   const pomoStreak=sk_?.pomoStreak||1;
-  card.appendChild(sp('xs dim',`+${Math.round(val*25*streakMult(pomoStreak))} ${t('streak-pts')}${pomoStreak}d`));
+  card.appendChild(sp('xs dim',`+${Math.round(val*25*posMult(pomoStreak,todayStatus))} ${t('streak-pts')}${pomoStreak}d`));
   const step=d=>{
     STATE.today.pomodoros=Math.max(0,Math.round(((STATE.today.pomodoros||0)+d)*10)/10);
     markManual('pomodoros');commitAndRefresh();
@@ -5099,12 +5140,12 @@ function renderPenCard(sk_,todayStatus){
 }
 
 /* ═══ WORK CARD ═══ */
-function renderWorkCard(sk_){
+function renderWorkCard(sk_,todayStatus){
   const card=dv('card');
   const tr=dv('rowb mb6');tr.appendChild(sp('ctit',t('work-lbl')));tr.appendChild(sp('md mo ac w6',fmtDur(STATE.today.work.workDuration)));card.appendChild(tr);
   // This showed the raw minute count with the streak's day-length tacked on
   // as if it were the point value — never the actual, multiplied points.
-  card.appendChild(sp('xs dim mb8',`+${Math.round(STATE.today.work.workDuration*streakMult(sk_.workStreak))} ${t('streak-pts')}${sk_.workStreak}d`));
+  card.appendChild(sp('xs dim mb8',`+${Math.round(STATE.today.work.workDuration*posMult(sk_.workStreak,todayStatus))} ${t('streak-pts')}${sk_.workStreak}d`));
   const errD=dv('xs ng mt4');
   const wi=ip('text','','',t('eg-work'));
   function doSet(){const r=parseDur(wi.value);if(r.v===null){errD.textContent=r.err;return;}STATE.today.work.workDuration=r.v;wi.value='';errD.textContent='';commitAndRefresh();}
@@ -6040,8 +6081,8 @@ function renderStats(total,sc){
       'La rutina matutina es el punto más barato del día: +25 × tu racha, todos los días, por algo que probablemente ya haces. Márcala.',
       'The morning routine is the cheapest point of the day: +25 × your streak, every day, for something you probably already do. Tick it.');
     if(lateNights>totalTracked*0.25)add(80,'🌙',
-      `Te desvelaste ${lateNights} de ${totalTracked} días. El trasnoche cuesta × tu racha de desvelo, así que dos seguidos duelen más que dos separados — y un día morado la reinicia entera.`,
-      `You stayed up late on ${lateNights} of ${totalTracked} days. It costs × your late-night streak, so two in a row hurt more than two apart — and a purple day resets it entirely.`);
+      `Te desvelaste ${lateNights} de ${totalTracked} días. El trasnoche cuesta × tu racha de desvelo, así que dos seguidos duelen más que dos separados — y un día morado te lo cobra a precio base.`,
+      `You stayed up late on ${lateNights} of ${totalTracked} days. It costs × your late-night streak, so two in a row hurt more than two apart — and a purple day charges it at base.`);
     if(avgSleepMin>0&&avgSleepMin<420)add(75,'😴',
       `Duermes ${fmtDur(avgSleepMin)} en promedio. Cada minuto vale +1, así que media hora más son ~30 pts diarios — casi 1,000 al mes, sin hacer nada extra. Y la racha de dormir temprano es la forma más rentable de sacar puntos que hay.`,
       `You sleep ${fmtDur(avgSleepMin)} on average. Every minute is +1, so half an hour more is ~30 pts a day — nearly 1,000 a month for nothing extra. And the early-bed streak is the most profitable run of points there is.`);
@@ -6058,8 +6099,8 @@ function renderStats(total,sc){
       `Vas en ${pomPerDay} pomodoros por día. Cada uno son +25 pts y 25 minutos: tres al día son +75, todos los días.`,
       `You average ${pomPerDay} pomodoros a day. Each is +25 pts for 25 minutes: three a day is +75, every day.`);
     if(counts.green>0&&purplePct<20)add(50,'🟣',
-      `Llegas a verde seguido pero solo ${purplePct}% de tus días son morados. Una tarea más cierra el día completo — y un día morado reinicia TODAS tus rachas de recompensas.`,
-      `You reach green often but only ${purplePct}% of your days are purple. One more task closes the day — and a purple day resets ALL your reward streaks.`);
+      `Llegas a verde seguido pero solo ${purplePct}% de tus días son morados. Una tarea más cierra el día completo — y un día morado te cobra CUALQUIER recompensa a precio base, hasta la más pesada.`,
+      `You reach green often but only ${purplePct}% of your days are purple. One more task closes the day — and a purple day charges ANY reward at base price, even the heaviest.`);
     if(goalsOf('week').filter(g=>!g.doneOn).length)add(45,'📅',
       `Tienes metas semanales abiertas. Se pagan por los días que queden: cerrarlas hoy vale más que cerrarlas mañana, siempre.`,
       `You have weekly goals open. They pay by the days still left: closing one today is worth more than closing it tomorrow, always.`);
@@ -6136,7 +6177,7 @@ function renderRules(onClose){
       <div>No puedes subreportar: la meta nunca baja de las tareas que hoy tienes, y las completadas nunca pasan de la meta.</div>
       <div><span class="cr w6">Los atrasados cuentan.</span> Un recordatorio sin completar conserva su fecha y sigue sumando a tu meta de hoy, igual que en Apple Reminders.</div>
       <div><span class="cp w6">Etiquetas</span> (las que inventes) y <span class="cp w6">subtareas</span> en 2 niveles: cada una se paloma por su cuenta. Las <span class="ac w6">repeticiones</span> vuelven en su fecha, no desde que palomeaste.</div>
-      <div><span class="ac w6">Cuadrantes</span> — cada tarea puede ir en uno: <span class="cr w6">🚨1️⃣</span> urgente e importante (hazla ya) · <span class="cg w6">👑2️⃣</span> importante, no urgente (agéndala) · <span class="cy w6">🤖3️⃣</span> urgente, no importante (delégala o júntala) · <span class="dimmer w6">🤏🏼4️⃣</span> ninguna de las dos (bórrala). En la fila solo ves el emoji; el nombre sale al pasar el cursor. La vista <span class="ac w6">✜</span> las acomoda en cruz.</div>
+      <div><span class="ac w6">Cuadrantes</span> — cada tarea puede ir en uno: <span class="cr w6">🚨1️⃣</span> urgente e importante (hazla ya) · <span class="cg w6">👑2️⃣</span> importante, no urgente (agéndala) · <span class="cy w6">🤖3️⃣</span> urgente, no importante (delégala o júntala) · <span class="dimmer w6">🤏🏼4️⃣</span> ninguna de las dos (postérgala). En la fila solo ves el emoji; el nombre sale al pasar el cursor. La vista <span class="ac w6">✜</span> las acomoda en cruz.</div>
       <div>Un día <strong>sin ninguna bandera</strong> no cuenta como Metas Exterminadas.</div>
       <div>El <span class="ac w6">🍅 pomodoro</span> vive en Plan: 1 min enfocado = 1 pt, los descansos no pagan, 25 min enfocados = 1 pomodoro (50 min = 2). <strong>Solo suma</strong>: nunca baja lo que pusiste a mano.</div>
     </div>
@@ -6176,7 +6217,7 @@ function renderRules(onClose){
       <div><span class="ac w6">💼 Trabajo</span> — +1 pt por minuto × tu racha de días trabajados.</div>
       <div><span class="ac w6">😴 Sueño</span> — sueño y siestas: +1 pt por minuto. Dormir temprano da bonus × racha.</div>
       <div><span class="ac w6">🎨 Bonus de color</span> — <em>se acumula</em>: <span class="cy">Amarillo</span> +10 · <span class="cg">Verde</span> +30 · <span class="cp">Morado</span> +60, × tu racha de días no rojos.</div>
-      <div class="xs dimmer">Casi todo esto multiplica por una racha, y una racha paga por <span class="ac w6">raíz cuadrada</span> de sus días: <strong>nunca deja de crecer</strong>, pero tampoco se dispara. 9 días ×${multAt(9)} · 100 días ×${multAt(100)} · 400 días ×${multAt(400)}. El día 100 siempre vale más que el día 8, y solo un día 🔴 la reinicia.</div>
+      <div class="xs dimmer">Casi todo esto multiplica por una racha, y una racha paga por <span class="ac w6">raíz cuadrada</span> de sus días: <strong>nunca deja de crecer</strong>, pero tampoco se dispara. 9 días ×${multAt(9)} · 100 días ×${multAt(100)} · 400 días ×${multAt(400)}. El día 100 siempre vale más que el día 8. Una racha solo se rompe si dejas de hacer la cosa; un día 🔴 solo hace que ese día pague a precio base.</div>
     </div>
   </div>
   <hr class="dv">
@@ -6195,8 +6236,9 @@ function renderRules(onClose){
     <div class="md up ls dimmer w7 mb10">🔄 Cómo se reinician las rachas</div>
     <div class="s6">
       <div>Todas se rompen al saltarte un día, excepto ${escapeHtml(rewardName(rewardById('internet')))}, que permite 30 minutos diarios.</div>
-      <div><span class="cr w6">🔴 Rojo</span> — reinicia <strong>TODAS tus rachas positivas</strong>: Trabajo 💼, Rutina 🌞, Metas 🏁, Pomodoros 🍅, Dormir temprano 😴 y la de días sin rojo. Un día con sus banderas abajo nunca es rojo, así que esto solo pasa si de verdad se te fue el día. Ningún otro color las toca.</div>
+      <div><span class="cr w6">🔴 Rojo</span> — <strong>ya no borra tus rachas positivas</strong>. Trabajo 💼, Rutina 🌞, Metas 🏁, Pomodoros 🍅 y Dormir temprano 😴 cuentan los días en que sí lo hiciste, y un día rojo no cambia que lo hiciste: ese día paga a <strong>precio base</strong>, sin multiplicador, y mañana la racha sigue donde iba. La única que sí rompe es la de <span class="cp">días sin rojo</span>, que justo eso es lo que cuenta.</div>
       <div class="w6" style="color:var(--ng)">⚠ Ningún color <em>termina</em> una racha de recompensa — solo la cobra barata ese día. La única forma de terminarla es no hacer la cosa.</div>
+      <div class="xs dimmer">Es la misma regla de los dos lados: <strong>la racha cuenta lo que hiciste; el color del día decide cuánto vale o cuánto cuesta ese día</strong>.</div>
       <div><span class="ac w6">🎖️ Medallas</span> — cada racha <em>positiva</em> que llega a 10, 20, 50, 100, 200, 500 o 1000 días deja su medalla en ese día del calendario. Las recompensas nunca dan medalla.</div>
       <div class="xs dimmer">Los días que olvidas registrar cuentan como −1,000 pts y día Rojo. ¡Registra diario!</div>
     </div>
@@ -6221,7 +6263,7 @@ function renderRules(onClose){
       <div>You cannot undercount: the target never falls below the tasks you have today, and completed never exceeds the target.</div>
       <div><span class="cr w6">Overdue still counts.</span> A reminder you did not finish keeps its date and goes on adding to today's target, just like Apple Reminders.</div>
       <div><span class="cp w6">Tags</span> (invent your own) and <span class="cp w6">subtasks</span> two levels deep: each is ticked on its own. <span class="ac w6">Repeats</span> come back on their date, not from when you ticked them.</div>
-      <div><span class="ac w6">Quadrants</span> — each task can sit in one: <span class="cr w6">🚨1️⃣</span> urgent and important (do it now) · <span class="cg w6">👑2️⃣</span> important, not urgent (schedule it) · <span class="cy w6">🤖3️⃣</span> urgent, not important (delegate or batch it) · <span class="dimmer w6">🤏🏼4️⃣</span> neither (drop it). The row shows only the emoji; the name is in the tooltip. The <span class="ac w6">✜</span> view lays them out as a cross.</div>
+      <div><span class="ac w6">Quadrants</span> — each task can sit in one: <span class="cr w6">🚨1️⃣</span> urgent and important (do it now) · <span class="cg w6">👑2️⃣</span> important, not urgent (schedule it) · <span class="cy w6">🤖3️⃣</span> urgent, not important (delegate or batch it) · <span class="dimmer w6">🤏🏼4️⃣</span> neither (postpone it). The row shows only the emoji; the name is in the tooltip. The <span class="ac w6">✜</span> view lays them out as a cross.</div>
       <div>A day with <strong>no flags at all</strong> does not count as Goals Annihilated.</div>
       <div>The <span class="ac w6">🍅 pomodoro</span> lives in Plan: one focused minute is one point, breaks pay nothing, 25 focused minutes is one pomodoro (50 min = 2). It <strong>only ever adds</strong>: it can never reduce a count you typed by hand.</div>
     </div>
@@ -6261,7 +6303,7 @@ function renderRules(onClose){
       <div><span class="ac w6">💼 Work</span> — +1 pt per minute × your consecutive work-day streak.</div>
       <div><span class="ac w6">😴 Sleep</span> — sleep and naps: +1 pt per minute. Going to bed early adds a bonus × streak.</div>
       <div><span class="ac w6">🎨 Day colour bonus</span> — it <em>stacks</em>: <span class="cy">Yellow</span> +10 · <span class="cg">Green</span> +30 · <span class="cp">Purple</span> +60, × your consecutive non-red streak.</div>
-      <div class="xs dimmer">Almost all of this multiplies by a streak, and a streak pays by the <span class="ac w6">square root</span> of its days: <strong>it never stops growing</strong>, and it never runs away. 9 days ×${multAt(9)} · 100 days ×${multAt(100)} · 400 days ×${multAt(400)}. Day 100 is always worth more than day 8, and only a 🔴 day resets it.</div>
+      <div class="xs dimmer">Almost all of this multiplies by a streak, and a streak pays by the <span class="ac w6">square root</span> of its days: <strong>it never stops growing</strong>, and it never runs away. 9 days ×${multAt(9)} · 100 days ×${multAt(100)} · 400 days ×${multAt(400)}. Day 100 is always worth more than day 8. A run only breaks if you stop doing the thing; a 🔴 day just makes that day pay base.</div>
     </div>
   </div>
   <hr class="dv">
@@ -6280,8 +6322,9 @@ function renderRules(onClose){
     <div class="md up ls dimmer w7 mb10">🔄 How streaks reset</div>
     <div class="s6">
       <div>All of them break the moment you skip a day, except ${escapeHtml(rewardName(rewardById('internet')))}, which allows 30 minutes a day.</div>
-      <div><span class="cr w6">🔴 Red</span> — resets <strong>ALL your positive streaks</strong>: Work 💼, Morning 🌞, Goals 🏁, Pomodoros 🍅, Early bed 😴 and the non-red run. A day with its flags down is never red, so this only happens when the day really did get away from you. No other colour touches them.</div>
+      <div><span class="cr w6">🔴 Red</span> — <strong>no longer wipes your positive streaks</strong>. Work 💼, Morning 🌞, Goals 🏁, Pomodoros 🍅 and Early bed 😴 count the days you did the thing, and a red day does not undo that you did it: that day pays <strong>base</strong>, with no multiplier, and tomorrow the run carries on where it was. The one run red does break is the <span class="cp">non-red</span> one, which is exactly what it counts.</div>
       <div class="w6" style="color:var(--ng)">⚠ No colour <em>ends</em> a reward run — it only charges it at base for that day. The only way one ends is by not doing the thing.</div>
+      <div class="xs dimmer">One rule on both sides: <strong>the run counts what you did; the colour of the day decides what it is worth, or what it costs, that day</strong>.</div>
       <div><span class="ac w6">🎖️ Medals</span> — every <em>positive</em> streak that reaches 10, 20, 50, 100, 200, 500 or 1000 days leaves its medal on that day in the calendar. Rewards never earn one.</div>
       <div class="xs dimmer">Days you forget to log count as −1,000 pts and a Red day. Don't skip!</div>
     </div>
