@@ -5,7 +5,8 @@
 <!-- viewport-fit=cover lets the page reach under the notch and the home bar, so
      the safe-area insets below have real numbers to work with. -->
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
-<title>Stoic</title>
+<!-- Rewritten from JS while a pomodoro runs; see syncPomoTitle. -->
+<title>🏛️ Stoic</title>
 <!-- Browser-tab icon: inline SVG emoji, so it stays single-file and works offline -->
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🏛️%3C/text%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -57,7 +58,17 @@ html,body{background:var(--bg);color:var(--t1);font-family:var(--ff);font-size:2
 /* Likewise the tab switcher: described here so a phone can move it to the
    bottom of the screen, where a thumb already is. */
 .tabbar{justify-content:center;border:1px solid var(--b2);border-radius:11px;
-  padding:3px;background:var(--sur2);max-width:420px;margin-left:auto;margin-right:auto}
+  padding:3px;background:var(--sur2);max-width:420px;margin-left:auto;margin-right:auto;
+  /* It sticks to the top on a big screen for the same reason it sits at the
+     bottom on a phone: the score tab is a long page, and having to scroll all
+     the way back up to reach the other tab is the kind of small friction that
+     stops you looking. The phone rule below overrides this to fixed. */
+  position:sticky;top:0;z-index:40}
+/* A centred pill leaves the page showing on both sides of it, and content
+   sliding through that gap is what makes a sticky bar look broken. This is
+   the band behind it: the page background, full width, behind the pill. */
+.tabbar::before{content:'';position:absolute;left:50%;transform:translateX(-50%);
+  width:100vw;top:-14px;bottom:-10px;background:var(--bg);z-index:-1}
 .apphdr{padding:20px 0 16px}
 .ms-shelf{flex-wrap:wrap;justify-content:center}
 
@@ -215,15 +226,35 @@ button{cursor:pointer;font-family:var(--ff);font-size:15px;font-weight:600;borde
    view is the shape: which half of the cross a task is sitting in is the
    thing you are reading, and a stack of four boxes is not a cross. Narrow
    just means smaller boxes. */
-.quad-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+/* minmax(0,1fr), not 1fr. A plain 1fr will not shrink below the widest
+   unbreakable thing inside it, so one long task name in the right-hand
+   column quietly made that column wider than the left and the cross came out
+   lopsided — which on a phone, where there is no slack, was most of the
+   width. A floor of 0 says the two halves are equal and the text wraps. */
+.quad-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px;align-items:stretch}
 .quad-cell{border:1px solid var(--b1);border-radius:12px;padding:10px;background:var(--sur2);
-  display:flex;flex-direction:column;gap:6px;min-height:110px}
+  display:flex;flex-direction:column;gap:6px;min-height:110px;min-width:0}
+/* Same reason one level down: a chip is a flex item and would otherwise
+   refuse to be narrower than the longest word on it. */
+.quad-cell .rem-chip,.quad-cell .rem-chip>*{min-width:0}
+/* break-word, not anywhere: anywhere splits ordinary words to fill the line
+   ("Responde / r correos"), which is unreadable. This breaks only a word that
+   could not fit on a line of its own. */
+.quad-cell .rem-chip-t{overflow-wrap:break-word}
 /* Each quadrant is tinted by what it asks of you: the one to do now reads
    loudest, the one to drop barely reads at all. */
 .quad-cell.q1{border-color:var(--rb);background:var(--rd)}
 .quad-cell.q2{border-color:var(--gb);background:var(--gd)}
 .quad-cell.q3{border-color:var(--yb);background:var(--yd)}
 .quad-cell.q4{opacity:.72}
+/* The rest of the box, clickable, and quiet until you go near it: a ＋ on
+   every empty quadrant all the time would turn the cross into a form. */
+.quad-add{flex:1;min-height:26px;border-radius:9px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  color:var(--t3);font-size:16px;opacity:0;transition:opacity .14s,background .14s}
+.quad-add:hover,.quad-add:focus-visible{opacity:1;background:var(--sur3)}
+/* Nothing hovers on a touch screen, so there it is always faintly there. */
+@media(hover:none){.quad-add{opacity:.5}}
 .quad-h{display:flex;align-items:baseline;gap:6px;flex-wrap:wrap}
 .quad-h .qn{font-size:15px}
 .quad-cell .rem-chip{padding:6px 8px}
@@ -231,6 +262,14 @@ button{cursor:pointer;font-family:var(--ff);font-size:15px;font-weight:600;borde
   .quad-grid{gap:6px}
   .quad-cell{padding:7px;min-height:88px;border-radius:10px}
   .quad-cell .rem-chip{padding:5px 6px}
+  /* Half a phone's width is about 165px, and "importante, no urgente" wrapped
+     over three lines of it before a single task showed. The emoji already
+     carries which box this is, so the description goes and the instruction —
+     one word, and the half that tells you what to do — stays. */
+  .quad-h .qname{display:none}
+  .quad-do{margin-top:-2px}
+  /* Both rows the same height, or the cross is not a cross. */
+  .quad-grid{grid-auto-rows:1fr}
 }
 
 /* ── HISTORY ROW ── */
@@ -344,7 +383,7 @@ button{cursor:pointer;font-family:var(--ff);font-size:15px;font-weight:600;borde
      there while the page scrolls under them. This is most of what separates
      "a website on a phone" from "an app". */
   .tabbar{
-    position:fixed;left:0;right:0;bottom:0;z-index:50;
+    position:fixed;left:0;right:0;bottom:0;top:auto;z-index:50;
     max-width:none;margin:0;border-radius:0;border:none;
     border-top:1px solid var(--b2);background:var(--sur);
     /* Every env() carries a 0px fallback. Without one, a browser that does not
@@ -354,6 +393,9 @@ button{cursor:pointer;font-family:var(--ff);font-size:15px;font-weight:600;borde
     gap:8px;box-shadow:0 -8px 24px rgba(0,0,0,.30);
   }
   .tabbar button{padding:11px 8px;font-size:15px;border-radius:10px}
+  /* The bar is full width down here; the band behind it would only be a
+     second background over the same pixels. */
+  .tabbar::before{display:none}
   /* Room at the bottom so the last row of the page is not sitting under the
      bar, and room at the sides for a rounded screen held in landscape. */
   #root{
@@ -853,7 +895,7 @@ en:{
   'sleep-lbl':'Sleep','color-lbl':'Color','rewards-lbl':'Rewards','late-night-lbl':'Late night',
   'daily-tasks':'Daily Tasks','comp-target':'Completed / Target','done-ph':'Done','target-ph':'Target',
   'morning-routine':'🌞 Morning Routine','goals-ann':'🏁 Goals Annihilated',
-  'streak-pts':'pts · streak: ',
+  'run-lbl':'run','red-base':'red day → base',
   'num-subs':'# substances','eg-time':'e.g. 45m, 1h30m','min-1':'Min. 1',
   'enter-time':'Enter time','add-btn':'+ Add',
   'base-lbl':'base','streak-lbl':'streak',
@@ -873,7 +915,7 @@ en:{
   'rw-locked':'One of each category. Fixed: your whole history was scored with these costs. The name and the icon are yours.',
   'rw-tier-warn':'Changing the weight re-scores every day you have ever logged this on. Continue?',
   'rw-del':'Remove from the list','rw-del-warn':'Remove {n}? Its entries go with it — {d} logged day(s) will be re-scored without it. Nothing else changes.',
-  'rw-note':'Weight sets what one costs and what it takes to clear its run. The first three are fixed, one of each.',
+  'rw-note':'Weight sets what one costs and how good a day has to be to charge it at base. The first three are fixed, one of each.',
   'edit-note':'Edit note','add-note':'Add note','save-note':'Save note','no-data':'No data logged for this day.',
   'day-title-ph':'Title for the day','day-untitled':'Untitled','ctrl-save':'Ctrl + Enter to save',
   'clock-off':"⏰ This device's clock is {n} {dir}. Stoic corrects for it, so your days and your sync are safe — but the system clock is worth fixing.",
@@ -919,8 +961,8 @@ en:{
   'day-panel':'The day','pick-day':'Pick a day on the calendar to read it and write its note.',
   'early-bed':'Early bed','late-bed':'Late bed',
   'gap-warn':'⚠gap',
-  'reset-work':'Work streak reset','reset-indulg':'Stimulants streak reset',
-  'reset-ip':'Stimulants & Procrastination streaks reset','reset-all':'All streaks reset',
+  'disc-red':'Red day: everything pays base','disc-light':'Light rewards at base price',
+  'disc-med':'Light and medium at base price','disc-all':'Any reward at base price',
   'stats-title':'Stats',
   'best-day':'Best day','worst-day':'Worst day','all-avg':'All-time avg','last7-avg':'Last 7 avg',
   'total-poms':'Pomodoros','work-total':'Work total','sleep-total':'Sleep total','clean-streak':'Clean streak',
@@ -1043,7 +1085,7 @@ es:{
   'sleep-lbl':'Sueño','color-lbl':'Color','rewards-lbl':'Recompensas','late-night-lbl':'Trasnoche',
   'daily-tasks':'Tareas del Día','comp-target':'Completadas / Meta','done-ph':'Hechas','target-ph':'Meta',
   'morning-routine':'🌞 Rutina Matutina','goals-ann':'🏁 Metas Exterminadas alv',
-  'streak-pts':'pts · racha: ',
+  'run-lbl':'racha','red-base':'día rojo → base',
   'num-subs':'# sustancias','eg-time':'ej. 45m, 1h30m','min-1':'Mín. 1',
   'enter-time':'Ingresa tiempo','add-btn':'+ Agregar',
   'base-lbl':'base','streak-lbl':'racha',
@@ -1063,7 +1105,7 @@ es:{
   'rw-locked':'Una de cada categoría. Fija: todo tu historial se calculó con estos costos. El nombre y el ícono sí son tuyos.',
   'rw-tier-warn':'Cambiar el peso recalcula todos los días en que la hayas registrado. ¿Continuar?',
   'rw-del':'Quitar de la lista','rw-del-warn':'¿Quitar {n}? Sus registros se van con ella — {d} día(s) se recalculan sin ella. Nada más cambia.',
-  'rw-note':'El peso define cuánto cuesta y qué se necesita para limpiar su racha. Las primeras tres son fijas, una de cada una.',
+  'rw-note':'El peso define cuánto cuesta y qué tan bueno tiene que ser el día para cobrarla a base. Las primeras tres son fijas, una de cada una.',
   'edit-note':'Editar nota','add-note':'Agregar nota','save-note':'Guardar nota','no-data':'Sin datos para este día.',
   'day-title-ph':'Título del día','day-untitled':'Sin título','ctrl-save':'Ctrl + Enter para guardar',
   'clock-off':'⏰ El reloj de este dispositivo va {n} {dir}. Stoic lo compensa, así que tus días y tu sincronización están a salvo — pero conviene corregir la hora del sistema.',
@@ -1109,8 +1151,8 @@ es:{
   'day-panel':'El día','pick-day':'Elige un día del calendario para verlo y escribir su nota.',
   'early-bed':'Dormí temprano','late-bed':'Dormí tarde',
   'gap-warn':'⚠vacío',
-  'reset-work':'Racha de trabajo reiniciada','reset-indulg':'Racha de Estimulantes reiniciada',
-  'reset-ip':'Rachas de indulg. y procrast. reiniciadas','reset-all':'Todas las rachas reiniciadas',
+  'disc-red':'Día rojo: todo paga a precio base','disc-light':'Recompensas ligeras a precio base',
+  'disc-med':'Ligeras y medias a precio base','disc-all':'Cualquier recompensa a precio base',
   'stats-title':'Estadísticas',
   'best-day':'Mejor día','worst-day':'Peor día','all-avg':'Promedio total','last7-avg':'Últimos 7 días',
   'total-poms':'Pomodoros','work-total':'Trabajo total','sleep-total':'Sueño total','clean-streak':'Racha limpia',
@@ -1689,6 +1731,7 @@ let STATE={
   // reads as broken rather than as a filter doing its job.
 
   showAddForm: false,
+  addQuad: 0,        // which quadrant the add form should open with, 0 = none
   showGoals: false,
   showRules: false,
   showTZ: false,
@@ -2774,6 +2817,27 @@ function syncPomoPill(){
   el.title=lbl;el.setAttribute('aria-label',t('pomo-title')+': '+lbl);
   el.classList.add('on');
 }
+/* ── The same clock in the browser tab ──
+   The bubble solves losing the timer inside the page; this solves losing it
+   behind another tab, which is where a focus session actually gets spent.
+   The tab is the one place the app is still visible with the app not on
+   screen, so the time goes first, where a strip of tab still shows it, and
+   the name after. Unlike the bubble this does not care whether the card is
+   on screen — nothing about the tab strip is ever a duplicate of the page.
+   Paused says so in words rather than freezing a number that is not moving,
+   which reads as a hung tab. */
+const PAGE_TITLE='🏛️ Stoic';
+let _titleNow=null;
+function syncPomoTitle(){
+  const p=STATE.pomo;
+  const live=!!p&&(p.running||(p.elapsed||0)>0)&&STATE.authed;
+  const want=live
+    ? (p.phase==='focus'?'🍅 ':'☕ ')+(p.running?fmtClock(pomoRemaining(p)):'⏸ '+fmtClock(pomoRemaining(p)))+' · '+PAGE_TITLE
+    : PAGE_TITLE;
+  // Only on change: writing document.title every second makes some browsers
+  // flash the tab and pushes a history-ish update nobody asked for.
+  if(want!==_titleNow){_titleNow=want;document.title=want;}
+}
 /* A two-tone chime, built in code so the app stays a single file. It rings
    three times over rather than once: a single figure was gone in half a second
    — over before you looked up from the thing it was telling you to stop doing,
@@ -3460,7 +3524,7 @@ function renderPlanner(){
   /* The + stays a +. It used to turn into an ✕ while the form was unfolded,
      one row above a list where every ✕ deletes a task — the same mark meaning
      "close this" and "throw this away" within a thumb's width of each other. */
-  const addBtn=bt('btn-ac btn-sm','＋',()=>{STATE.showAddForm=true;render();});
+  const addBtn=bt('btn-ac btn-sm','＋',()=>openAddForm());
   addBtn.title=t('rem-new');
   h.appendChild(addBtn);
   card.appendChild(h);
@@ -4045,13 +4109,29 @@ function renderQuadrants(items,tk,redraw){
     const cell=dv('quad-cell q'+q);
     const h=dv('quad-h');
     h.appendChild(sp('qn',quadEmoji(q)));
-    const nm=sp('xs w7',quadName(q));nm.style.color=quadColor(q);
+    // Named, but the name is the first thing a narrow screen gives up: the
+    // emoji already says which box this is, and the line below says what to
+    // do about it, which is the half worth the width.
+    const nm=sp('xs w7 qname',quadName(q));nm.style.color=quadColor(q);
     h.appendChild(nm);
     const mine=items.filter(r=>quadOf(r)===q);
     h.appendChild(sp('xs dimmer mo',String(mine.length)));
     cell.appendChild(h);
-    cell.appendChild(dv('xs dimmer',t('quad-'+q+'-do')));
+    cell.appendChild(dv('xs dimmer quad-do',t('quad-'+q+'-do')));
     mine.forEach(r=>cell.appendChild(remChip(r,tk,rd)));
+    /* The empty part of a box is the natural place to say "one more of
+       these". Clicking it opens the add form with this quadrant already
+       chosen — you answered the question by choosing where you clicked.
+       It takes the leftover height, so a full box has almost none of it and
+       an empty box is all of it, which is where you would aim anyway. Not
+       while selecting: there the whole view is in another mode. */
+    if(!STATE.selecting){
+      const add=dv('quad-add');
+      add.title=t('rem-new')+' · '+quadName(q);
+      add.appendChild(sp('',' ＋'));
+      add.onclick=()=>openAddForm(q);
+      cell.appendChild(add);
+    }
     g.appendChild(cell);
   });
   /* Anything with no quadrant yet sits under the cross rather than inside
@@ -4438,7 +4518,12 @@ function renderReminderRow(r,tk,opts){
 let _addFormDirty=null;
 function closeAddForm(){
   if(_addFormDirty&&_addFormDirty()&&!confirm(t('rem-discard')))return;
-  _addFormDirty=null;STATE.showAddForm=false;render();
+  _addFormDirty=null;STATE.showAddForm=false;STATE.addQuad=0;render();
+}
+/* The one way in, so nothing can open the form and forget to say from where.
+   Called with no quadrant by the ＋ button, and with one by the cross. */
+function openAddForm(quad){
+  STATE.addQuad=quad||0;STATE.showAddForm=true;render();
 }
 function renderAddModal(){
   const ov=dv('fi');
@@ -4458,7 +4543,10 @@ function renderAddModal(){
   const row2=dv('row gap8 mt8');row2.style.flexWrap='wrap';
   const di=ip('date','',todayKey(),'');di.style.cssText='flex:0 0 148px;min-width:130px';
   const hi=ip('time','','','');hi.style.cssText='flex:0 0 104px';hi.title=t('rem-time');
-  const pi=sk('',QUAD.map(q=>[String(q),q?`${quadEmoji(q)} ${quadName(q)}`:quadName(0)]),'0');pi.style.cssText='flex:1;min-width:120px';
+  // Opened from the empty space inside a quadrant, the form arrives with that
+  // quadrant already chosen — the click said which box it belongs in, and
+  // making you say it again in a dropdown would be asking twice.
+  const pi=sk('',QUAD.map(q=>[String(q),q?`${quadEmoji(q)} ${quadName(q)}`:quadName(0)]),String(STATE.addQuad||0));pi.style.cssText='flex:1;min-width:120px';
   row2.appendChild(di);row2.appendChild(hi);row2.appendChild(pi);panel.appendChild(row2);
   const dl=document.createElement('datalist');dl.id='st-tags';
   allTags().forEach(tg=>{const o=document.createElement('option');o.value=tg;dl.appendChild(o);});
@@ -4506,7 +4594,7 @@ function renderAddModal(){
         ...(ri.value==='month'||ri.value==='year'
             ?{dom:new Date((di.value||todayKey())+'T12:00:00').getDate()}:{})}:null});
     // The task is in; the popup goes, and the list behind it shows what landed.
-    _addFormDirty=null;STATE.showAddForm=false;render();
+    _addFormDirty=null;STATE.showAddForm=false;STATE.addQuad=0;render();
   }
   ti.onkeydown=e=>{if(e.key==='Enter')doAdd();};
   const ab=bt('btn-ac btn-sm w100 mt8',t('rem-add'),doAdd);ab.style.width='100%';
@@ -4525,6 +4613,7 @@ function render(){
   root.appendChild(renderApp());
   checkMilestone();
   syncPomoPill();
+  syncPomoTitle();
 }
 
 /* ═══ MILESTONES ═════════════════════════════════════════════════════════
@@ -5074,7 +5163,7 @@ function renderScoreCard(total,sc,sk_,nav){
   card.appendChild(big);
   const pct=sc.pct,R=28,circ=2*Math.PI*R,off=circ-(pct/100)*circ;
   const cr=dv('row gap12 mt10');cr.style.justifyContent='center';
-  cr.innerHTML=`<svg width="70" height="70" class="circ" viewBox="0 0 70 70"><circle cx="35" cy="35" r="${R}" stroke="#22222e" stroke-width="7" fill="none"/><circle cx="35" cy="35" r="${R}" stroke="var(--ac)" stroke-width="7" fill="none" stroke-dasharray="${circ}" stroke-dashoffset="${off}" stroke-linecap="round" style="transition:stroke-dashoffset .4s"/></svg><div><div class="xxl w7 ac mo">${pct}%</div><div class="xs dimmer">${STATE.today.completed}/${STATE.today.target} tasks</div></div>`;
+  cr.innerHTML=`<svg width="70" height="70" class="circ" viewBox="0 0 70 70"><circle cx="35" cy="35" r="${R}" stroke="#22222e" stroke-width="7" fill="none"/><circle cx="35" cy="35" r="${R}" stroke="var(--ac)" stroke-width="7" fill="none" stroke-dasharray="${circ}" stroke-dashoffset="${off}" stroke-linecap="round" style="transition:stroke-dashoffset .4s"/></svg><div><div class="xxl w7 ac mo">${pct}%</div><div class="xs dimmer">${STATE.today.completed}/${STATE.today.target} ${t('tasks-lbl')}</div></div>`;
   card.appendChild(cr);
   const posRows=[[t('daily-tasks'),sc.base],[t('morning-lbl'),sc.mB],[t('flags-lbl'),sc.fB],[t('pom-lbl'),sc.pom],[t('work-lbl'),sc.wrk],[t('sleep-lbl'),sc.slp],[t('color-lbl'),sc.col]].filter(r=>r[1]>0);
   const negRows=[[t('rewards-lbl'),sc.pen],[t('late-night-lbl'),sc.latePen||0]].filter(r=>r[1]!==0);
@@ -5087,6 +5176,19 @@ function renderScoreCard(total,sc,sk_,nav){
   return card;
 }
 
+/* One line for what a thing pays today, used by the four cards that pay by a
+   run. It used to read "+300 pts · racha: 42d", which parses as 300 times 42:
+   the streak stood there looking like something still to be applied, when the
+   number in front of it already had it in. So the chain is written out in the
+   order it happens — the run, the multiplier it earns, the points that come
+   out — and the total is last, where an answer belongs.
+   On a red day the multiplier is 1 by design, and a 42-day run showing ×1
+   with no explanation reads as a bug, so the day says so itself. */
+function ptsLine(pts,streakDays,status){
+  const m=Math.round(posMult(streakDays,status)*10)/10;
+  const chain=`${t('run-lbl')} ${streakDays}d · ×${m} · +${Math.round(pts*posMult(streakDays,status)).toLocaleString()} ${t('pts-s')}`;
+  return status==='red'&&streakDays>1?`${chain} · 🔴 ${t('red-base')}`:chain;
+}
 /* ═══ TASKS CARD ═══ */
 function renderTasksCard(sc,sk_){
   const card=dv('card');card.appendChild(sp('ctit',t('daily-tasks')));
@@ -5117,7 +5219,7 @@ function renderTasksCard(sc,sk_){
   // Read through the same curve CALC.score pays it by — this used to assume
   // a flat ×streak and so showed a bigger number than the day actually paid.
   // Through posMult, so on a red day it shows the base it will actually pay.
-  const mi=dv('f1');mi.innerHTML=`<div class="tt">${t('morning-routine')}</div><div class="ts">+${Math.round(25*posMult(sk_.morningStreak,sc.status))} ${t('streak-pts')}${sk_.morningStreak}d</div>`;
+  const mi=dv('f1');mi.innerHTML=`<div class="tt">${t('morning-routine')}</div><div class="ts">${escapeHtml(ptsLine(25,sk_.morningStreak,sc.status))}</div>`;
   // Stamped as yours, the way the flag beside it always has been — otherwise
   // the planner takes the tick straight back off you.
   mt.appendChild(mc);mt.appendChild(mi);mt.onclick=()=>{STATE.today.morningCompleted=!STATE.today.morningCompleted;markManual('morningCompleted');commitAndRefresh();};card.appendChild(mt);
@@ -5127,7 +5229,7 @@ function renderTasksCard(sc,sk_){
   // — harmless while the multiplier was the streak itself, misleading once it
   // became a square root: reading it as 100×N days overstated what an old
   // streak actually pays several times over.
-  const fi_=dv('f1');fi_.innerHTML=`<div class="tt">${t('goals-ann')}</div><div class="ts">+${Math.round(100*posMult(sk_.flagStreak,sc.status))} ${t('streak-pts')}${sk_.flagStreak}d</div>`;
+  const fi_=dv('f1');fi_.innerHTML=`<div class="tt">${t('goals-ann')}</div><div class="ts">${escapeHtml(ptsLine(100,sk_.flagStreak,sc.status))}</div>`;
   ft.appendChild(fc);ft.appendChild(fi_);ft.onclick=()=>{STATE.today.flagCompleted=!STATE.today.flagCompleted;markManual('flagCompleted');commitAndRefresh();};card.appendChild(ft);
   return card;
 }
@@ -5143,7 +5245,7 @@ function renderPomCard(sk_,todayStatus){
   // Pomodoros ride a streak now, the same as work and sleep — a day on top of
   // a run of others pays more than the same pomodoros on their own.
   const pomoStreak=sk_?.pomoStreak||1;
-  card.appendChild(sp('xs dim',`+${Math.round(val*25*posMult(pomoStreak,todayStatus))} ${t('streak-pts')}${pomoStreak}d`));
+  card.appendChild(sp('xs dim',ptsLine(val*25,pomoStreak,todayStatus)));
   const step=d=>{
     STATE.today.pomodoros=Math.max(0,Math.round(((STATE.today.pomodoros||0)+d)*10)/10);
     markManual('pomodoros');commitAndRefresh();
@@ -5271,7 +5373,7 @@ function renderWorkCard(sk_,todayStatus){
   const tr=dv('rowb mb6');tr.appendChild(sp('ctit',t('work-lbl')));tr.appendChild(sp('md mo ac w6',fmtDur(STATE.today.work.workDuration)));card.appendChild(tr);
   // This showed the raw minute count with the streak's day-length tacked on
   // as if it were the point value — never the actual, multiplied points.
-  card.appendChild(sp('xs dim mb8',`+${Math.round(STATE.today.work.workDuration*posMult(sk_.workStreak,todayStatus))} ${t('streak-pts')}${sk_.workStreak}d`));
+  card.appendChild(sp('xs dim mb8',ptsLine(STATE.today.work.workDuration,sk_.workStreak,todayStatus)));
   const errD=dv('xs ng mt4');
   const wi=ip('text','','',t('eg-work'));
   function doSet(){const r=parseDur(wi.value);if(r.v===null){errD.textContent=r.err;return;}STATE.today.work.workDuration=r.v;wi.value='';errD.textContent='';commitAndRefresh();}
@@ -5503,20 +5605,24 @@ function renderCalendar(onPick){
   build();return wrap;
 }
 
-/* Which streaks a day of this colour resets — shown against the day itself,
-   since the rule holds for any day that lands on that colour. */
-function resetEmojis(status){
-  if(status==='red')return'💼🔄';
-  if(status==='yellow')return'💊🔄';
-  if(status==='green')return'💊🌐🔄';
-  if(status==='purple')return'💊🌐💦🌙🔄';
+/* What a day of this colour buys you. It used to say which streaks the colour
+   RESET, which stopped being true on both sides: a colour no longer ends a
+   reward run, and red no longer ends a positive one. What a colour does now
+   is set the price of that one day, so that is what it says. Which rewards go
+   cheap follows TIER_FORGIVES exactly — light, then medium, then everything —
+   and the emoji are the built-in rewards at each weight. */
+function discEmojis(status){
+  if(status==='red')return'⤵️';
+  if(status==='yellow')return'💊💸';
+  if(status==='green')return'💊🌐💸';
+  if(status==='purple')return'💊🌐💦🌙💸';
   return'';
 }
-function resetTooltip(status){
-  if(status==='red')return t('reset-work');
-  if(status==='yellow')return t('reset-indulg');
-  if(status==='green')return t('reset-ip');
-  if(status==='purple')return t('reset-all');
+function discTooltip(status){
+  if(status==='red')return t('disc-red');
+  if(status==='yellow')return t('disc-light');
+  if(status==='green')return t('disc-med');
+  if(status==='purple')return t('disc-all');
   return'';
 }
 
@@ -5553,9 +5659,11 @@ function renderDayPanel(){
     const dr=dv('rowb');
     const lft=dv('row gap6');
     lft.appendChild(sbadge(status));
-    if(isToday){const b=sp('badge s-'+status,t('Today'));lft.appendChild(b);}
-    const re=sp('xs dimmer',resetEmojis(status));
-    re.title=resetTooltip(status);re.style.cursor='help';lft.appendChild(re);
+    // t('Today') is not a key — it fell through to the literal "Today" in both
+    // languages. The key is today-lbl.
+    if(isToday){const b=sp('badge s-'+status,t('today-lbl'));lft.appendChild(b);}
+    const re=sp('xs dimmer',discEmojis(status));
+    re.title=discTooltip(status);re.style.cursor='help';lft.appendChild(re);
     dr.appendChild(lft);
     dr.appendChild(sp('lg mo w7 ac',`${isToday?live.total:CALC.liveScore(entry,STATE.history)} pts`));
     wrap.appendChild(dr);
@@ -5563,7 +5671,7 @@ function renderDayPanel(){
     const flagActive=isToday?!!STATE.today.flagCompleted:entry.streaks?.some(s=>s.type==='flags'&&s.active);
     const flagStreak=entry?.streaksUsed?.flagStreak||entry?.streaksUsed?.flagstreak||'';
     const parts=[
-      `${(isToday?STATE.today.completed:entry.completedTasks)||0}/${(isToday?STATE.today.target:entry.totalTasks)||0} tasks`,
+      `${(isToday?STATE.today.completed:entry.completedTasks)||0}/${(isToday?STATE.today.target:entry.totalTasks)||0} ${t('tasks-lbl')}`,
       `${(isToday?STATE.today.pomodoros:entry.pomodoros)||0} 🍅`,
       ...(flagActive?[isToday?'🏅':`🏅 ×${flagStreak||'?'}`]:[])
     ];
@@ -6285,174 +6393,149 @@ function renderRules(onClose){
      it printed was, by construction, always the same sentence; the rules say
      that sentence once, directly, below. */
   const body=dv('fi');
+  /* Short on purpose. These rules had grown to the length nobody reads, which
+     makes them worse than no rules: the app looked explained while the one
+     line that mattered was buried in a paragraph. Every fact that was here is
+     still here — the wording around it is not. The numbers come from the
+     constants, so this cannot drift from what the code charges. */
   body.innerHTML=STATE.lang==='es'?`<div class="s16 dim">
   <div>
-    <div class="md up ls dimmer w7 mb10">📋 Cómo funciona esta app</div>
+    <div class="md up ls dimmer w7 mb10">📋 Qué es</div>
     <div class="s6">
-      <div>Stoic es <span class="ac w6">productividad gamificada</span>. Dos pestañas: <strong>📋 Plan</strong>, tu lista de pendientes, y <strong>📊 Puntaje</strong>, donde esa lista se vuelve puntos y un color.</div>
-      <div>Cada día: arma tu lista en Plan, trabájala palomeando, y en Puntaje registra lo demás (sueño, trabajo, recompensas). Con el tiempo ves tus patrones: qué ayuda, qué perjudica, qué tan consistente eres.</div>
-      <div>Tu día empieza y termina a la <span class="ac w6">medianoche de una sola zona horaria</span>, la misma en todos tus dispositivos — así nunca discuten sobre qué día es. Si viajas, cámbiala dándole click al reloj de arriba.</div>
+      <div>Productividad gamificada, en dos pestañas: <strong>📋 Plan</strong> es tu lista, <strong>📊 Puntaje</strong> es esa lista vuelta puntos y un color.</div>
+      <div>Tu día corre de medianoche a medianoche en <span class="ac w6">una sola zona horaria</span>, igual en todos tus aparatos. La cambias con click en el reloj.</div>
     </div>
   </div>
   <hr class="dv">
   <div>
-    <div class="md up ls dimmer w7 mb10">🔗 Cómo se hablan las dos pestañas</div>
+    <div class="md up ls dimmer w7 mb10">🔗 Plan → Puntaje</div>
     <div class="s6">
-      <div><span class="ac w6">Plan alimenta a Puntaje</span> — tus recordatorios llenan solos tu meta del día, tus completadas y tus Metas Exterminadas. <span class="ac w6">Puntaje nunca toca a Plan.</span></div>
-      <div><span class="ac w6">Tu mano manda</span> — un número que escribas en Puntaje se respeta, hasta que edites tu lista en Plan: ahí Plan lo retoma. Escribe <span class="ac w6">0</span> en la meta para devolvérselo de inmediato.</div>
-      <div>No puedes subreportar: la meta nunca baja de las tareas que hoy tienes, y las completadas nunca pasan de la meta.</div>
-      <div><span class="cr w6">Los atrasados cuentan.</span> Un recordatorio sin completar conserva su fecha y sigue sumando a tu meta de hoy, igual que en Apple Reminders.</div>
-      <div><span class="cp w6">Etiquetas</span> (las que inventes) y <span class="cp w6">subtareas</span> en 2 niveles: cada una se paloma por su cuenta. Las <span class="ac w6">repeticiones</span> vuelven en su fecha, no desde que palomeaste.</div>
-      <div><span class="ac w6">Cuadrantes</span> — cada tarea puede ir en uno: <span class="cr w6">🚨1️⃣</span> urgente e importante (hazla ya) · <span class="cg w6">👑2️⃣</span> importante, no urgente (agéndala) · <span class="cy w6">🤖3️⃣</span> urgente, no importante (delégala o júntala) · <span class="dimmer w6">🤏🏼4️⃣</span> ninguna de las dos (postérgala). En la fila solo ves el emoji; el nombre sale al pasar el cursor. La vista <span class="ac w6">✜</span> las acomoda en cruz.</div>
-      <div>Un día <strong>sin ninguna bandera</strong> no cuenta como Metas Exterminadas.</div>
-      <div>El <span class="ac w6">🍅 pomodoro</span> vive en Plan: 1 min enfocado = 1 pt, los descansos no pagan, 25 min enfocados = 1 pomodoro (50 min = 2). <strong>Solo suma</strong>: nunca baja lo que pusiste a mano.</div>
+      <div><span class="ac w6">Plan llena solo</span> tu meta del día, tus completadas y tus Metas. <span class="ac w6">Puntaje nunca toca Plan.</span></div>
+      <div>Lo que escribas a mano manda, hasta que edites tu lista en Plan. Pon <span class="ac w6">0</span> en la meta para devolvérsela.</div>
+      <div><span class="cr w6">Los atrasados cuentan</span>: guardan su fecha y siguen sumando a la meta de hoy.</div>
+      <div><span class="cp w6">Etiquetas</span> y <span class="cp w6">subtareas</span> (2 niveles) se palomean por su cuenta. Las repeticiones vuelven en su fecha.</div>
+      <div><span class="ac w6">Cuadrantes</span>: <span class="cr w6">🚨1️⃣</span> hazla ya · <span class="cg w6">👑2️⃣</span> agéndala · <span class="cy w6">🤖3️⃣</span> delégala · <span class="dimmer w6">🤏🏼4️⃣</span> postérgala. La vista <span class="ac w6">✜</span> los pone en cruz.</div>
+      <div>El <span class="ac w6">🍅 pomodoro</span> vive en Plan: 1 min enfocado = 1 pt, 25 min = 1 🍅. <strong>Solo suma</strong>, nunca baja lo que pusiste a mano.</div>
     </div>
   </div>
   <hr class="dv">
   <div>
-    <div class="md up ls dimmer w7 mb10">🏆 Metas semanales, trimestrales y anuales</div>
+    <div class="md up ls dimmer w7 mb10">📊 El color del día</div>
     <div class="s6">
-      <div>No generan racha: su premio es <span class="ac w6">terminarlas temprano</span>. Valen <span class="ac w6">1,000 por día que quede</span> del periodo, así una semanal llega a 7,000, una trimestral a ~92,000 y una anual a 365,000.</div>
-      <div><span class="w6">📅 Semanal</span> máx. 5 · <span class="w6">📈 Trimestral</span> máx. 5 · <span class="w6">🏆 Anual</span> máx. 10. La semana empieza en <strong>domingo</strong>: cerrarla el domingo paga ×7 y el sábado ×1.</div>
-      <div>Las <strong>diarias</strong> son tus banderas 🏁 en los recordatorios. Se recomiendan 3 al día.</div>
-      <div><span class="ac w6">La fecha límite se fija al crearla</span> y no se mueve. Una meta vencida <span class="cy w6">se arrastra</span> y la puedes cerrar, pero ya solo paga el mínimo (1,000): <strong>postergar nunca conviene</strong>.</div>
-      <div>Si la palomeaste tarde, <span class="ac w6">corrige la fecha</span> junto a sus puntos: se pagan por el día en que de verdad la terminaste, no por el día en que te acordaste. El título también se edita con un click.</div>
-      <div>Sus puntos van al <span class="ac w6">puntaje del mes en que las cierras</span>, no al día, para no descuadrar tus promedios.</div>
+      <div>Sale del <strong>% de tu meta</strong>: <span class="cp w6">🟣 100%</span> · <span class="cg w6">🟢 85%</span> · <span class="cy w6">🟡 50%</span> · <span class="cr w6">🔴 menos</span>.</div>
+      <div class="xs dimmer">Exterminar tus Metas 🏁 te sube un nivel. Por eso un día verde puede traer 60% de tareas.</div>
     </div>
   </div>
   <hr class="dv">
   <div>
-    <div class="md up ls dimmer w7 mb10">📊 Estado del día — tu color diario</div>
+    <div class="md up ls ac w7 mb10">💰 Puntos</div>
     <div class="s6">
-      <div>Tu día recibe un color basado en cuántas tareas completaste de tu objetivo:</div>
-      <div><span class="cp w6">🟣 Morado</span> — 100% completado. Día perfecto.</div>
-      <div><span class="cg w6">🟢 Verde</span> — 85% o más. Día excelente.</div>
-      <div><span class="cy w6">🟡 Amarillo</span> — 50% o más. Día decente.</div>
-      <div><span class="cr w6">🔴 Rojo</span> — menos del 50%. Día difícil.</div>
-      <div class="xs dimmer">Bonus: <strong>Exterminar tus Metas alv</strong> sube tu color un nivel — Rojo→Amarillo, Amarillo→Verde, Verde→Morado.</div>
+      <div>✅ Tarea <span class="ac w6">+1</span> · 🌅 Rutina <span class="ac w6">+25</span> · 🏅 Metas <span class="ac w6">+100</span> · 🍅 Pomodoro <span class="ac w6">+25</span> · 💼 Trabajo <span class="ac w6">+1</span>/min · 😴 Sueño <span class="ac w6">+1</span>/min</div>
+      <div>🎨 Color del día, se acumula: <span class="cy">🟡 +10</span> · <span class="cg">🟢 +30</span> · <span class="cp">🟣 +60</span>.</div>
+      <div>Todo eso <span class="ac w6">× su racha</span> — las tareas van con la de 🏅 Metas. Una racha paga por <span class="ac w6">raíz cuadrada</span> de sus días: 9d ×${multAt(9)} · 100d ×${multAt(100)} · 400d ×${multAt(400)}. Nunca deja de crecer, nunca se dispara.</div>
     </div>
   </div>
   <hr class="dv">
   <div>
-    <div class="md up ls ac w7 mb10">💰 Cómo ganas puntos</div>
+    <div class="md up ls dimmer w7 mb10">🏆 Metas de periodo</div>
     <div class="s6">
-      <div><span class="ac w6">✅ Tareas</span> — +1 pt cada una × tu racha de banderas (abajo).</div>
-      <div><span class="ac w6">🌅 Rutina Matutina</span> — márcala: +25 pts × tu racha. Si marcas tareas como <span class="ac w6">🌅 rutina matutina</span> en Plan, se palomea sola cuando las terminas todas.</div>
-      <div><span class="ac w6">🏅 Metas Exterminadas alv</span> — tus 3 tareas más importantes: +100 pts × tu racha.</div>
-      <div><span class="ac w6">🍅 Pomodoros</span> — +25 pts cada uno × tu racha de días con pomodoro.</div>
-      <div><span class="ac w6">💼 Trabajo</span> — +1 pt por minuto × tu racha de días trabajados.</div>
-      <div><span class="ac w6">😴 Sueño</span> — sueño y siestas: +1 pt por minuto. Dormir temprano da bonus × racha.</div>
-      <div><span class="ac w6">🎨 Bonus de color</span> — <em>se acumula</em>: <span class="cy">Amarillo</span> +10 · <span class="cg">Verde</span> +30 · <span class="cp">Morado</span> +60, × tu racha de días no rojos.</div>
-      <div class="xs dimmer">Casi todo esto multiplica por una racha, y una racha paga por <span class="ac w6">raíz cuadrada</span> de sus días: <strong>nunca deja de crecer</strong>, pero tampoco se dispara. 9 días ×${multAt(9)} · 100 días ×${multAt(100)} · 400 días ×${multAt(400)}. El día 100 siempre vale más que el día 8. Una racha solo se rompe si dejas de hacer la cosa; un día 🔴 solo hace que ese día pague a precio base.</div>
+      <div>No hacen racha: pagan por <span class="ac w6">terminar temprano</span>. <span class="ac w6">1,000 × cada día que quede</span> — semanal hasta 7,000, trimestral ~92,000, anual 365,000.</div>
+      <div>📅 Semanal máx. 5 · 📈 Trimestral máx. 5 · 🏆 Anual máx. 10. La semana empieza <strong>domingo</strong>. Las <strong>diarias</strong> son tus banderas 🏁.</div>
+      <div>La fecha <strong>no se mueve</strong>. Vencida se arrastra pero ya solo paga 1,000: postergar nunca conviene. Si la cerraste tarde, corrige la fecha junto a sus puntos.</div>
+      <div class="xs dimmer">Sus puntos caen en el <strong>mes en que la cierras</strong>, no en el día.</div>
     </div>
   </div>
   <hr class="dv">
   <div>
-    <div class="md up ls ng w7 mb10">🤤 Recompensas (costos en puntos 💸)</div>
+    <div class="md up ls ng w7 mb10">🤤 Recompensas</div>
     <div class="s6">
-      <div>Premios que quieres mantener a raya. Cada uno cuesta puntos, y cuanto más seguido los haces, más cuestan (× racha, hasta ×${PEN_CAP}). <span class="ac w6">La lista es tuya</span>: renómbralas, cámbiales el ícono, quita las que no te digan nada o agrega las tuyas (hasta 5) con el ⚙ de la tarjeta de Recompensas.</div>
-      ${rewards().map(r=>`<div><span class="ng w6">${escapeHtml(rewardLabel(r))}</span> — ${r.byMinutes?'registra los minutos; pasados 30 min entra el multiplicador':t(REWARD_TIERS[r.tier].name).toLowerCase()+', −'+rewardCost(r).toLocaleString()+' × su racha'}.</div>`).join('')}
-      <div><span class="ng w6">🌙 Trasnoché</span> — cuesta bastante × tu racha de desvelo.</div>
-      <div><span class="ac w6">Un día bueno te la cobra a precio base</span> — sin multiplicador — y <strong>no te rompe la racha</strong>: al día siguiente sigue donde iba. Entre más pesada la recompensa, mejor tiene que ser el día: <span class="cy">🟡</span> alcanza para una ligera, <span class="cg">🟢</span> para una media, y solo <span class="cp">🟣</span> para una grande.</div>
-      <div class="xs dimmer">El <span class="ac w6">peso</span> de cada una decide dos cosas: cuánto cuesta, y qué tan bueno tiene que ser el día para que te la cobre barata. El precio base nunca cambia.</div>
+      <div>Premios que quieres mantener a raya. Entre más seguido, más cuestan: <span class="ng w6">× su racha, hasta ×${PEN_CAP}</span>.</div>
+      ${rewards().map(r=>`<div><span class="ng w6">${escapeHtml(rewardLabel(r))}</span> — ${r.byMinutes?'por minutos; pasados 30 min entra el multiplicador':t(REWARD_TIERS[r.tier].name).toLowerCase()+', −'+rewardCost(r).toLocaleString()}</div>`).join('')}
+      <div><span class="ng w6">🌙 Trasnoché</span> — caro × tu racha de desvelo.</div>
+      <div class="xs dimmer"><span class="ac w6">La lista es tuya</span>: renómbralas, cámbiales el ícono, quítalas o agrega las tuyas (hasta 5) con el ⚙ de la tarjeta.</div>
     </div>
   </div>
   <hr class="dv">
   <div>
-    <div class="md up ls dimmer w7 mb10">🔄 Cómo se reinician las rachas</div>
+    <div class="md up ls dimmer w7 mb10">🔄 Rachas — una sola regla</div>
     <div class="s6">
-      <div>Todas se rompen al saltarte un día, excepto ${escapeHtml(rewardName(rewardById('internet')))}, que permite 30 minutos diarios.</div>
-      <div><span class="cr w6">🔴 Rojo</span> — <strong>ya no borra tus rachas positivas</strong>. Trabajo 💼, Rutina 🌞, Metas 🏁, Pomodoros 🍅 y Dormir temprano 😴 cuentan los días en que sí lo hiciste, y un día rojo no cambia que lo hiciste: ese día paga a <strong>precio base</strong>, sin multiplicador, y mañana la racha sigue donde iba. La única que sí rompe es la de <span class="cp">días sin rojo</span>, que justo eso es lo que cuenta.</div>
-      <div class="w6" style="color:var(--ng)">⚠ Ningún color <em>termina</em> una racha de recompensa — solo la cobra barata ese día. La única forma de terminarla es no hacer la cosa.</div>
-      <div class="xs dimmer">Es la misma regla de los dos lados: <strong>la racha cuenta lo que hiciste; el color del día decide cuánto vale o cuánto cuesta ese día</strong>.</div>
-      <div><span class="ac w6">🎖️ Medallas</span> — cada racha <em>positiva</em> que llega a 10, 20, 50, 100, 200, 500 o 1000 días deja su medalla en ese día del calendario. Las recompensas nunca dan medalla.</div>
-      <div class="xs dimmer">Los días que olvidas registrar cuentan como −1,000 pts y día Rojo. ¡Registra diario!</div>
+      <div class="ac w6">La racha cuenta lo que hiciste. El color del día decide cuánto vale o cuánto cuesta ese día.</div>
+      <div><span class="cr w6">🔴 Rojo</span> — ese día paga a <strong>precio base</strong> y la racha sigue mañana donde iba. Lo único que rompe es la racha de <span class="cp">días sin rojo</span>.</div>
+      <div><span class="ac w6">Un día bueno</span> te cobra la recompensa a base <strong>sin romperle la racha</strong>: <span class="cy">🟡</span> una ligera · <span class="cg">🟢</span> una media · <span class="cp">🟣</span> una grande.</div>
+      <div>Lo único que rompe una racha es <strong>dejar de hacer la cosa</strong>, o saltarte un día — excepto ${escapeHtml(rewardName(rewardById('internet')))}, que permite 30 min diarios.</div>
+      <div><span class="ac w6">🎖️ Medallas</span> a los 10, 20, 50, 100, 200, 500 y 1000 días de cualquier racha positiva. Las recompensas nunca dan.</div>
+      <div class="xs dimmer">Un día sin registrar cuenta como −1,000 y día rojo. ¡Registra diario!</div>
     </div>
   </div>
   <hr class="dv">
   <div class="xs dimmer ctr">Stoic · Hecho por JuanFer</div>
 </div>`:`<div class="s16 dim">
   <div>
-    <div class="md up ls dimmer w7 mb10">📋 How this app works</div>
+    <div class="md up ls dimmer w7 mb10">📋 What this is</div>
     <div class="s6">
-      <div>Stoic is a <span class="ac w6">daily accountability tracker</span> with two tabs: <strong>📋 Plan</strong>, your to-do list, and <strong>📊 Score</strong>, where that list turns into points and a colour.</div>
-      <div>Every day: build your list in Plan, work through it ticking as you go, and log everything else in Score (sleep, work, rewards). Over time you see your patterns — what helps, what hurts, how consistent you really are.</div>
-      <div>Your day begins and ends at <span class="ac w6">midnight in one single timezone</span>, the same on every device — so they never argue about what day it is. Travelling? Change it by clicking the clock up top.</div>
+      <div>Gamified productivity in two tabs: <strong>📋 Plan</strong> is your list, <strong>📊 Score</strong> is that list turned into points and a colour.</div>
+      <div>Your day runs midnight to midnight in <span class="ac w6">one single timezone</span>, the same on every device. Change it by clicking the clock.</div>
     </div>
   </div>
   <hr class="dv">
   <div>
-    <div class="md up ls dimmer w7 mb10">🔗 How the two tabs talk</div>
+    <div class="md up ls dimmer w7 mb10">🔗 Plan → Score</div>
     <div class="s6">
-      <div><span class="ac w6">Plan feeds Score</span> — your reminders fill in the day's target, your completed count and Goals Annihilated on their own. <span class="ac w6">Score never touches Plan.</span></div>
-      <div><span class="ac w6">Your hand wins</span> — a number you type in Score is respected, until you edit your list in Plan: then Plan takes it back. Type <span class="ac w6">0</span> in the target to hand it back straight away.</div>
-      <div>You cannot undercount: the target never falls below the tasks you have today, and completed never exceeds the target.</div>
-      <div><span class="cr w6">Overdue still counts.</span> A reminder you did not finish keeps its date and goes on adding to today's target, just like Apple Reminders.</div>
-      <div><span class="cp w6">Tags</span> (invent your own) and <span class="cp w6">subtasks</span> two levels deep: each is ticked on its own. <span class="ac w6">Repeats</span> come back on their date, not from when you ticked them.</div>
-      <div><span class="ac w6">Quadrants</span> — each task can sit in one: <span class="cr w6">🚨1️⃣</span> urgent and important (do it now) · <span class="cg w6">👑2️⃣</span> important, not urgent (schedule it) · <span class="cy w6">🤖3️⃣</span> urgent, not important (delegate or batch it) · <span class="dimmer w6">🤏🏼4️⃣</span> neither (postpone it). The row shows only the emoji; the name is in the tooltip. The <span class="ac w6">✜</span> view lays them out as a cross.</div>
-      <div>A day with <strong>no flags at all</strong> does not count as Goals Annihilated.</div>
-      <div>The <span class="ac w6">🍅 pomodoro</span> lives in Plan: one focused minute is one point, breaks pay nothing, 25 focused minutes is one pomodoro (50 min = 2). It <strong>only ever adds</strong>: it can never reduce a count you typed by hand.</div>
+      <div><span class="ac w6">Plan fills in</span> the day's target, your completed count and your Goals. <span class="ac w6">Score never touches Plan.</span></div>
+      <div>A number you type wins, until you edit your list in Plan. Type <span class="ac w6">0</span> in the target to hand it back.</div>
+      <div><span class="cr w6">Overdue still counts</span>: it keeps its date and goes on adding to today's target.</div>
+      <div><span class="cp w6">Tags</span> and <span class="cp w6">subtasks</span> (two levels) tick on their own. Repeats come back on their date.</div>
+      <div><span class="ac w6">Quadrants</span>: <span class="cr w6">🚨1️⃣</span> do it now · <span class="cg w6">👑2️⃣</span> schedule it · <span class="cy w6">🤖3️⃣</span> delegate it · <span class="dimmer w6">🤏🏼4️⃣</span> postpone it. The <span class="ac w6">✜</span> view lays them out as a cross.</div>
+      <div>The <span class="ac w6">🍅 pomodoro</span> lives in Plan: one focused minute is one point, 25 min is one 🍅. It <strong>only adds</strong>, never lowers a count you typed.</div>
     </div>
   </div>
   <hr class="dv">
   <div>
-    <div class="md up ls dimmer w7 mb10">🏆 Weekly, quarterly and yearly goals</div>
+    <div class="md up ls dimmer w7 mb10">📊 The day's colour</div>
     <div class="s6">
-      <div>These cannot build streaks, so the reward is <span class="ac w6">finishing early</span>. They pay <span class="ac w6">1,000 per day still left</span> in the period, so a weekly tops out at 7,000, a quarterly around 92,000, a yearly at 365,000.</div>
-      <div><span class="w6">📅 Weekly</span> up to 5 · <span class="w6">📈 Quarterly</span> up to 5 · <span class="w6">🏆 Yearly</span> up to 10. The week starts on <strong>Sunday</strong>, so closing one on Sunday pays ×7 and Saturday pays ×1.</div>
-      <div><strong>Daily</strong> goals are your 🏁 flags on reminders. Three a day is the sweet spot.</div>
-      <div><span class="ac w6">The deadline is set when you create the goal</span> and never moves. One you did not finish <span class="cy w6">carries over</span> and can still be closed, but past its deadline it only pays the floor (1,000): <strong>postponing never wins</strong>.</div>
-      <div>Ticked it late? <span class="ac w6">Correct the date</span> next to its points: they are paid for the day you actually finished it, not the day you remembered. The wording is editable with a click too.</div>
-      <div>Their points go to <span class="ac w6">the month you close them in</span>, not to the day, so they never skew your averages.</div>
+      <div>It comes from the <strong>% of your target</strong>: <span class="cp w6">🟣 100%</span> · <span class="cg w6">🟢 85%</span> · <span class="cy w6">🟡 50%</span> · <span class="cr w6">🔴 less</span>.</div>
+      <div class="xs dimmer">Annihilating your Goals 🏁 bumps it one tier. That is why a green day can sit on 60% of tasks.</div>
     </div>
   </div>
   <hr class="dv">
   <div>
-    <div class="md up ls dimmer w7 mb10">📊 Day Status — your daily color</div>
+    <div class="md up ls ac w7 mb10">💰 Points</div>
     <div class="s6">
-      <div>Your day gets a color based on how many tasks you completed out of your target:</div>
-      <div><span class="cp w6">🟣 Purple</span> — 100% done. Perfect day.</div>
-      <div><span class="cg w6">🟢 Green</span> — 85% or more. Great day.</div>
-      <div><span class="cy w6">🟡 Yellow</span> — 50% or more. Decent day.</div>
-      <div><span class="cr w6">🔴 Red</span> — less than 50%. Rough day.</div>
-      <div class="xs dimmer">Bonus: marking <strong>Goals Annihilated</strong> bumps your color up one tier — Red→Yellow, Yellow→Green, Green→Purple.</div>
+      <div>✅ Task <span class="ac w6">+1</span> · 🌅 Morning <span class="ac w6">+25</span> · 🏅 Goals <span class="ac w6">+100</span> · 🍅 Pomodoro <span class="ac w6">+25</span> · 💼 Work <span class="ac w6">+1</span>/min · 😴 Sleep <span class="ac w6">+1</span>/min</div>
+      <div>🎨 Day colour, it stacks: <span class="cy">🟡 +10</span> · <span class="cg">🟢 +30</span> · <span class="cp">🟣 +60</span>.</div>
+      <div>All of it <span class="ac w6">× its run</span> — tasks ride the 🏅 Goals one. A run pays by the <span class="ac w6">square root</span> of its days: 9d ×${multAt(9)} · 100d ×${multAt(100)} · 400d ×${multAt(400)}. It never stops growing and never runs away.</div>
     </div>
   </div>
   <hr class="dv">
   <div>
-    <div class="md up ls ac w7 mb10">💰 How you earn points</div>
+    <div class="md up ls dimmer w7 mb10">🏆 Period goals</div>
     <div class="s6">
-      <div><span class="ac w6">✅ Tasks</span> — +1 pt each.</div>
-      <div><span class="ac w6">🌅 Morning Routine</span> — check it off: +25 pts × your streak. Mark tasks as <span class="ac w6">🌅 morning routine</span> in Plan and it ticks itself once they are all done.</div>
-      <div><span class="ac w6">🏅 Goals Annihilated</span> — your key goals for the day: +100 pts × your streak.</div>
-      <div><span class="ac w6">🍅 Pomodoros</span> — +25 pts each × your streak of days with a pomodoro.</div>
-      <div><span class="ac w6">💼 Work</span> — +1 pt per minute × your consecutive work-day streak.</div>
-      <div><span class="ac w6">😴 Sleep</span> — sleep and naps: +1 pt per minute. Going to bed early adds a bonus × streak.</div>
-      <div><span class="ac w6">🎨 Day colour bonus</span> — it <em>stacks</em>: <span class="cy">Yellow</span> +10 · <span class="cg">Green</span> +30 · <span class="cp">Purple</span> +60, × your consecutive non-red streak.</div>
-      <div class="xs dimmer">Almost all of this multiplies by a streak, and a streak pays by the <span class="ac w6">square root</span> of its days: <strong>it never stops growing</strong>, and it never runs away. 9 days ×${multAt(9)} · 100 days ×${multAt(100)} · 400 days ×${multAt(400)}. Day 100 is always worth more than day 8. A run only breaks if you stop doing the thing; a 🔴 day just makes that day pay base.</div>
+      <div>No runs here: they pay for <span class="ac w6">finishing early</span>. <span class="ac w6">1,000 × every day still left</span> — weekly up to 7,000, quarterly ~92,000, yearly 365,000.</div>
+      <div>📅 Weekly up to 5 · 📈 Quarterly up to 5 · 🏆 Yearly up to 10. The week starts <strong>Sunday</strong>. <strong>Daily</strong> goals are your 🏁 flags.</div>
+      <div>The deadline <strong>never moves</strong>. Past it a goal carries over but only pays 1,000: postponing never wins. Closed it late? Correct the date next to its points.</div>
+      <div class="xs dimmer">Their points land in the <strong>month you close them</strong>, not on the day.</div>
     </div>
   </div>
   <hr class="dv">
   <div>
-    <div class="md up ls ng w7 mb10">🤤 Rewards (point costs 💸)</div>
+    <div class="md up ls ng w7 mb10">🤤 Rewards</div>
     <div class="s6">
-      <div>Behaviours you want to keep at bay. Each costs points, and the more often you do them, the more they cost (× streak, up to ×${PEN_CAP}). <span class="ac w6">The list is yours</span>: rename them, change their icon, drop the ones that mean nothing to you or add your own (up to 5) from the ⚙ on the Rewards card.</div>
-      ${rewards().map(r=>`<div><span class="ng w6">${escapeHtml(rewardLabel(r))}</span> — ${r.byMinutes?'log the minutes; past 30 min the multiplier kicks in':t(REWARD_TIERS[r.tier].name).toLowerCase()+', −'+rewardCost(r).toLocaleString()+' × its streak'}.</div>`).join('')}
-      <div><span class="ng w6">🌙 Slept Late</span> — costs a lot × your late-night streak.</div>
-      <div><span class="ac w6">A good day charges it at base</span> — no multiplier — and <strong>leaves the run alone</strong>: tomorrow it picks up where it was. The heavier the reward, the better the day has to be: <span class="cy">🟡</span> covers a light one, <span class="cg">🟢</span> a medium one, and only <span class="cp">🟣</span> a large one.</div>
-      <div class="xs dimmer">Each one's <span class="ac w6">weight</span> decides two things: what it costs, and how good a day has to be to get it cheap. The base price never changes.</div>
+      <div>Things you want to keep at bay. The more often, the more they cost: <span class="ng w6">× their run, up to ×${PEN_CAP}</span>.</div>
+      ${rewards().map(r=>`<div><span class="ng w6">${escapeHtml(rewardLabel(r))}</span> — ${r.byMinutes?'by the minute; past 30 min the multiplier kicks in':t(REWARD_TIERS[r.tier].name).toLowerCase()+', −'+rewardCost(r).toLocaleString()}</div>`).join('')}
+      <div><span class="ng w6">🌙 Slept Late</span> — expensive × your late-night run.</div>
+      <div class="xs dimmer"><span class="ac w6">The list is yours</span>: rename them, change the icon, drop them or add your own (up to 5) from the ⚙ on the card.</div>
     </div>
   </div>
   <hr class="dv">
   <div>
-    <div class="md up ls dimmer w7 mb10">🔄 How streaks reset</div>
+    <div class="md up ls dimmer w7 mb10">🔄 Runs — one rule</div>
     <div class="s6">
-      <div>All of them break the moment you skip a day, except ${escapeHtml(rewardName(rewardById('internet')))}, which allows 30 minutes a day.</div>
-      <div><span class="cr w6">🔴 Red</span> — <strong>no longer wipes your positive streaks</strong>. Work 💼, Morning 🌞, Goals 🏁, Pomodoros 🍅 and Early bed 😴 count the days you did the thing, and a red day does not undo that you did it: that day pays <strong>base</strong>, with no multiplier, and tomorrow the run carries on where it was. The one run red does break is the <span class="cp">non-red</span> one, which is exactly what it counts.</div>
-      <div class="w6" style="color:var(--ng)">⚠ No colour <em>ends</em> a reward run — it only charges it at base for that day. The only way one ends is by not doing the thing.</div>
-      <div class="xs dimmer">One rule on both sides: <strong>the run counts what you did; the colour of the day decides what it is worth, or what it costs, that day</strong>.</div>
-      <div><span class="ac w6">🎖️ Medals</span> — every <em>positive</em> streak that reaches 10, 20, 50, 100, 200, 500 or 1000 days leaves its medal on that day in the calendar. Rewards never earn one.</div>
-      <div class="xs dimmer">Days you forget to log count as −1,000 pts and a Red day. Don't skip!</div>
+      <div class="ac w6">A run counts what you did. The colour of the day decides what it is worth, or what it costs, that day.</div>
+      <div><span class="cr w6">🔴 Red</span> — that day pays <strong>base</strong> and tomorrow the run carries on where it was. The only run it breaks is the <span class="cp">non-red</span> one.</div>
+      <div><span class="ac w6">A good day</span> charges a reward at base <strong>without ending its run</strong>: <span class="cy">🟡</span> a light one · <span class="cg">🟢</span> a medium one · <span class="cp">🟣</span> a large one.</div>
+      <div>The only things that end a run are <strong>not doing the thing</strong> and skipping a day — except ${escapeHtml(rewardName(rewardById('internet')))}, which allows 30 min a day.</div>
+      <div><span class="ac w6">🎖️ Medals</span> at 10, 20, 50, 100, 200, 500 and 1000 days of any positive run. Rewards never earn one.</div>
+      <div class="xs dimmer">A day you forget to log counts as −1,000 and a red day. Log every day!</div>
     </div>
   </div>
   <hr class="dv">
@@ -7137,6 +7220,7 @@ setInterval(()=>{
   // The bubble is patched on the same beat and by the same rule as the card:
   // one second, no re-render, nothing you are typing gets touched.
   syncPomoPill();
+  syncPomoTitle();
   if(p&&p.running){
     const left=pomoRemaining(p);
     const cl2=document.getElementById('pomo-clock');
