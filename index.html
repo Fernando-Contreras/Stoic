@@ -210,6 +210,29 @@ button{cursor:pointer;font-family:var(--ff);font-size:15px;font-weight:600;borde
 .rem-chip-t{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.35}
 @media(prefers-reduced-motion:reduce){.rem-chip:hover{transform:none}}
 
+/* ── THE QUADRANTS ──
+   Two by two, and it stays two by two on a phone. The whole point of this
+   view is the shape: which half of the cross a task is sitting in is the
+   thing you are reading, and a stack of four boxes is not a cross. Narrow
+   just means smaller boxes. */
+.quad-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.quad-cell{border:1px solid var(--b1);border-radius:12px;padding:10px;background:var(--sur2);
+  display:flex;flex-direction:column;gap:6px;min-height:110px}
+/* Each quadrant is tinted by what it asks of you: the one to do now reads
+   loudest, the one to drop barely reads at all. */
+.quad-cell.q1{border-color:var(--rb);background:var(--rd)}
+.quad-cell.q2{border-color:var(--gb);background:var(--gd)}
+.quad-cell.q3{border-color:var(--yb);background:var(--yd)}
+.quad-cell.q4{opacity:.72}
+.quad-h{display:flex;align-items:baseline;gap:6px;flex-wrap:wrap}
+.quad-h .qn{font-size:15px}
+.quad-cell .rem-chip{padding:6px 8px}
+@media(max-width:700px){
+  .quad-grid{gap:6px}
+  .quad-cell{padding:7px;min-height:88px;border-radius:10px}
+  .quad-cell .rem-chip{padding:5px 6px}
+}
+
 /* ── HISTORY ROW ── */
 .hr-row{padding:9px 12px;border-radius:8px;border:1px solid var(--b1);background:var(--sur2);cursor:pointer;transition:border-color .15s}
 .hr-row:hover{border-color:var(--b2)}
@@ -799,7 +822,7 @@ en:{
   'rw-help':'These are the things you want to keep at bay. Rename them, give them your own icon, drop the ones that mean nothing to you, add your own.',
   'rw-light':'Light','rw-serious':'Medium','rw-grave':'Large',
   'rw-per-min':'−{r} per minute',
-  'rw-clears-flat':'A run only ends by not doing the thing — no colour clears one.',
+  'rw-clears-flat':'A run only ends by not doing the thing. A day this good charges it at base and leaves the run alone:',
   'rw-new':'Something you want to cut back on','rw-add':'+ Add','rw-full':'Five is the limit.',
   'rw-locked':'One of each category. Fixed: your whole history was scored with these costs. The name and the icon are yours.',
   'rw-tier-warn':'Changing the weight re-scores every day you have ever logged this on. Continue?',
@@ -821,7 +844,7 @@ en:{
   'tips-title':'What would pay most','tips-none':'Log a few days and this will have something to say.',
   'rem-done-title':'Done','done-tab-today':'Today','done-tab-before':'Before',
   'sel-mode':'Select several','sel-count':'selected','sel-one':'selected','sel-all':'All',
-  'sel-date':'Move them to this date','sel-prio':'Priority…','sel-flag':'Flag','sel-unflag':'Unflag','sel-del':'Delete',
+  'sel-date':'Move them to this date','sel-prio':'Quadrant…','sel-flag':'Flag','sel-unflag':'Unflag','sel-del':'Delete',
   'sel-del-warn':'Delete {n} tasks? They go to the bin and can be put back.',
   'sel-morning':'Morning','sel-unmorning':'Not morning','sel-done':'Complete','sel-undo':'Undo',
   'sel-nest':'Nest under…','sel-nest-ask':'Nest them under which task? Type a few letters of its name:',
@@ -897,7 +920,11 @@ en:{
   'rem-title':'Reminders','rem-new':'New reminder','rem-what':'What needs doing?',
   'rem-add':'+ Add reminder','rem-need-title':'Give it a name first',
   'rem-discard':'Close without adding this one? What you typed will be lost.',
-  'rem-prio':'Priority','rem-flag':'Goal of the day','rem-every':'Every',
+  'rem-prio':'Quadrant','rem-flag':'Goal of the day','rem-every':'Every',
+  'quad-0':'No quadrant','quad-1':'Urgent and important','quad-2':'Important, not urgent',
+  'quad-3':'Urgent, not important','quad-4':'Neither',
+  'quad-1-do':'Do it now','quad-2-do':'Schedule it','quad-3-do':'Delegate or batch it','quad-4-do':'Drop it',
+  'view-quad':'quadrants','quad-empty':'Nothing here.',
   'rem-time':'Time (optional)','rep-hour':'Hourly',
   'weekdays':'Sun,Mon,Tue,Wed,Thu,Fri,Sat',
   'weekdays-full':'Sundays,Mondays,Tuesdays,Wednesdays,Thursdays,Fridays,Saturdays',
@@ -911,7 +938,7 @@ en:{
   'rep-pick-days':'Days of the month','rep-on-days':'on the',
   'rep-31-note':'Leave empty to repeat on the same day each month. Day 31 means the last day, whatever the month.',
   'view-today':'Today','view-all':'All',
-  'sort-date-asc':'earliest first','sort-date-desc':'latest first','sort-prio':'by priority','sort-alpha':'alphabetical',
+  'sort-date-asc':'earliest first','sort-date-desc':'latest first','sort-prio':'by quadrant','sort-alpha':'alphabetical',
   'view-hidden':'later ones hidden','view-hidden-1':'later one hidden',
   'view-hidden-f':'hidden by the filter','view-hidden-f-1':'hidden by the filter',
   'view-flat':'flat list','view-grouped':'grouped under parents',
@@ -985,7 +1012,7 @@ es:{
   'rw-help':'Son las cosas que quieres mantener a raya. Renómbralas, ponles tu propio ícono, quita las que no te digan nada, agrega las tuyas.',
   'rw-light':'Ligera','rw-serious':'Media','rw-grave':'Grande',
   'rw-per-min':'−{r} por minuto',
-  'rw-clears-flat':'Una racha solo termina no haciendo la cosa — ningún color la limpia.',
+  'rw-clears-flat':'Una racha solo termina no haciendo la cosa. Un día así de bueno la cobra a precio base y no le toca la racha:',
   'rw-new':'Algo que quieras reducir','rw-add':'+ Agregar','rw-full':'Cinco es el límite.',
   'rw-locked':'Una de cada categoría. Fija: todo tu historial se calculó con estos costos. El nombre y el ícono sí son tuyos.',
   'rw-tier-warn':'Cambiar el peso recalcula todos los días en que la hayas registrado. ¿Continuar?',
@@ -1007,7 +1034,7 @@ es:{
   'tips-title':'Lo que más te pagaría','tips-none':'Registra unos días y aquí aparecerá algo que decirte.',
   'rem-done-title':'Hechas','done-tab-today':'Hoy','done-tab-before':'Antes',
   'sel-mode':'Seleccionar varias','sel-count':'seleccionadas','sel-one':'seleccionada','sel-all':'Todas',
-  'sel-date':'Moverlas a esta fecha','sel-prio':'Prioridad…','sel-flag':'Poner bandera','sel-unflag':'Quitar bandera','sel-del':'Eliminar',
+  'sel-date':'Moverlas a esta fecha','sel-prio':'Cuadrante…','sel-flag':'Poner bandera','sel-unflag':'Quitar bandera','sel-del':'Eliminar',
   'sel-del-warn':'¿Eliminar {n} tareas? Se van a la papelera y se pueden devolver.',
   'sel-morning':'Rutina','sel-unmorning':'Quitar rutina','sel-done':'Completar','sel-undo':'Deshacer',
   'sel-nest':'Anidar en…','sel-nest-ask':'¿Dentro de qué tarea? Escribe unas letras de su nombre:',
@@ -1083,7 +1110,11 @@ es:{
   'rem-title':'Recordatorios','rem-new':'Nuevo recordatorio','rem-what':'¿Qué hay que hacer?',
   'rem-add':'+ Agregar recordatorio','rem-need-title':'Ponle nombre primero',
   'rem-discard':'¿Cerrar sin agregarlo? Se pierde lo que escribiste.',
-  'rem-prio':'Prioridad','rem-flag':'Meta del día','rem-every':'Cada',
+  'rem-prio':'Cuadrante','rem-flag':'Meta del día','rem-every':'Cada',
+  'quad-0':'Sin cuadrante','quad-1':'Urgente e importante','quad-2':'Importante, no urgente',
+  'quad-3':'Urgente, no importante','quad-4':'Ni urgente ni importante',
+  'quad-1-do':'Hazla ya','quad-2-do':'Agéndala','quad-3-do':'Delégala o júntala','quad-4-do':'Bórrala',
+  'view-quad':'cuadrantes','quad-empty':'Nada aquí.',
   'rem-time':'Hora (opcional)','rep-hour':'Cada hora',
   'weekdays':'Dom,Lun,Mar,Mié,Jue,Vie,Sáb',
   'weekdays-full':'Domingos,Lunes,Martes,Miércoles,Jueves,Viernes,Sábados',
@@ -1097,7 +1128,7 @@ es:{
   'rep-pick-days':'Días del mes','rep-on-days':'los días',
   'rep-31-note':'Déjalo vacío para repetir el mismo día cada mes. El día 31 significa el último, sea cual sea el mes.',
   'view-today':'Hoy','view-all':'Todos',
-  'sort-date-asc':'más temprano primero','sort-date-desc':'más tarde primero','sort-prio':'por prioridad','sort-alpha':'alfabético',
+  'sort-date-asc':'más temprano primero','sort-date-desc':'más tarde primero','sort-prio':'por cuadrante','sort-alpha':'alfabético',
   'view-hidden':'de más adelante, ocultos','view-hidden-1':'de más adelante, oculto',
   'view-hidden-f':'ocultas por el filtro','view-hidden-f-1':'oculta por el filtro',
   'view-flat':'lista plana','view-grouped':'agrupadas por madre',
@@ -1200,17 +1231,30 @@ function streakMult(n){return Math.max(1,CURVE_K*Math.sqrt(Math.max(1,n||1)));}
 // What that run pays at n days — the number the rules quote.
 function multAt(n){return Math.round(streakMult(n)*10)/10;}
 function capPenStreak(n){return Math.min(PEN_CAP,Math.max(1,n||1));}
-/* Nothing a colour does forgives a reward run any more, at any difficulty.
-   Only not doing the thing ends it. Kept as a table because the rules screen
-   and the rewards list both read it, and because a colour may earn its way
-   back in here one day. */
-const TIER_RESETS={light:[],serious:[],grave:[]};
-function tierResets(tier){return TIER_RESETS[tier]||[];}
+/* A good day used to END a reward run, and then for a while nothing ended one
+   but breaking it. Both were wrong in the same way: a run is a fact about what
+   you have been doing, and one good day does not undo ten days of doing it —
+   but it should still be worth something on the day you earn it.
+
+   So a colour no longer touches the run at all. What it buys is a discount on
+   that one day: the reward is charged its base price with no multiplier, and
+   tomorrow the run picks up exactly where it was. Day 10 of a habit on a
+   purple day costs base; day 11 costs base × the full run again.
+
+   Which colour earns the discount depends on what the thing weighs — the
+   heavier the indulgence, the better the day has to be to earn it. That is
+   the same gradient the old reset table had, doing something worth doing. */
+const TIER_FORGIVES={
+  light:  ['yellow','green','purple'],
+  serious:['green','purple'],
+  grave:  ['purple']
+};
+function tierForgives(tier){return TIER_FORGIVES[tier]||[];}
 /* The three that shipped are one of each weight, and the late night behaves
    like the heaviest — so they all answer the same table rather than carrying
    the colours written out beside them in four different places. */
 const BUILTIN_TIER={drugs:'light',internet:'serious',macanazo:'grave',late:'grave'};
-function builtinResets(kind){return tierResets(BUILTIN_TIER[kind]||'light');}
+function builtinForgives(kind){return tierForgives(BUILTIN_TIER[kind]||'light');}
 
 /* ═══ CALC — SINGLE SOURCE OF TRUTH ═══ */
 const CALC={
@@ -1269,26 +1313,16 @@ const CALC={
     const tM=today.penalties.some(p=>p.type==='macanazo');
     const tLate=today.sleep?.sleptLate||false;
 
-    // Calculate today's status to know which streaks reset TODAY
-    const pct=today.target>0?Math.round((today.completed||0)/today.target*100):0;
-    const todayStatus=CALC.status(pct, today.flagCompleted||false);
-
-    /* Which colours forgive what is no longer written out here — it is the
-       one table, and the table is always empty (see TIER_RESETS): nothing
-       forgives a reward run. Red still cuts the work streak (handled in
-       wStrk), the one rule that survived. */
-    const rD=builtinResets('drugs'),rN=builtinResets('internet'),
-          rM=builtinResets('macanazo'),rL=builtinResets('late');
-    const todayResetsSubstances = rD.includes(todayStatus);
-    const todayResetsProcrast   = rN.includes(todayStatus);
-    const todayResetsMacanazo   = rM.includes(todayStatus);
-    const todayResetsLate       = rL.includes(todayStatus);
-
+    /* No colour ends a reward run any more — see TIER_FORGIVES. A run counts
+       what you have actually been doing, and one good day does not undo that.
+       What the good day buys is a discount on itself, and that is applied
+       where the day is priced (score / liveParts), not here. Red still cuts
+       the work streak (handled in wStrk), the one rule that survived. */
     return{
-      substancesPenaltyStreak:      todayResetsSubstances ? 0 : pStrk('drugs',rD) + (tD?1:0),
-      procrastinationPenaltyStreak: todayResetsProcrast   ? 0 : pStrk('internet',rN) + (tN?1:0),
-      macanazoPenaltyStreak:        todayResetsMacanazo   ? 0 : pStrk('macanazo',rM) + (tM?1:0),
-      lateStreak:                   todayResetsLate        ? 0 : lStrk(rL) + (tLate?1:0),
+      substancesPenaltyStreak:      pStrk('drugs',[])    + (tD?1:0),
+      procrastinationPenaltyStreak: pStrk('internet',[]) + (tN?1:0),
+      macanazoPenaltyStreak:        pStrk('macanazo',[]) + (tM?1:0),
+      lateStreak:                   lStrk([])            + (tLate?1:0),
       // Positive streaks: unaffected by day color
       substancesStreak:tD?0:aStrk('drugs'),
       procrastinationStreak:tN?0:aStrk('internet'),
@@ -1301,13 +1335,12 @@ const CALC={
       colorStreak:cStrk(),
       /* Anything you added to the list gets the same pair of runs the three
          originals have, under its own name — how many days in a row you have
-         had it, and how many in a row you have not. Its weight says which day
-         colours wipe the first of those. */
+         had it, and how many in a row you have not. Neither breaks by colour;
+         its weight only says which colour discounts a day of it. */
       ...(typeof rewards==='function'?rewards().reduce((acc,r)=>{
         if(r.builtin)return acc;
-        const resetOn=rewardResets(r);
         const hadToday=today.penalties.some(p=>p.type===r.id);
-        acc[penKey(r.id)]=resetOn.includes(todayStatus)?0:pStrk(r.id,resetOn)+(hadToday?1:0);
+        acc[penKey(r.id)]=pStrk(r.id,[])+(hadToday?1:0);
         acc[cleanKey(r.id)]=hadToday?0:aStrk(r.id);
         return acc;
       },{}):{})
@@ -1332,21 +1365,27 @@ const CALC={
     const wrk=Math.round((work.workDuration||0)*streakMult(s.workStreak));
     const earlyBedStreak=streakMult(s.earlyBedStreak);
     const slp=Math.round((sleep.sleepDuration||0)+(sleep.napDuration||0)+(sleep.sleptEarly?(sleep.sleepDuration||0)*earlyBedStreak:0));
-    const latePen=sleep.sleptLate?-100*this.penMult()*capPenStreak(s.lateStreak):0;
-    const procMins=penalties.filter(p=>p.type==='internet').reduce((a,p)=>a+(p.details?.minutes||0),0);
-    // Penalty runs keep the full seven regardless. Only the positive side has
-    // ever been throttled — falling never gets cheaper or more expensive.
-    const pen=penalties.reduce((sum,p)=>{
-      const b=this.penBase(p);let mult=1;
-      if(p.type==='drugs')mult=capPenStreak(s.substancesPenaltyStreak);
-      else if(p.type==='internet')mult=this.procMult(procMins,s.procrastinationPenaltyStreak);
-      else if(p.type==='macanazo')mult=capPenStreak(s.macanazoPenaltyStreak);
-      // Yours multiply by their own run, the same way.
-      else if(typeof penKey==='function')mult=capPenStreak(s[penKey(p.type)]);
-      return sum+b*mult;
-    },0);
+    /* The day's colour has to be known before anything is charged, because a
+       good enough day charges the reward at base and leaves its run alone. */
     const pct=target>0?Math.round(completed/target*100):0;
     const status=this.status(pct,flagCompleted);
+    const freeToday=kind=>builtinForgives(kind).includes(status);
+    const latePen=sleep.sleptLate
+      ?-100*this.penMult()*(freeToday('late')?1:capPenStreak(s.lateStreak)):0;
+    const procMins=penalties.filter(p=>p.type==='internet').reduce((a,p)=>a+(p.details?.minutes||0),0);
+    // A run never shrinks; a good day only stops it being charged for today.
+    const pen=penalties.reduce((sum,p)=>{
+      const b=this.penBase(p);let mult=1;
+      if(p.type==='drugs')mult=freeToday('drugs')?1:capPenStreak(s.substancesPenaltyStreak);
+      else if(p.type==='internet')mult=freeToday('internet')?1:this.procMult(procMins,s.procrastinationPenaltyStreak);
+      else if(p.type==='macanazo')mult=freeToday('macanazo')?1:capPenStreak(s.macanazoPenaltyStreak);
+      // Yours multiply by their own run, and are discounted by their own weight.
+      else if(typeof penKey==='function'){
+        const r=(typeof rewardById==='function')?rewardById(p.type):null;
+        mult=(r&&rewardForgives(r).includes(status))?1:capPenStreak(s[penKey(p.type)]);
+      }
+      return sum+b*mult;
+    },0);
     const col=Math.round(this.colorBonus(status)*streakMult(s.colorStreak));
     const total=base+mB+fB+pom+wrk+slp+pen+col+latePen;
     return{total,base,status,pct,mB,fB,pom,wrk,slp,pen,col,latePen};
@@ -1402,11 +1441,13 @@ const CALC={
   liveParts(e, allHistory){
     const zero={base:0,mB:0,fB:0,pom:0,wrk:0,slp:0,col:0,latePen:0,pen:0};
     if(e._gap)return{...zero,gap:e.todayPoints||-1000};
+    /* Whether this day was good enough to be charged at base — it never
+       shortens the run, only this one day's bill. See TIER_FORGIVES. */
     const st=e.status||'red';
-    const subsReset  =builtinResets('drugs').includes(st);
-    const procReset  =builtinResets('internet').includes(st);
-    const macReset   =builtinResets('macanazo').includes(st);
-    const lateReset  =builtinResets('late').includes(st);
+    const subsFree  =builtinForgives('drugs').includes(st);
+    const procFree  =builtinForgives('internet').includes(st);
+    const macFree   =builtinForgives('macanazo').includes(st);
+    const lateFree  =builtinForgives('late').includes(st);
 
     // Default to the streak that was saved at the time (fallback if no history array given)
     let morningStreak=e.streaksUsed?.morningStreak||1;
@@ -1437,10 +1478,11 @@ const CALC={
         workStreak=this.streakAtDay(sorted,idx,d=>(d.workDuration||0)>0,['red'])||1;
         pomoStreak=this.streakAtDay(sorted,idx,d=>(d.pomodoros||0)>0,['red'])||1;
         earlyBedStreak=this.streakAtDay(sorted,idx,d=>d.sleptEarly,['red'])||1;
-        lateStreak=this.streakAtDay(sorted,idx,d=>d.sleptLate,builtinResets('late'))||1;
-        subsStreak=this.streakAtDay(sorted,idx,d=>d.penalties?.some(p=>p.type==='drugs'),builtinResets('drugs'))||1;
-        procStreak=this.streakAtDay(sorted,idx,d=>d.penalties?.some(p=>p.type==='internet'),builtinResets('internet'))||1;
-        macStreak=this.streakAtDay(sorted,idx,d=>d.penalties?.some(p=>p.type==='macanazo'),builtinResets('macanazo'))||1;
+        // No colour breaks a reward run — it only discounts the day, above.
+        lateStreak=this.streakAtDay(sorted,idx,d=>d.sleptLate)||1;
+        subsStreak=this.streakAtDay(sorted,idx,d=>d.penalties?.some(p=>p.type==='drugs'))||1;
+        procStreak=this.streakAtDay(sorted,idx,d=>d.penalties?.some(p=>p.type==='internet'))||1;
+        macStreak=this.streakAtDay(sorted,idx,d=>d.penalties?.some(p=>p.type==='macanazo'))||1;
         // Consecutive non-red days BEFORE this one — gaps are already excluded
         // from `sorted`, and the day itself never counts toward its own streak.
         colorMult=Math.max(1,this.streakAtDay(sorted,idx-1,d=>d.status!=='red'));
@@ -1479,7 +1521,9 @@ const CALC={
       wrk:Math.round((e.workDuration||0)*streakMult(workStreak)),
       slp:Math.round((e.sleepDuration||0)+(e.napDuration||0)+(e.sleptEarly?(e.sleepDuration||0)*streakMult(earlyBedStreak):0)),
       col:Math.round(this.colorBonus(e.status)*streakMult(colorMult)),
-      latePen:(e.sleptLate&&!lateReset?-100*this.penMult()*capPenStreak(lateStreak):0),
+      /* A good enough night still costs the base — it used to cost nothing at
+         all, which is not what "charged at base" means. */
+      latePen:(e.sleptLate?-100*this.penMult()*(lateFree?1:capPenStreak(lateStreak)):0),
       pen:0
     };
 
@@ -1487,20 +1531,20 @@ const CALC={
       const det=p.type==='drugs'?{substances:p.count}:p.type==='internet'?{minutes:p.count}:{isPositive:false};
       const b=this.penBase({type:p.type,details:det,count:p.count});
       let mult=1;
-      if(p.type==='drugs'&&!subsReset) mult=capPenStreak(subsStreak);
-      else if(p.type==='internet'&&!procReset) mult=capPenStreak(procStreak);
-      else if(p.type==='macanazo'&&!macReset) mult=capPenStreak(macStreak);
+      if(p.type==='drugs') mult=subsFree?1:capPenStreak(subsStreak);
+      else if(p.type==='internet') mult=procFree?1:capPenStreak(procStreak);
+      else if(p.type==='macanazo') mult=macFree?1:capPenStreak(macStreak);
       /* One you added. Its run through history is counted here the same way
-         the three above are, and its own weight says which day colours end it
-         — so a past day is re-scored by what was true then, not by what its
-         streak happens to be today. */
+         the three above are, and its own weight says which colour discounts a
+         day of it — so a past day is re-scored by what was true then, not by
+         what its streak happens to be today. */
       else if(typeof rewardById==='function'){
         const r=rewardById(p.type);
-        if(r&&!rewardResets(r).includes(st)&&Array.isArray(allHistory)){
+        if(r&&!rewardForgives(r).includes(st)&&Array.isArray(allHistory)){
           const sorted=[...allHistory].filter(h=>!h._gap).sort((a,b)=>a.date.localeCompare(b.date));
           const idx=sorted.findIndex(h=>h.date===e.date);
           if(idx>=0)mult=capPenStreak(this.streakAtDay(sorted,idx,
-            d=>d.penalties?.some(x=>x.type===p.type),rewardResets(r)));
+            d=>d.penalties?.some(x=>x.type===p.type)));
         }
       }
       return sum+b*mult;
@@ -2746,9 +2790,9 @@ function rewardLabel(r){return (r?.icon?r.icon+' ':'')+rewardName(r);}
 function isOriginal(r){return !!(r&&r.builtin&&!r.renamed);}
 // The default a built-in was born with, so a rename can be recognised as undone.
 function rewardDefault(r){return r&&r.builtin?REWARD_DEFAULTS.find(d=>d.id===r.id)||null:null;}
-// Which day colours wipe its run (none, for any weight — see TIER_RESETS)
+// Which day colours charge this one at base for the day (see TIER_FORGIVES),
 // and what one costs, fixed regardless of anything else going on.
-function rewardResets(r){return tierResets(r?.tier||'light');}
+function rewardForgives(r){return tierForgives(r?.tier||'light');}
 function rewardCost(r){return Math.round(REWARD_TIERS[r?.tier||'light'].base*CALC.penMult());}
 /* Streak keys. The originals keep the names they were stored under so nothing
    already saved has to be migrated; anything you add gets its own pair. */
@@ -2860,8 +2904,27 @@ function deleteGoal(id){
   STATE.planner.goals=goals().filter(g=>g.id!==id);savePlanner();
 }
 
-const PRIO=[['0','—'],['1','!'],['2','!!'],['3','!!!']];
-function prioColor(p){return p>=3?'var(--cr)':p==2?'var(--cy)':p==1?'var(--cp)':'var(--t3)';}
+/* ═══ QUADRANTS ═══════════════════════════════════════════════════════════
+   Priority was three exclamation marks that never answered the question you
+   ask when you look at a list: not "how loud is this" but "should I be doing
+   it at all". The Eisenhower quadrants answer that, and they answer it in a
+   shape — which is why they also get a view of their own.
+
+   The value still lives in the `priority` field so nothing already written
+   has to be migrated: 0 is unassigned, 1–4 are the quadrants. An old task
+   that carried a !!! lands in 3 rather than nowhere, which is meaningless
+   but harmless, and one press puts it where it belongs.
+
+   Only the emoji shows on a row — the words are the tooltip, so the list
+   stays a list of task names rather than a list of labels about them. */
+const QUAD=[0,1,2,3,4];
+const QUAD_EMOJI={0:'',1:'🚨1️⃣',2:'👑2️⃣',3:'🤖3️⃣',4:'🤏🏼4️⃣'};
+function quadOf(r){const q=parseInt(r&&r.priority)||0;return q>=1&&q<=4?q:0;}
+function quadEmoji(q){return QUAD_EMOJI[q]||'';}
+function quadName(q){return q?t('quad-'+q):t('quad-0');}
+function quadColor(q){return q===1?'var(--cr)':q===2?'var(--cg)':q===3?'var(--cy)':q===4?'var(--t3)':'var(--t3)';}
+// Unassigned sorts last, not first: it is the absence of an answer.
+function quadRank(r){const q=quadOf(r);return q||9;}
 function weekdayNames(){return t('weekdays').split(',');}
 function weekdayFull(){return t('weekdays-full').split(',');}
 /* Reads as a sentence rather than as a unit and a number stuck together —
@@ -3071,7 +3134,7 @@ function renderPlanner(){
      began as the answer to All being unreadable, but a day of work reads well
      that way too — and a switch says so plainly, where a rule tied to the
      scope only ever surprised you. */
-  ctrl.appendChild(seg([['list','☰'],['grid','▦']],V.layout||'list',v=>{
+  ctrl.appendChild(seg([['list','☰'],['grid','▦'],['quad','✜']],V.layout||'list',v=>{
     V.layout=v;saveView();render();
   }));
   /* The sort buttons double as a flat/grouped switch. Pressed, the list is
@@ -3081,7 +3144,7 @@ function renderPlanner(){
      charge of their subtasks. */
   const sortSeg=dv('row gap4');
   sortSeg.style.cssText='border:1px solid var(--b2);border-radius:9px;padding:2px;background:var(--sur2)';
-  [['date-asc','📅 ↑'],['date-desc','📅 ↓'],['prio','❗'],['alpha','A→Z']].forEach(([val,lbl])=>{
+  [['date-asc','📅 ↑'],['date-desc','📅 ↓'],['prio','1️⃣'],['alpha','A→Z']].forEach(([val,lbl])=>{
     const on=V.sort===val&&V.flat;
     const b=bt(on?'btn-ac btn-xs':'btn-xs',lbl,()=>{
       if(V.sort===val&&V.flat)V.flat=false;
@@ -3092,7 +3155,12 @@ function renderPlanner(){
     sortSeg.appendChild(b);
   });
   ctrl.appendChild(sortSeg);
-  ctrl.appendChild(sp('xs dimmer',t('sort-'+V.sort)+' · '+(V.flat?t('view-flat'):t('view-grouped'))));
+  /* In the cross the sort does not decide the shape — the quadrants do — so
+     saying "grouped under parents" there would describe a list that is not
+     on screen. */
+  ctrl.appendChild(sp('xs dimmer',(V.layout||'list')==='quad'
+    ? t('view-quad')
+    : t('sort-'+V.sort)+' · '+(V.flat?t('view-flat'):t('view-grouped'))));
 
   const tags=allTags();
   let tagBar=null;
@@ -3148,7 +3216,7 @@ function renderPlanner(){
   /* One list rather than three columns. The date on each row already says
      where it falls — red overdue, amber today — so splitting them apart only
      scattered the day across three places. Oldest first, and within the same
-     date the higher priority leads. */
+     date the lower quadrant leads. */
   /* Filters are judged per reminder, subtasks included. A parent that passes
      used to drag its whole brood on screen regardless of their own dates and
      tags, so a December dentist appointment showed up under "Today" filtered
@@ -3157,10 +3225,14 @@ function renderPlanner(){
      does — so a matching subtask is never stranded out of reach — and only
      the subtasks that pass are drawn beneath it. */
   // The chosen order applies to subtasks as well, sorted within their parent.
+  /* Quadrant 1 leads, and the unassigned trail: the sort runs on quadRank,
+     which is ascending, where priority ran descending on a bigger number
+     meaning louder. Sorting by the raw field would have put quadrant 4 —
+     the one you are meant to drop — at the top of every list. */
   const order={
-    'date-asc':(a,b)=>a.due===b.due?(b.priority-a.priority):a.due.localeCompare(b.due),
-    'date-desc':(a,b)=>a.due===b.due?(b.priority-a.priority):b.due.localeCompare(a.due),
-    'prio':(a,b)=>b.priority-a.priority||a.due.localeCompare(b.due),
+    'date-asc':(a,b)=>a.due===b.due?(quadRank(a)-quadRank(b)):a.due.localeCompare(b.due),
+    'date-desc':(a,b)=>a.due===b.due?(quadRank(a)-quadRank(b)):b.due.localeCompare(a.due),
+    'prio':(a,b)=>quadRank(a)-quadRank(b)||a.due.localeCompare(b.due),
     // numeric:true so hand-numbered titles read 1, 2, 10 rather than 1, 10, 2,
     // and sensitivity:'base' so accents and case do not split the order.
     'alpha':(a,b)=>(a.title||'').localeCompare(b.title||'',undefined,{numeric:true,sensitivity:'base'}),
@@ -3232,9 +3304,12 @@ function renderPlanner(){
     if(tagBar)card.appendChild(tagBar);
     // At a glance, only the names on screen can be picked; on the full list,
     // everything drawn can — so "All" means the same thing in both.
-    const grid=(V.layout||'list')==='grid'&&tops.length;
-    if(STATE.selecting)card.appendChild(renderBulkBar(grid?tops.map(r=>r.id):[...shownIds]));
-    if(grid)card.appendChild(renderCompactGrid(tops,tk));
+    const lay=V.layout||'list';
+    const grid=lay==='grid'&&tops.length;
+    const quad=lay==='quad'&&tops.length;
+    if(STATE.selecting)card.appendChild(renderBulkBar((grid||quad)?tops.map(r=>r.id):[...shownIds]));
+    if(quad)card.appendChild(renderQuadrants(tops,tk));
+    else if(grid)card.appendChild(renderCompactGrid(tops,tk));
     else fillCard(card,tops,kidsFor);
     /* What is doing the hiding. With no tag picked, the only thing that can
        hide a row is the scope, so "later ones" was true. With one picked, most
@@ -3609,15 +3684,15 @@ function renderReminderEditor(r){
   picker.el.style.marginTop='6px';
   box.appendChild(picker.el);
 
-  /* Date, time and priority on one line. The priority picker was built here
-     and then never put on the page — it existed, it held the right value, and
-     it saved that same value straight back, so priority simply could not be
-     changed. The date took the whole width for a number three fields wide,
-     which is the space this needed. */
+  /* Date, time and quadrant on one line. The picker was built here and then
+     never put on the page — it existed, it held the right value, and it saved
+     that same value straight back, so it simply could not be changed. The date
+     took the whole width for a number three fields wide, which is the space
+     this needed. */
   const r2=dv('row gap6 mt6');r2.style.flexWrap='wrap';
   const di=ip('date','',r.due,'');di.style.cssText='flex:0 0 148px;min-width:130px';
   const hi=ip('time','',r.time||'','');hi.style.cssText='flex:0 0 104px';hi.title=t('rem-time');
-  const pi=sk('',PRIO.map(([v,l])=>[v,`${t('rem-prio')} ${l}`]),String(r.priority||0));
+  const pi=sk('',QUAD.map(q=>[String(q),q?`${quadEmoji(q)} ${quadName(q)}`:quadName(0)]),String(quadOf(r)));
   pi.style.cssText='flex:1;min-width:120px';
   r2.appendChild(di);r2.appendChild(hi);r2.appendChild(pi);box.appendChild(r2);
 
@@ -3729,7 +3804,17 @@ function renderReminderEditor(r){
 function renderCompactGrid(items,tk,redraw){
   const rd=redraw||render;
   const g=dv('rem-grid');
-  items.forEach(r=>{
+  items.forEach(r=>g.appendChild(remChip(r,tk,rd)));
+  return g;
+}
+
+/* One task as a chip. The compact grid and the quadrant view are the same
+   chips in two different arrangements, so they are built in one place — a
+   tick box that ticks, a name that opens the task in full, and the few marks
+   that say what kind of thing it is. */
+function remChip(r,tk,redraw){
+  const rd=redraw||render;
+  {
     const late=r.due<tk&&r.completedOn!==tk;
     const doneToday=r.completedOn===tk;
     /* How many are inside, counted from the family itself rather than from
@@ -3762,7 +3847,8 @@ function renderCompactGrid(items,tk,redraw){
     }
     if(r.flagged)top.appendChild(sp('xs','🏁'));
     if(r.morning)top.appendChild(sp('xs','🌅'));
-    if(r.priority>0){const p=sp('xs w7',PRIO[r.priority][1]);p.style.color=prioColor(r.priority);top.appendChild(p);}
+    // Emoji only — the words live in the tooltip, not on the row.
+    if(quadOf(r)){const p=sp('xs',quadEmoji(quadOf(r)));p.title=quadName(quadOf(r));top.appendChild(p);}
     const ttl=sp('sm rem-chip-t',r.title);
     if(doneToday){ttl.style.textDecoration='line-through';ttl.style.color='var(--t3)';}
     top.appendChild(ttl);
@@ -3777,9 +3863,48 @@ function renderCompactGrid(items,tk,redraw){
       if(par){const pl=dv('xs cp');pl.style.cssText='margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
         pl.textContent='↳ '+par.title;pl.title=par.title;cell.appendChild(pl);}
     }
+    return cell;
+  }
+}
+
+/* ═══ THE CROSS ═══
+   Urgent across the top, important down the left — the arrangement everyone
+   who has seen this matrix already knows, so the position of a task is read
+   before its name is. Each box says what it is asking of you rather than
+   just naming itself: the point of sorting into 4 is to notice how much of
+   the week lives in a box whose instruction is "drop it". */
+function renderQuadrants(items,tk,redraw){
+  const rd=redraw||render;
+  const g=dv('quad-grid');
+  [1,2,3,4].forEach(q=>{
+    const cell=dv('quad-cell q'+q);
+    const h=dv('quad-h');
+    h.appendChild(sp('qn',quadEmoji(q)));
+    const nm=sp('xs w7',quadName(q));nm.style.color=quadColor(q);
+    h.appendChild(nm);
+    const mine=items.filter(r=>quadOf(r)===q);
+    h.appendChild(sp('xs dimmer mo',String(mine.length)));
+    cell.appendChild(h);
+    cell.appendChild(dv('xs dimmer',t('quad-'+q+'-do')));
+    mine.forEach(r=>cell.appendChild(remChip(r,tk,rd)));
     g.appendChild(cell);
   });
-  return g;
+  /* Anything with no quadrant yet sits under the cross rather than inside
+     it — putting it in a box would be answering the question for you. */
+  const rest=items.filter(r=>!quadOf(r));
+  if(!rest.length)return g;
+  const wrap=dv('');
+  wrap.appendChild(g);
+  const un=dv('card2 mt10');
+  const uh=dv('rowb mb8');
+  uh.appendChild(sp('xs dimmer up ls',quadName(0)));
+  uh.appendChild(sp('xs dimmer mo',String(rest.length)));
+  un.appendChild(uh);
+  const ug=dv('rem-grid');
+  rest.forEach(r=>ug.appendChild(remChip(r,tk,rd)));
+  un.appendChild(ug);
+  wrap.appendChild(un);
+  return wrap;
 }
 
 /* ═══ SEVERAL AT ONCE ═══ */
@@ -3842,7 +3967,7 @@ function renderBulkBar(visibleIds,redraw){
     di.onchange=()=>{if(di.value){snapshot();bulkApply({due:di.value},rd);}};
     bar.appendChild(di);
 
-    const pi=sk('',[['-1',t('sel-prio')],...PRIO.map(([v,l])=>[v,`${t('rem-prio')} ${l}`])],'-1');
+    const pi=sk('',[['-1',t('sel-prio')],...QUAD.map(q=>[String(q),q?`${quadEmoji(q)} ${quadName(q)}`:quadName(0)])],'-1');
     pi.style.cssText='flex:0 0 130px';
     pi.onchange=()=>{if(pi.value!=='-1'){snapshot();bulkApply({priority:parseInt(pi.value)||0},rd);}};
     bar.appendChild(pi);
@@ -4027,7 +4152,7 @@ function renderReminderRow(r,tk,opts){
   titleLine.appendChild(tt);
   if(r.flagged)titleLine.appendChild(sp('sm','🏁'));
   if(r.morning)titleLine.appendChild(sp('sm','🌅'));
-  if(r.priority>0){const p=sp('sm w7',PRIO[r.priority][1]);p.style.color=prioColor(r.priority);titleLine.appendChild(p);}
+  if(quadOf(r)){const p=sp('sm',quadEmoji(quadOf(r)));p.title=quadName(quadOf(r));titleLine.appendChild(p);}
   mid.appendChild(titleLine);
 
   tagsOf(r).forEach(tg=>{
@@ -4168,7 +4293,7 @@ function renderAddModal(){
   const row2=dv('row gap8 mt8');row2.style.flexWrap='wrap';
   const di=ip('date','',todayKey(),'');di.style.cssText='flex:0 0 148px;min-width:130px';
   const hi=ip('time','','','');hi.style.cssText='flex:0 0 104px';hi.title=t('rem-time');
-  const pi=sk('',PRIO.map(([v,l])=>[v,`${t('rem-prio')} ${l}`]),'0');pi.style.cssText='flex:1;min-width:120px';
+  const pi=sk('',QUAD.map(q=>[String(q),q?`${quadEmoji(q)} ${quadName(q)}`:quadName(0)]),'0');pi.style.cssText='flex:1;min-width:120px';
   row2.appendChild(di);row2.appendChild(hi);row2.appendChild(pi);panel.appendChild(row2);
   const dl=document.createElement('datalist');dl.id='st-tags';
   allTags().forEach(tg=>{const o=document.createElement('option');o.value=tg;dl.appendChild(o);});
@@ -4638,8 +4763,8 @@ function renderApp(){
   const grid=dv('g4 mt4');
   const c1=dv('s12');c1.appendChild(renderScoreCard(total,sc,sk_,scoreNav));c1.appendChild(renderWorkCard(sk_));grid.appendChild(c1);
   grid.appendChild(renderTasksCard(sc,sk_));
-  const c3=dv('s12');c3.appendChild(renderPomCard(sk_));c3.appendChild(renderPenCard(sk_));grid.appendChild(c3);
-  grid.appendChild(renderSleepCard(sk_));
+  const c3=dv('s12');c3.appendChild(renderPomCard(sk_));c3.appendChild(renderPenCard(sk_,sc.status));grid.appendChild(c3);
+  grid.appendChild(renderSleepCard(sk_,sc.status));
   wrap.appendChild(grid);
   wrap.appendChild(renderStreaks(sk_));
   /* Calendar on the left, the picked day on the right — its score, its note,
@@ -4868,20 +4993,22 @@ function renderPomCard(sk_){
 }
 
 /* ═══ PENALTY CARD — #3 keep type, #4 enter = add ═══ */
-function renderPenCard(sk_){
+function renderPenCard(sk_,todayStatus){
   const card=dv('card');
   card.style.borderColor='var(--ngb)';
-  // Read through the same cap CALC.score pays every penalty by — a raw
-  // Math.max(1,n) let this total run past what the day was actually charged
-  // once a streak passed seven.
+  /* Read through the same cap AND the same day-discount CALC.score charges by,
+     or this total says one thing while the score says another. */
+  const freeToday=kind=>builtinForgives(kind).includes(todayStatus);
+  const penMultFor=(p,procMins)=>{
+    if(p.type==='drugs')return freeToday('drugs')?1:capPenStreak(sk_.substancesPenaltyStreak);
+    if(p.type==='internet')return freeToday('internet')?1:CALC.procMult(procMins,sk_.procrastinationPenaltyStreak);
+    if(p.type==='macanazo')return freeToday('macanazo')?1:capPenStreak(sk_.macanazoPenaltyStreak);
+    const r=rewardById(p.type);
+    return (r&&rewardForgives(r).includes(todayStatus))?1:capPenStreak(sk_[penKey(p.type)]);
+  };
   const penPts=STATE.today.penalties.reduce((sum,p)=>{
     const b=CALC.penBase(p);const procMins=STATE.today.penalties.filter(x=>x.type==='internet').reduce((s,x)=>s+(x.details?.minutes||0),0);
-    let m=1;
-    if(p.type==='drugs')m=capPenStreak(sk_.substancesPenaltyStreak);
-    else if(p.type==='internet')m=CALC.procMult(procMins,sk_.procrastinationPenaltyStreak);
-    else if(p.type==='macanazo')m=capPenStreak(sk_.macanazoPenaltyStreak);
-    else m=capPenStreak(sk_[penKey(p.type)]);
-    return sum+b*m;
+    return sum+b*penMultFor(p,procMins);
   },0);
   const tr=dv('rowb mb10');
   tr.appendChild(sp('ctit',t('rewards-lbl')));
@@ -4948,11 +5075,7 @@ function renderPenCard(sk_){
     const procMinsTotal=STATE.today.penalties.filter(x=>x.type==='internet').reduce((s,x)=>s+(x.details?.minutes||0),0);
     STATE.today.penalties.forEach(p=>{
       const base=CALC.penBase(p);
-      let mult=1;
-      if(p.type==='drugs') mult=capPenStreak(sk_.substancesPenaltyStreak);
-      else if(p.type==='internet') mult=CALC.procMult(procMinsTotal,sk_.procrastinationPenaltyStreak);
-      else if(p.type==='macanazo') mult=capPenStreak(sk_.macanazoPenaltyStreak);
-      else mult=capPenStreak(sk_[penKey(p.type)]);
+      const mult=penMultFor(p,procMinsTotal);
       const actual=base*mult;
       const rw=rewardById(p.type);
       /* Every line asks the list for its name. The three originals used to be
@@ -4991,7 +5114,7 @@ function renderWorkCard(sk_){
 }
 
 /* ═══ SLEEP CARD ═══ */
-function renderSleepCard(sk_){
+function renderSleepCard(sk_,todayStatus){
   const sl=STATE.today.sleep;const card=dv('card s12');card.appendChild(sp('ctit',t('sleep-lbl')));
   function sleepRow(label,val,onSet){
     const w=dv('');const lr=dv('rowb mb6');lr.innerHTML=`<span class="xs dimmer up ls">${label}</span><span class="md mo ac w6">${fmtDur(val)}</span>`;w.appendChild(lr);
@@ -5017,10 +5140,12 @@ function renderSleepCard(sk_){
   card.appendChild(et);
   const lateStreak=sk_?.lateStreak||1;
   // Read through the same cap CALC.score pays it by, not a raw Math.max(1,n).
-  const latePenShow=sl.sleptLate?-100*CALC.penMult()*capPenStreak(lateStreak):0;
+  // Discounted to base on a good enough day, exactly as CALC.score charges it.
+  const lateMult=builtinForgives('late').includes(todayStatus)?1:capPenStreak(lateStreak);
+  const latePenShow=sl.sleptLate?-100*CALC.penMult()*lateMult:0;
   const ltt=dv(`tog ${sl.sleptLate?'on':''} mt8`);if(sl.sleptLate){ltt.style.borderColor='var(--ng)';ltt.style.background='var(--ngd)';}
   const ltc=ip('checkbox','');ltc.checked=sl.sleptLate;ltc.readOnly=true;ltc.style.accentColor='var(--ng)';
-  const lti=dv('f1');lti.innerHTML=`<div class="tt" style="color:${sl.sleptLate?'var(--ng)':'var(--t2)'}">${t('slept-late')}</div>${sl.sleptLate?`<div class="ts">${latePenShow} pts · ×${capPenStreak(lateStreak)} streak</div>`:''}`;
+  const lti=dv('f1');lti.innerHTML=`<div class="tt" style="color:${sl.sleptLate?'var(--ng)':'var(--t2)'}">${t('slept-late')}</div>${sl.sleptLate?`<div class="ts">${latePenShow} pts · ×${lateMult} ${t('streak-lbl')}</div>`:''}`;
   ltt.appendChild(ltc);ltt.appendChild(lti);
   ltt.onclick=()=>{
     STATE.today.sleep.sleptLate=!sl.sleptLate;
@@ -6011,6 +6136,7 @@ function renderRules(onClose){
       <div>No puedes subreportar: la meta nunca baja de las tareas que hoy tienes, y las completadas nunca pasan de la meta.</div>
       <div><span class="cr w6">Los atrasados cuentan.</span> Un recordatorio sin completar conserva su fecha y sigue sumando a tu meta de hoy, igual que en Apple Reminders.</div>
       <div><span class="cp w6">Etiquetas</span> (las que inventes) y <span class="cp w6">subtareas</span> en 2 niveles: cada una se paloma por su cuenta. Las <span class="ac w6">repeticiones</span> vuelven en su fecha, no desde que palomeaste.</div>
+      <div><span class="ac w6">Cuadrantes</span> — cada tarea puede ir en uno: <span class="cr w6">🚨1️⃣</span> urgente e importante (hazla ya) · <span class="cg w6">👑2️⃣</span> importante, no urgente (agéndala) · <span class="cy w6">🤖3️⃣</span> urgente, no importante (delégala o júntala) · <span class="dimmer w6">🤏🏼4️⃣</span> ninguna de las dos (bórrala). En la fila solo ves el emoji; el nombre sale al pasar el cursor. La vista <span class="ac w6">✜</span> las acomoda en cruz.</div>
       <div>Un día <strong>sin ninguna bandera</strong> no cuenta como Metas Exterminadas.</div>
       <div>El <span class="ac w6">🍅 pomodoro</span> vive en Plan: 1 min enfocado = 1 pt, los descansos no pagan, 25 min enfocados = 1 pomodoro (50 min = 2). <strong>Solo suma</strong>: nunca baja lo que pusiste a mano.</div>
     </div>
@@ -6060,7 +6186,8 @@ function renderRules(onClose){
       <div>Premios que quieres mantener a raya. Cada uno cuesta puntos, y cuanto más seguido los haces, más cuestan (× racha, hasta ×${PEN_CAP}). <span class="ac w6">La lista es tuya</span>: renómbralas, cámbiales el ícono, quita las que no te digan nada o agrega las tuyas (hasta 5) con el ⚙ de la tarjeta de Recompensas.</div>
       ${rewards().map(r=>`<div><span class="ng w6">${escapeHtml(rewardLabel(r))}</span> — ${r.byMinutes?'registra los minutos; pasados 30 min entra el multiplicador':t(REWARD_TIERS[r.tier].name).toLowerCase()+', −'+rewardCost(r).toLocaleString()+' × su racha'}.</div>`).join('')}
       <div><span class="ng w6">🌙 Trasnoché</span> — cuesta bastante × tu racha de desvelo.</div>
-      <div class="xs dimmer">El <span class="ac w6">peso</span> de cada una decide cuánto cuesta. Nada de esto cambia con el mes que estés viendo ni con ningún ajuste — el precio es el precio.</div>
+      <div><span class="ac w6">Un día bueno te la cobra a precio base</span> — sin multiplicador — y <strong>no te rompe la racha</strong>: al día siguiente sigue donde iba. Entre más pesada la recompensa, mejor tiene que ser el día: <span class="cy">🟡</span> alcanza para una ligera, <span class="cg">🟢</span> para una media, y solo <span class="cp">🟣</span> para una grande.</div>
+      <div class="xs dimmer">El <span class="ac w6">peso</span> de cada una decide dos cosas: cuánto cuesta, y qué tan bueno tiene que ser el día para que te la cobre barata. El precio base nunca cambia.</div>
     </div>
   </div>
   <hr class="dv">
@@ -6069,7 +6196,7 @@ function renderRules(onClose){
     <div class="s6">
       <div>Todas se rompen al saltarte un día, excepto ${escapeHtml(rewardName(rewardById('internet')))}, que permite 30 minutos diarios.</div>
       <div><span class="cr w6">🔴 Rojo</span> — reinicia <strong>TODAS tus rachas positivas</strong>: Trabajo 💼, Rutina 🌞, Metas 🏁, Pomodoros 🍅, Dormir temprano 😴 y la de días sin rojo. Un día con sus banderas abajo nunca es rojo, así que esto solo pasa si de verdad se te fue el día. Ningún otro color las toca.</div>
-      <div class="w6" style="color:var(--ng)">⚠ Ningún color perdona una racha de recompensa. La única forma de terminarla es no hacer la cosa.</div>
+      <div class="w6" style="color:var(--ng)">⚠ Ningún color <em>termina</em> una racha de recompensa — solo la cobra barata ese día. La única forma de terminarla es no hacer la cosa.</div>
       <div><span class="ac w6">🎖️ Medallas</span> — cada racha <em>positiva</em> que llega a 10, 20, 50, 100, 200, 500 o 1000 días deja su medalla en ese día del calendario. Las recompensas nunca dan medalla.</div>
       <div class="xs dimmer">Los días que olvidas registrar cuentan como −1,000 pts y día Rojo. ¡Registra diario!</div>
     </div>
@@ -6094,6 +6221,7 @@ function renderRules(onClose){
       <div>You cannot undercount: the target never falls below the tasks you have today, and completed never exceeds the target.</div>
       <div><span class="cr w6">Overdue still counts.</span> A reminder you did not finish keeps its date and goes on adding to today's target, just like Apple Reminders.</div>
       <div><span class="cp w6">Tags</span> (invent your own) and <span class="cp w6">subtasks</span> two levels deep: each is ticked on its own. <span class="ac w6">Repeats</span> come back on their date, not from when you ticked them.</div>
+      <div><span class="ac w6">Quadrants</span> — each task can sit in one: <span class="cr w6">🚨1️⃣</span> urgent and important (do it now) · <span class="cg w6">👑2️⃣</span> important, not urgent (schedule it) · <span class="cy w6">🤖3️⃣</span> urgent, not important (delegate or batch it) · <span class="dimmer w6">🤏🏼4️⃣</span> neither (drop it). The row shows only the emoji; the name is in the tooltip. The <span class="ac w6">✜</span> view lays them out as a cross.</div>
       <div>A day with <strong>no flags at all</strong> does not count as Goals Annihilated.</div>
       <div>The <span class="ac w6">🍅 pomodoro</span> lives in Plan: one focused minute is one point, breaks pay nothing, 25 focused minutes is one pomodoro (50 min = 2). It <strong>only ever adds</strong>: it can never reduce a count you typed by hand.</div>
     </div>
@@ -6143,7 +6271,8 @@ function renderRules(onClose){
       <div>Behaviours you want to keep at bay. Each costs points, and the more often you do them, the more they cost (× streak, up to ×${PEN_CAP}). <span class="ac w6">The list is yours</span>: rename them, change their icon, drop the ones that mean nothing to you or add your own (up to 5) from the ⚙ on the Rewards card.</div>
       ${rewards().map(r=>`<div><span class="ng w6">${escapeHtml(rewardLabel(r))}</span> — ${r.byMinutes?'log the minutes; past 30 min the multiplier kicks in':t(REWARD_TIERS[r.tier].name).toLowerCase()+', −'+rewardCost(r).toLocaleString()+' × its streak'}.</div>`).join('')}
       <div><span class="ng w6">🌙 Slept Late</span> — costs a lot × your late-night streak.</div>
-      <div class="xs dimmer">Each one's <span class="ac w6">weight</span> decides what it costs. None of this changes with the month you are looking at, or with any setting — the price is the price.</div>
+      <div><span class="ac w6">A good day charges it at base</span> — no multiplier — and <strong>leaves the run alone</strong>: tomorrow it picks up where it was. The heavier the reward, the better the day has to be: <span class="cy">🟡</span> covers a light one, <span class="cg">🟢</span> a medium one, and only <span class="cp">🟣</span> a large one.</div>
+      <div class="xs dimmer">Each one's <span class="ac w6">weight</span> decides two things: what it costs, and how good a day has to be to get it cheap. The base price never changes.</div>
     </div>
   </div>
   <hr class="dv">
@@ -6152,7 +6281,7 @@ function renderRules(onClose){
     <div class="s6">
       <div>All of them break the moment you skip a day, except ${escapeHtml(rewardName(rewardById('internet')))}, which allows 30 minutes a day.</div>
       <div><span class="cr w6">🔴 Red</span> — resets <strong>ALL your positive streaks</strong>: Work 💼, Morning 🌞, Goals 🏁, Pomodoros 🍅, Early bed 😴 and the non-red run. A day with its flags down is never red, so this only happens when the day really did get away from you. No other colour touches them.</div>
-      <div class="w6" style="color:var(--ng)">⚠ No colour forgives a reward run. The only way one ends is by not doing the thing.</div>
+      <div class="w6" style="color:var(--ng)">⚠ No colour <em>ends</em> a reward run — it only charges it at base for that day. The only way one ends is by not doing the thing.</div>
       <div><span class="ac w6">🎖️ Medals</span> — every <em>positive</em> streak that reaches 10, 20, 50, 100, 200, 500 or 1000 days leaves its medal on that day in the calendar. Rewards never earn one.</div>
       <div class="xs dimmer">Days you forget to log count as −1,000 pts and a Red day. Don't skip!</div>
     </div>
@@ -6249,10 +6378,13 @@ function renderRewardsModal(){
       box.appendChild(row);
     });
     panel.appendChild(box);
-    // No tier's resetOn table has anything in it any more — see TIER_RESETS —
-    // so this used to build the same "(only by breaking it)" three times over,
-    // once per weight. One flat sentence says the same thing once.
-    panel.appendChild(dv('xs dimmer mt8',t('rw-clears-flat')));
+    /* The weights differ in what they cost AND in how good a day has to be to
+       get one at base price — which is the whole reason there are weights.
+       This says both, per weight, rather than repeating one sentence. */
+    const legend=dv('xs dimmer mt8');
+    legend.innerHTML=t('rw-clears-flat')+'<br>'+Object.keys(REWARD_TIERS).map(k=>
+      `<span class="w6">${t(REWARD_TIERS[k].name)}</span> ${tierForgives(k).map(s=>({yellow:'🟡',green:'🟢',purple:'🟣'})[s]).join('')}`).join(' · ');
+    panel.appendChild(legend);
 
     if(rewards().length<REWARD_MAX){
       const add=dv('row gap6 mt10');add.style.flexWrap='wrap';
