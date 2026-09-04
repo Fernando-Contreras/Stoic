@@ -1043,6 +1043,7 @@ en:{
   'rem-filter-all':'· must have all of them',
   'rem-subtask':'subtask','rem-subtask-ask':'Subtask of "{t}":',
   'rem-notes-ph':'Note (optional)','rem-edit':'Edit','rem-no-parent':'↳ Not a subtask',
+  'rem-add-note':'Add note','rem-edit-note':'Click to edit',
   'rem-has-kids':'This one has subtasks of its own, so it cannot become one. Two levels is the limit.',
   'rem-bad-parent':'That cannot be its parent.',
   'rem-parent-is':'Subtask of','rem-parent-search':'Nest under… (type to search)','rem-parent-none':'Nothing matches',
@@ -1235,6 +1236,7 @@ es:{
   'rem-filter-all':'· deben tener todas',
   'rem-subtask':'subtarea','rem-subtask-ask':'Subtarea de "{t}":',
   'rem-notes-ph':'Nota (opcional)','rem-edit':'Editar','rem-no-parent':'↳ No es subtarea',
+  'rem-add-note':'Agregar nota','rem-edit-note':'Click para editar',
   'rem-has-kids':'Esta ya tiene subtareas, así que no puede volverse una. El límite son 2 niveles.',
   'rem-bad-parent':'Esa no puede ser su tarea padre.',
   'rem-parent-is':'Subtarea de','rem-parent-search':'Meterla bajo… (escribe para buscar)','rem-parent-none':'Nada coincide',
@@ -4045,12 +4047,11 @@ function taEl(v,ph){
 function renderReminderEditor(r){
   const box=dv('fi mt8');
   box.style.cssText='background:var(--sur3);border:1px solid var(--b2);border-radius:8px;padding:10px';
-  /* No title field. It sat at the top of this box with the very same words
-     already on the row above it, which read as two names for one task and left
-     you guessing which one counted. The name is edited where the name is. */
-  const no=taEl(r.notes||'',t('rem-notes-ph'));
-  box.appendChild(no);
-
+  /* No title field, and no note field either, for the same reason: both used
+     to sit at the top of this box holding the very same words already on the
+     row above, which read as two copies of one thing and left you guessing
+     which copy counted. Click the name or the note where you read them; this
+     box keeps only what genuinely needs a form. */
   const picker=tagPicker(tagsOf(r));
   picker.el.style.marginTop='6px';
   box.appendChild(picker.el);
@@ -4140,7 +4141,7 @@ function renderReminderEditor(r){
   const acts=dv('row gap8 mt8');
   acts.appendChild(bt('btn-ac btn-sm f1',t('save-btn'),()=>{
     const res=updateReminder(r.id,{
-      notes:no.value.replace(/\s+$/,''),tags:picker.get(),
+      tags:picker.get(),
       due:di.value||r.due,time:hi.value,priority:parseInt(pi.value)||0,flagged:fc.checked,morning:mcb.checked,
       repeat:ri.value?{unit:ri.value,every:Math.max(1,parseInt(ni.value)||1),
         ...(ri.value==='week'&&wd.get().length?{days:wd.get()}:{}),
@@ -4462,6 +4463,32 @@ function editableTitle(el,r,after,row){
   return el;
 }
 
+/* The same idea as editableTitle, one field over. It used to take a press on
+   ✏️, a scroll past the date/tag/quadrant form, and the note printed again at
+   the top of it in a box — two copies of the same words, and only the lower
+   one did anything. The note is edited where the note is now.
+   A textarea rather than editableTitle's input, because a note is prose and
+   Enter inside prose must write a line, not submit anything — so only
+   leaving the field (blur) or Escape ends the edit; there is no key that
+   commits it early. */
+function editableNotes(el,r,after){
+  el.style.cursor='text';el.title=t('rem-edit-note');
+  el.onclick=e=>{
+    e.stopPropagation();
+    const ta=taEl(r.notes||'',t('rem-notes-ph'));
+    ta.style.cssText+=';width:100%;margin-top:2px;font-size:14px;min-height:44px';
+    const put=()=>{
+      const v=ta.value.replace(/\s+$/,'');
+      if(v!==(r.notes||''))updateReminder(r.id,{notes:v});
+      after();
+    };
+    ta.onkeydown=ev=>{if(ev.key==='Escape'){ev.preventDefault();after();}};
+    ta.onblur=put;
+    el.replaceWith(ta);ta.focus();
+  };
+  return el;
+}
+
 function renderReminderRow(r,tk,opts){
   opts=opts||{};
   /* Where this row asks to be redrawn. On the list that is the whole page;
@@ -4548,9 +4575,16 @@ function renderReminderRow(r,tk,opts){
     c.style.cssText+=';margin-left:2px;cursor:pointer';
     titleLine.appendChild(c);
   });
-  if(r.notes){
-    const nt=dv('sm dim mt2');nt.style.whiteSpace='pre-wrap';nt.textContent=r.notes;
+  /* Always here, done or not — a placeholder when there is nothing yet — so
+     the click target exists even for a task that has no note. A row you
+     have finished still keeps its note editable: crossing a task off is not
+     the same as being done writing about it. */
+  if(!doneToday||r.notes){
+    const nt=dv('sm dim mt2',r.notes||('+ '+t('rem-add-note')));
+    nt.style.whiteSpace='pre-wrap';
+    if(!r.notes)nt.style.opacity='.55';
     if(doneToday)nt.style.color='var(--t3)';
+    editableNotes(nt,r,rd);
     mid.appendChild(nt);
   }
 
