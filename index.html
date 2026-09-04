@@ -4476,15 +4476,24 @@ function editableNotes(el,r,after){
   el.onclick=e=>{
     e.stopPropagation();
     const ta=taEl(r.notes||'',t('rem-notes-ph'));
-    ta.style.cssText+=';width:100%;margin-top:2px;font-size:14px;min-height:44px';
+    ta.style.cssText+=';width:100%;margin-top:2px;font-size:14px;min-height:44px;overflow:hidden;resize:vertical';
+    /* Grows with what is already in it, and again with every keystroke, so a
+       long note opens already full-sized instead of as a 44px slit you have
+       to fight with a scrollbar to see the middle of. Capped well past a
+       normal note so one absurdly long paste cannot push the rest of the
+       page off screen; resize:vertical above still lets you pull it taller
+       by hand past that. */
+    const grow=()=>{ta.style.height='auto';ta.style.height=Math.min(ta.scrollHeight,420)+'px';};
     const put=()=>{
       const v=ta.value.replace(/\s+$/,'');
       if(v!==(r.notes||''))updateReminder(r.id,{notes:v});
       after();
     };
     ta.onkeydown=ev=>{if(ev.key==='Escape'){ev.preventDefault();after();}};
+    ta.oninput=grow;
     ta.onblur=put;
     el.replaceWith(ta);ta.focus();
+    grow();
   };
   return el;
 }
