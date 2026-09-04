@@ -897,9 +897,8 @@ en:{
   'daily-tasks':'Daily Tasks','comp-target':'Completed / Target','done-ph':'Done','target-ph':'Target',
   'morning-routine':'🌞 Morning Routine','goals-ann':'🏁 Goals Annihilated',
   'run-lbl':'run','of-lbl':'of',
-  'from-days':'From the days','from-goals':'From goals closed this month',
   'all-time':'All time','all-time-sub':'every day plus every goal',
-  'src-goals':'Goals',
+  'src-goals':'Period goals',   // 🏆 — src-flags is 🏁, the daily ones
   'num-subs':'# substances','eg-time':'e.g. 45m, 1h30m','min-1':'Min. 1',
   'enter-time':'Enter time','add-btn':'+ Add',
   'base-lbl':'base','streak-lbl':'streak',
@@ -1065,7 +1064,7 @@ en:{
   'pomo-start':'Start','pomo-pause':'Pause','pomo-reset':'Reset','pomo-skip':'Finish',
   'pomo-done':'Session finished. Take a break.','pomo-break-over':'Break over. Back to it.',
   'pomo-from-timer':'from the timer today',
-  'pomo-note':'1 focused minute = 1 point. Breaks pay nothing. Every 25 focused minutes counts as one 🍅, so a 50-minute session reads as 2.',
+  'pomo-note':'Every 25 focused minutes is one 🍅, worth +{n} pts × its run — a 50-minute session reads as 2. Breaks pay nothing. The minutes themselves are paid by 💼 Work; this is paid for keeping them unbroken.',
   'use-dur':'Use: 5h, 300m, 2h30m or number (minutes)',
   'ej-dur':'e.g. 2h30m',
 },
@@ -1090,9 +1089,8 @@ es:{
   'daily-tasks':'Tareas del Día','comp-target':'Completadas / Meta','done-ph':'Hechas','target-ph':'Meta',
   'morning-routine':'🌞 Rutina Matutina','goals-ann':'🏁 Metas Exterminadas alv',
   'run-lbl':'racha','of-lbl':'de',
-  'from-days':'De los días','from-goals':'De metas cerradas este mes',
   'all-time':'De siempre','all-time-sub':'todos tus días más todas tus metas',
-  'src-goals':'Metas',
+  'src-goals':'Metas de periodo',   // 🏆 — src-flags es 🏁, las del día
   'num-subs':'# sustancias','eg-time':'ej. 45m, 1h30m','min-1':'Mín. 1',
   'enter-time':'Ingresa tiempo','add-btn':'+ Agregar',
   'base-lbl':'base','streak-lbl':'racha',
@@ -1258,7 +1256,7 @@ es:{
   'pomo-start':'Iniciar','pomo-pause':'Pausar','pomo-reset':'Reiniciar','pomo-skip':'Terminar',
   'pomo-done':'Sesión terminada. Tómate un descanso.','pomo-break-over':'Se acabó el descanso. A darle.',
   'pomo-from-timer':'del timer hoy',
-  'pomo-note':'1 minuto enfocado = 1 punto. Los descansos no pagan. Cada 25 minutos enfocados cuenta como un 🍅, así que una sesión de 50 min cuenta como 2.',
+  'pomo-note':'Cada 25 minutos enfocados son un 🍅 y valen +{n} pts × su racha — una sesión de 50 min cuenta como 2. Los descansos no pagan. Los minutos ya te los paga 💼 Trabajo; esto te lo paga por no romperlos.',
   'use-dur':'Usa: 5h, 300m, 2h30m o número (minutos)',
   'ej-dur':'ej. 2h30m',
 }};
@@ -1342,6 +1340,15 @@ function streakMult(n){return Math.max(1,CURVE_K*Math.sqrt(Math.max(1,n||1)));}
    pays about 2,850 on a normal day and 300 on a red one) without costing the
    ninety days as well. */
 function posMult(n,status){return status==='red'?1:streakMult(n);}
+/* What one pomodoro pays. It was 25 — one point per focused minute — which is
+   exactly what Work already pays for the very same minutes: run a pomodoro
+   inside a logged work session and those 25 minutes were paid twice, by two
+   runs growing independently of each other. That is why pomodoros climbed to
+   second-largest source of points behind work: they were a shadow copy of it.
+   The time is Work's to pay for. What is left for a pomodoro to be paid for
+   is the thing Work cannot see — that the time was spent focused, in one
+   unbroken block — and that is worth something, but not a second full wage. */
+const POM_PTS=10;
 // What that run pays at n days — the number the rules quote.
 function multAt(n){return Math.round(streakMult(n)*10)/10;}
 function capPenStreak(n){return Math.min(PEN_CAP,Math.max(1,n||1));}
@@ -1477,7 +1484,7 @@ const CALC={
     const fB=flagCompleted?Math.round(100*pm(s.flagStreak)):0;
     // Same curve as everything else — a day with pomodoros logged on top of
     // yesterday's and the day before's pays more than one on its own.
-    const pom=Math.round(pomodoros*25*pm(s.pomoStreak));
+    const pom=Math.round(pomodoros*POM_PTS*pm(s.pomoStreak));
     const wrk=Math.round((work.workDuration||0)*pm(s.workStreak));
     const earlyBedStreak=pm(s.earlyBedStreak);
     const slp=Math.round((sleep.sleepDuration||0)+(sleep.napDuration||0)+(sleep.sleptEarly?(sleep.sleepDuration||0)*earlyBedStreak:0));
@@ -1486,6 +1493,7 @@ const CALC={
       ?-100*this.penMult()*(freeToday('late')?1:capPenStreak(s.lateStreak)):0;
     const procMins=penalties.filter(p=>p.type==='internet').reduce((a,p)=>a+(p.details?.minutes||0),0);
     // A run never shrinks; a good day only stops it being charged for today.
+    const penBy={};   // by reward, so the stats can break the total down
     const pen=penalties.reduce((sum,p)=>{
       const b=this.penBase(p);let mult=1;
       if(p.type==='drugs')mult=freeToday('drugs')?1:capPenStreak(s.substancesPenaltyStreak);
@@ -1496,11 +1504,15 @@ const CALC={
         const r=(typeof rewardById==='function')?rewardById(p.type):null;
         mult=(r&&rewardForgives(r).includes(status))?1:capPenStreak(s[penKey(p.type)]);
       }
-      return sum+b*mult;
+      const v=b*mult;
+      penBy[p.type]=(penBy[p.type]||0)+v;
+      return sum+v;
     },0);
     const col=Math.round(this.colorBonus(status)*streakMult(s.colorStreak));
-    const total=base+mB+fB+pom+wrk+slp+pen+col+latePen;
-    return{total,base,status,pct,mB,fB,pom,wrk,slp,pen,col,latePen};
+    // A goal closed today is paid today, the same as in liveParts.
+    const goalsPts=(typeof goalPointsOn==='function')?goalPointsOn(day._date||todayKey()):0;
+    const total=base+mB+fB+pom+wrk+slp+pen+col+goalsPts+latePen;
+    return{total,base,status,pct,mB,fB,pom,wrk,slp,pen,penBy,col,goals:goalsPts,latePen};
   },
   /* #2 FIX: histTotal must exclude today to avoid double-count.
      And it counts the gaps. A day never logged is worth −1,000 and shows that
@@ -1551,7 +1563,7 @@ const CALC={
      day — and the stats can finally say which of these is the number that
      grew, instead of leaving you to guess from a single total. */
   liveParts(e, allHistory){
-    const zero={base:0,mB:0,fB:0,pom:0,wrk:0,slp:0,col:0,latePen:0,pen:0};
+    const zero={base:0,mB:0,fB:0,pom:0,wrk:0,slp:0,col:0,goals:0,latePen:0,pen:0};
     if(e._gap)return{...zero,gap:e.todayPoints||-1000};
     /* Whether this day was good enough to be charged at base — it never
        shortens the run, only this one day's bill. See TIER_FORGIVES. */
@@ -1631,16 +1643,30 @@ const CALC={
       base:Math.round((e.completedTasks||0)*pm(flagStreak)),
       mB:((e.streaks?.some(s=>s.type==='morning'&&s.active))?Math.round(25*pm(morningStreak)):0),
       fB:((e.streaks?.some(s=>s.type==='flags'&&s.active))?Math.round(100*pm(flagStreak)):0),
-      pom:Math.round((e.pomodoros||0)*25*pm(pomoStreak)),
+      pom:Math.round((e.pomodoros||0)*POM_PTS*pm(pomoStreak)),
       wrk:Math.round((e.workDuration||0)*pm(workStreak)),
       slp:Math.round((e.sleepDuration||0)+(e.napDuration||0)+(e.sleptEarly?(e.sleepDuration||0)*pm(earlyBedStreak):0)),
       col:Math.round(this.colorBonus(e.status)*streakMult(colorMult)),
+      /* A period goal is paid on the day it was finished. It used to be paid
+         by the month instead, which kept one enormous number out of "best
+         day" — but it also meant the calendar and the total could never be
+         made to agree: a month carrying 5,000 points of closed goals showed
+         days summing to −778 under a headline of +4,222, with nothing on
+         screen to account for the difference. The goal is read from the
+         planner rather than stored on the day, so moving its date in the
+         goals window moves its points with it, the same redraw. */
+      goals:goalPointsOn(e.date),
       /* A good enough night still costs the base — it used to cost nothing at
          all, which is not what "charged at base" means. */
       latePen:(e.sleptLate?-100*this.penMult()*(lateFree?1:capPenStreak(lateStreak)):0),
       pen:0
     };
 
+    /* Kept beside the total, by type: "Rewards −595,925" says how much they
+       cost together and nothing about which one did it, and one of them is
+       usually most of it. Filled here rather than recomputed by the stats
+       page, so the breakdown cannot drift from the number it breaks down. */
+    parts.penBy={};
     parts.pen=(e.penalties||[]).reduce((sum,p)=>{
       const det=p.type==='drugs'?{substances:p.count}:p.type==='internet'?{minutes:p.count}:{isPositive:false};
       const b=this.penBase({type:p.type,details:det,count:p.count});
@@ -1661,7 +1687,9 @@ const CALC={
             d=>d.penalties?.some(x=>x.type===p.type)));
         }
       }
-      return sum+b*mult;
+      const v=b*mult;
+      parts.penBy[p.type]=(parts.penBy[p.type]||0)+v;
+      return sum+v;
     },0);
     return parts;
   },
@@ -1669,7 +1697,7 @@ const CALC={
   liveScore(e, allHistory){
     const p=this.liveParts(e,allHistory);
     if(p.gap!==undefined)return p.gap;
-    return p.base+p.mB+p.fB+p.pom+p.wrk+p.slp+p.col+p.latePen+p.pen;
+    return p.base+p.mB+p.fB+p.pom+p.wrk+p.slp+p.col+p.goals+p.latePen+p.pen;
   },
   buildEntry(today,streaks,date){
     const sc=this.score(today,streaks);
@@ -2215,6 +2243,7 @@ function fmtShort(dateStr){
 function saveView(){S.set('st_view',STATE.view);STATE.today._view=STATE.view;commit();}
 function savePlanner(){
   STATE.planner._ts=CLOCK.now();
+  _goalDayMap=null;   // a goal may have moved day; see goalPointsOn
   S.set(K.PLANNER,STATE.planner);
   commit();
 }
@@ -2932,8 +2961,19 @@ function unlockAudio(){
   const ctx=audioCtx();
   if(ctx&&ctx.state==='suspended')ctx.resume().catch(()=>{});
 }
+/* How long the whole figure takes, and how long a chime stays worth playing.
+   A bell that rings late is not a bell — it is a noise with no cause. */
+const POMO_CHIME_MS=POMO_RINGS*POMO_FIGURE*1000+400;
+let _lastBeepAt=0;
 function pomoBeep(){
   const ctx=audioCtx();if(!ctx)return;
+  const now=Date.now();
+  /* Two chimes at once was the end of a break arriving on top of a chime the
+     end of the focus leg had queued and never played. One at a time: while a
+     figure is still ringing, a second request is dropped rather than laid
+     over the first. */
+  if(now-_lastBeepAt<POMO_CHIME_MS)return;
+  _lastBeepAt=now;
   const ring=()=>{
     try{
       const t0=ctx.currentTime;
@@ -2948,10 +2988,30 @@ function pomoBeep(){
       });
     }catch(e){/* audio blocked — the visual change is enough */}
   };
-  // Suspended is the ordinary state of a tab that has been sitting idle, and
-  // waking one takes a moment, so the chime is scheduled once it is awake.
-  if(ctx.state==='suspended')ctx.resume().then(ring).catch(()=>{});
-  else ring();
+  if(ctx.state!=='suspended'){ring();return;}
+  /* A suspended context resumes when the browser lets it, and with no gesture
+     to point at, that can be minutes later — at the next press. That is what
+     made the chime arrive as you STARTED the following leg instead of when
+     the one before it ended, and what left a second one queued to land on top
+     of it. So a resume that has not happened within a couple of seconds has
+     missed its moment: the chime is dropped, and the notification, which does
+     not need permission from an audio policy, does the telling instead. */
+  let fired=false;
+  const stale=setTimeout(()=>{fired=true;_lastBeepAt=0;},2000);
+  ctx.resume().then(()=>{
+    clearTimeout(stale);
+    if(!fired)ring();
+  }).catch(()=>{clearTimeout(stale);_lastBeepAt=0;});
+}
+/* Kept awake for as long as something is counting down. A context is
+   suspended by the browser whenever the page goes quiet — which is precisely
+   what a 25-minute focus session is — and it is being suspended at the moment
+   the timer expires that made the chime late. Resuming costs nothing when it
+   is already running, and while the timer runs there has always been a press
+   behind it, so the policy allows it. */
+function keepAudioAwake(){
+  const ctx=_ac;
+  if(ctx&&ctx.state==='suspended')ctx.resume().catch(()=>{});
 }
 /* Asked at the moment you start a timer: a press, which is the only time the
    question is allowed to be asked, and the moment the answer starts mattering.
@@ -3170,6 +3230,23 @@ function goalPoints(g){
    old and new rates on the total forever. */
 function goalsTotal(){
   return goals().filter(g=>g.doneOn).reduce((s,g)=>s+goalPoints(g),0);
+}
+/* What the goals closed on one particular day are worth. Called once per day
+   drawn — the whole of history, on the stats page — so the day-to-points map
+   is built once and rebuilt only when the planner actually changes. Without
+   the memo this walked every goal for every day of history on every render. */
+let _goalDayMap=null,_goalDayTs=-1;
+function goalPointsOn(dateKey){
+  if(!dateKey)return 0;
+  const ts=(STATE.planner&&STATE.planner._ts)||0;
+  if(_goalDayMap===null||_goalDayTs!==ts){
+    _goalDayMap=new Map();_goalDayTs=ts;
+    goals().forEach(g=>{
+      if(!g.doneOn)return;
+      _goalDayMap.set(g.doneOn,(_goalDayMap.get(g.doneOn)||0)+goalPoints(g));
+    });
+  }
+  return _goalDayMap.get(dateKey)||0;
 }
 function addGoal(kind,title){
   if(goalsOf(kind).length>=GOAL_MAX[kind])return false;
@@ -3952,7 +4029,7 @@ function renderPomoCard(){
     w.appendChild(i);cfg.appendChild(w);
   });
   card.appendChild(cfg);
-  card.appendChild(dv('xs dimmer mt6',t('pomo-note')));
+  card.appendChild(dv('xs dimmer mt6',t('pomo-note').replace('{n}',POM_PTS)));
   return card;
 }
 
@@ -4982,16 +5059,13 @@ function renderApp(){
   const monEnd=isoDate(new Date(scY,scM+1,0));
   const nowD=new Date(tk+'T12:00:00');
   const isCurMonth=scY===nowD.getFullYear()&&scM===nowD.getMonth();
-  // Long goals ride the month they were actually finished in, not the day —
-  // they are big enough that landing one on a single day would own "best
-  // day" forever and skew every average that reads off it.
-  const monthGoals=goals().filter(g=>g.doneOn&&g.doneOn>=monStart&&g.doneOn<=monEnd)
-    .reduce((s,g)=>s+goalPoints(g),0);
-  const total=CALC.rangeTotal(STATE.history,monStart,monEnd)+(isCurMonth?sc.total:0)+monthGoals;
+  /* Goals are part of their own day now — see the note in liveParts — so the
+     month is the days and nothing else. Adding them again here is what would
+     double-count them. */
+  const total=CALC.rangeTotal(STATE.history,monStart,monEnd)+(isCurMonth?sc.total:0);
   const monthLabel=capFirst(new Date(scY,scM,1).toLocaleDateString(STATE.lang==='es'?'es-MX':'en-US',{month:'long',year:'numeric'}));
   const scoreNav={
-    label:monthLabel,isCurMonth,goals:monthGoals,
-    days:CALC.rangeTotal(STATE.history,monStart,monEnd)+(isCurMonth?sc.total:0),
+    label:monthLabel,isCurMonth,
     onPrev:()=>{let m=scM-1,y=scY;if(m<0){m=11;y--;}STATE.scoreYM={y,m};render();},
     onNext:()=>{if(isCurMonth)return;let m=scM+1,y=scY;if(m>11){m=0;y++;}STATE.scoreYM={y,m};render();}
   };
@@ -5227,23 +5301,13 @@ function renderScoreCard(total,sc,sk_,nav){
     :t('score-past-month');
   big.innerHTML=`<div class="xxxl w8 ac mo">${total>=0?'':'−'}${Math.abs(total).toLocaleString()}</div><div class="sm dim mt4">${sub}</div>`;
   card.appendChild(big);
-  /* Where the month's number comes from, whenever a period goal landed in it.
-     The calendar shows days and only days, so a month carrying 5,000 points
-     of closed goals read as arithmetic that did not add up — days summing to
-     −778 under a headline of +4,222. Both halves are named now, so the total
-     can be checked against what is on screen. */
-  if(nav.goals){
-    const sp2=dv('s4 mt6');
-    const mk=(l,v)=>{const r=dv('rowb');r.innerHTML=`<span class="xs dimmer">${l}</span><span class="xs mo w6 ${v<0?'ng':'ac'}">${v>=0?'+':'−'}${Math.abs(v).toLocaleString()}</span>`;return r;};
-    sp2.appendChild(mk(t('from-days'),nav.days));
-    sp2.appendChild(mk(t('from-goals'),nav.goals));
-    card.appendChild(sp2);
-  }
   const pct=sc.pct,R=28,circ=2*Math.PI*R,off=circ-(pct/100)*circ;
   const cr=dv('row gap12 mt10');cr.style.justifyContent='center';
   cr.innerHTML=`<svg width="70" height="70" class="circ" viewBox="0 0 70 70"><circle cx="35" cy="35" r="${R}" stroke="#22222e" stroke-width="7" fill="none"/><circle cx="35" cy="35" r="${R}" stroke="var(--ac)" stroke-width="7" fill="none" stroke-dasharray="${circ}" stroke-dashoffset="${off}" stroke-linecap="round" style="transition:stroke-dashoffset .4s"/></svg><div><div class="xxl w7 ac mo">${pct}%</div><div class="xs dimmer">${STATE.today.completed}/${STATE.today.target} ${t('tasks-lbl')}</div></div>`;
   card.appendChild(cr);
-  const posRows=[[t('daily-tasks'),sc.base],[t('morning-lbl'),sc.mB],[t('flags-lbl'),sc.fB],[t('pom-lbl'),sc.pom],[t('work-lbl'),sc.wrk],[t('sleep-lbl'),sc.slp],[t('color-lbl'),sc.col]].filter(r=>r[1]>0);
+  // Goals sit in this list like anything else the day paid for, so the number
+  // above can be checked against the lines under it without leaving the card.
+  const posRows=[[t('daily-tasks'),sc.base],[t('morning-lbl'),sc.mB],[t('flags-lbl'),sc.fB],[t('pom-lbl'),sc.pom],[t('work-lbl'),sc.wrk],[t('sleep-lbl'),sc.slp],[t('color-lbl'),sc.col],[t('src-goals'),sc.goals||0]].filter(r=>r[1]>0);
   const negRows=[[t('rewards-lbl'),sc.pen],[t('late-night-lbl'),sc.latePen||0]].filter(r=>r[1]!==0);
   if(posRows.length||negRows.length){
     const bd=dv('s4 mt10');
@@ -5323,7 +5387,7 @@ function renderPomCard(sk_,todayStatus){
   // Pomodoros ride a streak now, the same as work and sleep — a day on top of
   // a run of others pays more than the same pomodoros on their own.
   const pomoStreak=sk_?.pomoStreak||1;
-  card.appendChild(sp('xs dim',ptsLine(val*25,pomoStreak,todayStatus)));
+  card.appendChild(sp('xs dim',ptsLine(val*POM_PTS,pomoStreak,todayStatus)));
   const step=d=>{
     STATE.today.pomodoros=Math.max(0,Math.round(((STATE.today.pomodoros||0)+d)*10)/10);
     markManual('pomodoros');commitAndRefresh();
@@ -6065,6 +6129,32 @@ function renderStats(total,sc){
      day, which is the record; this is the shelf. */
   // Each medal carries the day it was won, so the shelf can name the day.
   const allMedals=[...medalsByDate().entries()].flatMap(([d,l])=>l.map(m=>({...m,date:d})));
+  /* ── The lifetime number, first thing on the page ──
+     The headline went monthly on purpose: a month is close enough to zero
+     that a day moves it, which an odometer of every day you have ever logged
+     can never be. But the odometer is still the thing you have built, and it
+     is what you come to this page to see, so it goes above the shelf rather
+     than below it. Beside it, the one sentence that says which way you are
+     currently moving — a total and a direction read as a pair; on their own,
+     one is a fact with no trend and the other a trend with no size. */
+  const allTime=[...histMap().values()].filter(d=>d.date!==todayKey())
+    .reduce((s,d)=>s+CALC.liveScore(d,STATE.history),0)+sc.total;
+  const topRow=dv('g2 mb10');topRow.style.gap='8px';
+  const atBox=dv('card2 ctr');
+  atBox.style.cssText='display:flex;flex-direction:column;justify-content:center';
+  const atN=dv('xxxl w8 mo');
+  atN.style.color=allTime>=0?'var(--ac)':'var(--ng)';
+  atN.textContent=(allTime<0?'−':'')+Math.abs(allTime).toLocaleString();
+  atBox.appendChild(dv('xs dimmer up ls',t('all-time')));
+  atBox.appendChild(atN);
+  atBox.appendChild(dv('xs dimmer mt4',t('all-time-sub')));
+  topRow.appendChild(atBox);
+  const inBox=dv('card2 s-ac fi');
+  inBox.style.cssText='display:flex;align-items:center';
+  inBox.appendChild(sp('sm dim',insight));
+  topRow.appendChild(inBox);
+  body.appendChild(topRow);
+
   const mbox=dv('card2 mb10');
   const mh=dv('rowb mb8');
   mh.appendChild(sp('xs dimmer up ls',t('medals-title')));
@@ -6099,26 +6189,6 @@ function renderStats(total,sc){
   mbox.appendChild(mg);
   if(!allMedals.length)mbox.appendChild(dv('xs dimmer ctr mt8',t('medals-none')));
   body.appendChild(mbox);
-
-  /* ── The lifetime number ──
-     The headline went monthly on purpose: a month is close enough to zero
-     that a day moves it, which an odometer of every day you have ever logged
-     can never be. But the odometer is still the thing you have built, and
-     with nowhere on the page showing it there was no answer to "so how many
-     do I have". It lives here, in the stats, where a number you look at
-     occasionally belongs — days and goals both, so it is the whole of it. */
-  const allTimeDays=[...histMap().values()].filter(d=>d.date!==todayKey())
-    .reduce((s,d)=>s+CALC.liveScore(d,STATE.history),0)+sc.total;
-  const allTimeGoals=goals().filter(g=>g.doneOn).reduce((s,g)=>s+goalPoints(g),0);
-  const allTime=allTimeDays+allTimeGoals;
-  const atBox=dv('card2 ctr mb10');
-  const atN=dv('xxxl w8 mo');
-  atN.style.color=allTime>=0?'var(--ac)':'var(--ng)';
-  atN.textContent=(allTime<0?'−':'')+Math.abs(allTime).toLocaleString();
-  atBox.appendChild(dv('xs dimmer up ls',t('all-time')));
-  atBox.appendChild(atN);
-  atBox.appendChild(dv('xs dimmer mt4',t('all-time-sub')));
-  body.appendChild(atBox);
 
   // ── 1. Score highlights ──────────────────────────────────────────────────
   const gA=dv('g4 tiles mb10');gA.style.gap='8px';
@@ -6161,18 +6231,17 @@ function renderStats(total,sc){
              ['src-rewards','🤤','pen'],['src-late','🌙','latePen']];
   const srcTot={};SRC.forEach(([,,k])=>srcTot[k]=0);
   let gapTot=0;
+  const penByType={};   // which reward the rewards line is actually made of
+  const addPenBy=m=>{if(m)Object.entries(m).forEach(([k,v])=>penByType[k]=(penByType[k]||0)+v);};
   // The same day list the total adds up: gaps filled in, real days laid over.
   [...histMap().values()].filter(d=>d.date!==todayKey()).forEach(d=>{
     const p=CALC.liveParts(d,STATE.history);
     if(p.gap!==undefined){gapTot+=p.gap;return;}
     SRC.forEach(([,,k])=>srcTot[k]+=p[k]||0);
+    addPenBy(p.penBy);
   });
   SRC.forEach(([,,k])=>srcTot[k]+=sc[k]||0);   // and today, as it stands
-  /* Goals were missing from this panel entirely, which is why the parts never
-     added up to the total: they are paid by the month they close in, not by
-     any day, so walking the day list could never find them. */
-  const goalsTot=allTimeGoals;
-  if(goalsTot)srcTot.goals=goalsTot;
+  addPenBy(sc.penBy);
   const srcBox=dv('card2 mb10');
   srcBox.appendChild(dv('xs dimmer up ls mb8',t('src-title')));
   const pos=SRC.filter(([,,k])=>srcTot[k]>0).sort((a,b)=>srcTot[b[2]]-srcTot[a[2]]);
@@ -6201,8 +6270,25 @@ function renderStats(total,sc){
     pos.forEach(([key,icon,k])=>list.appendChild(
       line(icon,t(key),srcTot[k],posSum?srcTot[k]/posSum:0,'var(--cg)')));
     const negSum=neg.reduce((s,[,,k])=>s+srcTot[k],0)+gapTot;
-    neg.forEach(([key,icon,k])=>list.appendChild(
-      line(icon,t(key),srcTot[k],negSum?srcTot[k]/negSum:0,'var(--ng)')));
+    neg.forEach(([key,icon,k])=>{
+      list.appendChild(line(icon,t(key),srcTot[k],negSum?srcTot[k]/negSum:0,'var(--ng)'));
+      /* One line saying "Rewards −595,925" tells you the size of the problem
+         and nothing about its shape, and the shape is the actionable half:
+         one of them is usually most of it. Indented under the total, each
+         reward with its share OF THAT TOTAL rather than of all the negatives,
+         so the sub-shares read as parts of the line above them. */
+      if(k!=='pen')return;
+      const rows=Object.entries(penByType).filter(([,v])=>v<0).sort((a,b)=>a[1]-b[1]);
+      if(rows.length<2)return;
+      const penSum=rows.reduce((s,[,v])=>s+v,0);
+      rows.forEach(([type,v])=>{
+        const r=(typeof rewardById==='function')?rewardById(type):null;
+        const nm=r?rewardLabel(r):type;
+        const sub=line('',nm,v,penSum?v/penSum:0,'var(--ng)');
+        sub.style.cssText+=';padding-left:22px;opacity:.85';
+        list.appendChild(sub);
+      });
+    });
     if(gapTot)list.appendChild(line('📅',t('src-gaps'),gapTot,negSum?gapTot/negSum:0,'var(--ng)'));
     srcBox.appendChild(list);
     /* The one line that answers the question this whole panel exists for:
@@ -6325,6 +6411,46 @@ function renderStats(total,sc){
   });
   const rwBlock=rwGrid;
 
+  /* ── 6b. The same four questions, asked of the good habits ────────────────
+     The rewards had this and the positive runs did not, which is backwards:
+     the habits are the half you are trying to build, and "how often, how
+     long at best, how long right now" is exactly what you want to know about
+     one. Same shape, same four tiles, read off the same day list — how many,
+     how often, the longest run, the run you are on. A run here counts the
+     days you did the thing, which is what the scoring counts too. */
+  const POS_ATTRS=[
+    {icon:'🌞',name:t('sk-morning'), did:d=>didMorning(d),
+     total:ds=>ds.filter(d=>didMorning(d)).length+'d'},
+    {icon:'🏁',name:t('sk-goals'),   did:d=>!!d.streaks?.some(s=>s.type==='flags'&&s.active),
+     total:ds=>ds.filter(d=>d.streaks?.some(s=>s.type==='flags'&&s.active)).length+'d'},
+    {icon:'💼',name:t('sk-work'),    did:d=>(d.workDuration||0)>0,
+     total:ds=>fmtDur(ds.reduce((s,d)=>s+(d.workDuration||0),0))},
+    {icon:'🍅',name:t('sk-pom'),     did:d=>(d.pomodoros||0)>0,
+     total:ds=>String(Math.round(ds.reduce((s,d)=>s+(d.pomodoros||0),0)*10)/10)},
+    {icon:'😴',name:isEs?'Dormir temprano':'Early bed', did:d=>!!d.sleptEarly,
+     total:ds=>ds.filter(d=>d.sleptEarly).length+'d'},
+    {icon:'🎨',name:isEs?'Días sin rojo':'Non-red days', did:d=>d.status&&d.status!=='red',
+     total:ds=>ds.filter(d=>d.status&&d.status!=='red').length+'d'}
+  ];
+  const posGrid=dv('g4 tiles mb10');posGrid.style.gap='8px';
+  POS_ATTRS.forEach(a=>{
+    const nm=a.icon+' '+a.name;
+    const daysDid=realDays.filter(a.did).length;
+    const pct=totalTracked?Math.round(daysDid/totalTracked*100):0;
+    let best=0,cur=0,end='';
+    sortedH.forEach(d=>{if(!d._gap&&a.did(d)){cur++;if(cur>best){best=cur;end=d.date;}}else cur=0;});
+    let now=0;
+    for(let k=sortedH.length-1;k>=0;k--){const d=sortedH[k];if(d._gap||!a.did(d))break;now++;}
+    posGrid.appendChild(statCard(nm,a.total(realDays),
+      daysDid?'var(--cg)':'var(--t3)',isEs?'en total':'in total'));
+    posGrid.appendChild(statCard(`${isEs?'Días con':'Days with'} ${nm}`,pct+'%',
+      pct>=50?'var(--cg)':'var(--ng)',daysDid+'d'));
+    posGrid.appendChild(statCard(isEs?'Mejor racha':'Best run',best+'d',
+      'var(--cp)',nm,'xl',spanOf(best,end)));
+    posGrid.appendChild(statCard(isEs?'Racha actual':'Current run',now+'d',
+      now?'var(--cg)':'var(--ng)',nm,'xl',now?spanOf(now,lastDay):''));
+  });
+
   // ── 7. Sleep ─────────────────────────────────────────────────────────────
   body.appendChild(grid4(
     statCard(t('sleep-total'),fmtDur(totalSleepMin),'var(--ac)',null),
@@ -6391,6 +6517,8 @@ function renderStats(total,sc){
       goalsTotal()?'+'+goalsTotal().toLocaleString():null)
   ));
 
+  // The habits first, then what they are up against.
+  body.appendChild(posGrid);
   // Last of the tiles, so its ragged end is the end of the tiles.
   body.appendChild(rwBlock);
 
@@ -6399,8 +6527,7 @@ function renderStats(total,sc){
   [['purple','🟣'],['green','🟢'],['yellow','🟡'],['red','🔴']].forEach(([s,e])=>dr.appendChild(sp(`badge s-${s}`,`${e} ${counts[s]}d`)));
   body.appendChild(dr);
 
-  // ── 9. Insight ────────────────────────────────────────────────────────────
-  const ib=dv('card2 s-ac fi');ib.appendChild(sp('sm dim',insight));body.appendChild(ib);
+  // The insight moved to the top, beside the lifetime total — see topRow.
 
   /* ── 10. What to do about it ───────────────────────────────────────────────
      Statistics say what happened; these say what to do next, and they are read
@@ -6434,8 +6561,8 @@ function renderStats(total,sc){
       `${100-dfPct}% de tus días llevan ${nmDrugs}, y cuestan × los días seguidos que llevas. Cortar uno solo rompe el multiplicador.`,
       `${100-dfPct}% of your days carry ${nmDrugs}, and they cost × how many days in a row you have had them. Breaking one day breaks the multiplier.`);
     if(pomPerDay<2)add(55,'🍅',
-      `Vas en ${pomPerDay} pomodoros por día. Cada uno son +25 pts y 25 minutos: tres al día son +75, todos los días.`,
-      `You average ${pomPerDay} pomodoros a day. Each is +25 pts for 25 minutes: three a day is +75, every day.`);
+      `Vas en ${pomPerDay} pomodoros por día. Cada uno son +${POM_PTS} pts × tu racha, y de paso mantienen viva esa racha.`,
+      `You average ${pomPerDay} pomodoros a day. Each is +${POM_PTS} pts × your run, and they keep that run alive.`);
     if(counts.green>0&&purplePct<20)add(50,'🟣',
       `Llegas a verde seguido pero solo ${purplePct}% de tus días son morados. Una tarea más cierra el día completo — y un día morado te cobra CUALQUIER recompensa a precio base, hasta la más pesada.`,
       `You reach green often but only ${purplePct}% of your days are purple. One more task closes the day — and a purple day charges ANY reward at base price, even the heaviest.`);
@@ -6534,7 +6661,7 @@ function renderRules(onClose){
   <div>
     <div class="md up ls ac w7 mb10">💰 Puntos</div>
     <div class="s6">
-      <div>✅ Tarea <span class="ac w6">+1</span> · 🌅 Rutina <span class="ac w6">+25</span> · 🏅 Metas <span class="ac w6">+100</span> · 🍅 Pomodoro <span class="ac w6">+25</span> · 💼 Trabajo <span class="ac w6">+1</span>/min · 😴 Sueño <span class="ac w6">+1</span>/min</div>
+      <div>✅ Tarea <span class="ac w6">+1</span> · 🌅 Rutina <span class="ac w6">+25</span> · 🏅 Metas <span class="ac w6">+100</span> · 🍅 Pomodoro <span class="ac w6">+${POM_PTS}</span> · 💼 Trabajo <span class="ac w6">+1</span>/min · 😴 Sueño <span class="ac w6">+1</span>/min</div>
       <div>🎨 Color del día, se acumula: <span class="cy">🟡 +10</span> · <span class="cg">🟢 +30</span> · <span class="cp">🟣 +60</span>.</div>
       <div>Todo eso <span class="ac w6">× su racha</span> — las tareas van con la de 🏅 Metas. Una racha paga por <span class="ac w6">raíz cuadrada</span> de sus días: 9d ×${multAt(9)} · 100d ×${multAt(100)} · 400d ×${multAt(400)}. Nunca deja de crecer, nunca se dispara.</div>
     </div>
@@ -6546,7 +6673,7 @@ function renderRules(onClose){
       <div>Estas no hacen racha; aquí el premio es <span class="ac w6">acabarlas antes</span>. Te pagan <span class="ac w6">1,000 por cada día que te sobre</span>: una semanal cerrada el domingo vale 7,000 y el sábado 1,000. Una anual llega a 365,000.</div>
       <div>Puedes traer 📅 5 semanales · 📈 5 trimestrales · 🏆 10 anuales. La semana empieza <strong>domingo</strong>. Las del día son tus banderas 🏁.</div>
       <div>La fecha no se mueve. Si se te pasa, la meta sigue ahí y la puedes cerrar, pero ya solo paga lo mínimo — <strong>postergar nunca sale a cuenta</strong>. ¿La cerraste tarde? Corrige la fecha junto a sus puntos.</div>
-      <div class="xs dimmer">Sus puntos caen en el mes en que la cierras, no en el día, para no descuadrar tus promedios.</div>
+      <div class="xs dimmer">Sus puntos caen en el día en que la cerraste, y ahí los ves en el calendario. Si mueves esa fecha, los puntos se mueven con ella.</div>
     </div>
   </div>
   <hr class="dv">
@@ -6605,7 +6732,7 @@ function renderRules(onClose){
   <div>
     <div class="md up ls ac w7 mb10">💰 Points</div>
     <div class="s6">
-      <div>✅ Task <span class="ac w6">+1</span> · 🌅 Morning <span class="ac w6">+25</span> · 🏅 Goals <span class="ac w6">+100</span> · 🍅 Pomodoro <span class="ac w6">+25</span> · 💼 Work <span class="ac w6">+1</span>/min · 😴 Sleep <span class="ac w6">+1</span>/min</div>
+      <div>✅ Task <span class="ac w6">+1</span> · 🌅 Morning <span class="ac w6">+25</span> · 🏅 Goals <span class="ac w6">+100</span> · 🍅 Pomodoro <span class="ac w6">+${POM_PTS}</span> · 💼 Work <span class="ac w6">+1</span>/min · 😴 Sleep <span class="ac w6">+1</span>/min</div>
       <div>🎨 Day colour, it stacks: <span class="cy">🟡 +10</span> · <span class="cg">🟢 +30</span> · <span class="cp">🟣 +60</span>.</div>
       <div>All of it <span class="ac w6">× its run</span> — tasks ride the 🏅 Goals one. A run pays by the <span class="ac w6">square root</span> of its days: 9d ×${multAt(9)} · 100d ×${multAt(100)} · 400d ×${multAt(400)}. It never stops growing and never runs away.</div>
     </div>
@@ -6617,7 +6744,7 @@ function renderRules(onClose){
       <div>These build no runs; here the prize is <span class="ac w6">finishing early</span>. They pay <span class="ac w6">1,000 for every day you have left over</span>: a weekly closed on Sunday is worth 7,000, on Saturday 1,000. A yearly reaches 365,000.</div>
       <div>You can carry 📅 5 weekly · 📈 5 quarterly · 🏆 10 yearly. The week starts <strong>Sunday</strong>. The daily ones are your 🏁 flags.</div>
       <div>The deadline does not move. Miss it and the goal is still there to close, but it only pays the floor — <strong>postponing never wins</strong>. Closed it late? Correct the date next to its points.</div>
-      <div class="xs dimmer">Their points land in the month you close them, not on the day, so they never skew your averages.</div>
+      <div class="xs dimmer">Their points land on the day you closed them, where you can see them in the calendar. Move that date and the points move with it.</div>
     </div>
   </div>
   <hr class="dv">
@@ -7326,6 +7453,8 @@ setInterval(()=>{
   syncPomoPill();
   syncPomoTitle();
   if(p&&p.running){
+    // So the context is awake when the timer expires, not asked to wake then.
+    keepAudioAwake();
     const left=pomoRemaining(p);
     const cl2=document.getElementById('pomo-clock');
     if(cl2)cl2.textContent=fmtClock(left);
