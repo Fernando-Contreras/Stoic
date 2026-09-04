@@ -5,8 +5,9 @@
 <!-- viewport-fit=cover lets the page reach under the notch and the home bar, so
      the safe-area insets below have real numbers to work with. -->
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
-<!-- Rewritten from JS while a pomodoro runs; see syncPomoTitle. -->
-<title>🏛️ Stoic</title>
+<!-- Rewritten from JS while a pomodoro runs; see syncPomoTitle. The building
+     is the favicon's job, not the title's — both at once read as a stutter. -->
+<title>Stoic</title>
 <!-- Browser-tab icon: inline SVG emoji, so it stays single-file and works offline -->
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🏛️%3C/text%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -895,7 +896,10 @@ en:{
   'sleep-lbl':'Sleep','color-lbl':'Color','rewards-lbl':'Rewards','late-night-lbl':'Late night',
   'daily-tasks':'Daily Tasks','comp-target':'Completed / Target','done-ph':'Done','target-ph':'Target',
   'morning-routine':'🌞 Morning Routine','goals-ann':'🏁 Goals Annihilated',
-  'run-lbl':'run','red-base':'red day → base',
+  'run-lbl':'run','of-lbl':'of',
+  'from-days':'From the days','from-goals':'From goals closed this month',
+  'all-time':'All time','all-time-sub':'every day plus every goal',
+  'src-goals':'Goals',
   'num-subs':'# substances','eg-time':'e.g. 45m, 1h30m','min-1':'Min. 1',
   'enter-time':'Enter time','add-btn':'+ Add',
   'base-lbl':'base','streak-lbl':'streak',
@@ -1085,7 +1089,10 @@ es:{
   'sleep-lbl':'Sueño','color-lbl':'Color','rewards-lbl':'Recompensas','late-night-lbl':'Trasnoche',
   'daily-tasks':'Tareas del Día','comp-target':'Completadas / Meta','done-ph':'Hechas','target-ph':'Meta',
   'morning-routine':'🌞 Rutina Matutina','goals-ann':'🏁 Metas Exterminadas alv',
-  'run-lbl':'racha','red-base':'día rojo → base',
+  'run-lbl':'racha','of-lbl':'de',
+  'from-days':'De los días','from-goals':'De metas cerradas este mes',
+  'all-time':'De siempre','all-time-sub':'todos tus días más todas tus metas',
+  'src-goals':'Metas',
   'num-subs':'# sustancias','eg-time':'ej. 45m, 1h30m','min-1':'Mín. 1',
   'enter-time':'Ingresa tiempo','add-btn':'+ Agregar',
   'base-lbl':'base','streak-lbl':'racha',
@@ -1707,6 +1714,9 @@ let STATE={
   editingStreaks:false,
   showSyncPanel:false,
   _lastSavedAt:0,
+  // Survives a reload: an unsent change is a fact about this device, not
+  // about this page view. See markUnsent.
+  _unsent:(()=>{try{return localStorage.getItem('st_unsent')==='1';}catch(e){return false;}})(),
   penType:'drugs', // #3: persist penalty type selection
   // Browses the score card independently of the calendar's own month.
   scoreYM:null,
@@ -1885,7 +1895,12 @@ function save(){
   S.set(K.DIARY,STATE.diary);
   S.set(K.THEME,STATE.theme);
   S.set(K.STREAK_OVR,STATE.streakOverrides);
-  SB.push(STATE.history,STATE.today,STATE.diary,STATE.streakOverrides).catch(()=>{});
+  /* Whether it actually landed is the thing worth knowing — see markUnsent.
+     A push blocked by its own guards (never pulled, or would shrink the
+     cloud) counts as unsent too: the change is here and nowhere else. */
+  SB.push(STATE.history,STATE.today,STATE.diary,STATE.streakOverrides)
+    .then(()=>markUnsent(SB.status!=='ok'))
+    .catch(()=>markUnsent(true));
 }
 
 
@@ -2036,11 +2051,20 @@ function applyRemote(remote){
       STATE.planner={reminders:[],...rest};
       S.set(K.PLANNER,STATE.planner);changed=true;
     }
-    // Whichever device touched the timer last owns it, independently of the list.
+    /* Whichever device touched the timer last owns it, independently of the
+       list — with one exception. A timer that is RUNNING somewhere beats an
+       idle one here regardless of the timestamps: an idle device has nothing
+       to lose by adopting it, and a stale local _ts (a clock a few minutes
+       fast, a write this device made for its own bookkeeping) must not be
+       able to hide a session that is genuinely counting down right now. */
     const rp=remote.planner.pomo;
-    if(rp&&typeof rp==='object'&&(rp._ts||0)>(STATE.pomo._ts||0)){
-      STATE.pomo={...STATE.pomo,...rp};
-      S.set('st_pomo',STATE.pomo);changed=true;
+    if(rp&&typeof rp==='object'){
+      const remoteNewer=(rp._ts||0)>(STATE.pomo._ts||0);
+      const remoteRunningWeIdle=!!rp.running&&!STATE.pomo.running;
+      if(remoteNewer||remoteRunningWeIdle){
+        STATE.pomo={...STATE.pomo,...rp};
+        S.set('st_pomo',STATE.pomo);changed=true;
+      }
     }
   }
 
@@ -2083,15 +2107,43 @@ function isEditing(){
    is already in STATE; this remembers that the screen has yet to show it, so
    the first quiet cycle draws it rather than the change being missed. */
 let _redrawOwed=false;
+/* ── Work done with no signal ──
+   A push that fails leaves the change on this device only, and nothing used
+   to remember that. So an evening of edits on a phone in flight mode was
+   still marked as saved, and the moment the signal came back the first pull
+   arrived carrying a desktop copy with a later saved_at — newer, by the only
+   test there was — and took the whole day back to what the desktop knew. The
+   work was not lost in a merge; it was overwritten by a copy that had simply
+   been pushed more recently than a copy that had never been pushed at all.
+   So a failed push is written down, and it survives a reload: an unsent
+   change is a fact about this device, not about this page view. While it
+   stands, every cycle tries to send before it asks what the cloud has, and
+   the browser saying "you are online again" starts that at once instead of
+   waiting for the next tick. Sent first, the edits carry the newest saved_at
+   themselves, and win by being what they are — the most recent thing done. */
+const K_DIRTY='st_unsent';
+function markUnsent(v){
+  STATE._unsent=!!v;
+  try{v?localStorage.setItem(K_DIRTY,'1'):localStorage.removeItem(K_DIRTY);}catch(e){}
+}
+async function flushUnsent(){
+  if(!STATE._unsent)return true;
+  await SB.push(STATE.history,STATE.today,STATE.diary,STATE.streakOverrides);
+  if(SB.status==='ok'){markUnsent(false);return true;}
+  return false;
+}
 async function bgSync(){
   if(!STATE.authed||!SB.init()) return;
   try{
+    // Ours first, theirs second — never the other way round while we owe a push.
+    if(STATE._unsent&&!await flushUnsent())return;
     const remote=await SB.pull();
     if(applyRemote(remote))_redrawOwed=true;
     if(_redrawOwed&&!isEditing()){_redrawOwed=false;render();}
   }catch(e){/* silent — will retry next cycle */}
 }
 setInterval(bgSync,5000); // every 5s for fast cross-device sync // every 8s
+window.addEventListener('online',()=>{bgSync();});
 /* ═══ DOM HELPERS ═══ */
 function el(t,c,h){const e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e}
 function dv(c,h){return el('div',c,h)}
@@ -2685,9 +2737,17 @@ function pomoElapsed(p){
   return p.running?p.elapsed+Math.floor((CLOCK.now()-p.startedAt)/1000):p.elapsed;
 }
 function pomoRemaining(p){return Math.max(0,pomoPhaseLen(p)-pomoElapsed(p));}
+/* Midnight bookkeeping, and nothing more. This used to go through savePomo,
+   which stamps _ts — the field that decides which device owns the timer. So
+   the first time the Plan tab was drawn on a new day, this device claimed the
+   timer with a brand-new timestamp without anyone having touched it, and a
+   pomodoro genuinely running on the phone could never win the comparison
+   again. Turning the computer on in the morning was enough to do it, which is
+   exactly the case where the timer failed to cross over. Rolling the day is
+   not an edit: it is written down, it is not claimed, and it is not pushed. */
 function pomoRollDay(){
   const p=STATE.pomo,tk=todayKey();
-  if(p.day!==tk){p.day=tk;p.minutesToday=0;p.doneInCycle=0;savePomo();}
+  if(p.day!==tk){p.day=tk;p.minutesToday=0;p.doneInCycle=0;S.set('st_pomo',p);}
 }
 function pomoStart(){
   const p=STATE.pomo;
@@ -2826,13 +2886,18 @@ function syncPomoPill(){
    on screen — nothing about the tab strip is ever a duplicate of the page.
    Paused says so in words rather than freezing a number that is not moving,
    which reads as a hung tab. */
-const PAGE_TITLE='🏛️ Stoic';
+const PAGE_TITLE='Stoic';
 let _titleNow=null;
 function syncPomoTitle(){
   const p=STATE.pomo;
   const live=!!p&&(p.running||(p.elapsed||0)>0)&&STATE.authed;
+  /* No 🏛️ here: the favicon is already showing it right next to the text, and
+     the tab was reading "🏛️ 04:55 · 🏛️ Stoic". The name leads, then the phase
+     and the clock — and the clock drops its leading zero, because 4:55 is how
+     a clock is read out loud and 04:55 is how a machine writes it down. */
+  const clock=fmtClock(pomoRemaining(p||{})).replace(/^0/,'');
   const want=live
-    ? (p.phase==='focus'?'🍅 ':'☕ ')+(p.running?fmtClock(pomoRemaining(p)):'⏸ '+fmtClock(pomoRemaining(p)))+' · '+PAGE_TITLE
+    ? `${PAGE_TITLE} ${p.running?'':'⏸ '}${p.phase==='focus'?'🍅':'☕'} ${clock}`
     : PAGE_TITLE;
   // Only on change: writing document.title every second makes some browsers
   // flash the tab and pushes a history-ish update nobody asked for.
@@ -4925,7 +4990,8 @@ function renderApp(){
   const total=CALC.rangeTotal(STATE.history,monStart,monEnd)+(isCurMonth?sc.total:0)+monthGoals;
   const monthLabel=capFirst(new Date(scY,scM,1).toLocaleDateString(STATE.lang==='es'?'es-MX':'en-US',{month:'long',year:'numeric'}));
   const scoreNav={
-    label:monthLabel,isCurMonth,
+    label:monthLabel,isCurMonth,goals:monthGoals,
+    days:CALC.rangeTotal(STATE.history,monStart,monEnd)+(isCurMonth?sc.total:0),
     onPrev:()=>{let m=scM-1,y=scY;if(m<0){m=11;y--;}STATE.scoreYM={y,m};render();},
     onNext:()=>{if(isCurMonth)return;let m=scM+1,y=scY;if(m>11){m=0;y++;}STATE.scoreYM={y,m};render();}
   };
@@ -5161,6 +5227,18 @@ function renderScoreCard(total,sc,sk_,nav){
     :t('score-past-month');
   big.innerHTML=`<div class="xxxl w8 ac mo">${total>=0?'':'−'}${Math.abs(total).toLocaleString()}</div><div class="sm dim mt4">${sub}</div>`;
   card.appendChild(big);
+  /* Where the month's number comes from, whenever a period goal landed in it.
+     The calendar shows days and only days, so a month carrying 5,000 points
+     of closed goals read as arithmetic that did not add up — days summing to
+     −778 under a headline of +4,222. Both halves are named now, so the total
+     can be checked against what is on screen. */
+  if(nav.goals){
+    const sp2=dv('s4 mt6');
+    const mk=(l,v)=>{const r=dv('rowb');r.innerHTML=`<span class="xs dimmer">${l}</span><span class="xs mo w6 ${v<0?'ng':'ac'}">${v>=0?'+':'−'}${Math.abs(v).toLocaleString()}</span>`;return r;};
+    sp2.appendChild(mk(t('from-days'),nav.days));
+    sp2.appendChild(mk(t('from-goals'),nav.goals));
+    card.appendChild(sp2);
+  }
   const pct=sc.pct,R=28,circ=2*Math.PI*R,off=circ-(pct/100)*circ;
   const cr=dv('row gap12 mt10');cr.style.justifyContent='center';
   cr.innerHTML=`<svg width="70" height="70" class="circ" viewBox="0 0 70 70"><circle cx="35" cy="35" r="${R}" stroke="#22222e" stroke-width="7" fill="none"/><circle cx="35" cy="35" r="${R}" stroke="var(--ac)" stroke-width="7" fill="none" stroke-dasharray="${circ}" stroke-dashoffset="${off}" stroke-linecap="round" style="transition:stroke-dashoffset .4s"/></svg><div><div class="xxl w7 ac mo">${pct}%</div><div class="xs dimmer">${STATE.today.completed}/${STATE.today.target} ${t('tasks-lbl')}</div></div>`;
@@ -5182,12 +5260,11 @@ function renderScoreCard(total,sc,sk_,nav){
    number in front of it already had it in. So the chain is written out in the
    order it happens — the run, the multiplier it earns, the points that come
    out — and the total is last, where an answer belongs.
-   On a red day the multiplier is 1 by design, and a 42-day run showing ×1
-   with no explanation reads as a bug, so the day says so itself. */
+   The ×1 on a red day speaks for itself — it is written right there — so it
+   carries no explanatory tail. The rules are where the why lives. */
 function ptsLine(pts,streakDays,status){
   const m=Math.round(posMult(streakDays,status)*10)/10;
-  const chain=`${t('run-lbl')} ${streakDays}d · ×${m} · +${Math.round(pts*posMult(streakDays,status)).toLocaleString()} ${t('pts-s')}`;
-  return status==='red'&&streakDays>1?`${chain} · 🔴 ${t('red-base')}`:chain;
+  return `${t('run-lbl')} ${streakDays}d · ×${m} · +${Math.round(pts*posMult(streakDays,status)).toLocaleString()} ${t('pts-s')}`;
 }
 /* ═══ TASKS CARD ═══ */
 function renderTasksCard(sc,sk_){
@@ -5197,7 +5274,8 @@ function renderTasksCard(sc,sk_){
   const ir=dv('row gap8 mb10');
   const ci=ip('number','',STATE.today.completed,t('done-ph'));ci.min=0;ci.style.flex='1';
   const ti=ip('number','',STATE.today.target,t('target-ph'));ti.min=1;ti.style.flex='1';
-  ir.appendChild(ci);ir.appendChild(sp('dim md','de'));ir.appendChild(ti);card.appendChild(ir);
+  // Was a hardcoded Spanish "de", printed between the two boxes in English too.
+  ir.appendChild(ci);ir.appendChild(sp('dim md',t('of-lbl')));ir.appendChild(ti);card.appendChild(ir);
   // Update STATE silently while typing — no re-render until Enter or focus leaves card
   ci.oninput=()=>{
     const n=Math.min(Math.max(0,parseInt(ci.value)||0),STATE.today.target||9999);
@@ -6022,6 +6100,26 @@ function renderStats(total,sc){
   if(!allMedals.length)mbox.appendChild(dv('xs dimmer ctr mt8',t('medals-none')));
   body.appendChild(mbox);
 
+  /* ── The lifetime number ──
+     The headline went monthly on purpose: a month is close enough to zero
+     that a day moves it, which an odometer of every day you have ever logged
+     can never be. But the odometer is still the thing you have built, and
+     with nowhere on the page showing it there was no answer to "so how many
+     do I have". It lives here, in the stats, where a number you look at
+     occasionally belongs — days and goals both, so it is the whole of it. */
+  const allTimeDays=[...histMap().values()].filter(d=>d.date!==todayKey())
+    .reduce((s,d)=>s+CALC.liveScore(d,STATE.history),0)+sc.total;
+  const allTimeGoals=goals().filter(g=>g.doneOn).reduce((s,g)=>s+goalPoints(g),0);
+  const allTime=allTimeDays+allTimeGoals;
+  const atBox=dv('card2 ctr mb10');
+  const atN=dv('xxxl w8 mo');
+  atN.style.color=allTime>=0?'var(--ac)':'var(--ng)';
+  atN.textContent=(allTime<0?'−':'')+Math.abs(allTime).toLocaleString();
+  atBox.appendChild(dv('xs dimmer up ls',t('all-time')));
+  atBox.appendChild(atN);
+  atBox.appendChild(dv('xs dimmer mt4',t('all-time-sub')));
+  body.appendChild(atBox);
+
   // ── 1. Score highlights ──────────────────────────────────────────────────
   const gA=dv('g4 tiles mb10');gA.style.gap='8px';
   /* The colours mean something now. Green is a number you want to see, orange
@@ -6059,7 +6157,8 @@ function renderStats(total,sc){
      the parts added back up — just not collapsed into a single figure. */
   const SRC=[['src-work','💼','wrk'],['src-sleep','😴','slp'],['src-flags','🏁','fB'],
              ['src-morning','🌞','mB'],['src-pom','🍅','pom'],['src-color','🎨','col'],
-             ['src-tasks','✅','base'],['src-rewards','🤤','pen'],['src-late','🌙','latePen']];
+             ['src-tasks','✅','base'],['src-goals','🏆','goals'],
+             ['src-rewards','🤤','pen'],['src-late','🌙','latePen']];
   const srcTot={};SRC.forEach(([,,k])=>srcTot[k]=0);
   let gapTot=0;
   // The same day list the total adds up: gaps filled in, real days laid over.
@@ -6069,6 +6168,11 @@ function renderStats(total,sc){
     SRC.forEach(([,,k])=>srcTot[k]+=p[k]||0);
   });
   SRC.forEach(([,,k])=>srcTot[k]+=sc[k]||0);   // and today, as it stands
+  /* Goals were missing from this panel entirely, which is why the parts never
+     added up to the total: they are paid by the month they close in, not by
+     any day, so walking the day list could never find them. */
+  const goalsTot=allTimeGoals;
+  if(goalsTot)srcTot.goals=goalsTot;
   const srcBox=dv('card2 mb10');
   srcBox.appendChild(dv('xs dimmer up ls mb8',t('src-title')));
   const pos=SRC.filter(([,,k])=>srcTot[k]>0).sort((a,b)=>srcTot[b[2]]-srcTot[a[2]]);
@@ -6402,28 +6506,28 @@ function renderRules(onClose){
   <div>
     <div class="md up ls dimmer w7 mb10">📋 Qué es</div>
     <div class="s6">
-      <div>Productividad gamificada, en dos pestañas: <strong>📋 Plan</strong> es tu lista, <strong>📊 Puntaje</strong> es esa lista vuelta puntos y un color.</div>
-      <div>Tu día corre de medianoche a medianoche en <span class="ac w6">una sola zona horaria</span>, igual en todos tus aparatos. La cambias con click en el reloj.</div>
+      <div>Dos pestañas y ya: en <strong>📋 Plan</strong> pones lo que vas a hacer, y en <strong>📊 Puntaje</strong> ves en qué se convirtió — puntos y un color para el día.</div>
+      <div>La idea es simple: lo que haces suma, lo que te das de premio resta, y lo que sostienes día tras día vale cada vez más.</div>
     </div>
   </div>
   <hr class="dv">
   <div>
     <div class="md up ls dimmer w7 mb10">🔗 Plan → Puntaje</div>
     <div class="s6">
-      <div><span class="ac w6">Plan llena solo</span> tu meta del día, tus completadas y tus Metas. <span class="ac w6">Puntaje nunca toca Plan.</span></div>
-      <div>Lo que escribas a mano manda, hasta que edites tu lista en Plan. Pon <span class="ac w6">0</span> en la meta para devolvérsela.</div>
-      <div><span class="cr w6">Los atrasados cuentan</span>: guardan su fecha y siguen sumando a la meta de hoy.</div>
-      <div><span class="cp w6">Etiquetas</span> y <span class="cp w6">subtareas</span> (2 niveles) se palomean por su cuenta. Las repeticiones vuelven en su fecha.</div>
+      <div><span class="ac w6">Plan le pasa todo a Puntaje solo</span>: tu meta del día, lo que llevas hecho y tus Metas. Al revés nunca.</div>
+      <div>Si escribes un número a mano, ese manda — hasta que vuelvas a mover tu lista. ¿Quieres que Plan lo retome? Pon <span class="ac w6">0</span> en la meta.</div>
+      <div><span class="cr w6">Lo que dejaste pendiente no desaparece</span>: conserva su fecha y sigue contando hoy.</div>
+      <div><span class="cp w6">Etiquetas</span>, <span class="cp w6">subtareas</span> y <span class="cp w6">repeticiones</span> funcionan como esperarías. Cada subtarea se paloma por su cuenta.</div>
       <div><span class="ac w6">Cuadrantes</span>: <span class="cr w6">🚨1️⃣</span> hazla ya · <span class="cg w6">👑2️⃣</span> agéndala · <span class="cy w6">🤖3️⃣</span> delégala · <span class="dimmer w6">🤏🏼4️⃣</span> postérgala. La vista <span class="ac w6">✜</span> los pone en cruz.</div>
-      <div>El <span class="ac w6">🍅 pomodoro</span> vive en Plan: 1 min enfocado = 1 pt, 25 min = 1 🍅. <strong>Solo suma</strong>, nunca baja lo que pusiste a mano.</div>
+      <div>El <span class="ac w6">🍅 pomodoro</span> está en Plan: cada minuto enfocado es un punto y cada 25 son un 🍅. Nunca te quita lo que ya habías puesto tú.</div>
     </div>
   </div>
   <hr class="dv">
   <div>
     <div class="md up ls dimmer w7 mb10">📊 El color del día</div>
     <div class="s6">
-      <div>Sale del <strong>% de tu meta</strong>: <span class="cp w6">🟣 100%</span> · <span class="cg w6">🟢 85%</span> · <span class="cy w6">🟡 50%</span> · <span class="cr w6">🔴 menos</span>.</div>
-      <div class="xs dimmer">Exterminar tus Metas 🏁 te sube un nivel. Por eso un día verde puede traer 60% de tareas.</div>
+      <div>Es cuánto de tu meta cerraste: <span class="cp w6">🟣 100%</span> · <span class="cg w6">🟢 85%</span> · <span class="cy w6">🟡 50%</span> · <span class="cr w6">🔴 menos</span>.</div>
+      <div class="xs dimmer">Cerrar tus Metas 🏁 te sube un nivel, así que a veces un día verde trae 60% de tareas. No es error.</div>
     </div>
   </div>
   <hr class="dv">
@@ -6439,17 +6543,17 @@ function renderRules(onClose){
   <div>
     <div class="md up ls dimmer w7 mb10">🏆 Metas de periodo</div>
     <div class="s6">
-      <div>No hacen racha: pagan por <span class="ac w6">terminar temprano</span>. <span class="ac w6">1,000 × cada día que quede</span> — semanal hasta 7,000, trimestral ~92,000, anual 365,000.</div>
-      <div>📅 Semanal máx. 5 · 📈 Trimestral máx. 5 · 🏆 Anual máx. 10. La semana empieza <strong>domingo</strong>. Las <strong>diarias</strong> son tus banderas 🏁.</div>
-      <div>La fecha <strong>no se mueve</strong>. Vencida se arrastra pero ya solo paga 1,000: postergar nunca conviene. Si la cerraste tarde, corrige la fecha junto a sus puntos.</div>
-      <div class="xs dimmer">Sus puntos caen en el <strong>mes en que la cierras</strong>, no en el día.</div>
+      <div>Estas no hacen racha; aquí el premio es <span class="ac w6">acabarlas antes</span>. Te pagan <span class="ac w6">1,000 por cada día que te sobre</span>: una semanal cerrada el domingo vale 7,000 y el sábado 1,000. Una anual llega a 365,000.</div>
+      <div>Puedes traer 📅 5 semanales · 📈 5 trimestrales · 🏆 10 anuales. La semana empieza <strong>domingo</strong>. Las del día son tus banderas 🏁.</div>
+      <div>La fecha no se mueve. Si se te pasa, la meta sigue ahí y la puedes cerrar, pero ya solo paga lo mínimo — <strong>postergar nunca sale a cuenta</strong>. ¿La cerraste tarde? Corrige la fecha junto a sus puntos.</div>
+      <div class="xs dimmer">Sus puntos caen en el mes en que la cierras, no en el día, para no descuadrar tus promedios.</div>
     </div>
   </div>
   <hr class="dv">
   <div>
     <div class="md up ls ng w7 mb10">🤤 Recompensas</div>
     <div class="s6">
-      <div>Premios que quieres mantener a raya. Entre más seguido, más cuestan: <span class="ng w6">× su racha, hasta ×${PEN_CAP}</span>.</div>
+      <div>Son los gustos que quieres mantener a raya. Cuestan puntos, y entre más seguido caes, más caro te sale: <span class="ng w6">× su racha, hasta ×${PEN_CAP}</span>.</div>
       ${rewards().map(r=>`<div><span class="ng w6">${escapeHtml(rewardLabel(r))}</span> — ${r.byMinutes?'por minutos; pasados 30 min entra el multiplicador':t(REWARD_TIERS[r.tier].name).toLowerCase()+', −'+rewardCost(r).toLocaleString()}</div>`).join('')}
       <div><span class="ng w6">🌙 Trasnoché</span> — caro × tu racha de desvelo.</div>
       <div class="xs dimmer"><span class="ac w6">La lista es tuya</span>: renómbralas, cámbiales el ícono, quítalas o agrega las tuyas (hasta 5) con el ⚙ de la tarjeta.</div>
@@ -6473,28 +6577,28 @@ function renderRules(onClose){
   <div>
     <div class="md up ls dimmer w7 mb10">📋 What this is</div>
     <div class="s6">
-      <div>Gamified productivity in two tabs: <strong>📋 Plan</strong> is your list, <strong>📊 Score</strong> is that list turned into points and a colour.</div>
-      <div>Your day runs midnight to midnight in <span class="ac w6">one single timezone</span>, the same on every device. Change it by clicking the clock.</div>
+      <div>Two tabs, that is all: in <strong>📋 Plan</strong> you put what you are going to do, and in <strong>📊 Score</strong> you see what it turned into — points, and a colour for the day.</div>
+      <div>The idea is simple: what you do adds up, what you treat yourself to takes away, and what you keep up day after day is worth more each time.</div>
     </div>
   </div>
   <hr class="dv">
   <div>
     <div class="md up ls dimmer w7 mb10">🔗 Plan → Score</div>
     <div class="s6">
-      <div><span class="ac w6">Plan fills in</span> the day's target, your completed count and your Goals. <span class="ac w6">Score never touches Plan.</span></div>
-      <div>A number you type wins, until you edit your list in Plan. Type <span class="ac w6">0</span> in the target to hand it back.</div>
-      <div><span class="cr w6">Overdue still counts</span>: it keeps its date and goes on adding to today's target.</div>
-      <div><span class="cp w6">Tags</span> and <span class="cp w6">subtasks</span> (two levels) tick on their own. Repeats come back on their date.</div>
+      <div><span class="ac w6">Plan hands everything to Score on its own</span>: the day's target, what you have done and your Goals. Never the other way round.</div>
+      <div>Type a number and that one wins — until you touch your list again. Want Plan to take it back? Put <span class="ac w6">0</span> in the target.</div>
+      <div><span class="cr w6">What you left undone does not vanish</span>: it keeps its date and still counts today.</div>
+      <div><span class="cp w6">Tags</span>, <span class="cp w6">subtasks</span> and <span class="cp w6">repeats</span> work the way you would expect. Each subtask ticks on its own.</div>
       <div><span class="ac w6">Quadrants</span>: <span class="cr w6">🚨1️⃣</span> do it now · <span class="cg w6">👑2️⃣</span> schedule it · <span class="cy w6">🤖3️⃣</span> delegate it · <span class="dimmer w6">🤏🏼4️⃣</span> postpone it. The <span class="ac w6">✜</span> view lays them out as a cross.</div>
-      <div>The <span class="ac w6">🍅 pomodoro</span> lives in Plan: one focused minute is one point, 25 min is one 🍅. It <strong>only adds</strong>, never lowers a count you typed.</div>
+      <div>The <span class="ac w6">🍅 pomodoro</span> is in Plan: every focused minute is a point and every 25 are one 🍅. It never takes away what you put in yourself.</div>
     </div>
   </div>
   <hr class="dv">
   <div>
     <div class="md up ls dimmer w7 mb10">📊 The day's colour</div>
     <div class="s6">
-      <div>It comes from the <strong>% of your target</strong>: <span class="cp w6">🟣 100%</span> · <span class="cg w6">🟢 85%</span> · <span class="cy w6">🟡 50%</span> · <span class="cr w6">🔴 less</span>.</div>
-      <div class="xs dimmer">Annihilating your Goals 🏁 bumps it one tier. That is why a green day can sit on 60% of tasks.</div>
+      <div>It is how much of your target you closed: <span class="cp w6">🟣 100%</span> · <span class="cg w6">🟢 85%</span> · <span class="cy w6">🟡 50%</span> · <span class="cr w6">🔴 less</span>.</div>
+      <div class="xs dimmer">Closing your Goals 🏁 bumps it one tier, so sometimes a green day carries 60% of tasks. That is not a bug.</div>
     </div>
   </div>
   <hr class="dv">
@@ -6510,17 +6614,17 @@ function renderRules(onClose){
   <div>
     <div class="md up ls dimmer w7 mb10">🏆 Period goals</div>
     <div class="s6">
-      <div>No runs here: they pay for <span class="ac w6">finishing early</span>. <span class="ac w6">1,000 × every day still left</span> — weekly up to 7,000, quarterly ~92,000, yearly 365,000.</div>
-      <div>📅 Weekly up to 5 · 📈 Quarterly up to 5 · 🏆 Yearly up to 10. The week starts <strong>Sunday</strong>. <strong>Daily</strong> goals are your 🏁 flags.</div>
-      <div>The deadline <strong>never moves</strong>. Past it a goal carries over but only pays 1,000: postponing never wins. Closed it late? Correct the date next to its points.</div>
-      <div class="xs dimmer">Their points land in the <strong>month you close them</strong>, not on the day.</div>
+      <div>These build no runs; here the prize is <span class="ac w6">finishing early</span>. They pay <span class="ac w6">1,000 for every day you have left over</span>: a weekly closed on Sunday is worth 7,000, on Saturday 1,000. A yearly reaches 365,000.</div>
+      <div>You can carry 📅 5 weekly · 📈 5 quarterly · 🏆 10 yearly. The week starts <strong>Sunday</strong>. The daily ones are your 🏁 flags.</div>
+      <div>The deadline does not move. Miss it and the goal is still there to close, but it only pays the floor — <strong>postponing never wins</strong>. Closed it late? Correct the date next to its points.</div>
+      <div class="xs dimmer">Their points land in the month you close them, not on the day, so they never skew your averages.</div>
     </div>
   </div>
   <hr class="dv">
   <div>
     <div class="md up ls ng w7 mb10">🤤 Rewards</div>
     <div class="s6">
-      <div>Things you want to keep at bay. The more often, the more they cost: <span class="ng w6">× their run, up to ×${PEN_CAP}</span>.</div>
+      <div>The treats you want to keep at bay. They cost points, and the more often you give in, the dearer they get: <span class="ng w6">× their run, up to ×${PEN_CAP}</span>.</div>
       ${rewards().map(r=>`<div><span class="ng w6">${escapeHtml(rewardLabel(r))}</span> — ${r.byMinutes?'by the minute; past 30 min the multiplier kicks in':t(REWARD_TIERS[r.tier].name).toLowerCase()+', −'+rewardCost(r).toLocaleString()}</div>`).join('')}
       <div><span class="ng w6">🌙 Slept Late</span> — expensive × your late-night run.</div>
       <div class="xs dimmer"><span class="ac w6">The list is yours</span>: rename them, change the icon, drop them or add your own (up to 5) from the ⚙ on the card.</div>
