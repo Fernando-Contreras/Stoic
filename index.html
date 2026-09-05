@@ -4182,11 +4182,14 @@ function buildGoals(redraw){
       const runSearch=()=>{
         const q=psi.value.trim().toLowerCase();
         pres.innerHTML='';
-        // Anything still open and not already pointed here. With nothing typed
-        // it offers today's, which is what you are usually reaching for.
+        /* Anything still open and not already pointed here. A goal's steps are
+           usually dated ahead, so with nothing typed we list what is coming up
+           — soonest first, which keeps today's and anything overdue at the top
+           — rather than hiding everything past today. */
         const linked=new Set(served.map(x=>x.id));
         let hits=reminders().filter(x=>!linked.has(x.id)&&!x.done&&x.completedOn!==tk);
-        hits=q?hits.filter(x=>(x.title||'').toLowerCase().includes(q)):hits.filter(x=>x.due<=tk);
+        hits=(q?hits.filter(x=>(x.title||'').toLowerCase().includes(q)):hits.slice())
+              .sort((a,b)=>(a.due||'').localeCompare(b.due||''));
         if(!hits.length){pres.appendChild(sp('xs dimmer',t('rem-parent-none')));return;}
         hits.slice(0,8).forEach(x=>{
           pres.appendChild(bt('btn-ghost btn-xs',x.title.slice(0,34),()=>{
