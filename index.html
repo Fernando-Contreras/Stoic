@@ -2560,6 +2560,14 @@ function plannerTodayStats(){
    They ride on the parent's date so they always sit with it in the same group,
    and ticking a parent ticks everything under it, the way Apple's do. */
 function subtasksOf(id){return reminders().filter(r=>r.parent===id);}
+/* The subtasks still worth showing: a non-repeating one finished on an earlier
+   day is done with and drops out — both from the family window and from the
+   count on the parent row, so a step closed weeks ago never pads the total.
+   Ones ticked today stay (the window strikes them through); repeaters stay. */
+function liveSubtasksOf(id,tk){
+  tk=tk||todayKey();
+  return subtasksOf(id).filter(k=>!(k.done&&k.completedOn!==tk));
+}
 function isCollapsed(id){return !!(STATE.planner.collapsed||{})[id];}
 function toggleCollapse(id){
   STATE.planner.collapsed=STATE.planner.collapsed||{};
@@ -4957,12 +4965,13 @@ function renderReminderRow(r,tk,opts){
   /* Opening the whole family in a window of its own — the title used to do
      this, and the title now belongs to renaming. It reads better on the count
      anyway: what you press is the thing telling you there is something inside.
-     Counted from the family itself, not from what the filters happen to be
-     showing, so a project whose steps are all hidden still says it is one.
+     The count is the steps still live — the same ones the window shows — so a
+     project that grew from 13 to 3 says 3, not 13. View filters (a tag, the
+     scope) do not narrow it; only being finished and gone does.
      Opened fresh every time: an editor left open in there used to still be
      open next time, which reads as a task already being changed — and a 🗑
      pressed in that state is a task deleted by surprise. */
-  const own=r.parent?0:subtasksOf(r.id).length;
+  const own=r.parent?0:liveSubtasksOf(r.id).length;
   if(own){
     if(meta.length)metaLine.appendChild(sp('',' · '));
     const openTree=bt('btn-icon xs',
@@ -7463,9 +7472,7 @@ function renderTaskTreeModal(id){
        row only strikes through what was ticked *today* it came back looking
        untouched, asking to be ticked again every day. Ones ticked today stay,
        struck through, so a family still reads right for the rest of the day. */
-    const kids=subtasksOf(r.id)
-      .filter(k=>!(k.done&&k.completedOn!==tk))
-      .sort((a,b)=>a.due.localeCompare(b.due));
+    const kids=liveSubtasksOf(r.id,tk).sort((a,b)=>a.due.localeCompare(b.due));
     const doneN=kids.filter(k=>k.done||k.completedOn===tk).length;
     const hd=dv('rowb mb12');
     const lft=dv('row gap6');
