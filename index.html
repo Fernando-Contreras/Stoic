@@ -5199,10 +5199,10 @@ function renderApp(){
   }
 
   const grid=dv('g4 mt4');
-  grid.appendChild(renderScoreCard(total,sc,sk_,scoreNav));
-  const c2=dv('s12');c2.appendChild(renderTasksCard(sc,sk_));c2.appendChild(renderSleepCard(sk_,sc.status));grid.appendChild(c2);
-  const c3=dv('s12');c3.appendChild(renderPomCard(sk_,sc.status));c3.appendChild(renderPenCard(sk_,sc.status));grid.appendChild(c3);
-  grid.appendChild(renderWorkCard(sk_,sc.status));
+  const c1=dv('s12');c1.appendChild(renderScoreCard(total,sc,sk_,scoreNav));c1.appendChild(renderTasksCard(sc,sk_));grid.appendChild(c1);
+  grid.appendChild(renderSleepCard(sk_,sc.status));
+  grid.appendChild(renderPenCard(sk_,sc.status));
+  const c4=dv('s12');c4.appendChild(renderPomCard(sk_,sc.status));c4.appendChild(renderWorkCard(sk_,sc.status));grid.appendChild(c4);
   wrap.appendChild(grid);
   wrap.appendChild(renderStreaks(sk_));
   /* Calendar on the left, the picked day on the right — its score, its note,
