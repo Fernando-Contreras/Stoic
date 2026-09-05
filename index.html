@@ -407,9 +407,15 @@ button{cursor:pointer;font-family:var(--ff);font-size:15px;font-weight:600;borde
    transition retriggered every second leaves the page animating forever,
    which is a compositor that never sleeps for no visible gain. */
 #pomo-pill .pp-fill{fill:none;stroke-width:4;stroke-linecap:round}
-#pomo-pill .pp-in{position:relative;text-align:center;line-height:1.1}
-#pomo-pill .pp-ph{font-size:13px;display:block}
-#pomo-pill .pp-cl{font-size:14px;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:.2px}
+/* z-index so the time always sits above the ring's SVG, whatever stacking
+   context the rotated <svg> creates. The time is the point of the bubble;
+   the ring is only its progress. */
+#pomo-pill .pp-in{position:relative;z-index:1;text-align:center;line-height:1.05}
+#pomo-pill .pp-ph{font-size:11px;display:block;opacity:.75;margin-bottom:1px}
+/* The digits carry the phase in their colour — gold while focusing, blue on a
+   break — set alongside the ring in syncPomoPill. Same size on phone and
+   desktop so the bubble reads the same on both. */
+#pomo-pill .pp-cl{font-size:16px;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:.2px;color:var(--ac)}
 @media(max-width:700px){
   /* Clear of the tab bar and of a rounded corner, on the right where the
      thumb already is but not where it rests. */
@@ -418,8 +424,6 @@ button{cursor:pointer;font-family:var(--ff);font-size:15px;font-weight:600;borde
     bottom:calc(80px + env(safe-area-inset-bottom,0px));
     width:66px;height:66px;
   }
-  #pomo-pill .pp-ph{font-size:12px}
-  #pomo-pill .pp-cl{font-size:12px;letter-spacing:0}
 }
 @media(prefers-reduced-motion:reduce){#pomo-pill{transition:none}}
 
@@ -3042,6 +3046,7 @@ function syncPomoPill(){
   el.querySelector('.pp-ph').textContent=focusing?'🍅':'☕';
   const fill=el.querySelector('.pp-fill');
   fill.style.stroke=accent;
+  el.querySelector('.pp-cl').style.color=accent;   // gold focusing, blue on a break
   fill.style.strokeDashoffset=String(PP_C*(1-Math.min(1,Math.max(0,done))));
   el.style.pointerEvents='auto';
   el.classList.toggle('paused',!p.running);
