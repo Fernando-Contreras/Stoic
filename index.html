@@ -7457,7 +7457,15 @@ function renderTaskTreeModal(id){
     const r=reminders().find(x=>x.id===id);
     if(!r){close();return;}
     const tk=todayKey();
-    const kids=subtasksOf(r.id).sort((a,b)=>a.due.localeCompare(b.due));
+    /* A subtask finished on an earlier day and not repeating is done with —
+       it leaves the family window too, the same as it left the main list the
+       day it was ticked. Without this it sat here for good, and because the
+       row only strikes through what was ticked *today* it came back looking
+       untouched, asking to be ticked again every day. Ones ticked today stay,
+       struck through, so a family still reads right for the rest of the day. */
+    const kids=subtasksOf(r.id)
+      .filter(k=>!(k.done&&k.completedOn!==tk))
+      .sort((a,b)=>a.due.localeCompare(b.due));
     const doneN=kids.filter(k=>k.done||k.completedOn===tk).length;
     const hd=dv('rowb mb12');
     const lft=dv('row gap6');
