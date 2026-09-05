@@ -5796,6 +5796,10 @@ function renderPomCard(sk_,todayStatus){
   return card;
 }
 
+/* Which timed rewards have their list of stretches unfolded. Kept out of
+   STATE on purpose: a glance opened for a second should not travel to the
+   other device or survive a reload. */
+let _rwLogOpen={};
 /* ═══ PENALTY CARD — #3 keep type, #4 enter = add ═══ */
 function renderPenCard(sk_,todayStatus){
   const card=dv('card');
@@ -5874,6 +5878,33 @@ function renderPenCard(sk_,todayStatus){
       inp.onkeydown=e=>{if(e.key==='Enter')add();};
       row.appendChild(inp);row.appendChild(bt('btn-ng btn-sm',t('add-btn'),add));
       b.appendChild(row);
+      /* Its own stretches, folded into a count until you want them: three
+         sessions read as "3 · 1h" right here under the reward they belong to,
+         and open to the individual times — each with its own bin — only when
+         tapped. They used to sit in a flat list at the foot of the whole
+         card, stranded under whatever reward happened to be drawn last. */
+      if(entries.length){
+        const es=STATE.lang==='es';
+        const open=!!_rwLogOpen[r.id];
+        const one=entries.length===1;
+        const word=one?(es?'registro':'entry'):(es?'registros':'entries');
+        const sumRow=bt('','',()=>{_rwLogOpen[r.id]=!open;render();});
+        sumRow.style.cssText='display:flex;gap:6px;align-items:center;width:100%;background:none;border:0;padding:6px 0 0;color:var(--t3);cursor:pointer;font:inherit;text-align:left';
+        sumRow.appendChild(sp('xs',`${open?'▾':'▸'} ${entries.length} ${word} · ${fmtDur(mins)}`));
+        b.appendChild(sumRow);
+        if(open){
+          const list=dv('s4 mt4');
+          entries.forEach(p=>{
+            const it=dv('rowb');it.style.alignItems='center';
+            it.appendChild(sp('xs dim',fmtDur(p.details?.minutes||p.count||0)));
+            const rm=bt('btn-icon xs','🗑',()=>{STATE.today.penalties=STATE.today.penalties.filter(x=>x.id!==p.id);commitAndRefresh();});
+            rm.title=t('sel-del');
+            it.appendChild(rm);
+            list.appendChild(it);
+          });
+          b.appendChild(list);
+        }
+      }
     }else{
       // − takes back the last one logged, which is the mistake you just made.
       const row=dv('row gap8 mt8');
@@ -5896,25 +5927,8 @@ function renderPenCard(sk_,todayStatus){
     blocks.appendChild(b);
   });
   card.appendChild(blocks);card.appendChild(errD);
-
-  /* Only the timed entries are listed. A counted reward is fully adjustable
-     from its own − and +, so listing its entries underneath would be the same
-     number written twice; a timed one is a series of separate stretches, and
-     taking back the wrong 45 minutes needs the 45 minutes to be pointed at. */
-  const timed=STATE.today.penalties.filter(p=>rewardById(p.type)?.byMinutes);
-  if(timed.length>1){
-    const list=dv('s6 mt10');
-    timed.forEach(p=>{
-      const rw=rewardById(p.type);
-      const row=dv('pen-it');
-      const info=dv('f1');
-      info.innerHTML=`<div class="sm dim">${escapeHtml(rewardLabel(rw))} · ${fmtDur(p.details?.minutes||0)}</div>`;
-      const rm=bt('btn-icon','🗑',()=>{STATE.today.penalties=STATE.today.penalties.filter(x=>x.id!==p.id);commitAndRefresh();});
-      rm.title=t('sel-del');
-      row.appendChild(info);row.appendChild(rm);list.appendChild(row);
-    });
-    card.appendChild(list);
-  }
+  /* The per-stretch list used to live here, at the foot of the card. It is
+     now inside each timed reward's own block — see the fold above. */
   return card;
 }
 
