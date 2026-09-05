@@ -46,6 +46,13 @@
 }
 /* #9: base font 17px, max-width 1100px = natural 125–150% feel */
 html,body{background:var(--bg);color:var(--t1);font-family:var(--ff);font-size:20px;min-height:100vh;-webkit-font-smoothing:antialiased;line-height:1.55}
+/* Nothing in this app is meant to be reached by scrolling sideways, so
+   sideways scrolling is simply not offered. clip rather than hidden: hidden
+   would turn the page into a scroll container and take the sticky tab bar
+   down with it. Belt to the braces each component already wears — the tab
+   bar's full-width band is 100vw, which counts the scrollbar the viewport
+   does not, and that alone had the page three pixels wider than the window. */
+html,body{overflow-x:clip}
 /* A phone's 100vh is the height with the URL bar hidden, so the page is always
    a bar taller than the screen and always slightly scrollable. dvh is the one
    that means what it says; the line above stays for anything that lacks it. */
@@ -84,9 +91,27 @@ html,body{background:var(--bg);color:var(--t1);font-family:var(--ff);font-size:2
 .ctr{text-align:center}
 
 /* ── LAYOUT ── */
-.g4{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
-.g3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;align-items:start}
-.g2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+/* minmax(0,1fr), not 1fr, on all three. A grid track defaults to a floor of
+   min-content, so anything inside that refuses to be narrowed — a long
+   unbroken line, a ticker that is one wide inline row — pushes its column
+   past its share and the whole page grows sideways with it. A floor of zero
+   says the columns are equal and the content must fit them. */
+.g4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
+.g3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;align-items:start}
+.g2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px}
+.g4>*,.g3>*,.g2>*{min-width:0}
+/* ── THE SCORE TAB'S COLUMNS ──
+   A grid gives every column the same number of cards, which is not the same
+   as the same height: Rewards is short when the list is short, and it left a
+   column of empty page under it while Score's column ran on. Columns rather
+   than a grid, so the browser fills them to an even depth and decides for
+   itself where each card lands. Cards are told not to split across a break —
+   half an input at the foot of one column is worse than any gap. */
+.scol{column-count:3;column-gap:14px}
+.scol>*{break-inside:avoid;-webkit-column-break-inside:avoid;page-break-inside:avoid;
+  display:block;margin:0 0 14px}
+@media(max-width:900px){.scol{column-count:2}}
+@media(max-width:580px){.scol{column-count:1}}
 .rem-sub{margin-left:22px;border-left:2px solid var(--b2);padding-left:8px}
 .tagchip{display:inline-flex;align-items:center;padding:1px 7px;border-radius:99px;font-size:10px;font-weight:700;letter-spacing:.04em;background:var(--pd);color:var(--cp);border:1px solid var(--pb);text-transform:uppercase}
 .row{display:flex;align-items:center}
@@ -336,7 +361,11 @@ button{cursor:pointer;font-family:var(--ff);font-size:15px;font-weight:600;borde
    the second copy is under your eye at the moment the first runs out and the
    loop has no seam. Hovering stops it — a moving target is a hard thing to
    read on purpose — and so does asking for less motion. */
-.gnudge{overflow:hidden;position:relative;cursor:pointer;
+.gnudge{overflow:hidden;position:relative;cursor:pointer;width:100%;min-width:0;
+  /* Its own containment, so the page cannot be widened by it even if some
+     ancestor forgets to say min-width:0. The ticker is one long unbreakable
+     row by construction; nothing outside this box should ever feel that. */
+  contain:paint;
   -webkit-mask-image:linear-gradient(90deg,transparent,#000 8%,#000 92%,transparent);
   mask-image:linear-gradient(90deg,transparent,#000 8%,#000 92%,transparent)}
 .gnudge-track{display:inline-flex;gap:22px;white-space:nowrap;will-change:transform;
@@ -3337,11 +3366,23 @@ function goalPoints(g){
 }
 function goalById(id){return id?goals().find(g=>g.id===id)||null:null;}
 const GOAL_ICON={week:'📅',quarter:'📈',year:'🏆'};
-/* The goal a flagged task is in service of, if it still exists. Deleting a
-   goal leaves the id behind on whatever pointed at it; rather than hunt those
-   down at delete time, the link is simply read as broken and drawn as
-   nothing — the task is untouched and still its own task. */
-function goalOf(r){return r&&r.flagged?goalById(r.goal):null;}
+/* The goals a flagged task is in service of. One task can serve several — a
+   morning of writing is a step toward the weekly draft AND the yearly book,
+   and being made to pick one of them is being made to say something untrue.
+   Stored as a list; a single id from before the list existed is read as a
+   list of one, so nothing already saved needs migrating.
+   Deleting a goal leaves its id behind on whatever pointed at it; rather
+   than hunt those down at delete time, a broken link is read as nothing —
+   the task is untouched and still its own task. */
+function goalIdsOf(r){
+  const v=r&&r.goal;
+  if(!v)return[];
+  return (Array.isArray(v)?v:[v]).filter(Boolean);
+}
+function goalsServedBy(r){
+  if(!r||!r.flagged)return[];
+  return goalIdsOf(r).map(goalById).filter(Boolean);
+}
 /* Recomputed from the completion date rather than read back from what was
    stored, so changing a base re-values past goals instead of leaving a mix of
    old and new rates on the total forever. */
@@ -4088,7 +4129,7 @@ function buildGoals(redraw){
          task's side, so the answer is on the goal itself. Ticked ones are
          struck through — a goal with all its steps down and itself still open
          is exactly the thing worth noticing here. */
-      const served=reminders().filter(x=>x.flagged&&x.goal===g.id);
+      const served=reminders().filter(x=>x.flagged&&goalIdsOf(x).includes(g.id));
       if(served.length){
         const sb=dv('row gap4 mt4');sb.style.flexWrap='wrap';
         served.slice(0,8).forEach(x=>{
@@ -4298,13 +4339,35 @@ function renderReminderEditor(r){
      Only open goals are offered: pointing a task at something already
      finished would be recording a plan you have already carried out. */
   const goalRow=dv('mt6');
-  const openG=GOAL_KINDS.flatMap(k=>goalsOf(k).filter(g=>!g.doneOn||g.id===r.goal)
-    .map(g=>[g.id,({week:'📅',quarter:'📈',year:'🏆'})[k]+' '+g.title]));
-  const gsel=sk('',[['',t('rem-goal-none')],...openG],r.goal||'');
-  gsel.style.cssText='width:100%';
+  const picked=new Set(goalIdsOf(r));
+  /* Chips rather than a <select multiple>, which needs a modifier key held
+     down to pick a second thing and shows about three rows of a list at a
+     time. These are the same chips the tags use, and they toggle. */
+  const openG=GOAL_KINDS.flatMap(k=>goalsOf(k)
+    .filter(g=>!g.doneOn||picked.has(g.id))
+    .map(g=>({g,k})));
+  const gchips=dv('row gap6');gchips.style.flexWrap='wrap';
+  const drawChips=()=>{
+    gchips.innerHTML='';
+    openG.forEach(({g,k})=>{
+      const on=picked.has(g.id);
+      const c=bt('tagchip',`${GOAL_ICON[k]} ${g.title.slice(0,30)}`,e=>{
+        e.preventDefault();
+        if(on)picked.delete(g.id);else picked.add(g.id);
+        drawChips();
+      });
+      c.type='button';
+      c.title=g.title;
+      c.style.cssText+=';cursor:pointer'+(on
+        ?';outline:2px solid var(--ac);color:var(--ac)'
+        :';opacity:.5');
+      gchips.appendChild(c);
+    });
+  };
+  drawChips();
   const syncGoalRow=()=>{goalRow.style.display=fc.checked?'':'none';};
   goalRow.appendChild(dv('xs dimmer mb2',t('rem-goal-for')));
-  goalRow.appendChild(gsel);
+  goalRow.appendChild(gchips);
   // Shown only while it is a flag, because that is the only time it means
   // anything — and it follows the checkbox live rather than after a save.
   fl.addEventListener('click',syncGoalRow);
@@ -4327,8 +4390,8 @@ function renderReminderEditor(r){
     const res=updateReminder(r.id,{
       tags:picker.get(),
       due:di.value||r.due,time:hi.value,priority:parseInt(pi.value)||0,flagged:fc.checked,morning:mcb.checked,
-      // Unflagging drops the link with it: a goal served by nothing is noise.
-      goal:fc.checked?(gsel.value||null):null,
+      // Unflagging drops the links with it: a goal served by nothing is noise.
+      goal:fc.checked?[...picked]:null,
       repeat:ri.value?{unit:ri.value,every:Math.max(1,parseInt(ni.value)||1),
         ...(ri.value==='week'&&wd.get().length?{days:wd.get()}:{}),
         ...(ri.value==='month'&&md.get().length?{doms:md.get()}:{}),
@@ -4677,7 +4740,16 @@ function editableNotes(el,r,after){
     };
     ta.onkeydown=ev=>{if(ev.key==='Escape'){ev.preventDefault();after();}};
     ta.oninput=grow;
-    ta.onblur=put;
+    /* The row this note sits on is draggable — that is how a task is nested
+       under another — and a drag beginning inside a child of a draggable
+       element is handed to the drag, not to the text. So sweeping across a
+       note picked the ROW up instead of selecting a word, which reads as the
+       field being locked. The row stops being draggable for as long as the
+       note is open, exactly as editableTitle already does while renaming. */
+    const row=el.closest('.rem-row');
+    const wasDraggable=row?row.draggable:false;
+    if(row)row.draggable=false;
+    ta.onblur=()=>{if(row)row.draggable=wasDraggable;put();};
     el.replaceWith(ta);ta.focus();
     grow();
   };
@@ -4699,7 +4771,15 @@ function renderReminderRow(r,tk,opts){
   /* Drag to nest, on anything with a pointer. The buttons below do the same
      job for touch, so this is an accelerator and never the only way. */
   row.draggable=true;
-  row.ondragstart=e=>{e.dataTransfer.setData('text/plain',r.id);e.dataTransfer.effectAllowed='move';row.style.opacity='.4';};
+  row.ondragstart=e=>{
+    /* A sweep that begins inside a field is someone selecting text, not
+       someone moving a task. Without this the row picks itself up and the
+       note reads as locked — you cannot drag across a word in it. Said here
+       as well as by the draggable switch each editor flips, so a field added
+       to this row later is safe without anyone remembering why. */
+    if(e.target.closest&&e.target.closest('input,textarea,select'))return e.preventDefault();
+    e.dataTransfer.setData('text/plain',r.id);e.dataTransfer.effectAllowed='move';row.style.opacity='.4';
+  };
   row.ondragend=()=>{row.style.opacity='';row.style.outline='';};
   row.ondragover=e=>{
     const id=STATE._dragId;
@@ -4764,14 +4844,13 @@ function renderReminderRow(r,tk,opts){
      line below it, because it is part of what the task IS — the flag says
      the day is scored on it and this says what it is for. Pressing it opens
      the goals, which is where the rest of that story lives. */
-  const gOf=goalOf(r);
-  if(gOf){
-    const chip=bt('tagchip',`${GOAL_ICON[gOf.kind]} ${gOf.title.slice(0,28)}`,
+  goalsServedBy(r).forEach(g=>{
+    const chip=bt('tagchip',`${GOAL_ICON[g.kind]} ${g.title.slice(0,28)}`,
       e=>{e.stopPropagation();STATE.showGoals=true;render();});
     chip.style.cssText+=';cursor:pointer;border-color:var(--acb);color:var(--ac)';
-    chip.title=gOf.title;
+    chip.title=g.title;
     titleLine.appendChild(chip);
-  }
+  });
   if(r.morning)titleLine.appendChild(sp('sm','🌅'));
   if(quadOf(r)){const p=sp('sm',quadEmoji(quadOf(r)));p.title=quadName(quadOf(r));titleLine.appendChild(p);}
   mid.appendChild(titleLine);
@@ -5396,9 +5475,14 @@ function renderApp(){
     return wrap;
   }
 
-  const grid=dv('g3 mt4');
-  const c1=dv('s12');c1.appendChild(renderScoreCard(total,sc,sk_,scoreNav));c1.appendChild(renderTasksCard(sc,sk_));grid.appendChild(c1);
-  const c2=dv('s12');c2.appendChild(renderSleepCard(sk_,sc.status));c2.appendChild(renderPomCard(sk_,sc.status));c2.appendChild(renderWorkCard(sk_,sc.status));grid.appendChild(c2);
+  /* One card after another, in the order they matter; .scol decides which
+     column each lands in and keeps the columns the same depth. */
+  const grid=dv('scol mt4');
+  grid.appendChild(renderScoreCard(total,sc,sk_,scoreNav));
+  grid.appendChild(renderTasksCard(sc,sk_));
+  grid.appendChild(renderSleepCard(sk_,sc.status));
+  grid.appendChild(renderPomCard(sk_,sc.status));
+  grid.appendChild(renderWorkCard(sk_,sc.status));
   grid.appendChild(renderPenCard(sk_,sc.status));
   wrap.appendChild(grid);
   wrap.appendChild(renderStreaks(sk_));
