@@ -327,6 +327,27 @@ button{cursor:pointer;font-family:var(--ff);font-size:15px;font-weight:600;borde
    phone. The tiles say so themselves now, and stay two across. */
 @media(max-width:580px){.g4.tiles{grid-template-columns:repeat(2,1fr)}}
 
+/* ── THE COMPASS ──
+   A line that said "your biggest goals are your compass" and then did not
+   name one of them. A goal you cannot see is a goal you do not think about,
+   which is the whole problem it was pointing at. So it carries the goals
+   themselves across, one after another, slowly enough to read.
+   The track holds the list twice and slides exactly half its own width, so
+   the second copy is under your eye at the moment the first runs out and the
+   loop has no seam. Hovering stops it — a moving target is a hard thing to
+   read on purpose — and so does asking for less motion. */
+.gnudge{overflow:hidden;position:relative;cursor:pointer;
+  -webkit-mask-image:linear-gradient(90deg,transparent,#000 8%,#000 92%,transparent);
+  mask-image:linear-gradient(90deg,transparent,#000 8%,#000 92%,transparent)}
+.gnudge-track{display:inline-flex;gap:22px;white-space:nowrap;will-change:transform;
+  animation:gnudge-roll linear infinite}
+.gnudge:hover .gnudge-track{animation-play-state:paused}
+@keyframes gnudge-roll{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+@media(prefers-reduced-motion:reduce){
+  .gnudge-track{animation:none}
+  .gnudge{overflow-x:auto;-webkit-mask-image:none;mask-image:none}
+}
+
 /* ── THE FLOATING TIMER ──
    A running pomodoro is the one number in the app that changes while you are
    looking somewhere else, so it is the one thing worth following you down the
@@ -899,7 +920,7 @@ en:{
   'run-lbl':'run','of-lbl':'of',
   'all-time':'All time','all-time-sub':'every day plus every goal',
   'src-goals':'Period goals',   // 🏆 — src-flags is 🏁, the daily ones
-  'num-subs':'# substances','eg-time':'e.g. 45m, 1h30m','min-1':'Min. 1',
+  'eg-time':'e.g. 45m, 1h30m',
   'enter-time':'Enter time','add-btn':'+ Add',
   'base-lbl':'base','streak-lbl':'streak',
   'set-btn':'Set','eg-work':'e.g. 3h, 90m, 2h30m',
@@ -912,7 +933,9 @@ en:{
   'rw-title':'Your rewards','rw-edit':'Edit your rewards',
   'rw-help':'These are the things you want to keep at bay. Rename them, give them your own icon, drop the ones that mean nothing to you, add your own.',
   'rw-light':'Light','rw-serious':'Medium','rw-grave':'Large',
-  'rw-per-min':'−{r} per minute',
+  'rw-per-min':'−{r} per minute · the first {m} min of a day are charged at base and leave the run alone',
+  'rw-measure':'Measured in','rw-by-count':'Times','rw-by-mins':'Minutes',
+  'rw-measure-warn':'Changing how this is measured re-scores every day you have ever logged it on. Continue?',
   'rw-clears-flat':'A run only ends by not doing the thing. A day this good charges it at base and leaves the run alone:',
   'rw-new':'Something you want to cut back on','rw-add':'+ Add','rw-full':'Five is the limit.',
   'rw-locked':'One of each category. Fixed: your whole history was scored with these costs. The name and the icon are yours.',
@@ -1044,6 +1067,7 @@ en:{
   'rem-subtask':'subtask','rem-subtask-ask':'Subtask of "{t}":',
   'rem-notes-ph':'Note (optional)','rem-edit':'Edit','rem-no-parent':'↳ Not a subtask',
   'rem-add-note':'Add note','rem-edit-note':'Click to edit',
+  'rem-goal-for':'🏁 In service of','rem-goal-none':'— No goal —',
   'rem-has-kids':'This one has subtasks of its own, so it cannot become one. Two levels is the limit.',
   'rem-bad-parent':'That cannot be its parent.',
   'rem-parent-is':'Subtask of','rem-parent-search':'Nest under… (type to search)','rem-parent-none':'Nothing matches',
@@ -1092,7 +1116,7 @@ es:{
   'run-lbl':'racha','of-lbl':'de',
   'all-time':'De siempre','all-time-sub':'todos tus días más todas tus metas',
   'src-goals':'Metas de periodo',   // 🏆 — src-flags es 🏁, las del día
-  'num-subs':'# sustancias','eg-time':'ej. 45m, 1h30m','min-1':'Mín. 1',
+  'eg-time':'ej. 45m, 1h30m',
   'enter-time':'Ingresa tiempo','add-btn':'+ Agregar',
   'base-lbl':'base','streak-lbl':'racha',
   'set-btn':'Guardar','eg-work':'ej. 3h, 90m, 2h30m',
@@ -1105,7 +1129,9 @@ es:{
   'rw-title':'Tus recompensas','rw-edit':'Editar tus recompensas',
   'rw-help':'Son las cosas que quieres mantener a raya. Renómbralas, ponles tu propio ícono, quita las que no te digan nada, agrega las tuyas.',
   'rw-light':'Ligera','rw-serious':'Media','rw-grave':'Grande',
-  'rw-per-min':'−{r} por minuto',
+  'rw-per-min':'−{r} por minuto · los primeros {m} min del día se cobran a base y no le mueven a la racha',
+  'rw-measure':'Se mide en','rw-by-count':'Veces','rw-by-mins':'Minutos',
+  'rw-measure-warn':'Cambiar cómo se mide recalcula todos los días en que la hayas registrado. ¿Continuar?',
   'rw-clears-flat':'Una racha solo termina no haciendo la cosa. Un día así de bueno la cobra a precio base y no le toca la racha:',
   'rw-new':'Algo que quieras reducir','rw-add':'+ Agregar','rw-full':'Cinco es el límite.',
   'rw-locked':'Una de cada categoría. Fija: todo tu historial se calculó con estos costos. El nombre y el ícono sí son tuyos.',
@@ -1237,6 +1263,7 @@ es:{
   'rem-subtask':'subtarea','rem-subtask-ask':'Subtarea de "{t}":',
   'rem-notes-ph':'Nota (opcional)','rem-edit':'Editar','rem-no-parent':'↳ No es subtarea',
   'rem-add-note':'Agregar nota','rem-edit-note':'Click para editar',
+  'rem-goal-for':'🏁 Al servicio de','rem-goal-none':'— Sin meta —',
   'rem-has-kids':'Esta ya tiene subtareas, así que no puede volverse una. El límite son 2 niveles.',
   'rem-bad-parent':'Esa no puede ser su tarea padre.',
   'rem-parent-is':'Subtarea de','rem-parent-search':'Meterla bajo… (escribe para buscar)','rem-parent-none':'Nada coincide',
@@ -1354,6 +1381,40 @@ const POM_PTS=10;
 // What that run pays at n days — the number the rules quote.
 function multAt(n){return Math.round(streakMult(n)*10)/10;}
 function capPenStreak(n){return Math.min(PEN_CAP,Math.max(1,n||1));}
+/* ── The daily allowance on anything measured in minutes ──
+   A reward counted in units is binary: you had one or you did not. Time is
+   not. Nobody reaches zero minutes on a phone they answer their family on,
+   so the app has always granted 30 minutes a day before the multiplier
+   engages — and then contradicted itself by letting one single minute carry
+   the run forward. The rules said 30 minutes were allowed while the streak
+   counted a 5-minute day as another day of the habit, so a run could climb
+   to a hundred out of days the app itself had called fine, and the number
+   measured nothing: the multiplier it fed could never fire at that size.
+
+   One threshold now governs both. At or under it, the minutes are still
+   charged — time is never free — but at base, the run does not advance, and
+   the day reads as clean. Over it, the run advances and the multiplier bites.
+   The escalation is for a habit; days inside the allowance are not one.
+
+   The loophole this leaves is deliberate and priced: 29 minutes every day
+   forever keeps a clean run, and costs PEN_RATE a minute for every one of
+   them, which over a year is not a rounding error. What it never becomes is
+   a hundred-day run — because it never was one. */
+const FREE_MINS=30;
+// Minutes logged against one reward on one day, however many entries it took.
+function penMinutesOn(day,type){
+  return (day.penalties||[]).filter(p=>p.type===type)
+    .reduce((s,p)=>s+(p.details?.minutes||p.count||0),0);
+}
+/* Did this day count as an episode of this reward — the one question the
+   cost, the run and the clean-day stat all have to answer the same way. */
+function dayHasReward(day,rOrId){
+  const r=(rOrId&&typeof rOrId==='object')?rOrId
+    :(typeof rewardById==='function'?rewardById(rOrId):null);
+  const type=(rOrId&&typeof rOrId==='object')?rOrId.id:rOrId;
+  if(!(day.penalties||[]).some(p=>p.type===type))return false;
+  return r&&r.byMinutes?penMinutesOn(day,type)>FREE_MINS:true;
+}
 /* A good day used to END a reward run, and then for a while nothing ended one
    but breaking it. Both were wrong in the same way: a run is a fact about what
    you have been doing, and one good day does not undo ten days of doing it —
@@ -1393,23 +1454,37 @@ const CALC={
     if(p.type==='drugs')return Math.round(-25*mult*(p.details?.substances||1));
     if(p.type==='internet')return Math.round(-1*mult*(p.details?.minutes||0));
     if(p.type==='macanazo')return p.details?.isPositive?100:Math.round(-100*mult);
-    // Anything you add costs by the weight you gave it, times how many.
     const r=(typeof rewardById==='function')?rewardById(p.type):null;
+    /* Timed ones are priced by the minute, the same rate procrastination has
+       always paid. Charging a timed reward its tier's price per minute would
+       have made one long evening cost more than a month of the counted kind
+       — the weight decides how good a day must be to discount it, not how
+       many points a minute is worth. */
+    if(r&&r.byMinutes)return Math.round(-1*mult*(p.details?.minutes||p.count||0));
+    // Anything you add costs by the weight you gave it, times how many.
     if(r)return Math.round(-REWARD_TIERS[r.tier].base*mult*(p.count||1));
     return 0;
   },
   // Renamed from diffMult — there is no difficulty left for it to read.
   penMult(){return PEN_RATE;},
-  // single source of truth for the procrastination-penalty multiplier —
-  // was previously duplicated 3x with mismatched thresholds/fallbacks
-  procMult(procMins,streak){
-    return procMins>30?capPenStreak(streak):1;
+  /* What a minutes-based reward multiplies by on a day. Under the allowance
+     it is charged at base — see FREE_MINS — and over it, by its run. This
+     used to be named for procrastination and applied only to it; any reward
+     you set to count minutes gets the same deal, because the reason is about
+     time and not about which reward it is. */
+  minsMult(mins,streak){
+    return mins>FREE_MINS?capPenStreak(streak):1;
   },
+  // Kept under its old name: called from renderPenCard and from score().
+  procMult(procMins,streak){return this.minsMult(procMins,streak);},
   streaks(history,today){
     const tk=todayKey();
     // #1 FIX: exclude today from history scan entirely
     const hist=[...history].filter(d=>d.date!==tk).sort((a,b)=>new Date(a.date)-new Date(b.date));
-    const hasPen=(d,t)=>d.penalties?.some(p=>p.type===t)||false;
+    /* Through dayHasReward, so a day inside the daily allowance of a
+       minutes-based reward neither carries its run forward nor breaks the
+       clean one. See FREE_MINS. */
+    const hasPen=(d,t)=>dayHasReward(d,t);
     const hasSt=(d,t)=>d.streaks?.some(s=>s.type===t&&s.active)||false;
     function pStrk(type,resetOn){let c=0;for(let i=hist.length-1;i>=0;i--){if(!hasPen(hist[i],type))break;if(resetOn.includes(hist[i].status))break;c++;}return c;}
     function aStrk(type){let c=0;for(let i=hist.length-1;i>=0;i--){if(hasPen(hist[i],type))break;c++;}return c;}
@@ -1428,9 +1503,10 @@ const CALC={
     function eStrk(){let c=0;for(let i=hist.length-1;i>=0;i--){if(!hist[i].sleptEarly)break;c++;}return c;}
     function cStrk(){let c=0;for(let i=hist.length-1;i>=0;i--){if(hist[i].status==='red'||hist[i]._gap)break;c++;}return c;}
     function lStrk(resetOn){let c=0;for(let i=hist.length-1;i>=0;i--){if(!hist[i].sleptLate||(resetOn||[]).includes(hist[i].status))break;c++;}return c;}
-    const tD=today.penalties.some(p=>p.type==='drugs');
-    const tN=today.penalties.some(p=>p.type==='internet');
-    const tM=today.penalties.some(p=>p.type==='macanazo');
+    // Today asked the same way, allowance included.
+    const tD=dayHasReward(today,'drugs');
+    const tN=dayHasReward(today,'internet');
+    const tM=dayHasReward(today,'macanazo');
     const tLate=today.sleep?.sleptLate||false;
 
     /* No colour ends a reward run any more — see TIER_FORGIVES. A run counts
@@ -1459,7 +1535,7 @@ const CALC={
          its weight only says which colour discounts a day of it. */
       ...(typeof rewards==='function'?rewards().reduce((acc,r)=>{
         if(r.builtin)return acc;
-        const hadToday=today.penalties.some(p=>p.type===r.id);
+        const hadToday=dayHasReward(today,r);
         acc[penKey(r.id)]=pStrk(r.id,[])+(hadToday?1:0);
         acc[cleanKey(r.id)]=hadToday?0:aStrk(r.id);
         return acc;
@@ -1501,10 +1577,13 @@ const CALC={
       if(p.type==='drugs')mult=freeToday('drugs')?1:capPenStreak(s.substancesPenaltyStreak);
       else if(p.type==='internet')mult=freeToday('internet')?1:this.procMult(procMins,s.procrastinationPenaltyStreak);
       else if(p.type==='macanazo')mult=freeToday('macanazo')?1:capPenStreak(s.macanazoPenaltyStreak);
-      // Yours multiply by their own run, and are discounted by their own weight.
+      // Yours multiply by their own run, and are discounted by their own weight
+      // — and if you set one to count minutes, by the same allowance.
       else if(typeof penKey==='function'){
         const r=(typeof rewardById==='function')?rewardById(p.type):null;
-        mult=(r&&rewardForgives(r).includes(status))?1:capPenStreak(s[penKey(p.type)]);
+        mult=(r&&rewardForgives(r).includes(status))?1
+          :(r&&r.byMinutes)?this.minsMult(penMinutesOn({penalties},p.type),s[penKey(p.type)])
+          :capPenStreak(s[penKey(p.type)]);
       }
       const v=b*mult;
       penBy[p.type]=(penBy[p.type]||0)+v;
@@ -1607,9 +1686,10 @@ const CALC={
         pomoStreak=this.streakAtDay(sorted,idx,d=>(d.pomodoros||0)>0)||1;
         earlyBedStreak=this.streakAtDay(sorted,idx,d=>d.sleptEarly)||1;
         lateStreak=this.streakAtDay(sorted,idx,d=>d.sleptLate)||1;
-        subsStreak=this.streakAtDay(sorted,idx,d=>d.penalties?.some(p=>p.type==='drugs'))||1;
-        procStreak=this.streakAtDay(sorted,idx,d=>d.penalties?.some(p=>p.type==='internet'))||1;
-        macStreak=this.streakAtDay(sorted,idx,d=>d.penalties?.some(p=>p.type==='macanazo'))||1;
+        // Same question the live streaks ask, allowance and all.
+        subsStreak=this.streakAtDay(sorted,idx,d=>dayHasReward(d,'drugs'))||1;
+        procStreak=this.streakAtDay(sorted,idx,d=>dayHasReward(d,'internet'))||1;
+        macStreak=this.streakAtDay(sorted,idx,d=>dayHasReward(d,'macanazo'))||1;
         // Consecutive non-red days BEFORE this one — gaps are already excluded
         // from `sorted`, and the day itself never counts toward its own streak.
         colorMult=Math.max(1,this.streakAtDay(sorted,idx-1,d=>d.status!=='red'));
@@ -1674,7 +1754,12 @@ const CALC={
       const b=this.penBase({type:p.type,details:det,count:p.count});
       let mult=1;
       if(p.type==='drugs') mult=subsFree?1:capPenStreak(subsStreak);
-      else if(p.type==='internet') mult=procFree?1:capPenStreak(procStreak);
+      /* Through the allowance, exactly as score() charges today. This line
+         used to read capPenStreak(procStreak) with no mention of minutes, so
+         the same twenty-minute evening cost base while it was today and
+         base × its run the moment it became history — the one number the
+         calendar shows disagreeing with the one the card showed. */
+      else if(p.type==='internet') mult=procFree?1:this.minsMult(penMinutesOn(e,'internet'),procStreak);
       else if(p.type==='macanazo') mult=macFree?1:capPenStreak(macStreak);
       /* One you added. Its run through history is counted here the same way
          the three above are, and its own weight says which colour discounts a
@@ -1685,8 +1770,10 @@ const CALC={
         if(r&&!rewardForgives(r).includes(st)&&Array.isArray(allHistory)){
           const sorted=[...allHistory].filter(h=>!h._gap).sort((a,b)=>a.date.localeCompare(b.date));
           const idx=sorted.findIndex(h=>h.date===e.date);
-          if(idx>=0)mult=capPenStreak(this.streakAtDay(sorted,idx,
-            d=>d.penalties?.some(x=>x.type===p.type)));
+          if(idx>=0){
+            const run=this.streakAtDay(sorted,idx,d=>dayHasReward(d,r));
+            mult=r.byMinutes?this.minsMult(penMinutesOn(e,p.type),run):capPenStreak(run);
+          }
         }
       }
       const v=b*mult;
@@ -2181,6 +2268,27 @@ function bt(c,t,f){const b=el('button',c,t);b.onclick=f;return b}
 function ip(t,c,v,p){const i=document.createElement('input');i.type=t;i.className=c;i.value=v??'';if(p)i.placeholder=p;return i}
 function sk(c,opts,v){const s=document.createElement('select');s.className=c;opts.forEach(([ov,l])=>{const o=document.createElement('option');o.value=ov;o.textContent=l;if(ov===v)o.selected=true;s.appendChild(o);});return s}
 function sp(c,t){const s=el('span',c);if(t!==undefined)s.textContent=t;return s}
+/* Closing an overlay by pressing the page behind it, without closing it when
+   you were only selecting text inside it.
+
+   A click fires on the nearest ancestor of where the press began and where it
+   ended, so dragging from inside a note out past the edge of the panel — which
+   is exactly what selecting a whole line looks like when you sweep to the far
+   side of the screen to be sure you caught it all — delivered a click whose
+   target was the backdrop. The panel closed, taking the half-written thing
+   with it. What matters is where the press STARTED: begin inside, and the
+   gesture belongs to the panel however far it wanders. */
+function closeOnBackdrop(ov,close){
+  let downOn=null;
+  const mark=e=>{downOn=e.target;};
+  ov.addEventListener('mousedown',mark);
+  ov.addEventListener('touchstart',mark,{passive:true});
+  ov.onclick=e=>{
+    const started=downOn;downOn=null;
+    if(e.target===ov&&started===ov)close();
+  };
+  return ov;
+}
 /* For the few places that build a line with innerHTML and need to put your own
    words inside it. A task called "<b>" is a task called "<b>", not bold. */
 function escapeHtml(s){return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
@@ -3227,6 +3335,13 @@ function goalIsLate(g,from){
 function goalPoints(g){
   return GOAL_BASE[g.kind]*goalDaysLeft(g);
 }
+function goalById(id){return id?goals().find(g=>g.id===id)||null:null;}
+const GOAL_ICON={week:'📅',quarter:'📈',year:'🏆'};
+/* The goal a flagged task is in service of, if it still exists. Deleting a
+   goal leaves the id behind on whatever pointed at it; rather than hunt those
+   down at delete time, the link is simply read as broken and drawn as
+   nothing — the task is untouched and still its own task. */
+function goalOf(r){return r&&r.flagged?goalById(r.goal):null;}
 /* Recomputed from the completion date rather than read back from what was
    stored, so changing a base re-values past goals instead of leaving a mix of
    old and new rates on the total forever. */
@@ -3418,7 +3533,34 @@ function renderPlanner(){
   /* A total sitting under the three tiles read as though it counted the day's
      flags as well, which it never did — the long goals are paid apart. It
      points at the tiles instead, and says what pressing one is for. */
-  sum.appendChild(dv('xs ac ctr mt6 w6',t('goal-nudge')+' ↑'));
+  /* The goals themselves, rolling past, rather than a sentence about them.
+     Only the ones still open: a compass points at what is left to reach, and
+     a finished goal on the ticker is one more thing to read past. With none
+     open it falls back to the sentence, which is the only time it is true
+     that there is nothing to name. */
+  const openGoals=GOAL_KINDS.flatMap(kind=>
+    goalsOf(kind).filter(g=>!g.doneOn).map(g=>({kind,g})));
+  if(openGoals.length){
+    const strip=dv('gnudge mt6');
+    strip.title=t('goal-nudge');
+    strip.onclick=()=>{STATE.showGoals=true;render();};
+    const track=dv('gnudge-track');
+    const icon={week:'📅',quarter:'📈',year:'🏆'};
+    // Twice through, so the loop meets itself; see the keyframes.
+    for(let pass=0;pass<2;pass++)openGoals.forEach(({kind,g})=>{
+      const it=sp('xs ac w6',`${icon[kind]} ${g.title}`);
+      it.setAttribute('aria-hidden',pass?'true':'false');
+      track.appendChild(it);
+    });
+    /* Paced by how much there is to read rather than by a fixed duration, so
+       one goal does not crawl and eight do not sprint. */
+    const chars=openGoals.reduce((s,x)=>s+x.g.title.length+3,0);
+    track.style.animationDuration=Math.max(12,Math.round(chars*0.45))+'s';
+    strip.appendChild(track);
+    sum.appendChild(strip);
+  }else{
+    sum.appendChild(dv('xs ac ctr mt6 w6',t('goal-nudge')+' ↑'));
+  }
 
   /* The day's goals are the flagged reminders, so they live here rather than
      with the long goals — foldable, since on a busy day the list is long. */
@@ -3829,7 +3971,7 @@ function renderPlanner(){
     const close=()=>{STATE.showGoals=false;render();};
     const ov=dv('fi');
     ov.classList.add('ovl');
-    ov.onclick=e=>{if(e.target===ov)close();};
+    closeOnBackdrop(ov,close);
     const panel=dv('card');
     panel.style.cssText='max-width:1100px;width:100%;margin:auto;max-height:none';
     const hd=dv('rowb mb4');
@@ -3939,6 +4081,25 @@ function buildGoals(redraw){
             `<span class="ac w6">${t('goal-worth')} ${now.toLocaleString()}</span>`+
             (tomorrow<now?` <span class="dimmer">· ${t('goal-tomorrow')} ${tomorrow.toLocaleString()}</span>`:'')));
         }
+      }
+      /* The flags pointed at this goal, and whether they are down. A goal was
+         a sentence in a window with no way of knowing whether anything was
+         being done about it; this is the other half of the link made from the
+         task's side, so the answer is on the goal itself. Ticked ones are
+         struck through — a goal with all its steps down and itself still open
+         is exactly the thing worth noticing here. */
+      const served=reminders().filter(x=>x.flagged&&x.goal===g.id);
+      if(served.length){
+        const sb=dv('row gap4 mt4');sb.style.flexWrap='wrap';
+        served.slice(0,8).forEach(x=>{
+          const done=x.completedOn===tk||x.done;
+          const c=sp('tagchip',(done?'✓ ':'🏁 ')+x.title.slice(0,26));
+          c.title=x.title;
+          c.style.cssText+=done?';opacity:.5;text-decoration:line-through':'';
+          sb.appendChild(c);
+        });
+        if(served.length>8)sb.appendChild(sp('xs dimmer','+'+(served.length-8)));
+        mid.appendChild(sb);
       }
       row.appendChild(mid);
       const gdel=bt('btn-icon','🗑',()=>{
@@ -4127,6 +4288,29 @@ function renderReminderEditor(r){
   ml.appendChild(mcb);ml.appendChild(mw);
   ml.onclick=e=>{if(e.target!==mcb)mcb.checked=!mcb.checked;ml.classList.toggle('on',mcb.checked);};
   r4.appendChild(ri);r4.appendChild(ni);r4.appendChild(fl);r4.appendChild(ml);box.appendChild(r4);
+
+  /* Which big goal this flag is in service of. A flag says "this is one of
+     the three that decide today"; it never said what any of them was FOR, so
+     the weekly and yearly goals sat in their own window being no part of the
+     day. Naming one here is not nesting — the task keeps its own date, its
+     own tick and its own points — it only records what it is a step toward,
+     which is enough to make the goal visible on the day it is being served.
+     Only open goals are offered: pointing a task at something already
+     finished would be recording a plan you have already carried out. */
+  const goalRow=dv('mt6');
+  const openG=GOAL_KINDS.flatMap(k=>goalsOf(k).filter(g=>!g.doneOn||g.id===r.goal)
+    .map(g=>[g.id,({week:'📅',quarter:'📈',year:'🏆'})[k]+' '+g.title]));
+  const gsel=sk('',[['',t('rem-goal-none')],...openG],r.goal||'');
+  gsel.style.cssText='width:100%';
+  const syncGoalRow=()=>{goalRow.style.display=fc.checked?'':'none';};
+  goalRow.appendChild(dv('xs dimmer mb2',t('rem-goal-for')));
+  goalRow.appendChild(gsel);
+  // Shown only while it is a flag, because that is the only time it means
+  // anything — and it follows the checkbox live rather than after a save.
+  fl.addEventListener('click',syncGoalRow);
+  syncGoalRow();
+  if(openG.length)box.appendChild(goalRow);
+
   const wd=weekdayPicker(r.repeat&&r.repeat.days||[]);
   const md=monthdayPicker(r.repeat&&r.repeat.doms||[]);
   wd.el.style.display=(r.repeat&&r.repeat.unit==='week')?'':'none';
@@ -4143,6 +4327,8 @@ function renderReminderEditor(r){
     const res=updateReminder(r.id,{
       tags:picker.get(),
       due:di.value||r.due,time:hi.value,priority:parseInt(pi.value)||0,flagged:fc.checked,morning:mcb.checked,
+      // Unflagging drops the link with it: a goal served by nothing is noise.
+      goal:fc.checked?(gsel.value||null):null,
       repeat:ri.value?{unit:ri.value,every:Math.max(1,parseInt(ni.value)||1),
         ...(ri.value==='week'&&wd.get().length?{days:wd.get()}:{}),
         ...(ri.value==='month'&&md.get().length?{doms:md.get()}:{}),
@@ -4574,6 +4760,18 @@ function renderReminderRow(r,tk,opts){
   editableTitle(tt,r,rd,row);
   titleLine.appendChild(tt);
   if(r.flagged)titleLine.appendChild(sp('sm','🏁'));
+  /* What this flag is a step toward. Beside the flag rather than in the meta
+     line below it, because it is part of what the task IS — the flag says
+     the day is scored on it and this says what it is for. Pressing it opens
+     the goals, which is where the rest of that story lives. */
+  const gOf=goalOf(r);
+  if(gOf){
+    const chip=bt('tagchip',`${GOAL_ICON[gOf.kind]} ${gOf.title.slice(0,28)}`,
+      e=>{e.stopPropagation();STATE.showGoals=true;render();});
+    chip.style.cssText+=';cursor:pointer;border-color:var(--acb);color:var(--ac)';
+    chip.title=gOf.title;
+    titleLine.appendChild(chip);
+  }
   if(r.morning)titleLine.appendChild(sp('sm','🌅'));
   if(quadOf(r)){const p=sp('sm',quadEmoji(quadOf(r)));p.title=quadName(quadOf(r));titleLine.appendChild(p);}
   mid.appendChild(titleLine);
@@ -4713,7 +4911,7 @@ function openAddForm(quad){
 function renderAddModal(){
   const ov=dv('fi');
   ov.classList.add('ovl');
-  ov.onclick=e=>{if(e.target===ov)closeAddForm();};
+  closeOnBackdrop(ov,closeAddForm);
   const panel=dv('card');
   panel.style.cssText='max-width:560px;width:100%;margin:auto';
   ov.appendChild(panel);
@@ -5457,12 +5655,14 @@ function renderPenCard(sk_,todayStatus){
     if(p.type==='internet')return freeToday('internet')?1:CALC.procMult(procMins,sk_.procrastinationPenaltyStreak);
     if(p.type==='macanazo')return freeToday('macanazo')?1:capPenStreak(sk_.macanazoPenaltyStreak);
     const r=rewardById(p.type);
-    return (r&&rewardForgives(r).includes(todayStatus))?1:capPenStreak(sk_[penKey(p.type)]);
+    if(r&&rewardForgives(r).includes(todayStatus))return 1;
+    // Yours, measured in minutes, get the same allowance the built-in one has.
+    if(r&&r.byMinutes)return CALC.minsMult(penMinutesOn(STATE.today,p.type),sk_[penKey(p.type)]);
+    return capPenStreak(sk_[penKey(p.type)]);
   };
-  const penPts=STATE.today.penalties.reduce((sum,p)=>{
-    const b=CALC.penBase(p);const procMins=STATE.today.penalties.filter(x=>x.type==='internet').reduce((s,x)=>s+(x.details?.minutes||0),0);
-    return sum+b*penMultFor(p,procMins);
-  },0);
+  const procMinsTotal=()=>penMinutesOn(STATE.today,'internet');
+  const penPts=STATE.today.penalties.reduce((sum,p)=>
+    sum+CALC.penBase(p)*penMultFor(p,procMinsTotal()),0);
   const tr=dv('rowb mb10');
   tr.appendChild(sp('ctit',t('rewards-lbl')));
   const trr=dv('row gap6');
@@ -5473,80 +5673,94 @@ function renderPenCard(sk_,todayStatus){
   trr.appendChild(edB);
   tr.appendChild(trr);card.appendChild(tr);
 
-  // The picker is built from your list, whatever is on it.
-  const list_=rewards();
-  if(!list_.some(r=>r.id===STATE.penType))STATE.penType=list_[0]?.id||'drugs';
-  const tEl=sk('mb8',list_.map(r=>[r.id,rewardLabel(r)]),STATE.penType);
-  tEl.onchange=()=>{STATE.penType=tEl.value;updateDet();};
-  card.appendChild(tEl);
+  /* One block per reward, the way the pomodoro and the work card already do
+     it: what it stands at today, what that is costing, and the control that
+     changes it — right there, no picking first.
 
-  const dw=dv('mb8');
-  const si=ip('number','',1,t('num-subs'));si.min=1;
-  const pi=ip('text','','',t('eg-time'));
+     The dropdown-then-input-then-Add above it took three actions to log one
+     thing and never showed where any of them stood: the number you were
+     adding to was somewhere further down the card, in a list. A counted
+     reward gets the pomodoro's −/+ and a timed one gets the work card's
+     duration box, because that is what each of them is. */
   const errD=dv('xs ng mb8');
+  const blocks=dv('s6');
+  rewards().forEach(r=>{
+    const entries=STATE.today.penalties.filter(p=>p.type===r.id);
+    const mins=penMinutesOn(STATE.today,r.id);
+    const units=entries.reduce((s,p)=>s+(p.details?.substances||p.count||1),0);
+    const baseSum=entries.reduce((s,p)=>s+CALC.penBase(p),0);
+    const mult=penMultFor({type:r.id},procMinsTotal());
+    const cost=Math.round(baseSum*mult);
+    const run=sk_[penKey(r.id)]||0;
 
-  function doAdd(){
-    errD.textContent='';
-    const type=tEl.value;
-    const r=rewardById(type);
-    if(type==='drugs'){
-      const n=parseInt(si.value)||0;if(n<1){errD.textContent=t('min-1');return;}
-      STATE.today.penalties.push({id:uid(),type:'drugs',count:n,details:{substances:n},timestamp:new Date().toISOString()});
-      si.value='1';
-    }else if(type==='internet'||r?.byMinutes){
-      const res=parseDur(pi.value);if(res.v===null){errD.textContent=res.err;return;}if(res.v===0){errD.textContent=t('enter-time');return;}
-      STATE.today.penalties.push({id:uid(),type,count:res.v,details:{minutes:res.v},timestamp:new Date().toISOString()});
-      pi.value='';
-    }else if(type==='macanazo'){
-      STATE.today.penalties.push({id:uid(),type:'macanazo',count:1,details:{isPositive:false},timestamp:new Date().toISOString()});
+    const b=dv('');
+    b.style.cssText='border:1px solid var(--b1);border-radius:10px;padding:9px 10px;background:var(--sur2)';
+    const head=dv('rowb');
+    head.appendChild(sp('md dim',rewardLabel(r)));
+    const now=sp('md mo w7',r.byMinutes?fmtDur(mins):String(units));
+    now.style.color=(r.byMinutes?mins:units)?'var(--ng)':'var(--t3)';
+    head.appendChild(now);
+    b.appendChild(head);
+    /* The same chain the positive cards print, pointing the other way: the
+       run, what it multiplies by, and what that comes to. A day inside the
+       allowance shows ×1 with the run still standing, which is the rule. */
+    if(entries.length)b.appendChild(dv('xs dimmer mt2',
+      `${t('run-lbl')} ${run}d · ×${Math.round(mult*10)/10} · −${Math.abs(cost).toLocaleString()} ${t('pts-s')}`));
+
+    if(r.byMinutes){
+      const row=dv('row gap6 mt8');
+      const inp=ip('text','','',t('eg-time'));inp.style.flex='1';
+      const add=()=>{
+        errD.textContent='';
+        const res=parseDur(inp.value);
+        if(res.v===null){errD.textContent=res.err;return;}
+        if(res.v===0){errD.textContent=t('enter-time');return;}
+        STATE.today.penalties.push({id:uid(),type:r.id,count:res.v,details:{minutes:res.v},timestamp:new Date().toISOString()});
+        commitAndRefresh();
+      };
+      inp.onkeydown=e=>{if(e.key==='Enter')add();};
+      row.appendChild(inp);row.appendChild(bt('btn-ng btn-sm',t('add-btn'),add));
+      b.appendChild(row);
     }else{
-      // One of yours: how many, and that is all it needs.
-      const n=parseInt(si.value)||1;
-      STATE.today.penalties.push({id:uid(),type,count:Math.max(1,n),details:{},timestamp:new Date().toISOString()});
-      si.value='1';
+      // − takes back the last one logged, which is the mistake you just made.
+      const row=dv('row gap8 mt8');
+      const dec=bt('btn-ghost btn-sm f1','−',()=>{
+        const last=[...STATE.today.penalties].reverse().find(p=>p.type===r.id);
+        if(!last)return;
+        STATE.today.penalties=STATE.today.penalties.filter(p=>p.id!==last.id);
+        commitAndRefresh();
+      });
+      if(!entries.length){dec.disabled=true;dec.style.opacity='.35';}
+      const n=dv('f1 ctr xl w7 mo');n.textContent=String(units);
+      const inc=bt('btn-ng btn-sm f1','+',()=>{
+        const det=r.id==='drugs'?{substances:1}:r.id==='macanazo'?{isPositive:false}:{};
+        STATE.today.penalties.push({id:uid(),type:r.id,count:1,details:det,timestamp:new Date().toISOString()});
+        commitAndRefresh();
+      });
+      row.appendChild(dec);row.appendChild(n);row.appendChild(inc);
+      b.appendChild(row);
     }
-    // #3: do NOT reset tEl — keep selection
-    commitAndRefresh();
-  }
-  // #4: enter key support for all penalty inputs
-  si.onkeydown=e=>{if(e.key==='Enter')doAdd();};
-  pi.onkeydown=e=>{if(e.key==='Enter')doAdd();};
+    blocks.appendChild(b);
+  });
+  card.appendChild(blocks);card.appendChild(errD);
 
-  // Minutes for the ones measured in minutes, a count for the ones counted,
-  // and nothing at all for the one that only ever happens once.
-  function updateDet(){
-    dw.innerHTML='';
-    const r=rewardById(tEl.value);
-    if(tEl.value==='internet'||r?.byMinutes)dw.appendChild(pi);
-    else if(tEl.value!=='macanazo')dw.appendChild(si);
-  }
-  updateDet();card.appendChild(dw);card.appendChild(errD);
-  const ab=bt('btn-ng btn-sm w100',t('add-btn'),doAdd);ab.style.width='100%';card.appendChild(ab);
-
-  if(STATE.today.penalties.length){
-    const list=dv('s6 mt12');
-    const procMinsTotal=STATE.today.penalties.filter(x=>x.type==='internet').reduce((s,x)=>s+(x.details?.minutes||0),0);
-    STATE.today.penalties.forEach(p=>{
-      const base=CALC.penBase(p);
-      const mult=penMultFor(p,procMinsTotal);
-      const actual=base*mult;
+  /* Only the timed entries are listed. A counted reward is fully adjustable
+     from its own − and +, so listing its entries underneath would be the same
+     number written twice; a timed one is a series of separate stretches, and
+     taking back the wrong 45 minutes needs the 45 minutes to be pointed at. */
+  const timed=STATE.today.penalties.filter(p=>rewardById(p.type)?.byMinutes);
+  if(timed.length>1){
+    const list=dv('s6 mt10');
+    timed.forEach(p=>{
       const rw=rewardById(p.type);
-      /* Every line asks the list for its name. The three originals used to be
-         written out here instead, so renaming one left today's own log calling
-         it by the name it no longer has. */
-      const lbl=!rw?p.type
-        :p.type==='drugs'?`${rewardLabel(rw)} ×${p.details?.substances||1}`
-        :p.type==='internet'?`${rewardLabel(rw)} ${fmtDur(p.details?.minutes||0)}`
-        :rewardLabel(rw)+(p.count>1?' ×'+p.count:'');
       const row=dv('pen-it');
       const info=dv('f1');
-      // Show label + breakdown: base × streak = actual
-      const breakdown = mult>1 ? `<span class="xs dimmer">${base} × ${mult} ${t('streak-lbl')}</span>` : `<span class="xs dimmer">${t('base-lbl')}</span>`;
-      info.innerHTML=`<div class="md dim">${lbl}</div><div class="row gap6 mt2">${breakdown}<span class="sm mo w7 ng">${actual}</span></div>`;
+      info.innerHTML=`<div class="sm dim">${escapeHtml(rewardLabel(rw))} · ${fmtDur(p.details?.minutes||0)}</div>`;
       const rm=bt('btn-icon','🗑',()=>{STATE.today.penalties=STATE.today.penalties.filter(x=>x.id!==p.id);commitAndRefresh();});
       rm.title=t('sel-del');
       row.appendChild(info);row.appendChild(rm);list.appendChild(row);
-    });card.appendChild(list);
+    });
+    card.appendChild(list);
   }
   return card;
 }
@@ -5912,7 +6126,7 @@ function renderHistModal(key){
   const close=()=>{STATE.histDay=null;render();};
   const ov=dv('fi');
   ov.classList.add('ovl');
-  ov.onclick=e=>{if(e.target===ov)close();};
+  closeOnBackdrop(ov,close);
   const panel=dv('card');
   panel.style.cssText='max-width:560px;width:100%;margin:auto';
   const hd=dv('rowb mb12');
@@ -6417,9 +6631,15 @@ function renderStats(total,sc){
      being invisible here. Read from the list instead. */
   const lastDay=sortedH.length?sortedH[sortedH.length-1].date:'';
   const rwStats=rewards().map(r=>{
-    const has=d=>(d.penalties||[]).some(p=>p.type===r.id);
-    const total=realDays.reduce((s,d)=>s+((d.penalties||[]).filter(p=>p.type===r.id)
-      .reduce((a,p)=>a+(r.byMinutes?1:(p.count||1)),0)),0);
+    /* The same question the score asks: a day inside the daily allowance of a
+       minutes-based reward is a clean day here too, or this panel would call
+       a day dirty that the scoring had already forgiven. */
+    const has=d=>dayHasReward(d,r);
+    // Minutes for the ones measured in minutes; a count for the ones counted.
+    const total=r.byMinutes
+      ? realDays.reduce((s,d)=>s+penMinutesOn(d,r.id),0)
+      : realDays.reduce((s,d)=>s+((d.penalties||[]).filter(p=>p.type===r.id)
+          .reduce((a,p)=>a+(p.count||1),0)),0);
     const cleanDays=realDays.filter(d=>!has(d)).length;
     const pct=totalTracked?Math.round(cleanDays/totalTracked*100):100;
     let best=0,cur=0,end='';
@@ -6441,9 +6661,9 @@ function renderStats(total,sc){
   const rwGrid=dv('g4 tiles mb10');rwGrid.style.gap='8px';
   rwStats.forEach(x=>{
     const nm=escapeHtml(rewardLabel(x.r));   // the tiles render their label as HTML
-    rwGrid.appendChild(statCard(nm,String(x.total),
+    rwGrid.appendChild(statCard(nm,x.r.byMinutes?fmtDur(x.total):String(x.total),
       x.total?'var(--ng)':'var(--cg)',
-      x.r.byMinutes?(isEs?'registros':'entries'):(isEs?'veces':'times')));
+      x.r.byMinutes?(isEs?'en total':'in total'):(isEs?'veces':'times')));
     rwGrid.appendChild(statCard(`${t('sk-without')} ${nm}`,x.pct+'%',
       x.pct>=70?'var(--cg)':'var(--ng)',x.cleanDays+'d'));
     rwGrid.appendChild(statCard(isEs?'Mejor racha limpia':'Best clean run',x.best+'d',
@@ -6594,8 +6814,8 @@ function renderStats(total,sc){
       `Duermes ${fmtDur(avgSleepMin)} en promedio. Cada minuto vale +1, así que media hora más son ~30 pts diarios — casi 1,000 al mes, sin hacer nada extra. Y la racha de dormir temprano es la forma más rentable de sacar puntos que hay.`,
       `You sleep ${fmtDur(avgSleepMin)} on average. Every minute is +1, so half an hour more is ~30 pts a day — nearly 1,000 a month for nothing extra. And the early-bed streak is the most profitable run of points there is.`);
     if(procFreePct<70)add(70,rwProc?.icon||'🌐',
-      `Caíste en ${nmProc} en ${100-procFreePct}% de tus días. Los primeros 30 minutos no llevan multiplicador: si vas a caer, que sea corto.`,
-      `You logged ${nmProc} on ${100-procFreePct}% of your days. The first 30 minutes carry no multiplier: if you are going to slip, keep it short.`);
+      `Caíste en ${nmProc} en ${100-procFreePct}% de tus días. Los primeros ${FREE_MINS} minutos no cuentan como recaída ni te suben la racha: si vas a caer, que sea corto.`,
+      `You logged ${nmProc} on ${100-procFreePct}% of your days. The first ${FREE_MINS} minutes are not a slip and do not build the run: if you are going to slip, keep it short.`);
     if(workPct<50)add(65,'💼',
       `Solo registraste trabajo en ${workPct}% de tus días. La racha de trabajo multiplica cada minuto, y basta con no romperla.`,
       `You logged work on only ${workPct}% of your days. The work streak multiplies every minute, and it only needs to stay alive.`);
@@ -6646,7 +6866,7 @@ function renderRulesModal(){
   const close=()=>{STATE.showRules=false;render();};
   const ov=dv('fi');
   ov.classList.add('ovl');
-  ov.onclick=e=>{if(e.target===ov)close();};
+  closeOnBackdrop(ov,close);
   const panel=renderRules(close);
   panel.style.cssText='max-width:900px;width:100%;margin:auto';
   ov.appendChild(panel);
@@ -6723,7 +6943,7 @@ function renderRules(onClose){
     <div class="md up ls ng w7 mb10">🤤 Recompensas</div>
     <div class="s6">
       <div>Son los gustos que quieres mantener a raya. Cuestan puntos, y entre más seguido caes, más caro te sale: <span class="ng w6">× su racha, hasta ×${PEN_CAP}</span>.</div>
-      ${rewards().map(r=>`<div><span class="ng w6">${escapeHtml(rewardLabel(r))}</span> — ${r.byMinutes?'por minutos; pasados 30 min entra el multiplicador':t(REWARD_TIERS[r.tier].name).toLowerCase()+', −'+rewardCost(r).toLocaleString()}</div>`).join('')}
+      ${rewards().map(r=>`<div><span class="ng w6">${escapeHtml(rewardLabel(r))}</span> — ${r.byMinutes?`−${PEN_RATE} por minuto; los primeros ${FREE_MINS} del día no cuentan como recaída`:t(REWARD_TIERS[r.tier].name).toLowerCase()+', −'+rewardCost(r).toLocaleString()}</div>`).join('')}
       <div><span class="ng w6">🌙 Trasnoché</span> — caro × tu racha de desvelo.</div>
       <div class="xs dimmer"><span class="ac w6">La lista es tuya</span>: renómbralas, cámbiales el ícono, quítalas o agrega las tuyas (hasta 5) con el ⚙ de la tarjeta.</div>
     </div>
@@ -6735,7 +6955,8 @@ function renderRules(onClose){
       <div class="ac w6">La racha cuenta lo que hiciste. El color del día decide cuánto vale o cuánto cuesta ese día.</div>
       <div><span class="cr w6">🔴 Rojo</span> — ese día paga a <strong>precio base</strong> y la racha sigue mañana donde iba. Lo único que rompe es la racha de <span class="cp">días sin rojo</span>.</div>
       <div><span class="ac w6">Un día bueno</span> te cobra la recompensa a base <strong>sin romperle la racha</strong>: <span class="cy">🟡</span> una ligera · <span class="cg">🟢</span> una media · <span class="cp">🟣</span> una grande.</div>
-      <div>Lo único que rompe una racha es <strong>dejar de hacer la cosa</strong>, o saltarte un día — excepto ${escapeHtml(rewardName(rewardById('internet')))}, que permite 30 min diarios.</div>
+      <div>Lo único que rompe una racha es <strong>dejar de hacer la cosa</strong>, o saltarte un día.</div>
+      <div><span class="ac w6">Las que se miden en minutos traen ${FREE_MINS} min diarios de gracia.</span> Un día por debajo de eso se cobra igual (−${PEN_RATE} por minuto), pero <strong>no cuenta como recaída</strong>: no arrastra la racha ni te la sube. El multiplicador es para un hábito, y un día dentro del margen no lo es. Pasando los ${FREE_MINS}, el día cuenta entero y la racha corre.</div>
       <div><span class="ac w6">🎖️ Medallas</span> a los 10, 20, 50, 100, 200, 500 y 1000 días de cualquier racha positiva. Las recompensas nunca dan.</div>
       <div class="xs dimmer">Un día sin registrar cuenta como −1,000 y día rojo. ¡Registra diario!</div>
     </div>
@@ -6794,7 +7015,7 @@ function renderRules(onClose){
     <div class="md up ls ng w7 mb10">🤤 Rewards</div>
     <div class="s6">
       <div>The treats you want to keep at bay. They cost points, and the more often you give in, the dearer they get: <span class="ng w6">× their run, up to ×${PEN_CAP}</span>.</div>
-      ${rewards().map(r=>`<div><span class="ng w6">${escapeHtml(rewardLabel(r))}</span> — ${r.byMinutes?'by the minute; past 30 min the multiplier kicks in':t(REWARD_TIERS[r.tier].name).toLowerCase()+', −'+rewardCost(r).toLocaleString()}</div>`).join('')}
+      ${rewards().map(r=>`<div><span class="ng w6">${escapeHtml(rewardLabel(r))}</span> — ${r.byMinutes?`−${PEN_RATE} a minute; the first ${FREE_MINS} of a day do not count as a slip`:t(REWARD_TIERS[r.tier].name).toLowerCase()+', −'+rewardCost(r).toLocaleString()}</div>`).join('')}
       <div><span class="ng w6">🌙 Slept Late</span> — expensive × your late-night run.</div>
       <div class="xs dimmer"><span class="ac w6">The list is yours</span>: rename them, change the icon, drop them or add your own (up to 5) from the ⚙ on the card.</div>
     </div>
@@ -6806,7 +7027,8 @@ function renderRules(onClose){
       <div class="ac w6">A run counts what you did. The colour of the day decides what it is worth, or what it costs, that day.</div>
       <div><span class="cr w6">🔴 Red</span> — that day pays <strong>base</strong> and tomorrow the run carries on where it was. The only run it breaks is the <span class="cp">non-red</span> one.</div>
       <div><span class="ac w6">A good day</span> charges a reward at base <strong>without ending its run</strong>: <span class="cy">🟡</span> a light one · <span class="cg">🟢</span> a medium one · <span class="cp">🟣</span> a large one.</div>
-      <div>The only things that end a run are <strong>not doing the thing</strong> and skipping a day — except ${escapeHtml(rewardName(rewardById('internet')))}, which allows 30 min a day.</div>
+      <div>The only things that end a run are <strong>not doing the thing</strong> and skipping a day.</div>
+      <div><span class="ac w6">The ones measured in minutes carry a ${FREE_MINS}-minute daily allowance.</span> A day under it is still charged (−${PEN_RATE} a minute) but <strong>does not count as a slip</strong>: it neither carries the run forward nor starts one. The multiplier is for a habit, and a day inside the allowance is not one. Past ${FREE_MINS}, the day counts in full and the run advances.</div>
       <div><span class="ac w6">🎖️ Medals</span> at 10, 20, 50, 100, 200, 500 and 1000 days of any positive run. Rewards never earn one.</div>
       <div class="xs dimmer">A day you forget to log counts as −1,000 and a red day. Log every day!</div>
     </div>
@@ -6830,7 +7052,7 @@ function renderRewardsModal(){
   const close=()=>{STATE.showRewards=false;render();};
   const ov=dv('fi');
   ov.classList.add('ovl');
-  ov.onclick=e=>{if(e.target===ov)close();};
+  closeOnBackdrop(ov,close);
   const panel=dv('card');
   panel.style.cssText='max-width:560px;width:100%;margin:auto';
   ov.appendChild(panel);
@@ -6896,10 +7118,31 @@ function renderRewardsModal(){
         top.appendChild(del);
       }
       row.appendChild(top);
+      /* Counted, or timed. Procrastination shipped as the only timed one and
+         the choice was welded shut, so anything you added could only ever be
+         counted — no way to track a reward that is really about how long it
+         went on. It is a property of the thing, not of which slot it sits in,
+         so every reward gets to say which it is, the built-in one included.
+         Switching re-reads every day already logged, so it is asked about
+         once there is anything to re-read. */
+      const mode=dv('row gap6 mt6');mode.style.alignItems='center';
+      mode.appendChild(sp('xs dimmer',t('rw-measure')));
+      const modeSel=sk('',[['count',t('rw-by-count')],['mins',t('rw-by-mins')]],r.byMinutes?'mins':'count');
+      modeSel.style.cssText='flex:0 0 130px';
+      modeSel.onchange=()=>{
+        const wantMins=modeSel.value==='mins';
+        if(!!r.byMinutes===wantMins)return;
+        if(daysWithReward(r.id)&&!confirm(t('rw-measure-warn')))return draw();
+        if(wantMins)r.byMinutes=true;else delete r.byMinutes;
+        savePlanner();draw();
+      };
+      mode.appendChild(modeSel);
+      row.appendChild(mode);
       // What it costs. How a run ends is the same for every reward, so it is
       // said once, under the whole list, instead of five times over.
       row.appendChild(dv('xs dimmer mt4',
-        r.byMinutes?t('rw-per-min').replace('{r}',PEN_RATE):`−${rewardCost(r).toLocaleString()}`));
+        r.byMinutes?t('rw-per-min').replace('{r}',PEN_RATE).replace('{m}',FREE_MINS)
+                   :`−${rewardCost(r).toLocaleString()}`));
       box.appendChild(row);
     });
     panel.appendChild(box);
@@ -6964,7 +7207,7 @@ function renderResetModal(){
      sheet. It shares the class now and keeps its darker ground on top. */
   ov.classList.add('ovl');
   ov.style.background='rgba(0,0,0,.72)';
-  ov.onclick=e=>{if(e.target===ov)close();};
+  closeOnBackdrop(ov,close);
   const panel=dv('card');
   panel.style.cssText='max-width:460px;width:100%;margin:auto;border-color:var(--ngb);background:var(--sur)';
   const hd=dv('rowb mb10');
@@ -7007,7 +7250,7 @@ function renderRestoreModal(){
   const close=()=>{STATE.restoreList=null;render();};
   const ov=dv('fi');
   ov.classList.add('ovl');
-  ov.onclick=e=>{if(e.target===ov)close();};
+  closeOnBackdrop(ov,close);
   const panel=dv('card');
   panel.style.cssText='max-width:420px;width:100%;margin:auto';
   const hd=dv('rowb mb4');
@@ -7061,7 +7304,7 @@ function renderTaskTreeModal(id){
   const close=()=>{STATE.taskTree=null;STATE.editingRem=null;render();};
   const ov=dv('fi');
   ov.classList.add('ovl');
-  ov.onclick=e=>{if(e.target===ov)close();};
+  closeOnBackdrop(ov,close);
   const panel=dv('card');
   panel.style.cssText='max-width:640px;width:100%;margin:auto';
   ov.appendChild(panel);
@@ -7121,7 +7364,7 @@ function renderTZModal(){
   const close=()=>{STATE.showTZ=false;render();};
   const ov=dv('fi');
   ov.classList.add('ovl');
-  ov.onclick=e=>{if(e.target===ov)close();};
+  closeOnBackdrop(ov,close);
   const panel=dv('card');
   panel.style.cssText='max-width:420px;width:100%;margin:auto';
   const hd=dv('rowb mb4');
@@ -7168,7 +7411,7 @@ function renderSyncModal(){
   const close=()=>{STATE.showSyncPanel=false;render();};
   const ov=dv('fi');
   ov.classList.add('ovl');
-  ov.onclick=e=>{if(e.target===ov)close();};
+  closeOnBackdrop(ov,close);
   const panel=renderSyncPanel();
   panel.style.maxWidth='460px';panel.style.width='100%';panel.style.margin='auto';
   ov.appendChild(panel);
