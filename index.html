@@ -5198,11 +5198,10 @@ function renderApp(){
     return wrap;
   }
 
-  const grid=dv('g4 mt4');
+  const grid=dv('g3 mt4');
   const c1=dv('s12');c1.appendChild(renderScoreCard(total,sc,sk_,scoreNav));c1.appendChild(renderTasksCard(sc,sk_));grid.appendChild(c1);
-  grid.appendChild(renderSleepCard(sk_,sc.status));
+  const c2=dv('s12');c2.appendChild(renderSleepCard(sk_,sc.status));c2.appendChild(renderPomCard(sk_,sc.status));c2.appendChild(renderWorkCard(sk_,sc.status));grid.appendChild(c2);
   grid.appendChild(renderPenCard(sk_,sc.status));
-  const c4=dv('s12');c4.appendChild(renderPomCard(sk_,sc.status));c4.appendChild(renderWorkCard(sk_,sc.status));grid.appendChild(c4);
   wrap.appendChild(grid);
   wrap.appendChild(renderStreaks(sk_));
   /* Calendar on the left, the picked day on the right — its score, its note,
