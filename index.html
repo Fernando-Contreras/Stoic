@@ -1096,7 +1096,9 @@ en:{
   'rem-subtask':'subtask','rem-subtask-ask':'Subtask of "{t}":',
   'rem-notes-ph':'Note (optional)','rem-edit':'Edit','rem-no-parent':'↳ Not a subtask',
   'rem-add-note':'Add note','rem-edit-note':'Click to edit',
-  'rem-goal-for':'🏁 In service of','rem-goal-none':'— No goal —',
+  'rem-goal-for':'🎯 In service of','rem-goal-none':'— No goal —',
+  'goal-unlink':'Remove from this goal','goal-link-task':'Add a task to this goal',
+  'goal-link-search':'Which task is a step toward it? (type to search)',
   'rem-has-kids':'This one has subtasks of its own, so it cannot become one. Two levels is the limit.',
   'rem-bad-parent':'That cannot be its parent.',
   'rem-parent-is':'Subtask of','rem-parent-search':'Nest under… (type to search)','rem-parent-none':'Nothing matches',
@@ -1292,7 +1294,9 @@ es:{
   'rem-subtask':'subtarea','rem-subtask-ask':'Subtarea de "{t}":',
   'rem-notes-ph':'Nota (opcional)','rem-edit':'Editar','rem-no-parent':'↳ No es subtarea',
   'rem-add-note':'Agregar nota','rem-edit-note':'Click para editar',
-  'rem-goal-for':'🏁 Al servicio de','rem-goal-none':'— Sin meta —',
+  'rem-goal-for':'🎯 Al servicio de','rem-goal-none':'— Sin meta —',
+  'goal-unlink':'Quitar de esta meta','goal-link-task':'Agregar una tarea a esta meta',
+  'goal-link-search':'¿Cuál tarea es un paso hacia ella? (escribe para buscar)',
   'rem-has-kids':'Esta ya tiene subtareas, así que no puede volverse una. El límite son 2 niveles.',
   'rem-bad-parent':'Esa no puede ser su tarea padre.',
   'rem-parent-is':'Subtarea de','rem-parent-search':'Meterla bajo… (escribe para buscar)','rem-parent-none':'Nada coincide',
@@ -3379,9 +3383,29 @@ function goalIdsOf(r){
   if(!v)return[];
   return (Array.isArray(v)?v:[v]).filter(Boolean);
 }
+/* The link stands on its own; the flag is a separate thing about the same
+   task. It began as a property of flags, which worked while the only way to
+   make one was from the task — but the moment a goal can reach back and
+   claim a task, that rule forces a choice between raising a flag behind your
+   back and dropping a link behind your back. Neither is acceptable, and
+   neither is necessary: "this is one of today's three" and "this is a step
+   toward the yearly one" are two different sentences about one task, and a
+   task is allowed to be only the second. */
 function goalsServedBy(r){
-  if(!r||!r.flagged)return[];
+  if(!r)return[];
   return goalIdsOf(r).map(goalById).filter(Boolean);
+}
+// Everything that still has the link, whether or not it has been finished.
+function tasksServing(goalId){
+  return reminders().filter(x=>goalIdsOf(x).includes(goalId));
+}
+function setGoalLink(remId,goalId,on){
+  const r=reminders().find(x=>x.id===remId);if(!r)return;
+  const ids=new Set(goalIdsOf(r));
+  if(on)ids.add(goalId);else ids.delete(goalId);
+  r.goal=ids.size?[...ids]:null;
+  r._ts=CLOCK.now();
+  savePlanner();
 }
 /* Recomputed from the completion date rather than read back from what was
    stored, so changing a base re-values past goals instead of leaving a mix of
@@ -4123,25 +4147,58 @@ function buildGoals(redraw){
             (tomorrow<now?` <span class="dimmer">· ${t('goal-tomorrow')} ${tomorrow.toLocaleString()}</span>`:'')));
         }
       }
-      /* The flags pointed at this goal, and whether they are down. A goal was
-         a sentence in a window with no way of knowing whether anything was
-         being done about it; this is the other half of the link made from the
-         task's side, so the answer is on the goal itself. Ticked ones are
-         struck through — a goal with all its steps down and itself still open
-         is exactly the thing worth noticing here. */
-      const served=reminders().filter(x=>x.flagged&&goalIdsOf(x).includes(g.id));
-      if(served.length){
-        const sb=dv('row gap4 mt4');sb.style.flexWrap='wrap';
-        served.slice(0,8).forEach(x=>{
-          const done=x.completedOn===tk||x.done;
-          const c=sp('tagchip',(done?'✓ ':'🏁 ')+x.title.slice(0,26));
-          c.title=x.title;
-          c.style.cssText+=done?';opacity:.5;text-decoration:line-through':'';
-          sb.appendChild(c);
+      /* The tasks pointed at this goal, and whether they are done — and the
+         same link, settable from this end. A goal was a sentence in a window
+         with no way of knowing whether anything was being done about it, and
+         then a read-only list of what was: you could see the answer but only
+         change it from the other side of the app. Both ends set it now.
+         A chip drops the link; ＋ searches the list and adds one. Ticked ones
+         are struck through, because a goal with all its steps down and itself
+         still open is the thing most worth noticing here. */
+      const served=tasksServing(g.id);
+      const sb=dv('row gap4 mt4');sb.style.flexWrap='wrap';sb.style.alignItems='center';
+      served.slice(0,8).forEach(x=>{
+        const done=x.completedOn===tk||x.done;
+        const c=bt('tagchip',(done?'✓ ':'🏁 ')+x.title.slice(0,26)+' ✕',()=>{
+          setGoalLink(x.id,g.id,false);redraw();
         });
-        if(served.length>8)sb.appendChild(sp('xs dimmer','+'+(served.length-8)));
-        mid.appendChild(sb);
-      }
+        c.title=t('goal-unlink')+' — '+x.title;
+        c.style.cssText+=';cursor:pointer'+(done?';opacity:.5;text-decoration:line-through':'');
+        sb.appendChild(c);
+      });
+      if(served.length>8)sb.appendChild(sp('xs dimmer','+'+(served.length-8)));
+      // Open the search, pick a task, and the link is made from this side.
+      const addBtn=bt('btn-ghost btn-xs','＋',()=>{
+        pick.style.display=pick.style.display==='none'?'':'none';
+        if(pick.style.display!=='none')psi.focus();
+      });
+      addBtn.title=t('goal-link-task');
+      sb.appendChild(addBtn);
+      mid.appendChild(sb);
+
+      const pick=dv('mt4');pick.style.display='none';
+      const psi=ip('text','','',t('goal-link-search'));psi.style.width='100%';
+      const pres=dv('row gap6 mt4');pres.style.flexWrap='wrap';
+      const runSearch=()=>{
+        const q=psi.value.trim().toLowerCase();
+        pres.innerHTML='';
+        // Anything still open and not already pointed here. With nothing typed
+        // it offers today's, which is what you are usually reaching for.
+        const linked=new Set(served.map(x=>x.id));
+        let hits=reminders().filter(x=>!linked.has(x.id)&&!x.done&&x.completedOn!==tk);
+        hits=q?hits.filter(x=>(x.title||'').toLowerCase().includes(q)):hits.filter(x=>x.due<=tk);
+        if(!hits.length){pres.appendChild(sp('xs dimmer',t('rem-parent-none')));return;}
+        hits.slice(0,8).forEach(x=>{
+          pres.appendChild(bt('btn-ghost btn-xs',x.title.slice(0,34),()=>{
+            setGoalLink(x.id,g.id,true);redraw();
+          }));
+        });
+      };
+      psi.oninput=runSearch;
+      psi.onkeydown=e=>{if(e.key==='Enter')e.preventDefault();};
+      addBtn.addEventListener('click',()=>{if(pick.style.display!=='none')runSearch();});
+      pick.appendChild(psi);pick.appendChild(pres);
+      mid.appendChild(pick);
       row.appendChild(mid);
       const gdel=bt('btn-icon','🗑',()=>{
         if(confirm(t('rem-del-warn').replace('{t}',g.title))){deleteGoal(g.id);redraw();}
@@ -4330,12 +4387,12 @@ function renderReminderEditor(r){
   ml.onclick=e=>{if(e.target!==mcb)mcb.checked=!mcb.checked;ml.classList.toggle('on',mcb.checked);};
   r4.appendChild(ri);r4.appendChild(ni);r4.appendChild(fl);r4.appendChild(ml);box.appendChild(r4);
 
-  /* Which big goal this flag is in service of. A flag says "this is one of
-     the three that decide today"; it never said what any of them was FOR, so
-     the weekly and yearly goals sat in their own window being no part of the
-     day. Naming one here is not nesting — the task keeps its own date, its
-     own tick and its own points — it only records what it is a step toward,
-     which is enough to make the goal visible on the day it is being served.
+  /* Which big goals this task is in service of. The weekly and yearly ones
+     used to sit in their own window being no part of any day; naming one
+     here is not nesting — the task keeps its own date, its own tick and its
+     own points — it only records what it is a step toward, which is enough
+     to put the goal on the day it is being served. The same link is settable
+     from the goal's side, in the goals window.
      Only open goals are offered: pointing a task at something already
      finished would be recording a plan you have already carried out. */
   const goalRow=dv('mt6');
@@ -4365,13 +4422,8 @@ function renderReminderEditor(r){
     });
   };
   drawChips();
-  const syncGoalRow=()=>{goalRow.style.display=fc.checked?'':'none';};
   goalRow.appendChild(dv('xs dimmer mb2',t('rem-goal-for')));
   goalRow.appendChild(gchips);
-  // Shown only while it is a flag, because that is the only time it means
-  // anything — and it follows the checkbox live rather than after a save.
-  fl.addEventListener('click',syncGoalRow);
-  syncGoalRow();
   if(openG.length)box.appendChild(goalRow);
 
   const wd=weekdayPicker(r.repeat&&r.repeat.days||[]);
@@ -4390,8 +4442,8 @@ function renderReminderEditor(r){
     const res=updateReminder(r.id,{
       tags:picker.get(),
       due:di.value||r.due,time:hi.value,priority:parseInt(pi.value)||0,flagged:fc.checked,morning:mcb.checked,
-      // Unflagging drops the links with it: a goal served by nothing is noise.
-      goal:fc.checked?[...picked]:null,
+      // Kept whatever the flag is doing — see goalsServedBy.
+      goal:picked.size?[...picked]:null,
       repeat:ri.value?{unit:ri.value,every:Math.max(1,parseInt(ni.value)||1),
         ...(ri.value==='week'&&wd.get().length?{days:wd.get()}:{}),
         ...(ri.value==='month'&&md.get().length?{doms:md.get()}:{}),
