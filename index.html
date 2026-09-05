@@ -3035,7 +3035,7 @@ function syncPomoPill(){
   }
   const el=pomoPillEl();
   const focusing=p.phase==='focus';
-  const accent='var(--ac)';
+  const accent=focusing?'var(--ac)':'var(--cb)';
   const left=pomoRemaining(p);
   const done=1-left/Math.max(1,pomoPhaseLen(p));
   el.querySelector('.pp-cl').textContent=fmtClock(left);
