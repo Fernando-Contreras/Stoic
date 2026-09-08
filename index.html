@@ -4485,12 +4485,12 @@ function renderReminderEditor(r){
   acts.appendChild(sp('xs dimmer',t('edit-tap-out')));
   acts.appendChild(bt('btn-ghost btn-sm',t('cancel'),discard));
   box.appendChild(acts);
-  // Escape leaves the editor from anywhere inside it, throwing the edit away.
+  /* Escape throws the edit away, from anywhere inside the box; Ctrl/Cmd+Enter
+     keeps it, the same as clicking off the task. Both stop here so an overlay
+     the editor sits in does not also act on the key. */
   box.onkeydown=e=>{
-    if(e.key!=='Escape')return;
-    // Innermost first: the editor closes, and the overlay it may be sitting in
-    // stays where it is.
-    e.stopPropagation();discard();
+    if(e.key==='Escape'){e.stopPropagation();discard();return;}
+    if(e.key==='Enter'&&(e.ctrlKey||e.metaKey)){e.preventDefault();e.stopPropagation();commit();}
   };
   return{el:box,commit};
 }
@@ -4517,11 +4517,11 @@ function remChip(r,tk,redraw){
   {
     const late=r.due<tk&&r.completedOn!==tk;
     const doneToday=r.completedOn===tk;
-    /* How many are inside, counted from the family itself rather than from
-       what the filters happen to be showing — a project whose steps are all
-       filtered out is still a project, and looking like a loose task is how
-       you forget there is anything in it. */
-    const kids=r.parent?0:subtasksOf(r.id).length;
+    /* How many are still inside — the live steps, the same count the list view
+       and the family window show, so grid and list never disagree. Steps
+       filtered out by a tag or the scope still count; only being finished and
+       gone drops out. */
+    const kids=r.parent?0:liveSubtasksOf(r.id,tk).length;
     const cell=dv('rem-chip'+(late?' late':'')+(kids?' parent':'')+(isSelected(r.id)?' sel':''));
     if(STATE.selecting){
       cell.onclick=()=>{toggleSelected(r.id);rd();};
