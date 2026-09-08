@@ -996,6 +996,8 @@ en:{
   'sel-morning':'Morning','sel-unmorning':'Not morning','sel-done':'Complete','sel-undo':'Undo',
   'sel-nest':'Nest under…','sel-nest-ask':'Nest them under which task? Type a few letters of its name:',
   'sel-nest-none':'No task found matching {q}.','sel-nest-some':'{n} could not be nested: a task with subtasks of its own cannot become one.',
+  'sel-tag-add':'+ tag','sel-goal-add':'🎯 In service of…',
+  'edit-tap-out':'Tap anywhere off it to keep changes · Esc to discard',
   'rem-morning':'Morning routine',
   'rem-bin-h':'Deleted','rem-bin-kids':'subtasks','rem-bin-undo':'Put it back',
   'rem-bin-note':'The last {n} deleted are kept here.',
@@ -1194,6 +1196,8 @@ es:{
   'sel-morning':'Rutina','sel-unmorning':'Quitar rutina','sel-done':'Completar','sel-undo':'Deshacer',
   'sel-nest':'Anidar en…','sel-nest-ask':'¿Dentro de qué tarea? Escribe unas letras de su nombre:',
   'sel-nest-none':'No encontré ninguna tarea que coincida con {q}.','sel-nest-some':'{n} no se pudieron anidar: una tarea que ya tiene subtareas no puede volverse una.',
+  'sel-tag-add':'+ etiqueta','sel-goal-add':'🎯 Al servicio de…',
+  'edit-tap-out':'Toca fuera para guardar · Esc descarta',
   'rem-morning':'Rutina matutina',
   'rem-bin-h':'Eliminadas','rem-bin-kids':'subtareas','rem-bin-undo':'Devolver a la lista',
   'rem-bin-note':'Aquí se guardan las últimas {n} eliminadas.',
@@ -4319,6 +4323,9 @@ function taEl(v,ph){
   return x;
 }
 
+/* Tears down the open editor's outside-click listener. Module scope so a fresh
+   render can drop the previous one before wiring its own. */
+let _remEditOff=null;
 function renderReminderEditor(r){
   const box=dv('fi mt8');
   box.style.cssText='background:var(--sur3);border:1px solid var(--b2);border-radius:8px;padding:10px';
@@ -4452,10 +4459,12 @@ function renderReminderEditor(r){
   });
   box.appendChild(wd.el);box.appendChild(md.el);
 
-  const err=dv('xs ng mt6');box.appendChild(err);
-  const acts=dv('row gap8 mt8');
-  acts.appendChild(bt('btn-ac btn-sm f1',t('save-btn'),()=>{
-    const res=updateReminder(r.id,{
+  /* There is no Save button any more. Clicking anywhere off the task keeps the
+     changes — the way renaming its title already works — and that is wired
+     where the row is built, in renderReminderRow. Escape and Cancel throw the
+     changes away. */
+  const commit=()=>{
+    updateReminder(r.id,{
       tags:picker.get(),
       due:di.value||r.due,time:hi.value,priority:parseInt(pi.value)||0,flagged:fc.checked,morning:mcb.checked,
       // Kept whatever the flag is doing — see goalsServedBy.
@@ -4468,20 +4477,22 @@ function renderReminderEditor(r){
         ...(ri.value==='month'||ri.value==='year'
             ?{dom:new Date((di.value||r.due)+'T12:00:00').getDate()}:{})}:null
     });
-    if(!res.ok){err.textContent=res.warn==='sub-has-kids'?t('rem-has-kids'):t('rem-bad-parent');return;}
     STATE.editingRem=null;render();
-  }));
-  acts.appendChild(bt('btn-ghost btn-sm',t('cancel'),()=>{STATE.editingRem=null;render();}));
+  };
+  const discard=()=>{STATE.editingRem=null;render();};
+
+  const acts=dv('rowb mt8');acts.style.alignItems='center';
+  acts.appendChild(sp('xs dimmer',t('edit-tap-out')));
+  acts.appendChild(bt('btn-ghost btn-sm',t('cancel'),discard));
   box.appendChild(acts);
-  // Escape leaves the editor from anywhere inside it, not only from the field
-  // that used to be at the top of it.
+  // Escape leaves the editor from anywhere inside it, throwing the edit away.
   box.onkeydown=e=>{
     if(e.key!=='Escape')return;
     // Innermost first: the editor closes, and the overlay it may be sitting in
     // stays where it is.
-    e.stopPropagation();STATE.editingRem=null;render();
+    e.stopPropagation();discard();
   };
-  return box;
+  return{el:box,commit};
 }
 
 /* ═══ ALL, AT A GLANCE ═══
@@ -4676,6 +4687,38 @@ function renderBulkBar(visibleIds,redraw){
     pi.style.cssText='flex:0 0 130px';
     pi.onchange=()=>{if(pi.value!=='-1'){snapshot();bulkApply({priority:parseInt(pi.value)||0},rd);}};
     bar.appendChild(pi);
+
+    /* Tag every one of them. The list offers the tags already in use so the
+       same one is not spelled two ways; a tag not on the list is simply new.
+       No bulk un-tag: a chip per tag across a mixed selection is the mess this
+       is meant to keep out — drop a tag from a single task's own editor. */
+    const dl=document.createElement('datalist');dl.id='sel-tags-dl';
+    allTags().forEach(tg=>{const o=document.createElement('option');o.value=tg;dl.appendChild(o);});
+    bar.appendChild(dl);
+    const ti=ip('text','','',t('sel-tag-add'));
+    ti.setAttribute('list','sel-tags-dl');
+    ti.style.cssText='flex:0 0 150px';
+    const addTag=()=>{
+      const v=ti.value.trim();if(!v)return;
+      snapshot();bulkApply(r=>({tags:normTags([...tagsOf(r),v])}),rd);
+    };
+    ti.onkeydown=e=>{if(e.key==='Enter'||e.key===','){e.preventDefault();addTag();}};
+    bar.appendChild(ti);
+
+    /* Point them all at a big goal — one at a time, added to whatever each
+       task already serves. Unpick from a task's own editor or the goals
+       window; doing it here as well would be one more thing to get wrong. */
+    const openGoals=GOAL_KINDS.flatMap(k=>goalsOf(k).filter(g=>!g.doneOn).map(g=>({g,k})));
+    if(openGoals.length){
+      const gi=sk('',[['',t('sel-goal-add')],...openGoals.map(({g,k})=>[g.id,`${GOAL_ICON[k]} ${g.title.slice(0,22)}`])],'');
+      gi.style.cssText='flex:0 0 160px';
+      gi.onchange=()=>{
+        if(!gi.value)return;
+        const gid=gi.value;
+        snapshot();bulkApply(r=>({goal:[...new Set([...goalIdsOf(r),gid])]}),rd);
+      };
+      bar.appendChild(gi);
+    }
 
     /* One button that says what pressing it will do. Two — put a flag on, take
        a flag off — asked you to work out which half of a mixed selection you
@@ -5029,9 +5072,24 @@ function renderReminderRow(r,tk,opts){
   row.appendChild(tools);
 
   if(STATE.editingRem===r.id){
-    const outer=dv('');outer.appendChild(row);outer.appendChild(renderReminderEditor(r));
+    const outer=dv('');
+    const editor=renderReminderEditor(r);
+    outer.appendChild(row);outer.appendChild(editor.el);
     outer.style.cssText='background:var(--sur2);border:1px solid var(--acb);border-radius:10px;padding:0 0 10px';
     row.style.border='none';row.style.background='none';
+    /* Click anywhere off this task and the edit is kept — the same as clicking
+       away from a title you are renaming. Escape and Cancel throw it away. One
+       document listener, taken down the moment it fires or the next render
+       replaces the editor. */
+    if(_remEditOff){_remEditOff();_remEditOff=null;}
+    const offDown=e=>{
+      if(!document.body.contains(outer)){teardown();return;}
+      if(outer.contains(e.target))return;      // its own row/buttons: leave to them
+      teardown();editor.commit();
+    };
+    const teardown=()=>{document.removeEventListener('mousedown',offDown,true);_remEditOff=null;};
+    _remEditOff=teardown;
+    setTimeout(()=>document.addEventListener('mousedown',offDown,true),0);
     return outer;
   }
   return row;
