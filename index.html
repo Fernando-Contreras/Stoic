@@ -4459,10 +4459,9 @@ function renderReminderEditor(r){
   });
   box.appendChild(wd.el);box.appendChild(md.el);
 
-  /* There is no Save button any more. Clicking anywhere off the task keeps the
-     changes — the way renaming its title already works — and that is wired
-     where the row is built, in renderReminderRow. Escape and Cancel throw the
-     changes away. */
+  /* Three ways to keep the changes, any of them: the Save button, Ctrl/⌘+Enter,
+     or clicking anywhere off the task (that last one wired in renderReminderRow,
+     the way renaming a title already works). Escape and Cancel throw them away. */
   const commit=()=>{
     updateReminder(r.id,{
       tags:picker.get(),
@@ -4483,7 +4482,10 @@ function renderReminderEditor(r){
 
   const acts=dv('rowb mt8');acts.style.alignItems='center';
   acts.appendChild(sp('xs dimmer',t('edit-tap-out')));
-  acts.appendChild(bt('btn-ghost btn-sm',t('cancel'),discard));
+  const btns=dv('row gap8');
+  btns.appendChild(bt('btn-ghost btn-sm',t('cancel'),discard));
+  btns.appendChild(bt('btn-ac btn-sm',t('save-btn'),commit));
+  acts.appendChild(btns);
   box.appendChild(acts);
   /* Escape throws the edit away, from anywhere inside the box; Ctrl/Cmd+Enter
      keeps it, the same as clicking off the task. Both stop here so an overlay
