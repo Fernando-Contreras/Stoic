@@ -7959,7 +7959,16 @@ document.addEventListener('keydown',e=>{
   // it goes through the same question the ✕ and the backdrop ask.
   if(STATE.showAddForm){closeAddForm();return;}
   const open=['showReset','showRewards','restoreList','taskTree','histDay','showTZ','showRules','showSyncPanel','showGoals'].find(k=>STATE[k]);
-  if(!open)return;
+  if(!open){
+    /* Nothing on top of the list — Escape clears the tag filter, the same as
+       the ✕ on the filter bar. Skipped while a field is focused, where Escape
+       means "leave this field" (a title being renamed, say). */
+    const typing=/^(INPUT|TEXTAREA|SELECT)$/.test((e.target||{}).tagName||'');
+    if(!typing&&STATE.tab==='plan'&&(STATE.view.tags||[]).length){
+      STATE.view.tags=[];saveView();commitAndRefresh();
+    }
+    return;
+  }
   STATE[open]=(open==='showTZ'||open==='showRules'||open==='showSyncPanel'||open==='showGoals'||open==='showRewards')?false:(open==='showReset'?0:null);
   // An editor opened inside the one-task overlay leaves with it, rather than
   // being left open on the list underneath.
