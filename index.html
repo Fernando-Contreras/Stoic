@@ -976,7 +976,7 @@ en:{
   'rw-del':'Remove from the list','rw-del-warn':'Remove {n}? Its entries go with it — {d} logged day(s) will be re-scored without it. Nothing else changes.',
   'rw-note':'Weight sets what one costs and how good a day has to be to charge it at base. The first three are fixed, one of each.',
   'edit-note':'Edit note','add-note':'Add note','save-note':'Save note','no-data':'No data logged for this day.',
-  'day-title-ph':'Title for the day','day-untitled':'Untitled','ctrl-save':'Ctrl + Enter to save',
+  'day-title-ph':'Title for the day','day-untitled':'Untitled','ctrl-save':'Click away or Ctrl + Enter to save',
   'clock-off':"⏰ This device's clock is {n} {dir}. Stoic corrects for it, so your days and your sync are safe — but the system clock is worth fixing.",
   'clock-fast':'ahead of the server','clock-slow':'behind the server',
   'tz-title':'Where your day begins','tz-this-device':'this device',
@@ -1176,7 +1176,7 @@ es:{
   'rw-del':'Quitar de la lista','rw-del-warn':'¿Quitar {n}? Sus registros se van con ella — {d} día(s) se recalculan sin ella. Nada más cambia.',
   'rw-note':'El peso define cuánto cuesta y qué tan bueno tiene que ser el día para cobrarla a base. Las primeras tres son fijas, una de cada una.',
   'edit-note':'Editar nota','add-note':'Agregar nota','save-note':'Guardar nota','no-data':'Sin datos para este día.',
-  'day-title-ph':'Título del día','day-untitled':'Sin título','ctrl-save':'Ctrl + Enter para guardar',
+  'day-title-ph':'Título del día','day-untitled':'Sin título','ctrl-save':'Toca fuera o Ctrl + Enter para guardar',
   'clock-off':'⏰ El reloj de este dispositivo va {n} {dir}. Stoic lo compensa, así que tus días y tu sincronización están a salvo — pero conviene corregir la hora del sistema.',
   'clock-fast':'adelantado respecto al servidor','clock-slow':'atrasado respecto al servidor',
   'tz-title':'Dónde empieza tu día','tz-this-device':'este dispositivo',
@@ -6309,31 +6309,44 @@ function renderDayPanel(){
     wrap.appendChild(dv('xs dimmer',t('no-data')));
   }
 
-  // The note: read it formatted, or open it and write. Opening hides the
-  // reading copy so the day is not shown twice at once.
-  const nb=bt('btn-ghost btn-sm','📝 '+(STATE.diary[key]?t('edit-note'):t('add-note')),()=>{
+  /* The note reads as formatted text and opens to edit on a click — the same
+     as a task's title or note, no button in between. Opening hides this
+     reading copy so the day is not shown twice at once; closing redraws it. */
+  const openNote=()=>{
     wrap.querySelectorAll('.note-prev').forEach(pv=>pv.style.display='none');
-    toggleDiaryEditor(wrap,key,nb);
-  });
-  nb.style.cssText='margin-top:12px;display:block';wrap.appendChild(nb);
+    toggleDiaryEditor(wrap,key,null);
+  };
   if(STATE.diary[key]){
     const body=noteBody(STATE.diary[key]);
     const folded=!!STATE.diaryFold[key];
-    /* The title heads the note and folds it: one click puts the template away
-       and leaves the summary, which is the part worth re-reading. A note with
-       no summary in it has nothing to fold, so it stays whole. */
+    /* The arrow folds the note — one click puts the template away and leaves
+       the summary, the part worth re-reading. The title's words open the
+       editor, the way a task's name does. A note with no summary has nothing
+       to fold, so the arrow is not drawn. */
     const cut=summaryCut(body);
-    const head=dv('row gap6 mt10 note-prev');
-    head.style.cssText='cursor:pointer;align-items:baseline';
-    if(cut>=0)head.appendChild(sp('sm dimmer',folded?'▸':'▾'));
+    const head=dv('row gap6 mt10 note-prev');head.style.alignItems='baseline';
+    if(cut>=0){
+      const arr=sp('sm dimmer',folded?'▸':'▾');arr.style.cursor='pointer';
+      arr.onclick=e=>{e.stopPropagation();STATE.diaryFold[key]=!folded;refresh();};
+      head.appendChild(arr);
+    }
     const title=noteTitle(STATE.diary[key]);
-    head.appendChild(sp(title?'xl w7 ac':'xl w7 dimmer',title||t('day-untitled')));
-    head.onclick=()=>{if(cut>=0){STATE.diaryFold[key]=!folded;refresh();}};
+    const tsp=sp(title?'xl w7 ac':'xl w7 dimmer',title||t('day-untitled'));
+    tsp.style.cursor='pointer';tsp.title=t('rem-edit-note');tsp.onclick=openNote;
+    head.appendChild(tsp);
     wrap.appendChild(head);
     const preview=dv('sm dim mt8 note-prev');
-    preview.style.cssText='white-space:pre-wrap;line-height:1.6';
+    preview.style.cssText='white-space:pre-wrap;line-height:1.6;cursor:pointer';
+    preview.title=t('rem-edit-note');
     preview.innerHTML=diaryToHtml(folded&&cut>=0?body.split('\n').slice(cut).join('\n'):body);
+    preview.onclick=openNote;
     wrap.appendChild(preview);
+  }else{
+    const add=dv('sm dimmer mt10 note-prev');
+    add.textContent='＋ '+t('add-note');
+    add.style.cursor='pointer';add.title=t('rem-edit-note');
+    add.onclick=openNote;
+    wrap.appendChild(add);
   }
   return wrap;
 }
@@ -7858,6 +7871,15 @@ function renderDiaryFor(dateKey,onSave){
   const put=e=>{if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){e.preventDefault();if(onSave)onSave();}};
   ta.onkeydown=put;
   ti.onkeydown=e=>{if(e.key==='Enter'&&!e.ctrlKey&&!e.metaKey){e.preventDefault();ta.focus();}else put(e);};
+  /* Clicking away closes it back to the formatted note, the same as a task's
+     note does on blur — moving between the title and the body does not count,
+     and the guard skips a redundant close when the day is being switched (that
+     path has already saved and torn the editor down). */
+  wrap.addEventListener('focusout',()=>{
+    setTimeout(()=>{
+      if(document.body.contains(wrap)&&!wrap.contains(document.activeElement)&&onSave)onSave();
+    },0);
+  });
 
   wrap.appendChild(ti);wrap.appendChild(ta);
   wrap.appendChild(dv('xs dimmer mt4',t('ctrl-save')));
