@@ -4828,9 +4828,9 @@ function editableTitle(el,r,after,row){
    the top of it in a box — two copies of the same words, and only the lower
    one did anything. The note is edited where the note is now.
    A textarea rather than editableTitle's input, because a note is prose and
-   Enter inside prose must write a line, not submit anything — so only
-   leaving the field (blur) or Escape ends the edit; there is no key that
-   commits it early. */
+   a plain Enter inside prose must write a line, not submit — but Ctrl/⌘+Enter
+   commits it, like it does in the diary and the task editor. Blur commits
+   too; Escape leaves it alone. */
 function editableNotes(el,r,after){
   el.style.cursor='text';el.title=t('rem-edit-note');
   el.onclick=e=>{
@@ -4844,13 +4844,6 @@ function editableNotes(el,r,after){
        page off screen; resize:vertical above still lets you pull it taller
        by hand past that. */
     const grow=()=>{ta.style.height='auto';ta.style.height=Math.min(ta.scrollHeight,420)+'px';};
-    const put=()=>{
-      const v=ta.value.replace(/\s+$/,'');
-      if(v!==(r.notes||''))updateReminder(r.id,{notes:v});
-      after();
-    };
-    ta.onkeydown=ev=>{if(ev.key==='Escape'){ev.preventDefault();after();}};
-    ta.oninput=grow;
     /* The row this note sits on is draggable — that is how a task is nested
        under another — and a drag beginning inside a child of a draggable
        element is handed to the drag, not to the text. So sweeping across a
@@ -4860,7 +4853,18 @@ function editableNotes(el,r,after){
     const row=el.closest('.rem-row');
     const wasDraggable=row?row.draggable:false;
     if(row)row.draggable=false;
-    ta.onblur=()=>{if(row)row.draggable=wasDraggable;put();};
+    const put=()=>{
+      if(row)row.draggable=wasDraggable;
+      const v=ta.value.replace(/\s+$/,'');
+      if(v!==(r.notes||''))updateReminder(r.id,{notes:v});
+      after();
+    };
+    ta.onkeydown=ev=>{
+      if(ev.key==='Escape'){ev.preventDefault();if(row)row.draggable=wasDraggable;after();}
+      else if(ev.key==='Enter'&&(ev.ctrlKey||ev.metaKey)){ev.preventDefault();put();}
+    };
+    ta.oninput=grow;
+    ta.onblur=put;
     el.replaceWith(ta);ta.focus();
     grow();
   };
