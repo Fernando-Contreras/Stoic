@@ -1110,7 +1110,7 @@ en:{
   'rem-parent-is':'Subtask of','rem-parent-search':'Nest under… (type to search)','rem-parent-none':'Nothing matches',
   'goals-title':'Goals','goal-week':'📅 Weekly','goal-quarter':'📈 Quarterly','goal-year':'🏆 Yearly',
   'goal-new':'A goal that excites you','goal-add':'+ Add goal','goal-day':'day left','goal-days':'days left',
-  'goal-earned':'earned from goals','goal-daily':'Goals to annihilate',
+  'goal-earned':'earned from goals','goal-daily':'Goals to annihilate','goal-daily-none':'No goals flagged for today.',
   'cap-note':'Your positive runs pay by square root — 100 days is ×{n} — so they never stop growing. Reward runs reach ×{p}.',
   'src-title':'Where your points come from','src-tasks':'Tasks','src-morning':'Morning','src-flags':'Goals',
   'src-pom':'Pomodoros','src-work':'Work','src-sleep':'Sleep','src-color':'Day colour',
@@ -1310,7 +1310,7 @@ es:{
   'rem-parent-is':'Subtarea de','rem-parent-search':'Meterla bajo… (escribe para buscar)','rem-parent-none':'Nada coincide',
   'goals-title':'Metas','goal-week':'📅 Semanales','goal-quarter':'📈 Trimestrales','goal-year':'🏆 Anuales',
   'goal-new':'Una meta que te emocione','goal-add':'+ Agregar meta','goal-day':'día restante','goal-days':'días restantes',
-  'goal-earned':'ganados en metas','goal-daily':'Metas por exterminar alv',
+  'goal-earned':'ganados en metas','goal-daily':'Metas por exterminar alv','goal-daily-none':'No hay metas del día marcadas.',
   'cap-note':'Tus rachas positivas pagan por raíz cuadrada — 100 días valen ×{n} — así que nunca dejan de crecer. Las de recompensa llegan hasta ×{p}.',
   'src-title':'De dónde salen tus puntos','src-tasks':'Tareas','src-morning':'Mañanas','src-flags':'Metas',
   'src-pom':'Pomodoros','src-work':'Trabajo','src-sleep':'Sueño','src-color':'Color del día',
@@ -1901,6 +1901,7 @@ let STATE={
   showAddForm: false,
   addQuad: 0,        // which quadrant the add form should open with, 0 = none
   showGoals: false,
+  showFlags: false,   // the day's flagged goals, opened from their heading/banner
   showRules: false,
   showTZ: false,
   taskTree: null,
@@ -2257,7 +2258,7 @@ function isEditing(){
   /* Picking several tasks counts as well. It is not an overlay, but it is an
      unfinished action held entirely on screen — a redraw underneath it is the
      same interruption an overlay blinking out would be. */
-  return ['taskTree','histDay','restoreList','showTZ','showRules','showSyncPanel','showGoals',
+  return ['taskTree','histDay','restoreList','showTZ','showRules','showSyncPanel','showGoals','showFlags',
           'showAddForm','showRewards','selecting']
     .some(k=>STATE[k]);
 }
@@ -3652,10 +3653,17 @@ function renderPlanner(){
   const flagsAll=reminders().filter(r=>r.flagged&&(r.completedOn===tk||(!r.done&&r.due<=tk)));
   const flagsLeft=flagsAll.filter(r=>r.completedOn!==tk);
   if(flagsAll.length){
-    sum.appendChild(dv('xs dimmer up ls mt10 mb6',`🏁 ${t('goal-daily')} (${s.flagsDone}/${s.flagsTotal})`));
+    /* The heading and the done-banner both open the full list of the day's
+       flags — the one place to reword or reschedule a goal once the section
+       has collapsed into either a short list or a fanfare. */
+    const openFlags=()=>{STATE.showFlags=true;render();};
+    const gh=dv('xs dimmer up ls mt10 mb6',`🏁 ${t('goal-daily')} (${s.flagsDone}/${s.flagsTotal})`);
+    gh.style.cursor='pointer';gh.title=t('goal-daily');gh.onclick=openFlags;
+    sum.appendChild(gh);
     if(!flagsLeft.length){
       const win=dv('ctr celebrate');
-      win.style.cssText='position:relative;overflow:hidden;background:var(--acd);border:1px solid var(--acb);border-radius:10px;padding:14px 10px';
+      win.style.cssText='position:relative;overflow:hidden;background:var(--acd);border:1px solid var(--acb);border-radius:10px;padding:14px 10px;cursor:pointer';
+      win.title=t('goal-daily');win.onclick=openFlags;
       win.innerHTML=`<div class="lg w8 ac">🏅 ${t('goal-day-done')}</div>`+
         `<div class="xs dim mt2">${t('goal-day-done-sub')}</div>`;
       const conf=dv('confetti');
@@ -4064,6 +4072,7 @@ function renderPlanner(){
     ov.appendChild(panel);
     wrap.appendChild(ov);
   }
+  if(STATE.showFlags)wrap.appendChild(renderFlagsModal());
   return wrap;
 }
 
@@ -6167,6 +6176,47 @@ function renderCalendar(onPick){
   const wrap=dv('card');const now=new Date();
   if(!STATE.calYM)STATE.calYM={y:now.getFullYear(),m:now.getMonth()};
   let cY=STATE.calYM.y,cM=STATE.calYM.m;
+  const shiftMonth=delta=>{
+    cM+=delta;
+    while(cM<0){cM+=12;cY--;}
+    while(cM>11){cM-=12;cY++;}
+    STATE.calYM={y:cY,m:cM};build();
+  };
+  /* Swipe the month across — drag left for the next one, right for the
+     previous — with a finger or a mouse; the arrows stay for a plain tap.
+     touch-action:pan-y leaves vertical scrolling to the browser and hands us
+     the sideways drag, and a real drag past the threshold swallows the click
+     that trails it so the release does not also pick a day. */
+  wrap.style.touchAction='pan-y';
+  let sx=null,sy=null,drag=false,swallow=false;
+  const gridEl=()=>wrap.querySelector('.cal-g');
+  wrap.addEventListener('pointerdown',e=>{
+    if(e.pointerType==='mouse'&&e.button!==0)return;
+    sx=e.clientX;sy=e.clientY;drag=false;
+  });
+  wrap.addEventListener('pointermove',e=>{
+    if(sx===null)return;
+    const dx=e.clientX-sx,dy=e.clientY-sy;
+    if(!drag){
+      if(Math.abs(dx)<8)return;
+      if(Math.abs(dy)>Math.abs(dx)){sx=null;return;}   // vertical → let the page scroll
+      drag=true;
+      try{wrap.setPointerCapture(e.pointerId);}catch(_){}
+    }
+    const g=gridEl();
+    if(g){g.style.transition='none';g.style.transform='translateX('+Math.max(-80,Math.min(80,dx))+'px)';g.style.opacity=String(1-Math.min(.4,Math.abs(dx)/500));}
+  });
+  const endSwipe=e=>{
+    if(sx===null)return;
+    const dx=e.clientX-sx;sx=null;
+    const g=gridEl();
+    if(g){g.style.transition='transform .18s ease,opacity .18s ease';g.style.transform='';g.style.opacity='';}
+    if(drag&&Math.abs(dx)>=44){swallow=true;setTimeout(()=>{swallow=false;},400);shiftMonth(dx<0?1:-1);}
+    drag=false;
+  };
+  wrap.addEventListener('pointerup',endSwipe);
+  wrap.addEventListener('pointercancel',endSwipe);
+  wrap.addEventListener('click',e=>{if(swallow){swallow=false;e.stopPropagation();e.preventDefault();}},true);
   const isLight=document.body.classList.contains('light');
   const sBg=isLight
     ? {red:{bg:'#fecaca',txt:'#991b1b'},yellow:{bg:'#fef08a',txt:'#854d0e'},green:{bg:'#bbf7d0',txt:'#14532d'},purple:{bg:'#e9d5ff',txt:'#581c87'},none:{bg:'#e2e8f0',txt:'#94a3b8'}}
@@ -6175,8 +6225,8 @@ function renderCalendar(onPick){
   function build(){
     wrap.innerHTML='';
     const hd=dv('rowb mb12');
-    const pv=bt('btn-icon','‹',()=>{cM--;if(cM<0){cM=11;cY--;}STATE.calYM={y:cY,m:cM};build();});pv.style.fontSize='20px';
-    const nx=bt('btn-icon','›',()=>{cM++;if(cM>11){cM=0;cY++;}STATE.calYM={y:cY,m:cM};build();});nx.style.fontSize='20px';
+    const pv=bt('btn-icon','‹',()=>shiftMonth(-1));pv.style.fontSize='20px';
+    const nx=bt('btn-icon','›',()=>shiftMonth(1));nx.style.fontSize='20px';
     hd.appendChild(pv);hd.appendChild(sp('lg w7',capFirst(new Date(cY,cM).toLocaleDateString(STATE.lang==='es'?'es-MX':'en-US',{month:'long',year:'numeric'}))));hd.appendChild(nx);wrap.appendChild(hd);
 
     // #6: use history with gaps filled for calendar display
@@ -7598,6 +7648,49 @@ function renderTaskTreeModal(id){
   return ov;
 }
 
+/* ═══ THE DAY'S GOALS — opened from the "Metas por exterminar" heading or its
+   done banner ═══
+   Every flag of the day in one window, done and not. The day the whole set is
+   down, the list on the page is replaced by a fanfare with nothing to press —
+   so rewording or rescheduling one of them meant hunting it out of the full
+   task list. It is a click away from its own heading now. Rows are the ones
+   the list draws, so ticking, editing and adding all work here unchanged. */
+function renderFlagsModal(){
+  const close=()=>{STATE.showFlags=false;STATE.editingRem=null;render();};
+  const ov=dv('fi');ov.classList.add('ovl');
+  closeOnBackdrop(ov,close);
+  const panel=dv('card');
+  panel.style.cssText='max-width:640px;width:100%;margin:auto';
+  ov.appendChild(panel);
+  const draw=()=>{
+    panel.innerHTML='';
+    const tk=todayKey();
+    /* The same set the heading counts: flagged, and either ticked today or
+       still open and due by today. Outstanding first, then the ones already
+       down, each group by date. */
+    const flags=reminders()
+      .filter(r=>r.flagged&&(r.completedOn===tk||(!r.done&&r.due<=tk)))
+      .sort((a,b)=>((a.completedOn===tk)-(b.completedOn===tk))||(a.due||'').localeCompare(b.due||''));
+    const done=flags.filter(r=>r.completedOn===tk).length;
+    const hd=dv('rowb mb12');
+    const lft=dv('row gap6');
+    lft.appendChild(sp('ctit','🏁 '+t('goal-daily')));
+    if(flags.length)lft.appendChild(sp('sm mo dim',`${done}/${flags.length}`));
+    hd.appendChild(lft);
+    hd.appendChild(bt('btn-icon','✕',close));
+    panel.appendChild(hd);
+    if(!flags.length){
+      panel.appendChild(dv('sm dimmer ctr mt8 mb8',t('goal-daily-none')));
+      return;
+    }
+    const box=dv('s6');
+    flags.forEach(r=>box.appendChild(renderReminderRow(r,tk,{redraw:draw,keepsDone:true})));
+    panel.appendChild(box);
+  };
+  draw();
+  return ov;
+}
+
 /* ═══ WHERE THE DAY BEGINS — opened from the clock ═══
    Every zone there is, searched by name, because the app is not only for one
    country. It stores the zone rather than "wherever I happen to be", so the
@@ -7964,7 +8057,7 @@ document.addEventListener('keydown',e=>{
   // Its own line, because closing it can throw a half-written task away and so
   // it goes through the same question the ✕ and the backdrop ask.
   if(STATE.showAddForm){closeAddForm();return;}
-  const open=['showReset','showRewards','restoreList','taskTree','histDay','showTZ','showRules','showSyncPanel','showGoals'].find(k=>STATE[k]);
+  const open=['showReset','showRewards','restoreList','taskTree','histDay','showTZ','showRules','showSyncPanel','showGoals','showFlags'].find(k=>STATE[k]);
   if(!open){
     /* Nothing on top of the list — Escape clears the tag filter, the same as
        the ✕ on the filter bar. Skipped while a field is focused, where Escape
@@ -7975,7 +8068,7 @@ document.addEventListener('keydown',e=>{
     }
     return;
   }
-  STATE[open]=(open==='showTZ'||open==='showRules'||open==='showSyncPanel'||open==='showGoals'||open==='showRewards')?false:(open==='showReset'?0:null);
+  STATE[open]=(open==='showTZ'||open==='showRules'||open==='showSyncPanel'||open==='showGoals'||open==='showFlags'||open==='showRewards')?false:(open==='showReset'?0:null);
   // An editor opened inside the one-task overlay leaves with it, rather than
   // being left open on the list underneath.
   if(open==='taskTree')STATE.editingRem=null;
