@@ -4826,7 +4826,12 @@ function editableTitle(el,r,after,row){
       if(v&&v!==r.title)updateReminder(r.id,{title:v});
       after();
     };
-    inp.onkeydown=ev=>{if(ev.key==='Enter')put();if(ev.key==='Escape')after();};
+    // Enter (plain or with Ctrl/⌘) saves; both stop here so the page-wide
+    // Ctrl+Enter does not then also fire whatever form this sits inside.
+    inp.onkeydown=ev=>{
+      if(ev.key==='Enter'){ev.preventDefault();ev.stopPropagation();put();}
+      else if(ev.key==='Escape'){ev.stopPropagation();after();}
+    };
     inp.onblur=put;
     if(row)row.draggable=false;
     el.replaceWith(inp);inp.focus();inp.select();
@@ -8073,6 +8078,22 @@ document.addEventListener('keydown',e=>{
   // being left open on the list underneath.
   if(open==='taskTree')STATE.editingRem=null;
   render();
+});
+
+/* Ctrl/⌘+Enter commits the form you are typing in — the add-reminder popup,
+   the history editor, any panel that opens over the page. It presses that
+   overlay's accent button, which is the one that submits it. Editors that
+   already handle the combo (the task editor, an inline title or note, the
+   diary) call preventDefault first and are left untouched. */
+document.addEventListener('keydown',e=>{
+  if(!(e.key==='Enter'&&(e.ctrlKey||e.metaKey))||e.defaultPrevented)return;
+  // e.target, not activeElement: a field that blurs itself on Enter has already
+  // moved focus to <body> by the time this runs.
+  const t0=e.target;
+  const scope=t0&&t0.closest&&t0.closest('.ovl');
+  if(!scope)return;
+  const btns=[...scope.querySelectorAll('button.btn-ac')].filter(b=>!b.disabled&&b.offsetParent!==null);
+  if(btns.length){e.preventDefault();btns[btns.length-1].click();}
 });
 
 /* Scrolling is when the bubble is meant to arrive, so it answers the scroll
