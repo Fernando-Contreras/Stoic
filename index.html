@@ -1127,6 +1127,7 @@ en:{
   'pomo-done':'Session finished. Take a break.','pomo-break-over':'Break over. Back to it.',
   'pomo-from-timer':'from the timer today',
   'pomo-note':'Every 25 focused minutes is one 🍅, worth +{n} pts × its run — a 50-minute session reads as 2. Breaks pay nothing. The minutes themselves are paid by 💼 Work; this is paid for keeping them unbroken.',
+  'pomo-add-one':'+1 🍅 (didn\'t use the timer)','pomo-add-one-title':'Add one without running the timer — the full count, its points and the −/+ to fix it still live in Score.',
   'use-dur':'Use: 5h, 300m, 2h30m or number (minutes)',
   'ej-dur':'e.g. 2h30m',
 },
@@ -1327,6 +1328,7 @@ es:{
   'pomo-done':'Sesión terminada. Tómate un descanso.','pomo-break-over':'Se acabó el descanso. A darle.',
   'pomo-from-timer':'del timer hoy',
   'pomo-note':'Cada 25 minutos enfocados son un 🍅 y valen +{n} pts × su racha — una sesión de 50 min cuenta como 2. Los descansos no pagan. Los minutos ya te los paga 💼 Trabajo; esto te lo paga por no romperlos.',
+  'pomo-add-one':'+1 🍅 (no usé el timer)','pomo-add-one-title':'Súmalo sin correr el timer — el conteo completo, sus puntos y el −/+ para corregirlo siguen en Puntaje.',
   'use-dur':'Usa: 5h, 300m, 2h30m o número (minutos)',
   'ej-dur':'ej. 2h30m',
 }};
@@ -4320,6 +4322,17 @@ function renderPomoCard(){
   });
   card.appendChild(cfg);
   card.appendChild(dv('xs dimmer mt6',t('pomo-note').replace('{n}',POM_PTS)));
+  /* A shortcut for one done away from this timer — a phone timer, a session
+     already over by the time you opened the app — so it does not cost a trip
+     to Score. It only ever adds one; the full count, its points, and the −/+
+     to correct it still live there, next to everything else the day is
+     scored on. */
+  const quick=bt('btn-ghost btn-sm w100 mt8',t('pomo-add-one'),()=>{
+    STATE.today.pomodoros=Math.round(((STATE.today.pomodoros||0)+1)*10)/10;
+    markManual('pomodoros');commitAndRefresh();
+  });
+  quick.title=t('pomo-add-one-title');
+  card.appendChild(quick);
   return card;
 }
 
