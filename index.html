@@ -2440,17 +2440,27 @@ function advanceDue(due,rep,tk,time){
     /* Weekly on chosen weekdays, honouring the "every N weeks" stride: inside
        an active week it hits each listed day in turn, and only once that week
        is spent does it skip ahead N weeks. So Tue+Fri every 4 weeks means both
-       days of one week, then nothing for four weeks. */
+       days of one week, then nothing for four weeks.
+
+       The week here runs Monday to Sunday, not Sunday to Saturday. A week
+       anchored on Sunday put Saturday and Sunday — a single real weekend — at
+       opposite ends of it, six days apart, so "Saturday and Sunday every 3
+       weeks" fired as two lopsided bursts (a 6-day gap, then a 15-day one)
+       instead of one adjacent pair every 21 days. Monday-anchoring keeps every
+       calendar week intact, weekend included, so any chosen set of days stays
+       exactly as close together as it is on a real calendar. */
+    const isoOff=dow=>(dow+6)%7;                        // JS Sun=0…Sat=6 → Mon=0…Sun=6
     const next=from=>{
-      const ws=new Date(from);ws.setDate(from.getDate()-from.getDay()); // Sunday
+      const ws=new Date(from);ws.setDate(from.getDate()-isoOff(from.getDay())); // Monday
       let best=null;
       rep.days.forEach(dow=>{
-        const c=new Date(ws);c.setDate(ws.getDate()+dow);
+        const c=new Date(ws);c.setDate(ws.getDate()+isoOff(dow));
         if(c>from&&(!best||c<best))best=c;
       });
       if(best)return best;
+      const minOff=Math.min(...rep.days.map(isoOff));
       const ns=new Date(ws);ns.setDate(ws.getDate()+7*every);
-      const c=new Date(ns);c.setDate(ns.getDate()+Math.min(...rep.days));
+      const c=new Date(ns);c.setDate(ns.getDate()+minOff);
       return c;
     };
     let cur=d;
