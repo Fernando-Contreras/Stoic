@@ -4108,12 +4108,21 @@ function buildGoals(redraw){
   const grid=dv('g3');
   GOAL_KINDS.forEach(kind=>{
     const card=dv('card');
-    const list=goalsOf(kind);
+    /* What counts toward the cap — open goals, plus a done one still inside the
+       period it was closed in — is not the same as what gets shown here. That
+       used to be one list: the moment a done goal's period ended, goalsOf quietly
+       stopped returning it, and it vanished from the panel with no way back to
+       check what it had paid. Everything of this kind is listed below, open
+       first, then done ones newest first; only the count next to the heading
+       still reads off the cap. */
+    const capCount=goalsOf(kind).length;
+    const list=goals().filter(g=>g.kind===kind)
+      .sort((a,b)=>(!!a.doneOn-!!b.doneOn)||(a.doneOn&&b.doneOn?b.doneOn.localeCompare(a.doneOn):0));
     const max=GOAL_MAX[kind];
     const left=daysLeftIn(kind,tk);
     const h=dv('rowb mb6');
     h.appendChild(sp('ctit',t('goal-'+kind)));
-    h.appendChild(sp('xs dimmer',`${list.length}/${max}`));
+    h.appendChild(sp('xs dimmer',`${capCount}/${max}`));
     card.appendChild(h);
     // What one finished right now would be worth — the incentive, in numbers.
     card.appendChild(dv('xs dim mb10',
