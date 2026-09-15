@@ -1119,6 +1119,7 @@ en:{
   'goal-day-done':'Goals annihilated!','goal-day-done-sub':'Every flag of the day is down.',
   'goal-worth':'worth','goal-tomorrow':'tomorrow','goal-past-due':'⚠ was due',
   'goal-full':'Limit reached.','goal-carried':'⚠ carried over from last period',
+  'goal-done-toggle':'Finished ({n})',
   'goal-note':'Finish early, earn more: base × days still left in the period. These add to your total score, not to the day.',
   'rem-subtasks':'subtasks','rem-collapse':'Hide subtasks','rem-expand':'Show subtasks',
   'rem-indent':'Make it a subtask of the one above','rem-outdent':'Lift out of its parent',
@@ -1320,6 +1321,7 @@ es:{
   'goal-day-done':'¡Metas exterminadas alv!','goal-day-done-sub':'Cayeron todas las banderas de hoy.',
   'goal-worth':'vale','goal-tomorrow':'mañana','goal-past-due':'⚠ era para',
   'goal-full':'Límite alcanzado.','goal-carried':'⚠ arrastrada del periodo anterior',
+  'goal-done-toggle':'Terminadas ({n})',
   'goal-note':'Termínalas temprano, valen más: base × días que quedan del periodo. Suman a tu puntaje total, no al día.',
   'rem-subtasks':'subtareas','rem-collapse':'Ocultar subtareas','rem-expand':'Ver subtareas',
   'rem-indent':'Volverla subtarea de la de arriba','rem-outdent':'Sacarla de su tarea madre',
@@ -4099,6 +4101,10 @@ function renderGoals(){
   draw();
   return shell;
 }
+/* Which goal kinds have their finished list unfolded. Module scope, not
+   STATE — a glance at your history opened for a second has no business
+   syncing to the other device or surviving a reload. */
+let _goalDoneOpen={};
 function buildGoals(redraw){
   const wrap=dv('');
   const tk=todayKey();
@@ -4128,9 +4134,13 @@ function buildGoals(redraw){
     card.appendChild(dv('xs dim mb10',
       `${GOAL_BASE[kind].toLocaleString()} × ${left} ${left===1?t('goal-day'):t('goal-days')} = <span class="ac w6">${(GOAL_BASE[kind]*left).toLocaleString()}</span>`));
 
-    if(!list.length)card.appendChild(dv('xs dimmer ctr','—'));
+    const openList=list.filter(g=>!g.doneOn);
+    const doneList=list.filter(g=>g.doneOn);
+    if(!openList.length&&!doneList.length)card.appendChild(dv('xs dimmer ctr','—'));
     const box=dv('s6');
-    list.forEach(g=>{
+    // Built once, used for both the open rows below and the finished ones
+    // folded under the toggle further down — same row, same behaviour.
+    const mkRow=g=>{
       const row=dv('row gap8');
       row.style.cssText='background:var(--sur2);border:1px solid '+(g.doneOn?'var(--gb)':'var(--b1)')+';border-radius:10px;padding:9px 11px;align-items:flex-start';
       const cb=ip('checkbox','');cb.checked=!!g.doneOn;cb.style.marginTop='2px';
@@ -4257,11 +4267,30 @@ function buildGoals(redraw){
       });
       gdel.title=t('sel-del');
       row.appendChild(gdel);
-      box.appendChild(row);
-    });
+      return row;
+    };
+    openList.forEach(g=>box.appendChild(mkRow(g)));
     card.appendChild(box);
 
-    if(list.length<max){
+    /* Finished ones fold behind a button instead of always sitting open — a
+       long history of closed goals used to mean the panel opened straight
+       into a wall of struck-through titles every single time. Still never
+       hidden for good, the way they used to vanish once their period ended —
+       just tucked away until asked for. */
+    if(doneList.length){
+      const open=!!_goalDoneOpen[kind];
+      const toggle=bt('btn-ghost btn-sm w100 mt6',
+        (open?'▾ ':'▸ ')+t('goal-done-toggle').replace('{n}',doneList.length),
+        ()=>{_goalDoneOpen[kind]=!open;redraw();});
+      card.appendChild(toggle);
+      if(open){
+        const doneBox=dv('s6 mt6');
+        doneList.forEach(g=>doneBox.appendChild(mkRow(g)));
+        card.appendChild(doneBox);
+      }
+    }
+
+    if(capCount<max){
       const gi=ip('text','','',t('goal-new'));gi.style.marginTop='8px';
       const add=()=>{
         const v=gi.value.trim();if(!v)return;
