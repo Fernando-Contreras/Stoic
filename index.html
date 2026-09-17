@@ -3905,7 +3905,14 @@ function renderPlanner(){
     shownIds.add(p.id);if(p.due<tk)nOver++;
     kidsFor(p).forEach(c=>{shownIds.add(c.id);if(c.due<tk)nOver++;});
   });
-  const hidden=open.length-shownIds.size;
+  /* While peeking at one day, "hidden" has to mean what is still further out
+     from THAT day — everything else open, today included, is not "ahead" of
+     it, it is beside or behind it. Counting it the old way (open minus what
+     is on screen) folded today and every other future day into one number
+     that had nothing to do with what "más adelante" actually asked. */
+  const hidden=peek>0
+    ? open.filter(r=>r.due>viewDate&&passesTags(tagsOf(r))).length
+    : open.length-shownIds.size;
   const card=dv('card');
   /* Swipe the card to peek a day ahead — left for tomorrow, further left for
      the day after, the same direction the calendar already uses for
