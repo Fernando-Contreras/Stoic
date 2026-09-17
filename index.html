@@ -5467,9 +5467,16 @@ function checkMilestone(){
   if(document.querySelector('.ms-ov'))return;
   const tk=todayKey();
   const today=medalsByDate().get(tk)||[];
-  if(!today.length)return;
   let seen=[];try{seen=JSON.parse(localStorage.getItem('st_milestones')||'[]');}catch(e){}
   const id=m=>m.kind.k+':'+m.n+':'+tk;
+  const todayIds=new Set(today.map(id));
+  /* Undoing whatever earned a medal — pulling out today's work log, say —
+     and then redoing it should feel like earning it again, not like a box
+     that was already ticked. Only today's own entries can un-happen this
+     way; a past day is fixed once logged, so this never touches those. */
+  const pruned=seen.filter(s=>s.endsWith(':'+tk)?todayIds.has(s):true);
+  if(pruned.length!==seen.length){seen=pruned;try{localStorage.setItem('st_milestones',JSON.stringify(seen));}catch(e){}}
+  if(!today.length)return;
   const fresh=today.filter(m=>!seen.includes(id(m)));
   if(!fresh.length)return;
   // Several at once would talk over each other; the biggest speaks for them.
