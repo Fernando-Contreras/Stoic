@@ -1079,7 +1079,7 @@ en:{
   'tpl-weekly-plan':'Plan for doing so:',
   'tpl-why':'Why these results?:','tpl-dream':'Today I remember dreaming:',
   'tpl-feel':'I feel:','tpl-feel-why':'Why?:',
-  'tpl-cool':'Something cool I did:','tpl-improve':'Something I can improve:',
+  'tpl-cool':'Something cool I did today:','tpl-improve':'Something I can improve:',
   'tpl-summary':'Summary:',
   'ver-mas':'See more','ver-menos':'See less',
   'edit-hist':'Edit History','save-btn':'Save','edit-done':'Done',
@@ -1285,7 +1285,7 @@ es:{
   'tpl-weekly-plan':'Plan para lograrlo:',
   'tpl-why':'¿Por qué estos resultados?:','tpl-dream':'Hoy recuerdo haber soñado:',
   'tpl-feel':'Me siento:','tpl-feel-why':'¿Por qué?:',
-  'tpl-cool':'Algo chido que hice:','tpl-improve':'Algo que puedo mejorar:',
+  'tpl-cool':'Algo chido que hice hoy:','tpl-improve':'Algo que puedo mejorar:',
   'tpl-summary':'Resumen:',
   'ver-mas':'Ver más','ver-menos':'Ver menos',
   'edit-hist':'Editar Historial','save-btn':'Guardar','edit-done':'Listo',
@@ -5221,12 +5221,24 @@ function renderReminderRow(r,tk,opts){
      now, and the editor keeps everything that genuinely needs a form. */
   editableTitle(tt,r,rd,row);
   titleLine.appendChild(tt);
+  /* A weekly goal this task serves reads as part of the name itself — "Título
+     | Meta" — rather than as a chip further along the row, so it is in the
+     one place you are already reading instead of one more thing to notice
+     beside it. Only weekly: those are the ones actually meant to be kept in
+     front of you day to day, and every one of them tacked on here would be
+     the clutter this is meant to avoid. Quarterly and yearly keep the chip. */
+  const weeklyServed=goalsServedBy(r).filter(g=>g.kind==='week');
+  if(weeklyServed.length){
+    const suf=sp('md dimmer',' | '+weeklyServed.map(g=>g.title).join(' | '));
+    suf.title=t('rem-goal-for');
+    titleLine.appendChild(suf);
+  }
   if(r.flagged)titleLine.appendChild(sp('sm','🏁'));
   /* What this flag is a step toward. Beside the flag rather than in the meta
      line below it, because it is part of what the task IS — the flag says
      the day is scored on it and this says what it is for. Pressing it opens
      the goals, which is where the rest of that story lives. */
-  goalsServedBy(r).forEach(g=>{
+  goalsServedBy(r).filter(g=>g.kind!=='week').forEach(g=>{
     const chip=bt('tagchip',`${GOAL_ICON[g.kind]} ${g.title.slice(0,28)}`,
       e=>{e.stopPropagation();STATE.showGoals=true;render();});
     chip.style.cssText+=';cursor:pointer;border-color:var(--acb);color:var(--ac)';
