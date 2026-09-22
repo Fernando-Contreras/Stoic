@@ -4129,12 +4129,17 @@ function renderPlanner(){
   // not done, standing on its own row instead of going missing.
   const doneAll=list.filter(r=>r.completedOn===tk&&tagOk(r));
   const doneTopIds=new Set(doneAll.filter(r=>!r.parent).map(r=>r.id));
+  // Last done, first read — a finished list answers "what did I just do",
+  // which the due-date order above is not built to say. _ts is the moment it
+  // was last touched, which for something just ticked is the moment it was
+  // finished.
+  const byRecent=(a,b)=>(b._ts||0)-(a._ts||0);
   const doneKids=p=>doneTopIds.has(p.id)
-    ? subtasksOf(p.id).filter(c=>c.completedOn===tk&&tagOk(c)).sort(order) : [];
+    ? subtasksOf(p.id).filter(c=>c.completedOn===tk&&tagOk(c)).sort(byRecent) : [];
   const doneTops=[
     ...doneAll.filter(r=>!r.parent),
     ...doneAll.filter(r=>r.parent&&!doneTopIds.has(r.parent))
-  ].sort(order);
+  ].sort(byRecent);
   /* Everything finished on an earlier day, newest first and capped, so the
      archive stays browsable without the page carrying years of it.
      Note: only reminders that close for good land here. A repeating one never
@@ -5229,7 +5234,7 @@ function renderReminderRow(r,tk,opts){
      the clutter this is meant to avoid. Quarterly and yearly keep the chip. */
   const weeklyServed=goalsServedBy(r).filter(g=>g.kind==='week');
   if(weeklyServed.length){
-    const suf=sp('md dimmer',' | '+weeklyServed.map(g=>g.title).join(' | '));
+    const suf=sp('md dimmer',' 🏁: '+weeklyServed.map(g=>g.title).join(', '));
     suf.title=t('rem-goal-for');
     titleLine.appendChild(suf);
   }
