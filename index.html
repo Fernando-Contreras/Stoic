@@ -6817,14 +6817,18 @@ function chLegend(items){
   });
   return l;
 }
-function chTable(cols,rows){
+/* onRow, when given, is called with the row's index on click — used by the
+   day-by-day table to open that day's own detail, the same one the calendar's
+   "Edit history" opens, instead of a table that is read-only twice over. */
+function chTable(cols,rows,onRow){
   const tb=document.createElement('table');tb.className='ch-tbl';
   const hr=document.createElement('tr');
   cols.forEach(c=>{const th=document.createElement('th');th.textContent=c;hr.appendChild(th);});
   tb.appendChild(hr);
-  rows.forEach(r=>{
+  rows.forEach((r,i)=>{
     const tr=document.createElement('tr');
-    r.forEach((v,i)=>{const td=document.createElement('td');if(i)td.className='n';td.textContent=v;tr.appendChild(td);});
+    if(onRow){tr.style.cursor='pointer';tr.onclick=()=>onRow(i);}
+    r.forEach((v,j)=>{const td=document.createElement('td');if(j)td.className='n';td.textContent=v;tr.appendChild(td);});
     tb.appendChild(tr);
   });
   return tb;
@@ -6943,8 +6947,12 @@ function renderCharts(sc,isEs){
       isEs?`El alto es lo que pagó el día; el color, cómo cerró. ${win.length} días.`
           :`Height is what the day paid; colour is how it closed. ${win.length} days.`,
       holder,lg,
-      ()=>chTable([isEs?'Día':'Day',t('pts-s'),isEs?'Color':'Colour'],
-        [...win].reverse().map(d=>[fmtFull(d.date),d.pts.toLocaleString(),chStatusName(d.status)]))));
+      ()=>{
+        const rev=[...win].reverse();
+        return chTable([isEs?'Día':'Day',t('pts-s'),isEs?'Color':'Colour'],
+          rev.map(d=>[fmtFull(d.date),d.pts.toLocaleString(),chStatusName(d.status)]),
+          i=>{STATE.calSel=rev[i].date;STATE.histDay=rev[i].date;render();});
+      }));
   }
 
   /* ── 2. The whole stretch at once ───────────────────────────────────────
@@ -7278,12 +7286,6 @@ function renderStats(total,sc){
   topRow.appendChild(inBox);
   body.appendChild(topRow);
 
-  /* The charts sit directly under the lifetime number, before the shelf and
-     the tiles. They are the fastest read on the page — a shape lands before
-     a number does — so they get the position that gets looked at. */
-  const charts=renderCharts(sc,isEs);
-  if(charts)body.appendChild(charts);
-
   const mbox=dv('card2 mb10');
   const mh=dv('rowb mb8');
   mh.appendChild(sp('xs dimmer up ls',t('medals-title')));
@@ -7318,6 +7320,11 @@ function renderStats(total,sc){
   mbox.appendChild(mg);
   if(!allMedals.length)mbox.appendChild(dv('xs dimmer ctr mt8',t('medals-none')));
   body.appendChild(mbox);
+
+  /* The charts come after the shelf now — the lifetime number, then what it
+     was earned for, then the shape of it over time. */
+  const charts=renderCharts(sc,isEs);
+  if(charts)body.appendChild(charts);
 
   // ── 1. Score highlights ──────────────────────────────────────────────────
   const gA=dv('g4 tiles mb10');gA.style.gap='8px';
@@ -8471,7 +8478,7 @@ function diaryTemplate(){
     t('tpl-feel-why'),'','',
     t('tpl-cool'),'','',
     t('tpl-improve'),'','',
-    t('tpl-summary'),'','',''
+    t('tpl-summary'),''
   ].join('\n');
 }
 /* The template's headings are bolded when a note is read back. The note itself
