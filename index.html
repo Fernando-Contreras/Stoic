@@ -1995,6 +1995,13 @@ let STATE={
   // Which days are reading folded — a way of looking at a note, not part of it,
   // so it is never written down or synced.
   diaryFold: {},
+  // The date whose note editor is open, if any. Kept here rather than as a
+  // fact the panel only knows while its own DOM survives — an unrelated full
+  // render (a pomodoro finishing, a sync landing) used to rebuild the panel
+  // from scratch mid-sentence, and with nothing recording "this was open" it
+  // came back closed, reading as saved and dismissed on its own. Never
+  // written down or synced, same as the fold above.
+  diaryOpen: null,
   // How the planner list is drawn. Remembered, but purely a view: none of this
   // can change a number that scores.
   view: S.get('st_view',{scope:'all',sort:'date-asc',flat:false,tags:[]}),
@@ -5438,6 +5445,26 @@ function renderAddModal(){
 
 /* ═══ RENDER ═══ */
 function render(){
+  /* A dirty, unsaved note is written before the DOM under it is torn down.
+     Its own 600ms debounce would normally catch it, but render() can be
+     called for reasons that have nothing to do with the diary at all — a
+     pomodoro landing, a sync arriving — and the wipe below does not wait
+     for a timer. Missing this used to read as "it saved and closed on me";
+     what actually happened is whatever had not autosaved yet was thrown
+     away, then the editor reopened (see STATE.diaryOpen) already behind. */
+  const dirtyTa=document.querySelector('.diary-area[data-dirty="1"]');
+  if(dirtyTa){
+    const scope=dirtyTa.closest('.diary-wrap');
+    const dk=dirtyTa.dataset.day;
+    if(scope&&dk){
+      const v=diaryValue(scope);
+      if(v!==null){
+        if(v.trim())STATE.diary[dk]=v; else delete STATE.diary[dk];
+        S.set(K.DIARY,STATE.diary);
+        SB.push(STATE.history,STATE.today,STATE.diary,STATE.streakOverrides).catch(()=>{});
+      }
+    }
+  }
   const root=document.getElementById('root');root.innerHTML='';
   if(!STATE.authed){root.appendChild(renderLogin());return;}
   root.appendChild(renderApp());
@@ -5875,6 +5902,10 @@ function renderApp(){
       S.set(K.DIARY,STATE.diary);
       SB.push(STATE.history,STATE.today,STATE.diary,STATE.streakOverrides).catch(()=>{});
     }
+    // Picking a different day (or none) is leaving this one's editor on
+    // purpose — STATE.diaryOpen should not reopen it next time this day
+    // happens to be the one on screen again.
+    if(STATE.diaryOpen&&STATE.diaryOpen!==STATE.calSel)STATE.diaryOpen=null;
     panel.innerHTML='';panel.appendChild(renderDayPanel());
   };
   ch.appendChild(renderCalendar(drawPanel));ch.appendChild(panel);drawPanel();
@@ -6640,6 +6671,10 @@ function renderDayPanel(){
     add.onclick=openNote;
     wrap.appendChild(add);
   }
+  // Re-opens straight into the editor when this is the date it was left open
+  // on — the whole point of remembering it in STATE.diaryOpen rather than in
+  // this panel's own DOM, which an unrelated render has no reason to keep.
+  if(STATE.diaryOpen===key)openNote();
   return wrap;
 }
 
@@ -8445,10 +8480,12 @@ function toggleDiaryEditor(container,dateKey,button){
       S.set(K.DIARY,STATE.diary);
       SB.push(STATE.history,STATE.today,STATE.diary,STATE.streakOverrides).catch(()=>{});
     }
+    if(STATE.diaryOpen===dateKey)STATE.diaryOpen=null;
     open.remove();
     refresh();
     return;
   }
+  STATE.diaryOpen=dateKey;
   const dw=renderDiaryFor(dateKey,()=>toggleDiaryEditor(container,dateKey,button));
   dw.className='diary-wrap fi';
   container.appendChild(dw);
@@ -8541,6 +8578,13 @@ function renderDiaryFor(dateKey,onSave){
     ta.dataset.dirty='1';
     clearTimeout(saveTimer);
     saveTimer=setTimeout(()=>{
+      // An unrelated full render (a pomodoro landing, a sync) tears this
+      // instance out and, for the date it was open on, builds a fresh one in
+      // its place — see STATE.diaryOpen. This timer was already waiting when
+      // that happened, and firing anyway would write its now-stale value over
+      // whatever has been typed into the new textarea since. Detached from
+      // the document means a newer instance (or none) owns the field now.
+      if(!document.body.contains(wrap))return;
       const v=diaryValue(wrap);
       if(v.trim()) STATE.diary[dateKey]=v;
       else delete STATE.diary[dateKey];
