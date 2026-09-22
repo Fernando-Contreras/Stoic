@@ -352,6 +352,72 @@ button{cursor:pointer;font-family:var(--ff);font-size:15px;font-weight:600;borde
    phone. The tiles say so themselves now, and stay two across. */
 @media(max-width:580px){.g4.tiles{grid-template-columns:repeat(2,1fr)}}
 
+/* ═══ CHARTS ═══════════════════════════════════════════════════════════════
+   Built from HTML and CSS rather than a scaled SVG, so the type stays at its
+   real size at every width — an SVG sized by viewBox shrinks its own labels
+   on a phone until they are four pixels tall. The only SVG here is the trend
+   line, which has no text and carries non-scaling-stroke so its 2px stays 2px
+   however the box is stretched.
+
+   The colours are the four the app already speaks in — the same tokens the
+   badges and the calendar use. They were checked rather than eyeballed: as a
+   set they clear the colour-blind separation gate on every pair in both
+   modes. On the light surface their contrast against the card is below the
+   bar, which obliges relief rather than a shrug: every chart carries a named
+   legend and a table view, so nothing here is ever told by colour alone. */
+.ch{margin-bottom:14px}
+.ch-h{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:2px}
+.ch-sub{color:var(--t3);font-size:11px;margin-bottom:10px}
+/* Recessive by design: one step off the surface, hairline, solid, never dashed. */
+.ch-plot{position:relative;width:100%}
+.ch-grid{position:absolute;inset:0;pointer-events:none}
+.ch-grid i{position:absolute;left:0;right:0;height:1px;background:var(--b1);display:block}
+.ch-grid i.zero{background:var(--b3)}
+/* One flex row of columns; the gap is the separator, never a stroke. */
+.ch-cols{position:relative;display:flex;align-items:stretch;gap:2px;width:100%}
+.ch-col{flex:1 1 0;min-width:0;position:relative;cursor:default}
+.ch-bar{position:absolute;left:0;right:0;border-radius:2px 2px 0 0}
+.ch-bar.neg{border-radius:0 0 2px 2px}
+.ch-col:hover .ch-bar{filter:brightness(1.35)}
+.ch-line{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible}
+.ch-x{display:flex;justify-content:space-between;color:var(--t3);font-size:10px;margin-top:6px;
+  font-variant-numeric:tabular-nums}
+/* ── Heatmap ──
+   Fixed small cells, not stretched ones. Left to fill the card, ninety days
+   became thirteen columns of enormous saturated squares — a wall of colour
+   rather than a map of it. A day is a small mark; the grid is as wide as the
+   days it has and no wider, and it scrolls rather than inflating. */
+.ch-hmw{overflow-x:auto;overflow-y:hidden;padding-bottom:2px}
+.ch-hm{display:grid;grid-auto-flow:column;grid-template-rows:repeat(7,13px);
+  grid-auto-columns:13px;gap:3px;justify-content:start;width:max-content}
+@media(max-width:700px){.ch-hm{grid-template-rows:repeat(7,10px);grid-auto-columns:10px;gap:2px}}
+.ch-hm i{border-radius:2px;display:block;
+  /* A hairline ring, so a pale cell still has an edge on the light surface
+     where its fill alone does not clear the contrast bar. */
+  box-shadow:inset 0 0 0 1px rgba(128,128,150,.18)}
+/* ── Part-to-whole ── */
+.ch-stack{display:flex;gap:2px;width:100%;height:26px;margin-bottom:8px}
+.ch-stack i{display:block;border-radius:3px;min-width:2px}
+/* ── Legend: always present, always named. Identity never rides colour alone. */
+.ch-lg{display:flex;flex-wrap:wrap;gap:4px 14px;margin-top:8px}
+.ch-lg span{display:inline-flex;align-items:center;gap:5px;color:var(--t2);font-size:11px}
+.ch-lg b{width:9px;height:9px;border-radius:2px;display:inline-block;flex:0 0 auto}
+.ch-lg b.ln{width:14px;height:2px;border-radius:1px}
+/* ── The table twin every chart carries ── */
+.ch-tbl{width:100%;border-collapse:collapse;font-size:11px;margin-top:8px;
+  font-variant-numeric:tabular-nums}
+.ch-tbl th,.ch-tbl td{text-align:left;padding:3px 8px 3px 0;border-bottom:1px solid var(--b1);color:var(--t2)}
+.ch-tbl th{color:var(--t3);font-weight:600}
+.ch-tbl td.n{text-align:right}
+.ch-wrapt{max-height:210px;overflow:auto}
+/* ── The one tooltip, shared by every chart ── */
+#ch-tip{position:fixed;z-index:80;pointer-events:none;opacity:0;transition:opacity .1s;
+  background:var(--sur3);border:1px solid var(--b2);border-radius:8px;padding:6px 9px;
+  font-size:11px;line-height:1.45;color:var(--t1);box-shadow:0 6px 20px rgba(0,0,0,.4);
+  max-width:220px}
+#ch-tip.on{opacity:1}
+@media(prefers-reduced-motion:reduce){#ch-tip{transition:none}}
+
 /* ── THE COMPASS ──
    A line that said "your biggest goals are your compass" and then did not
    name one of them. A goal you cannot see is a goal you do not think about,
@@ -1022,6 +1088,7 @@ en:{
   'day-panel':'The day','pick-day':'Pick a day on the calendar to read it and write its note.',
   'early-bed':'Early bed','late-bed':'Late bed',
   'gap-warn':'⚠gap',
+  'ch-title':'Charts','ch-table':'Table','ch-chart':'Chart',
   'disc-red':'Red day: everything pays base','disc-light':'Light rewards at base price',
   'disc-med':'Light and medium at base price','disc-all':'Any reward at base price',
   'stats-title':'Stats',
@@ -1225,6 +1292,7 @@ es:{
   'day-panel':'El día','pick-day':'Elige un día del calendario para verlo y escribir su nota.',
   'early-bed':'Dormí temprano','late-bed':'Dormí tarde',
   'gap-warn':'⚠vacío',
+  'ch-title':'Gráficos','ch-table':'Tabla','ch-chart':'Gráfico',
   'disc-red':'Día rojo: todo paga a precio base','disc-light':'Recompensas ligeras a precio base',
   'disc-med':'Ligeras y medias a precio base','disc-all':'Cualquier recompensa a precio base',
   'stats-title':'Estadísticas',
@@ -6670,6 +6738,343 @@ function renderHistForm(key){
 }
 
 /* ═══ STATS — #7 more interesting stats ═══ */
+/* ═══ CHARTS ═══════════════════════════════════════════════════════════════
+   Four of them, and each answers one question the tiles could only hint at:
+   how the last stretch went day by day, how the whole stretch looks at once,
+   how the days split between the four colours, and which weekday is quietly
+   costing you. Everything is drawn from the same day list the total is added
+   up from, so a chart can never tell a different story than the score.
+   ═══════════════════════════════════════════════════════════════════════ */
+const CH_ORDER=['purple','green','yellow','red'];
+// The app's own four, and the one neutral ink the trend line is drawn in.
+function chColor(s){return{red:'var(--cr)',yellow:'var(--cy)',green:'var(--cg)',purple:'var(--cp)'}[s]||'var(--b2)';}
+// The badges already name the four colours; this asks them rather than
+// inventing a second set of words for the same thing.
+function chStatusName(s){return t(s.charAt(0).toUpperCase()+s.slice(1));}
+/* One tooltip for every chart. Built once and parked on <body>, because
+   render() empties #root and a tooltip rebuilt on every draw would flicker. */
+let _chTip=null;
+function chTip(){
+  if(_chTip&&document.body.contains(_chTip))return _chTip;
+  _chTip=dv('');_chTip.id='ch-tip';document.body.appendChild(_chTip);
+  return _chTip;
+}
+/* Hover and keyboard show the same thing — a tooltip that only a mouse can
+   reach is a value that only a mouse can read. The hit target is the whole
+   column, its full height, so a three-pixel bar does not have to be landed on. */
+function chHover(el,html){
+  const show=e=>{
+    const tp=chTip();tp.innerHTML=html;tp.classList.add('on');
+    const r=el.getBoundingClientRect();
+    const w=tp.offsetWidth||160,h=tp.offsetHeight||40;
+    let x=(e&&e.clientX!==undefined?e.clientX:r.left+r.width/2)-w/2;
+    x=Math.max(8,Math.min(x,window.innerWidth-w-8));
+    let y=r.top-h-10;
+    if(y<8)y=r.bottom+10;
+    tp.style.left=x+'px';tp.style.top=y+'px';
+  };
+  const hide=()=>{const tp=chTip();tp.classList.remove('on');};
+  el.addEventListener('mouseenter',show);
+  el.addEventListener('mousemove',show);
+  el.addEventListener('mouseleave',hide);
+  el.addEventListener('focus',show);
+  el.addEventListener('blur',hide);
+  el.tabIndex=0;
+}
+/* Every chart ships its twin. It is the relief the light surface owes — the
+   four day colours sit under the contrast bar there — and it is also simply
+   the honest answer to "what exactly was that bar". */
+function chCard(title,sub,plot,legend,tableFn){
+  const c=dv('card2 ch');
+  const h=dv('ch-h');
+  h.appendChild(sp('xs dimmer up ls',title));
+  let showing=false,tbl=null;
+  const tg=bt('btn-ghost btn-xs',t('ch-table'),()=>{
+    showing=!showing;
+    tg.textContent=showing?t('ch-chart'):t('ch-table');
+    plot.style.display=showing?'none':'';
+    if(legend)legend.style.display=showing?'none':'';
+    if(!tbl){tbl=dv('ch-wrapt');tbl.appendChild(tableFn());c.appendChild(tbl);}
+    tbl.style.display=showing?'':'none';
+  });
+  tg.style.cssText='padding:1px 7px;font-size:10px';
+  h.appendChild(tg);
+  c.appendChild(h);
+  if(sub)c.appendChild(dv('ch-sub',sub));
+  c.appendChild(plot);
+  if(legend)c.appendChild(legend);
+  return c;
+}
+function chLegend(items){
+  const l=dv('ch-lg');
+  items.forEach(([color,label,isLine])=>{
+    const s=sp('');
+    const b=document.createElement('b');
+    if(isLine)b.className='ln';
+    b.style.background=color;
+    s.appendChild(b);s.appendChild(sp('',label));
+    l.appendChild(s);
+  });
+  return l;
+}
+function chTable(cols,rows){
+  const tb=document.createElement('table');tb.className='ch-tbl';
+  const hr=document.createElement('tr');
+  cols.forEach(c=>{const th=document.createElement('th');th.textContent=c;hr.appendChild(th);});
+  tb.appendChild(hr);
+  rows.forEach(r=>{
+    const tr=document.createElement('tr');
+    r.forEach((v,i)=>{const td=document.createElement('td');if(i)td.className='n';td.textContent=v;tr.appendChild(td);});
+    tb.appendChild(tr);
+  });
+  return tb;
+}
+
+function renderCharts(sc,isEs){
+  const box=dv('');
+  const tk=todayKey();
+  /* The same filled-in day list the total adds up: a day never logged is a
+     red −1,000 and is drawn as one, rather than leaving a hole in the line
+     that makes a bad stretch look like no stretch at all. */
+  const days=[...histMap().values()].filter(d=>d.date!==tk)
+    .map(d=>({date:d.date,pts:CALC.liveScore(d,STATE.history),status:d._gap?'red':(d.status||'red'),gap:!!d._gap}))
+    .concat([{date:tk,pts:sc.total,status:sc.status,gap:false}])
+    .sort((a,b)=>a.date.localeCompare(b.date));
+  if(days.length<2)return null;
+
+  /* One range control above everything it scopes, never one per chart — four
+     charts that each answered about a different stretch of time would not be
+     comparable with each other, which is the whole point of putting them on
+     one page. */
+  const RANGES=[[30,'30d'],[90,'90d'],[365,'1a'],[0,isEs?'Todo':'All']];
+  if(!STATE.chRange)STATE.chRange=S.get('st_chrange',90);
+  const ctrl=dv('row gap4 mb10');ctrl.style.cssText='border:1px solid var(--b2);border-radius:9px;padding:2px;background:var(--sur2);width:max-content';
+  RANGES.forEach(([n,lbl])=>{
+    const on=STATE.chRange===n;
+    const b=bt(on?'btn-ac btn-xs':'btn-xs',lbl,()=>{STATE.chRange=n;S.set('st_chrange',n);render();});
+    if(!on)b.style.cssText='background:none;border:none;color:var(--t3)';
+    ctrl.appendChild(b);
+  });
+  box.appendChild(ctrl);
+  const win=STATE.chRange?days.slice(-STATE.chRange):days;
+  const fmtDay=d=>capFirst(new Date(d+'T12:00:00').toLocaleDateString(isEs?'es-MX':'en-US',{day:'numeric',month:'short'}));
+  const fmtFull=d=>capFirst(new Date(d+'T12:00:00').toLocaleDateString(isEs?'es-MX':'en-US',{weekday:'short',day:'numeric',month:'short'}));
+
+  /* ── 1. Day by day ──────────────────────────────────────────────────────
+     Height is what the day paid; colour is what the day was called. They are
+     not the same thing and the gap between them is the point — a green day
+     that still closed negative is a day the rewards ate, and you can see it
+     here without reading a number. The line on top is the seven-day average,
+     drawn in ink rather than a fifth hue: it is not another category, it is
+     the same data with the noise taken out. */
+  {
+    const H=150;
+    const vals=win.map(d=>d.pts);
+    const hi=Math.max(0,...vals),lo=Math.min(0,...vals);
+    const span=(hi-lo)||1;
+    const y=v=>H-((v-lo)/span)*H;               // pixels from the top
+    const zero=y(0);
+    const plot=dv('ch-plot');plot.style.height=H+'px';
+    const grid=dv('ch-grid');
+    [hi,0,lo].forEach(v=>{
+      if(v===0||Math.abs(v)>span*0.08){
+        const i=document.createElement('i');
+        i.style.top=y(v)+'px';if(v===0)i.className='zero';
+        grid.appendChild(i);
+      }
+    });
+    plot.appendChild(grid);
+    const cols=dv('ch-cols');cols.style.height=H+'px';
+    /* The 2px surface gap is what separates touching bars — until there are
+       so many days that the gap is wider than the bar it is separating. Past
+       that the separator has to give way to the data: a year of days is a
+       dense field by nature, and a 0.5px bar beside a 2px gap is a chart of
+       its own gaps. */
+    cols.style.gap=win.length>170?'1px':'2px';
+    win.forEach(d=>{
+      const c=dv('ch-col');
+      const bar=dv('ch-bar'+(d.pts<0?' neg':''));
+      const top=d.pts>=0?y(d.pts):zero, bot=d.pts>=0?zero:y(d.pts);
+      bar.style.top=top+'px';
+      bar.style.height=Math.max(1,bot-top)+'px';
+      bar.style.background=chColor(d.status);
+      c.appendChild(bar);
+      chHover(c,`<b>${fmtFull(d.date)}</b><br>${d.pts>=0?'+':'−'}${Math.abs(d.pts).toLocaleString()} ${t('pts-s')}<br><span style="color:var(--t3)">${chStatusName(d.status)}${d.gap?' · '+t('gap-warn'):''}</span>`);
+      cols.appendChild(c);
+    });
+    plot.appendChild(cols);
+    // The seven-day average, as one path over the columns.
+    if(win.length>=7){
+      const ns='http://www.w3.org/2000/svg';
+      const svg=document.createElementNS(ns,'svg');
+      svg.setAttribute('class','ch-line');
+      svg.setAttribute('viewBox',`0 0 ${win.length} ${H}`);
+      svg.setAttribute('preserveAspectRatio','none');
+      const pts=[];
+      win.forEach((d,i)=>{
+        if(i<6)return;
+        const m=win.slice(i-6,i+1).reduce((s,x)=>s+x.pts,0)/7;
+        pts.push(`${i+0.5},${y(m).toFixed(1)}`);
+      });
+      const p=document.createElementNS(ns,'polyline');
+      p.setAttribute('points',pts.join(' '));
+      p.setAttribute('fill','none');
+      p.setAttribute('stroke','var(--t1)');
+      p.setAttribute('stroke-width','2');
+      p.setAttribute('stroke-linejoin','round');
+      p.setAttribute('stroke-linecap','round');
+      p.setAttribute('opacity','.85');
+      // So the stroke is 2px however wide the box gets stretched.
+      p.setAttribute('vector-effect','non-scaling-stroke');
+      svg.appendChild(p);
+      plot.appendChild(svg);
+    }
+    const xs=dv('ch-x');
+    xs.appendChild(sp('',fmtDay(win[0].date)));
+    xs.appendChild(sp('',fmtDay(win[win.length-1].date)));
+    const holder=dv('');holder.appendChild(plot);holder.appendChild(xs);
+    // Only the colours this stretch actually contains: a legend entry for a
+    // colour that never appears is a key to nothing.
+    const present=CH_ORDER.filter(s=>win.some(d=>d.status===s));
+    const lg=chLegend([...present.map(s=>[chColor(s),chStatusName(s)]),
+                       ['var(--t1)',isEs?'Promedio de 7 días':'7-day average',true]]);
+    box.appendChild(chCard(
+      isEs?'Día por día':'Day by day',
+      isEs?`El alto es lo que pagó el día; el color, cómo cerró. ${win.length} días.`
+          :`Height is what the day paid; colour is how it closed. ${win.length} days.`,
+      holder,lg,
+      ()=>chTable([isEs?'Día':'Day',t('pts-s'),isEs?'Color':'Colour'],
+        [...win].reverse().map(d=>[fmtFull(d.date),d.pts.toLocaleString(),chStatusName(d.status)]))));
+  }
+
+  /* ── 2. The whole stretch at once ───────────────────────────────────────
+     A month of calendar answers "what was the 14th"; this answers "what has
+     this been like", which is a question the calendar cannot be asked. */
+  {
+    const hm=win.slice(-364);
+    const plot=dv('ch-hm');
+    // Columns are weeks, rows are weekdays, so a streak reads as a run down
+    // a column and a bad Tuesday reads as a stripe across one.
+    const first=new Date(hm[0].date+'T12:00:00');
+    const pad=(first.getDay()+6)%7;             // Monday-first, like the calendar
+    for(let i=0;i<pad;i++){const c=document.createElement('i');c.style.visibility='hidden';plot.appendChild(c);}
+    hm.forEach(d=>{
+      const c=document.createElement('i');
+      c.style.background=chColor(d.status);
+      chHover(c,`<b>${fmtFull(d.date)}</b><br>${d.pts>=0?'+':'−'}${Math.abs(d.pts).toLocaleString()} ${t('pts-s')}<br><span style="color:var(--t3)">${chStatusName(d.status)}</span>`);
+      plot.appendChild(c);
+    });
+    const hmw=dv('ch-hmw');hmw.appendChild(plot);
+    const lg=chLegend(CH_ORDER.filter(s=>hm.some(d=>d.status===s))
+      .map(s=>[chColor(s),chStatusName(s)]));
+    box.appendChild(chCard(
+      isEs?'Mapa de tus días':'Every day at once',
+      isEs?'Cada cuadrito es un día. Las columnas son semanas, de lunes a domingo.'
+          :'One square per day. Columns are weeks, Monday to Sunday.',
+      hmw,lg,
+      ()=>chTable([isEs?'Color':'Colour',isEs?'Días':'Days','%'],
+        CH_ORDER.map(s=>{const n=hm.filter(d=>d.status===s).length;
+          return [chStatusName(s),String(n),hm.length?Math.round(n/hm.length*100)+'%':'0%'];}))));
+  }
+
+  /* ── 3. How the days split ──────────────────────────────────────────────
+     Part-to-whole, four segments, one line. The tiles gave the purple share
+     and left the other three to be worked out by subtraction. */
+  {
+    const tot=win.length;
+    const stack=dv('ch-stack');
+    const rows=[];
+    CH_ORDER.forEach(s=>{
+      const n=win.filter(d=>d.status===s).length;
+      if(!n)return;
+      const pct=n/tot*100;
+      rows.push([chStatusName(s),String(n),Math.round(pct)+'%']);
+      const i=document.createElement('i');
+      i.style.cssText=`flex:${n} 1 0;background:${chColor(s)}`;
+      chHover(i,`<b>${chStatusName(s)}</b><br>${n} ${isEs?'días':'days'} · ${Math.round(pct)}%`);
+      stack.appendChild(i);
+    });
+    const good=win.filter(d=>d.status==='green'||d.status==='purple').length;
+    const lg=chLegend(CH_ORDER.map(s=>{
+      const n=win.filter(d=>d.status===s).length;
+      return [chColor(s),`${chStatusName(s)} · ${n} (${tot?Math.round(n/tot*100):0}%)`];
+    }));
+    box.appendChild(chCard(
+      isEs?'Cómo se reparten tus días':'How your days split',
+      isEs?`${good} de ${tot} cerraron en verde o morado.`
+          :`${good} of ${tot} closed green or purple.`,
+      stack,lg,()=>chTable([isEs?'Color':'Colour',isEs?'Días':'Days','%'],rows)));
+  }
+
+  /* ── 4. The week you actually have ──────────────────────────────────────
+     The tiles named the best weekday and the worst and stopped there, which
+     is the argmax of a shape nobody had seen. Here is the shape. Green above
+     the line and red below is the app's own word for it: a day in the red. */
+  {
+    const names=isEs?['Lun','Mar','Mié','Jue','Vie','Sáb','Dom']:['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+    const buckets=[[],[],[],[],[],[],[]];
+    win.forEach(d=>{buckets[(new Date(d.date+'T12:00:00').getDay()+6)%7].push(d.pts);});
+    const avgs=buckets.map(b=>b.length?Math.round(b.reduce((a,c)=>a+c,0)/b.length):0);
+    const H=120;
+    const hi=Math.max(0,...avgs),lo=Math.min(0,...avgs);
+    const span=(hi-lo)||1;
+    const y=v=>H-((v-lo)/span)*H;
+    const zero=y(0);
+    const best=Math.max(...avgs),worst=Math.min(...avgs);
+    /* A band of headroom above and below the plot, so a direct label on the
+       tallest bar has somewhere to go. Without it the best day's own label
+       sat on its cap and was clipped by the top of the box — a label cropped
+       by the mark it belongs to is worse than no label. */
+    const PAD=15;
+    const plot=dv('ch-plot');plot.style.cssText=`height:${H+PAD*2}px;padding:${PAD}px 0`;
+    const grid=dv('ch-grid');grid.style.cssText=`top:${PAD}px;height:${H}px;bottom:auto`;
+    const zl=document.createElement('i');zl.className='zero';zl.style.top=zero+'px';grid.appendChild(zl);
+    plot.appendChild(grid);
+    const cols=dv('ch-cols');cols.style.height=H+'px';cols.style.gap='6px';
+    avgs.forEach((v,i)=>{
+      const c=dv('ch-col');
+      const bar=dv('ch-bar'+(v<0?' neg':''));
+      const top=v>=0?y(v):zero,bot=v>=0?zero:y(v);
+      bar.style.top=top+'px';
+      bar.style.height=Math.max(2,bot-top)+'px';
+      // Green in the black, red in the red — the app's own reading of a day.
+      bar.style.background=v>=0?'var(--cg)':'var(--cr)';
+      bar.style.borderRadius=v>=0?'4px 4px 0 0':'0 0 4px 4px';
+      // Cap the thickness: a bar is a mark, not a filled slot.
+      bar.style.left='50%';bar.style.right='auto';
+      bar.style.width='min(24px,100%)';bar.style.transform='translateX(-50%)';
+      c.appendChild(bar);
+      /* Labelled only where it says something — the best day and the worst.
+         A number on all seven is noise, and the table has them all anyway. */
+      if(avgs.length&&(v===best||v===worst)&&v!==0&&best!==worst){
+        const lab=sp('',(v>0?'+':'−')+Math.abs(v).toLocaleString());
+        // Outside the bar end, in the headroom the plot reserves for it.
+        lab.style.cssText=`position:absolute;left:0;right:0;text-align:center;font-size:10px;`+
+          `color:var(--t2);font-variant-numeric:tabular-nums;`+
+          (v>=0?`top:${top-14}px`:`top:${bot+3}px`);
+        c.appendChild(lab);
+      }
+      chHover(c,`<b>${names[i]}</b><br>${v>=0?'+':'−'}${Math.abs(v).toLocaleString()} ${t('pts-s')} ⌀<br><span style="color:var(--t3)">${buckets[i].length} ${isEs?'días':'days'}</span>`);
+      cols.appendChild(c);
+    });
+    plot.appendChild(cols);
+    const xs=dv('ch-x');xs.style.justifyContent='space-around';
+    names.forEach(n=>{const s=sp('',n);s.style.flex='1';s.style.textAlign='center';xs.appendChild(s);});
+    const holder=dv('');holder.appendChild(plot);holder.appendChild(xs);
+    const keys=[];
+    if(avgs.some(v=>v>=0))keys.push(['var(--cg)',isEs?'Promedio en positivo':'Average in the black']);
+    if(avgs.some(v=>v<0))keys.push(['var(--cr)',isEs?'Promedio en negativo':'Average in the red']);
+    const lg=chLegend(keys);
+    box.appendChild(chCard(
+      isEs?'Tu semana típica':'Your typical week',
+      isEs?'Promedio de puntos por día de la semana.':'Average points by weekday.',
+      holder,lg,
+      ()=>chTable([isEs?'Día':'Day',isEs?'Promedio':'Average',isEs?'Días':'Days'],
+        names.map((n,i)=>[n,avgs[i].toLocaleString(),String(buckets[i].length)]))));
+  }
+  return box;
+}
+
 function renderStats(total,sc){
   const wrap=dv('card mt12');let open=true;
   const tog=el('button','sec-t');tog.innerHTML=`<span>${t('stats-title')}</span><span id="st-a">▲</span>`;
@@ -6872,6 +7277,12 @@ function renderStats(total,sc){
   inBox.appendChild(sp('sm dim',insight));
   topRow.appendChild(inBox);
   body.appendChild(topRow);
+
+  /* The charts sit directly under the lifetime number, before the shelf and
+     the tiles. They are the fastest read on the page — a shape lands before
+     a number does — so they get the position that gets looked at. */
+  const charts=renderCharts(sc,isEs);
+  if(charts)body.appendChild(charts);
 
   const mbox=dv('card2 mb10');
   const mh=dv('rowb mb8');
