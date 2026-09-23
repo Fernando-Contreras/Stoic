@@ -6284,8 +6284,17 @@ function renderPomCard(sk_,todayStatus){
   const n=dv('f1 ctr xl w7 mo');n.textContent=shown;ct.appendChild(n);
   ct.appendChild(bt('btn-ac btn-sm f1','+',()=>step(1)));
   card.appendChild(ct);
+  // What today's own pomodoro count already bought: freeMinsFor is the same
+  // calculation minsMult charges by, just read out instead of only acted on.
+  const rwProc=rewardById('internet');
+  const nmProc=rwProc?rewardName(rwProc):(STATE.lang==='es'?'Procrastinación':'Procrastination');
+  const allowLine=STATE.lang==='es'
+    ?`🌐 hasta ${fmtDur(freeMinsFor(val))} de ${nmProc.toLowerCase()} a precio base hoy`
+    :`🌐 up to ${fmtDur(freeMinsFor(val))} of ${nmProc.toLowerCase()} at base price today`;
   if(STATE.pomo&&STATE.pomo.minutesToday>0){
-    card.appendChild(dv('xs dimmer mt6',`⏱ ${STATE.pomo.minutesToday} min ${t('pomo-from-timer')}`));
+    card.appendChild(dv('xs dimmer mt6',`⏱ ${STATE.pomo.minutesToday} min ${t('pomo-from-timer')} · ${allowLine}`));
+  }else{
+    card.appendChild(dv('xs dimmer mt6',allowLine));
   }
   return card;
 }
@@ -6745,7 +6754,7 @@ function discTooltip(status){
    take. The numbers themselves are edited through ✏, which opens them over
    the page for the same day. */
 function renderDayPanel(){
-  const wrap=dv('card');
+  const wrap=dv('card day-panel');
   const key=STATE.calSel;
   const hd=dv('rowb mb12');
   hd.appendChild(sp('ctit',key
@@ -9358,6 +9367,32 @@ document.addEventListener('keydown',e=>{
   if(/^(INPUT|TEXTAREA|SELECT)$/.test((e.target||{}).tagName||''))return;
   e.preventDefault();
   chartExpandNav(e.key==='ArrowRight'?1:-1);
+});
+
+/* Which of a few equally-valid things the arrow keys could mean right now
+   is decided by where you last clicked, not by which panel happens to be on
+   screen — the day panel sits right next to the calendar and the score
+   cards, and stealing the arrow keys from someone typing a task title two
+   inches away would be worse than not having this at all. */
+let _lastClickedDiary=false;
+document.addEventListener('click',e=>{_lastClickedDiary=!!e.target.closest('.day-panel');});
+/* Left/right steps the day panel's OWN date by one day and redraws it — the
+   same jump openDay makes, just walked one day at a time instead of picked
+   off a chart — so a diary read top to bottom keeps going with the keys
+   already in your hand instead of a trip back to the calendar for every
+   day. Only while the diary was the last thing you clicked, and never while
+   actually typing in it, where the arrows still mean move the cursor. */
+document.addEventListener('keydown',e=>{
+  if(!_lastClickedDiary||!STATE.calSel)return;
+  if(e.key!=='ArrowLeft'&&e.key!=='ArrowRight')return;
+  if(/^(INPUT|TEXTAREA|SELECT)$/.test((e.target||{}).tagName||''))return;
+  const dir=e.key==='ArrowRight'?1:-1;
+  const d=new Date(STATE.calSel+'T12:00:00');d.setDate(d.getDate()+dir);
+  const nextKey=isoDate(d);
+  if(dir>0&&nextKey>todayKey())return;   // never page past today
+  e.preventDefault();
+  STATE.calSel=nextKey;
+  render();
 });
 
 /* Scrolling is when the bubble is meant to arrive, so it answers the scroll
