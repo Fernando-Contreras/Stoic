@@ -1514,22 +1514,25 @@ function capPenStreak(n){return Math.min(PEN_CAP,Math.max(1,n||1));}
    to a hundred out of days the app itself had called fine, and the number
    measured nothing: the multiplier it fed could never fire at that size.
 
-   One threshold now governs both. At or under it, the minutes are still
-   charged — time is never free — but at base, the run does not advance, and
-   the day reads as clean. Over it, the run advances and the multiplier bites.
-   The escalation is for a habit; days inside the allowance are not one.
+   At or under the flat 30-minute floor, the minutes are still charged — time
+   is never free — but at base, the run does not advance, and the day reads
+   as clean. Over it, the run advances: it is a day of the habit, whatever
+   else was also true of the day.
 
    The loophole this leaves is deliberate and priced: 29 minutes every day
    forever keeps a clean run, and costs PEN_RATE a minute for every one of
    them, which over a year is not a rounding error. What it never becomes is
    a hundred-day run — because it never was one.
 
-   The allowance itself scales with the day's own focus rather than sitting
-   fixed: 8 pomodoros buys the base 30 minutes, half that many buys half the
-   allowance, and more than 8 buys proportionally more — 12 buys 45, 16 buys
-   60 — but it never drops below the 30-minute base, whatever the pomodoro
-   count. A day spent actually focused earns a longer leash on the side of it
-   that is not. */
+   A second, wider allowance scales with the day's own focus: 8 pomodoros
+   buys 30 minutes on top of the floor, half that many half as much, and more
+   than 8 proportionally more — 12 buys 45, 16 buys 60. This one only ever
+   sets the PRICE (see minsMult) — a day inside it is charged at base instead
+   of by the run — the same discount a good colour already gives a day
+   without ending its run (TIER_FORGIVES). It never touches whether the run
+   itself advances (dayHasReward), because that would let a focused day erase
+   days you had actually been slipping on: day 11 of a habit stays day 11,
+   however cheap today turned out to be. */
 const FREE_MINS_BASE=30;
 const FREE_MINS_POMS=8;
 function freeMinsFor(pomodoros){
@@ -1540,14 +1543,21 @@ function penMinutesOn(day,type){
   return (day.penalties||[]).filter(p=>p.type===type)
     .reduce((s,p)=>s+(p.details?.minutes||p.count||0),0);
 }
-/* Did this day count as an episode of this reward — the one question the
-   cost, the run and the clean-day stat all have to answer the same way. */
+/* Did this day count as an episode of this reward — what the run and the
+   clean-day stat answer. This is deliberately NOT the pomodoro-widened
+   allowance (see freeMinsFor): that one only ever decides what a day is
+   CHARGED (minsMult), the same way a good colour discounts a day without
+   ending its run (TIER_FORGIVES). A day above the flat 30-minute floor is a
+   day of the habit and the run says so — 27 pomodoros can knock the bill on
+   two hours of it down to base price, but it cannot make day 11 of a streak
+   read as day 1. Only the small, un-avoidable floor (nobody reaches zero
+   minutes on a phone they answer their family on) stays free either way. */
 function dayHasReward(day,rOrId){
   const r=(rOrId&&typeof rOrId==='object')?rOrId
     :(typeof rewardById==='function'?rewardById(rOrId):null);
   const type=(rOrId&&typeof rOrId==='object')?rOrId.id:rOrId;
   if(!(day.penalties||[]).some(p=>p.type===type))return false;
-  return r&&r.byMinutes?penMinutesOn(day,type)>freeMinsFor(day.pomodoros):true;
+  return r&&r.byMinutes?penMinutesOn(day,type)>FREE_MINS_BASE:true;
 }
 /* A good day used to END a reward run, and then for a while nothing ended one
    but breaking it. Both were wrong in the same way: a run is a fact about what
@@ -1615,9 +1625,10 @@ const CALC={
     const tk=todayKey();
     // #1 FIX: exclude today from history scan entirely
     const hist=[...history].filter(d=>d.date!==tk).sort((a,b)=>new Date(a.date)-new Date(b.date));
-    /* Through dayHasReward, so a day inside the daily allowance of a
+    /* Through dayHasReward, so a day inside the flat 30-minute floor of a
        minutes-based reward neither carries its run forward nor breaks the
-       clean one. See freeMinsFor. */
+       clean one. The pomodoro-widened allowance (freeMinsFor) does not
+       reach this — it only discounts the day's price, in minsMult. */
     const hasPen=(d,t)=>dayHasReward(d,t);
     const hasSt=(d,t)=>d.streaks?.some(s=>s.type===t&&s.active)||false;
     function pStrk(type,resetOn){let c=0;for(let i=hist.length-1;i>=0;i--){if(!hasPen(hist[i],type))break;if(resetOn.includes(hist[i].status))break;c++;}return c;}
@@ -7643,9 +7654,9 @@ function renderStats(total,sc){
      being invisible here. Read from the list instead. */
   const lastDay=sortedH.length?sortedH[sortedH.length-1].date:'';
   const rwStats=rewards().map(r=>{
-    /* The same question the score asks: a day inside the daily allowance of a
-       minutes-based reward is a clean day here too, or this panel would call
-       a day dirty that the scoring had already forgiven. */
+    /* The same question the score asks: a day inside the flat 30-minute floor
+       of a minutes-based reward is a clean day here too, or this panel would
+       call a day dirty that the scoring had already forgiven. */
     const has=d=>dayHasReward(d,r);
     // Minutes for the ones measured in minutes; a count for the ones counted.
     const total=r.byMinutes
@@ -7826,8 +7837,8 @@ function renderStats(total,sc){
       `Duermes ${fmtDur(avgSleepMin)} en promedio. Cada minuto vale +1, así que media hora más son ~30 pts diarios — casi 1,000 al mes, sin hacer nada extra. Y la racha de dormir temprano es la forma más rentable de sacar puntos que hay.`,
       `You sleep ${fmtDur(avgSleepMin)} on average. Every minute is +1, so half an hour more is ~30 pts a day — nearly 1,000 a month for nothing extra. And the early-bed streak is the most profitable run of points there is.`);
     if(procFreePct<70)add(70,rwProc?.icon||'🌐',
-      `Caíste en ${nmProc} en ${100-procFreePct}% de tus días. Los primeros ${FREE_MINS_BASE} minutos (más si metiste pomodoros ese día) no cuentan como recaída ni te suben la racha: si vas a caer, que sea corto.`,
-      `You logged ${nmProc} on ${100-procFreePct}% of your days. The first ${FREE_MINS_BASE} minutes (more on a day with pomodoros logged) are not a slip and do not build the run: if you are going to slip, keep it short.`);
+      `Caíste en ${nmProc} en ${100-procFreePct}% de tus días. Los primeros ${FREE_MINS_BASE} minutos no cuentan como recaída ni suben la racha; de ahí para arriba sí, aunque los pomodoros que metas ese día abaraten lo que te cuesta: si vas a caer, que sea corto.`,
+      `You logged ${nmProc} on ${100-procFreePct}% of your days. The first ${FREE_MINS_BASE} minutes are not a slip and do not build the run; above that they do, even though pomodoros logged that day can still cut what it costs: if you are going to slip, keep it short.`);
     if(workPct<50)add(65,'💼',
       `Solo registraste trabajo en ${workPct}% de tus días. La racha de trabajo multiplica cada minuto, y basta con no romperla.`,
       `You logged work on only ${workPct}% of your days. The work streak multiplies every minute, and it only needs to stay alive.`);
