@@ -4822,6 +4822,11 @@ function remChip(r,tk,redraw){
     cell.appendChild(top);
     const meta=[r.due===tk?t('rem-today-h'):fmtShort(r.due)];
     if(kids)meta.push('↳'+kids);
+    /* The same weekly-goal marker the list gives the task's own name — a chip
+       has no room for that in its title row, already fighting the checkbox,
+       the flag and the quadrant for width, so it rides the meta line instead. */
+    const weeklyServed=goalsServedBy(r).filter(g=>g.kind==='week');
+    if(weeklyServed.length)meta.push('🏁 '+weeklyServed.map(g=>g.title.slice(0,24)).join(', '));
     const m=dv('xs '+(late?'cr':'dimmer'));m.style.marginTop='3px';m.textContent=meta.join(' · ');
     cell.appendChild(m);
     // Standing on its own, a subtask says where it came from.
