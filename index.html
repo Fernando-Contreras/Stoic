@@ -369,8 +369,14 @@ button{cursor:pointer;font-family:var(--ff);font-size:15px;font-weight:600;borde
 /* Two narrow charts side by side beat one narrow chart alone in a full-width
    row of empty space. auto-fit does the packing: as many 340px-or-wider
    columns as the row holds, however many that turns out to be — a wide chart
-   opts out with its own gridColumn and keeps a row to itself. */
-.charts-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:14px}
+   opts out with its own gridColumn and keeps a row to itself.
+   auto-flow DENSE, not the default: a full-width card sitting second in the
+   list (the heatmap, right after Day by day) cannot share a row with
+   anything, so plain in-order flow stranded the card before it alone in a
+   row of its own too — nothing after the heatmap was allowed to back-fill
+   the empty columns beside it. Dense lets a later, narrower card jump back
+   and fill that gap instead of leaving it empty. */
+.charts-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));grid-auto-flow:dense;gap:14px}
 .charts-grid .ch{margin-bottom:0}
 .ch-h{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:2px}
 .ch-sub{color:var(--t3);font-size:11px;margin-bottom:10px}
@@ -7121,11 +7127,13 @@ function renderCharts(sc,isEs){
   const days=[...histMap().values()].filter(d=>d.date!==tk)
     .map(d=>({date:d.date,pts:CALC.liveScore(d,STATE.history),status:d._gap?'red':(d.status||'red'),gap:!!d._gap,
       pomodoros:d.pomodoros||0,workMin:d.workDuration||0,sleepMin:d.sleepDuration||0,
-      sleptEarly:!!d.sleptEarly,sleptLate:!!d.sleptLate}))
+      sleptEarly:!!d.sleptEarly,sleptLate:!!d.sleptLate,
+      tasksDone:d.completedTasks||0,procMin:penMinutesOn(d,'internet')}))
     .concat([{date:tk,pts:sc.total,status:sc.status,gap:false,
       pomodoros:STATE.today.pomodoros||0,workMin:STATE.today.work?.workDuration||0,
       sleepMin:STATE.today.sleep?.sleepDuration||0,
-      sleptEarly:!!STATE.today.sleep?.sleptEarly,sleptLate:!!STATE.today.sleep?.sleptLate}])
+      sleptEarly:!!STATE.today.sleep?.sleptEarly,sleptLate:!!STATE.today.sleep?.sleptLate,
+      tasksDone:STATE.today.completed||0,procMin:penMinutesOn(STATE.today,'internet')}])
     .sort((a,b)=>a.date.localeCompare(b.date));
   if(days.length<2)return null;
 
@@ -7521,6 +7529,34 @@ function renderCharts(sc,isEs){
     tableCol:isEs?'Trabajo':'Work',
     tableVal:d=>fmtDur(d.workMin)
   }));
+
+  // ── 9. Tasks completed per day ──────────────────────────────────────────
+  chartsGrid.appendChild(barChart({
+    title:isEs?'Tareas completadas por día':'Tasks completed per day',
+    sub:isEs?`${win.reduce((s,d)=>s+d.tasksDone,0)} en total, en estos ${win.length} días.`
+            :`${win.reduce((s,d)=>s+d.tasksDone,0)} total, over these ${win.length} days.`,
+    valueOf:d=>d.tasksDone,
+    barColor:'var(--cg)',
+    tableCol:isEs?'Tareas':'Tasks',
+    tableVal:d=>String(d.tasksDone)
+  }));
+
+  // ── 10. The named reward measured in minutes, per day ───────────────────
+  // Procrastination by default, but this is whichever timed reward you kept
+  // the built-in id for — same reasoning renderStats already uses to name it.
+  {
+    const rwProc=rewardById('internet');
+    const nmProc=rwProc?rewardName(rwProc):(isEs?'Procrastinación':'Procrastination');
+    chartsGrid.appendChild(barChart({
+      title:isEs?`${nmProc} por día`:`${nmProc} per day`,
+      sub:isEs?`${fmtDur(win.reduce((s,d)=>s+d.procMin,0))} en total, en estos ${win.length} días.`
+              :`${fmtDur(win.reduce((s,d)=>s+d.procMin,0))} total, over these ${win.length} days.`,
+      valueOf:d=>d.procMin,
+      barColor:'var(--ng)',
+      tableCol:nmProc,
+      tableVal:d=>fmtDur(d.procMin)
+    }));
+  }
 
   box.appendChild(chartsGrid);
   return box;
