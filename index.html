@@ -3457,10 +3457,15 @@ function daysLeftIn(kind,dateStr){
 }
 function goals(){return STATE.planner.goals||(STATE.planner.goals=[]);}
 function goalsOf(kind){
-  const now=periodBounds(kind,todayKey()).id;
+  const now=periodBounds(kind,todayKey());
   // A goal left unfinished follows you into the next period and is paid by
   // what is left of the NEW one, so the clock genuinely restarts.
-  return goals().filter(g=>g.kind===kind&&(!g.doneOn||g.period===now));
+  // A done one stays counted here too, for as long as it was closed inside
+  // the period that is still live — checked against doneOn, not g.period:
+  // g.period only ever records where the goal was BORN, and a goal carried
+  // over unfinished and closed after the rollover would otherwise read as
+  // belonging to a period that already ended, on the very day it was finished.
+  return goals().filter(g=>g.kind===kind&&(!g.doneOn||g.doneOn>=now.start));
 }
 /* The deadline is fixed the day a goal is created and never moves again.
    Paying by the days left in whatever period happens to be current made
@@ -4352,12 +4357,12 @@ function buildGoals(redraw){
   GOAL_KINDS.forEach(kind=>{
     const card=dv('card');
     /* What counts toward the cap — open goals, plus a done one still inside the
-       period it was closed in — is not the same as what gets shown here. That
-       used to be one list: the moment a done goal's period ended, goalsOf quietly
-       stopped returning it, and it vanished from the panel with no way back to
-       check what it had paid. Everything of this kind is listed below, open
-       first, then done ones newest first; only the count next to the heading
-       still reads off the cap. */
+       period it was closed in — is not the same as what gets shown where. A
+       goal ticked off does not jump straight into the folded archive: it stays
+       right here, struck through, next to the open ones, for exactly as long
+       as goalsOf still counts it — which is to say, until the period it was
+       closed in actually rolls over. Only then does it drop into the "done"
+       toggle below, newest first, never hidden for good. */
     const capCount=goalsOf(kind).length;
     const list=goals().filter(g=>g.kind===kind)
       .sort((a,b)=>(!!a.doneOn-!!b.doneOn)||(a.doneOn&&b.doneOn?b.doneOn.localeCompare(a.doneOn):0));
@@ -4371,8 +4376,9 @@ function buildGoals(redraw){
     card.appendChild(dv('xs dim mb10',
       `${GOAL_BASE[kind].toLocaleString()} × ${left} ${left===1?t('goal-day'):t('goal-days')} = <span class="ac w6">${(GOAL_BASE[kind]*left).toLocaleString()}</span>`));
 
-    const openList=list.filter(g=>!g.doneOn);
-    const doneList=list.filter(g=>g.doneOn);
+    const stillLive=new Set(goalsOf(kind).map(g=>g.id));
+    const openList=list.filter(g=>stillLive.has(g.id));
+    const doneList=list.filter(g=>!stillLive.has(g.id));
     if(!openList.length&&!doneList.length)card.appendChild(dv('xs dimmer ctr','—'));
     const box=dv('s6');
     // Built once, used for both the open rows below and the finished ones
