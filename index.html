@@ -8149,7 +8149,7 @@ function renderRules(onClose){
     <div class="md up ls ng w7 mb10">🤤 Recompensas</div>
     <div class="s6">
       <div>Son los gustos que quieres mantener a raya. Cuestan puntos, y entre más seguido caes, más caro te sale: <span class="ng w6">× su racha, hasta ×${PEN_CAP}</span>.</div>
-      ${rewards().map(r=>`<div><span class="ng w6">${escapeHtml(rewardLabel(r))}</span> — ${r.byMinutes?`−${PEN_RATE} por minuto; los primeros ${FREE_MINS_BASE} del día no cuentan como recaída (más, según tus pomodoros — ver abajo)`:t(REWARD_TIERS[r.tier].name).toLowerCase()+', −'+rewardCost(r).toLocaleString()}</div>`).join('')}
+      ${rewards().map(r=>`<div><span class="ng w6">${escapeHtml(rewardLabel(r))}</span> — ${r.byMinutes?`−${PEN_RATE} por minuto; los primeros ${FREE_MINS_BASE} del día no cuentan como recaída (los pomodoros solo abaratan de ahí para arriba — ver abajo)`:t(REWARD_TIERS[r.tier].name).toLowerCase()+', −'+rewardCost(r).toLocaleString()}</div>`).join('')}
       <div><span class="ng w6">🌙 Trasnoché</span> — caro × tu racha de desvelo.</div>
       <div class="xs dimmer"><span class="ac w6">La lista es tuya</span>: renómbralas, cámbiales el ícono, quítalas o agrega las tuyas (hasta 5) con el ⚙ de la tarjeta.</div>
     </div>
@@ -8162,7 +8162,7 @@ function renderRules(onClose){
       <div><span class="cr w6">🔴 Rojo</span> — ese día paga a <strong>precio base</strong> y la racha sigue mañana donde iba. Lo único que rompe es la racha de <span class="cp">días sin rojo</span>.</div>
       <div><span class="ac w6">Un día bueno</span> te cobra la recompensa a base <strong>sin romperle la racha</strong>: <span class="cy">🟡</span> una ligera · <span class="cg">🟢</span> una media · <span class="cp">🟣</span> una grande.</div>
       <div>Lo único que rompe una racha es <strong>dejar de hacer la cosa</strong>, o saltarte un día.</div>
-      <div><span class="ac w6">Las que se miden en minutos traen ${FREE_MINS_BASE} min diarios de gracia como piso</span> — y suben si metiste pomodoros ese día: cada ${FREE_MINS_POMS} pomodoros valen otros ${FREE_MINS_BASE} minutos de margen (4 pomodoros = 15 min, 12 = 45, 16 = 1 hora — nunca menos de ${FREE_MINS_BASE}, aunque no hayas hecho ninguno). Un día por debajo de tu margen se cobra igual (−${PEN_RATE} por minuto), pero <strong>no cuenta como recaída</strong>: no arrastra la racha ni te la sube. El multiplicador es para un hábito, y un día dentro del margen no lo es. Pasándote, el día cuenta entero y la racha corre.</div>
+      <div><span class="ac w6">Las que se miden en minutos traen ${FREE_MINS_BASE} min diarios de gracia como piso</span>: por debajo de eso se cobra igual (−${PEN_RATE} por minuto) pero <strong>no cuenta como recaída</strong> — no arrastra la racha ni te la sube. Ese piso es fijo, no lo mueven los pomodoros. Pasándote de los ${FREE_MINS_BASE} min, el día ya cuenta entero y la racha corre — pero si ese día metiste pomodoros, lo que <strong>te cobra</strong> baja: cada ${FREE_MINS_POMS} pomodoros amplían tu precio base otros ${FREE_MINS_BASE} minutos (4 pomodoros = 15 min, 12 = 45, 16 = 1 hora). Los pomodoros abaratan el día; <strong>nunca le salvan la racha</strong>.</div>
       <div><span class="ac w6">🎖️ Medallas</span> a los 10, 20, 50, 100, 200, 500 y 1000 días de cualquier racha positiva. Las recompensas nunca dan.</div>
       <div class="xs dimmer">Un día sin registrar cuenta como −1,000 y día rojo. ¡Registra diario!</div>
     </div>
@@ -8221,7 +8221,7 @@ function renderRules(onClose){
     <div class="md up ls ng w7 mb10">🤤 Rewards</div>
     <div class="s6">
       <div>The treats you want to keep at bay. They cost points, and the more often you give in, the dearer they get: <span class="ng w6">× their run, up to ×${PEN_CAP}</span>.</div>
-      ${rewards().map(r=>`<div><span class="ng w6">${escapeHtml(rewardLabel(r))}</span> — ${r.byMinutes?`−${PEN_RATE} a minute; the first ${FREE_MINS_BASE} of a day do not count as a slip (more with pomodoros logged that day — see below)`:t(REWARD_TIERS[r.tier].name).toLowerCase()+', −'+rewardCost(r).toLocaleString()}</div>`).join('')}
+      ${rewards().map(r=>`<div><span class="ng w6">${escapeHtml(rewardLabel(r))}</span> — ${r.byMinutes?`−${PEN_RATE} a minute; the first ${FREE_MINS_BASE} of a day do not count as a slip (pomodoros only cut the price past that — see below)`:t(REWARD_TIERS[r.tier].name).toLowerCase()+', −'+rewardCost(r).toLocaleString()}</div>`).join('')}
       <div><span class="ng w6">🌙 Slept Late</span> — expensive × your late-night run.</div>
       <div class="xs dimmer"><span class="ac w6">The list is yours</span>: rename them, change the icon, drop them or add your own (up to 5) from the ⚙ on the card.</div>
     </div>
@@ -8234,7 +8234,7 @@ function renderRules(onClose){
       <div><span class="cr w6">🔴 Red</span> — that day pays <strong>base</strong> and tomorrow the run carries on where it was. The only run it breaks is the <span class="cp">non-red</span> one.</div>
       <div><span class="ac w6">A good day</span> charges a reward at base <strong>without ending its run</strong>: <span class="cy">🟡</span> a light one · <span class="cg">🟢</span> a medium one · <span class="cp">🟣</span> a large one.</div>
       <div>The only things that end a run are <strong>not doing the thing</strong> and skipping a day.</div>
-      <div><span class="ac w6">The ones measured in minutes carry a ${FREE_MINS_BASE}-minute daily allowance as a floor</span> — and it grows with pomodoros logged that day: every ${FREE_MINS_POMS} pomodoros buy another ${FREE_MINS_BASE} minutes (4 pomodoros = 15 min, 12 = 45, 16 = an hour — never below ${FREE_MINS_BASE}, even with none). A day under your allowance is still charged (−${PEN_RATE} a minute) but <strong>does not count as a slip</strong>: it neither carries the run forward nor starts one. The multiplier is for a habit, and a day inside the allowance is not one. Past it, the day counts in full and the run advances.</div>
+      <div><span class="ac w6">The ones measured in minutes carry a ${FREE_MINS_BASE}-minute daily floor</span>: under that it is still charged (−${PEN_RATE} a minute) but <strong>does not count as a slip</strong> — it neither carries the run forward nor starts one. That floor is fixed; pomodoros never move it. Past ${FREE_MINS_BASE} minutes the day counts in full and the run advances — but if you logged pomodoros that day, what it <strong>costs</strong> drops: every ${FREE_MINS_POMS} pomodoros buy another ${FREE_MINS_BASE} minutes at base price (4 pomodoros = 15 min, 12 = 45, 16 = an hour). Pomodoros make the day cheaper; they <strong>never save the run</strong>.</div>
       <div><span class="ac w6">🎖️ Medals</span> at 10, 20, 50, 100, 200, 500 and 1000 days of any positive run. Rewards never earn one.</div>
       <div class="xs dimmer">A day you forget to log counts as −1,000 and a red day. Log every day!</div>
     </div>
