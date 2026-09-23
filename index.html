@@ -1185,6 +1185,8 @@ en:{
   'src-rewards':'Rewards','src-late':'Late nights','src-gaps':'Days not logged','src-none':'Log a few days first.',
   'goal-nudge':'Your biggest goals are your compass',
   'goal-nudge-daily-1':'{n} open goal has no step pointed at it yet.','goal-nudge-daily':'{n} open goals have no step pointed at them yet.',
+  'goal-week-none':'No weekly goal right now',
+  'goal-week-empty':'No weekly goal closed yet this week, and the week is almost over.',
   'goal-nudge-add':'+ Add a step','goal-nudge-later':'Not now',
   'goal-day-done':'Goals annihilated!','goal-day-done-sub':'Every flag of the day is down.',
   'goal-worth':'worth','goal-tomorrow':'tomorrow','goal-past-due':'⚠ was due',
@@ -1391,6 +1393,8 @@ es:{
   'src-rewards':'Recompensas','src-late':'Trasnoches','src-gaps':'Días sin registrar','src-none':'Registra unos días primero.',
   'goal-nudge':'Tus metas más grandes son tu brújula',
   'goal-nudge-daily-1':'{n} meta abierta no tiene ningún paso ligado todavía.','goal-nudge-daily':'{n} metas abiertas no tienen ningún paso ligado todavía.',
+  'goal-week-none':'Sin meta semanal',
+  'goal-week-empty':'No has cerrado ninguna meta semanal esta semana, y ya casi se acaba.',
   'goal-nudge-add':'+ Agregar paso','goal-nudge-later':'Ahora no',
   'goal-day-done':'¡Metas exterminadas alv!','goal-day-done-sub':'Cayeron todas las banderas de hoy.',
   'goal-worth':'vale','goal-tomorrow':'mañana','goal-past-due':'⚠ era para',
@@ -3510,6 +3514,18 @@ function goalsServedBy(r){
   if(!r)return[];
   return goalIdsOf(r).map(goalById).filter(Boolean);
 }
+/* The weekly-goal marker a task carries wherever its name is shown: the
+   still-open weekly goals it serves, joined together — or, once every one of
+   them is already checked off, a plain "no weekly goal right now" rather than
+   quietly saying nothing, so a task that used to point at a finished goal
+   reads as needing a new one instead of reading as if nothing had changed. A
+   task that never had a weekly link at all stays silent — null. */
+function weeklyGoalNote(r){
+  const links=goalsServedBy(r).filter(g=>g.kind==='week');
+  if(!links.length)return null;
+  const open=links.filter(g=>!g.doneOn);
+  return open.length?open.map(g=>g.title).join(', '):t('goal-week-none');
+}
 // Everything that still has the link, whether or not it has been finished.
 function tasksServing(goalId){
   return reminders().filter(x=>goalIdsOf(x).includes(goalId));
@@ -3669,10 +3685,18 @@ function renderPlanner(){
      leaves you alone until tomorrow either way you answer it. */
   let nudgeSeen='';try{nudgeSeen=localStorage.getItem('st_goalNudgeSeen')||'';}catch(e){}
   const bare=goals().filter(g=>!g.doneOn&&!tasksServing(g.id).some(x=>!x.done));
-  if(bare.length&&nudgeSeen!==tk){
+  /* The second half of a week with nothing closed yet is the other way this
+     goes unnoticed — not a goal sitting with no step, just no weekly win at
+     all so far. Held back until the week is at least half spent so Monday
+     does not get nagged for a week that only just started. */
+  const weekLeft=daysLeftIn('week',tk);
+  const closedThisWeek=goalsOf('week').some(g=>g.doneOn);
+  const weekQuiet=weekLeft<=3&&!closedThisWeek;
+  if((bare.length||weekQuiet)&&nudgeSeen!==tk){
     const markSeen=()=>{try{localStorage.setItem('st_goalNudgeSeen',tk);}catch(e){}};
     const nb=dv('card mb12');nb.style.cssText='border-color:var(--acb);background:var(--acd)';
-    nb.appendChild(dv('sm w6',bare.length===1?t('goal-nudge-daily-1').replace('{n}',bare.length):t('goal-nudge-daily').replace('{n}',bare.length)));
+    if(weekQuiet)nb.appendChild(dv('sm w6',t('goal-week-empty')));
+    if(bare.length)nb.appendChild(dv('sm w6 mt4',bare.length===1?t('goal-nudge-daily-1').replace('{n}',bare.length):t('goal-nudge-daily').replace('{n}',bare.length)));
     const btns=dv('row gap8 mt8');
     btns.appendChild(bt('btn-ac btn-sm',t('goal-nudge-add'),()=>{markSeen();STATE.showGoals=true;render();}));
     btns.appendChild(bt('btn-ghost btn-sm',t('goal-nudge-later'),()=>{markSeen();render();}));
@@ -3809,6 +3833,12 @@ function renderPlanner(){
         const ttl=sp('sm f1',r.title);
         editableTitle(ttl,r,render);
         row.appendChild(ttl);
+        const wkNote=weeklyGoalNote(r);
+        if(wkNote!==null){
+          const suf=sp('sm dimmer','🏁 '+wkNote);
+          suf.title=t('rem-goal-for');
+          row.appendChild(suf);
+        }
         box.appendChild(row);
       });
       sum.appendChild(box);
@@ -4825,8 +4855,8 @@ function remChip(r,tk,redraw){
     /* The same weekly-goal marker the list gives the task's own name — a chip
        has no room for that in its title row, already fighting the checkbox,
        the flag and the quadrant for width, so it rides the meta line instead. */
-    const weeklyServed=goalsServedBy(r).filter(g=>g.kind==='week');
-    if(weeklyServed.length)meta.push('🏁 '+weeklyServed.map(g=>g.title.slice(0,24)).join(', '));
+    const wkNote=weeklyGoalNote(r);
+    if(wkNote!==null)meta.push('🏁 '+wkNote.slice(0,28));
     const m=dv('xs '+(late?'cr':'dimmer'));m.style.marginTop='3px';m.textContent=meta.join(' · ');
     cell.appendChild(m);
     // Standing on its own, a subtask says where it came from.
@@ -5237,9 +5267,9 @@ function renderReminderRow(r,tk,opts){
      beside it. Only weekly: those are the ones actually meant to be kept in
      front of you day to day, and every one of them tacked on here would be
      the clutter this is meant to avoid. Quarterly and yearly keep the chip. */
-  const weeklyServed=goalsServedBy(r).filter(g=>g.kind==='week');
-  if(weeklyServed.length){
-    const suf=sp('md dimmer',' 🏁: '+weeklyServed.map(g=>g.title).join(', '));
+  const wkNote=weeklyGoalNote(r);
+  if(wkNote!==null){
+    const suf=sp('md dimmer',' 🏁 '+wkNote);
     suf.title=t('rem-goal-for');
     titleLine.appendChild(suf);
   }
