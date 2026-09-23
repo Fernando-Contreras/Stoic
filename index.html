@@ -7067,8 +7067,15 @@ function chHover(el,html){
 }
 /* Every chart ships its twin. It is the relief the light surface owes — the
    four day colours sit under the contrast bar there — and it is also simply
-   the honest answer to "what exactly was that bar". */
-function chCard(title,sub,plot,legend,tableFn){
+   the honest answer to "what exactly was that bar".
+   `id`, when given, is this chart's slot in CHART_ORDER: it makes the card's
+   own background — title, subtitle, the empty margin, anything that is not a
+   specific day or a button — open it alone, full width, in a popup that
+   rebuilds from _chartBuilders on every render (see refreshChartExpand), so
+   an edit made from inside it — or from anywhere else — shows up there
+   without having to close and reopen it. A day cell keeps doing its own
+   thing (openDay); this only ever answers for the rest of the card. */
+function chCard(title,sub,plot,legend,tableFn,id){
   const c=dv('card2 ch');
   const h=dv('ch-h');
   h.appendChild(sp('xs dimmer up ls',title));
@@ -7087,66 +7094,89 @@ function chCard(title,sub,plot,legend,tableFn){
   if(sub)c.appendChild(dv('ch-sub',sub));
   c.appendChild(plot);
   if(legend)c.appendChild(legend);
-  /* The card's own background — its title, its subtitle, the empty margin
-     around the plot, anything that is not a specific day or a button —
-     opens this one chart alone, full width, over the page. A day cell
-     already does its own thing (openDay) and keeps doing it; this only ever
-     answers for the rest of the card. The plot and legend move into the
-     popup and back rather than being rebuilt, so every bar keeps working
-     exactly as it does here — click one there and its day detail opens on
-     top of this, the same as it would inline. */
-  c.style.cursor='zoom-in';
-  c.onclick=e=>{
-    if(e.target.closest('button, .ch-tbl'))return;
-    const dayEl=e.target.closest('.ch-col, .ch-hm i');
-    if(dayEl&&dayEl.onclick)return;
-    openChartExpand(c,title,sub,plot,legend);
-  };
+  if(id){
+    c.style.cursor='zoom-in';
+    c.onclick=e=>{
+      if(e.target.closest('button, .ch-tbl'))return;
+      const dayEl=e.target.closest('.ch-col, .ch-hm i');
+      if(dayEl&&dayEl.onclick)return;
+      openChartExpand(id);
+    };
+  }
   return c;
 }
-/* Where a chart's plot and legend go while a card is expanded, and where
-   they come back to when it closes — see chCard. Kept outside #root, like
-   the pomodoro pill and the milestone overlay, so a render() elsewhere (a
-   day detail opened from inside this very popup, say) cannot tear it down
-   out from under itself. Only one at a time: opening a second one first
-   closes whichever was already open, restoring its own card in passing. */
-let _chartExpandClose=null;
-function openChartExpand(card,title,sub,plot,legend){
-  if(_chartExpandClose)_chartExpandClose();
+/* The chart-expand popup. Kept outside #root, like the pomodoro pill and the
+   milestone overlay, so a render() elsewhere — a day detail opened from
+   inside this very popup, most obviously, but just as much an edit saved
+   from Edit History — cannot tear the popup itself down out from under
+   itself. What DOES redraw on every render is its content: renderCharts
+   calls refreshChartExpand() each time it rebuilds _chartBuilders, so the
+   chart on screen here is never more than one render behind whatever you
+   just changed. Arrow keys and swipe move to the next or previous id in
+   _chartOrder; see the keydown and touch handlers near the bottom of the
+   file. */
+let _chartExpand=null;      // {id, ov, body, close}
+let _chartBuilders={};      // id -> () => a fresh chCard-built element
+let _chartOrder=[];         // ids, in the order the grid shows them
+function openChartExpand(id){
+  if(_chartExpand){
+    if(_chartExpand.id===id)return;
+    _chartExpand.id=id;
+    refreshChartExpand();
+    return;
+  }
   const ov=dv('fi');
   ov.classList.add('ovl');
   // Under the day-detail popup's z-index (60): clicking a day inside this
   // expanded chart has to open on top of it, not behind it.
   ov.style.zIndex='55';
   const close=()=>{
-    if(_chartExpandClose!==close)return;
-    _chartExpandClose=null;
+    if(_chartExpand&&_chartExpand.ov===ov){_chartExpand=null;}
     ov.remove();
-    // Only if this card is still the one on screen — a render() elsewhere
-    // may already have rebuilt the grid with its own fresh copy, which
-    // needs nothing handed back to it.
-    if(card.isConnected){
-      card.appendChild(plot);
-      if(legend)card.appendChild(legend);
-    }
   };
-  _chartExpandClose=close;
   // Escape is answered by the app's one central handler, not a listener of
-  // its own here — see _chartExpandClose there. Two independent listeners on
-  // the same key used to close this AND whatever was open on top of it (a
-  // day detail opened from inside this very popup) on the same press.
+  // its own here — see _chartExpand there.
   closeOnBackdrop(ov,close);
   const panel=dv('card');
-  panel.style.cssText='max-width:1100px;width:100%;margin:auto;max-height:88vh;overflow-y:auto';
-  const hd=dv('rowb mb4');
-  hd.appendChild(sp('ctit',title));
-  hd.appendChild(bt('btn-icon','✕',close));
-  panel.appendChild(hd);
-  if(sub)panel.appendChild(dv('ch-sub mb10',sub));
-  panel.appendChild(plot);
-  if(legend)panel.appendChild(legend);
+  panel.style.cssText='max-width:1100px;width:100%;margin:auto;max-height:88vh;overflow-y:auto;position:relative';
+  const closeBtn=bt('btn-icon','✕',close);
+  closeBtn.style.cssText='position:absolute;top:14px;right:14px;z-index:1';
+  panel.appendChild(closeBtn);
+  const body=dv('');
+  panel.appendChild(body);
   ov.appendChild(panel);
   document.body.appendChild(ov);
+  let touchX=null;
+  panel.addEventListener('touchstart',e=>{touchX=e.touches[0].clientX;},{passive:true});
+  panel.addEventListener('touchend',e=>{
+    if(touchX===null)return;
+    const dx=e.changedTouches[0].clientX-touchX;touchX=null;
+    if(Math.abs(dx)<40)return;   // a tap or a scroll, not a swipe
+    chartExpandNav(dx<0?1:-1);
+  },{passive:true});
+  _chartExpand={id,ov,body,close};
+  refreshChartExpand();
+}
+/* Rebuilds the expanded chart's content from the CURRENT _chartBuilders —
+   fresh data every time, since renderCharts calls this right after it
+   rebuilds that map. The popup shell (ov/panel/body) is untouched, so this
+   never replays an entrance animation the way tearing the whole thing down
+   and back up would. */
+function refreshChartExpand(){
+  if(!_chartExpand)return;
+  const build=_chartBuilders[_chartExpand.id];
+  if(!build){_chartExpand.close();return;}
+  const big=build();
+  big.onclick=null;big.style.cursor='';   // already expanded; do not re-offer to expand itself
+  _chartExpand.body.innerHTML='';
+  _chartExpand.body.appendChild(big);
+}
+function chartExpandNav(dir){
+  if(!_chartExpand||!_chartOrder.length)return;
+  const idx=_chartOrder.indexOf(_chartExpand.id);
+  if(idx<0)return;
+  _chartExpand.id=_chartOrder[(idx+dir+_chartOrder.length)%_chartOrder.length];
+  refreshChartExpand();
 }
 function chLegend(items){
   const l=dv('ch-lg');
@@ -7236,7 +7266,7 @@ function renderCharts(sc,isEs){
   /* One plain bar-per-day chart, built once and reused for anything that is
      just a number logged per day (sleep, pomodoros, work…) rather than typed
      out three times with the same plumbing and a different field name. */
-  function barChart({title,sub,H=110,valueOf,barColor,legend,tableCol,tableVal}){
+  function barChart({id,title,sub,H=110,valueOf,barColor,legend,tableCol,tableVal}){
     const vals=win.map(valueOf);
     const hi=Math.max(1,...vals);
     const plot=dv('ch-plot');plot.style.height=H+'px';
@@ -7261,7 +7291,7 @@ function renderCharts(sc,isEs){
     const holder=dv('');holder.appendChild(plot);holder.appendChild(xs);
     return chCard(title,sub,holder,legend||null,
       ()=>chTable([isEs?'Día':'Day',tableCol],[...win].reverse().map(d=>[fmtFull(d.date),tableVal(d)]),
-        i=>openDay([...win].reverse()[i])));
+        i=>openDay([...win].reverse()[i])),id);
   }
 
   /* ── 1. Day by day ──────────────────────────────────────────────────────
@@ -7271,7 +7301,7 @@ function renderCharts(sc,isEs){
      here without reading a number. The line on top is the seven-day average,
      drawn in ink rather than a fifth hue: it is not another category, it is
      the same data with the noise taken out. */
-  {
+  _chartBuilders.dayByDay=function(){
     const H=150;
     const vals=win.map(d=>d.pts);
     const hi=Math.max(0,...vals),lo=Math.min(0,...vals);
@@ -7346,7 +7376,7 @@ function renderCharts(sc,isEs){
     const present=CH_ORDER.filter(s=>win.some(d=>d.status===s));
     const lg=chLegend([...present.map(s=>[chColor(s),chStatusName(s)]),
                        ['var(--t1)',isEs?'Promedio de 7 días':'7-day average',true]]);
-    chartsGrid.appendChild(chCard(
+    return chCard(
       isEs?'Día por día':'Day by day',
       isEs?`El alto es lo que pagó el día; el color, cómo cerró. ${win.length} días.`
           :`Height is what the day paid; colour is how it closed. ${win.length} days.`,
@@ -7356,13 +7386,13 @@ function renderCharts(sc,isEs){
         return chTable([isEs?'Día':'Day',t('pts-s'),isEs?'Color':'Colour'],
           rev.map(d=>[fmtFull(d.date),d.pts.toLocaleString(),chStatusName(d.status)]),
           i=>openDay(rev[i]));
-      }));
-  }
+      },'dayByDay');
+  };
 
   /* ── 2. The whole stretch at once ───────────────────────────────────────
      A month of calendar answers "what was the 14th"; this answers "what has
      this been like", which is a question the calendar cannot be asked. */
-  {
+  _chartBuilders.heatmap=function(){
     const hm=win.slice(-364);
     const plot=dv('ch-hm');
     // Columns are weeks, rows are weekdays, so a streak reads as a run down
@@ -7385,20 +7415,20 @@ function renderCharts(sc,isEs){
     // weeks is nowhere near a full row) and belongs beside other charts like
     // any of them. ch-hmw's own overflow-x:auto is what a stretch long
     // enough to need more room than its column gives it falls back on.
-    chartsGrid.appendChild(chCard(
+    return chCard(
       isEs?'Mapa de tus días':'Every day at once',
       isEs?'Cada cuadrito es un día. Las columnas son semanas, de lunes a domingo.'
           :'One square per day. Columns are weeks, Monday to Sunday.',
       hmw,lg,
       ()=>chTable([isEs?'Color':'Colour',isEs?'Días':'Days','%'],
         CH_ORDER.map(s=>{const n=hm.filter(d=>d.status===s).length;
-          return [chStatusName(s),String(n),hm.length?Math.round(n/hm.length*100)+'%':'0%'];}))));
-  }
+          return [chStatusName(s),String(n),hm.length?Math.round(n/hm.length*100)+'%':'0%'];})),'heatmap');
+  };
 
   /* ── 3. How the days split ──────────────────────────────────────────────
      Part-to-whole, four segments, one line. The tiles gave the purple share
      and left the other three to be worked out by subtraction. */
-  {
+  _chartBuilders.daySplit=function(){
     const tot=win.length;
     const stack=dv('ch-stack');
     const rows=[];
@@ -7417,18 +7447,18 @@ function renderCharts(sc,isEs){
       const n=win.filter(d=>d.status===s).length;
       return [chColor(s),`${chStatusName(s)} · ${n} (${tot?Math.round(n/tot*100):0}%)`];
     }));
-    chartsGrid.appendChild(chCard(
+    return chCard(
       isEs?'Cómo se reparten tus días':'How your days split',
       isEs?`${good} de ${tot} cerraron en verde o morado.`
           :`${good} of ${tot} closed green or purple.`,
-      stack,lg,()=>chTable([isEs?'Color':'Colour',isEs?'Días':'Days','%'],rows)));
-  }
+      stack,lg,()=>chTable([isEs?'Color':'Colour',isEs?'Días':'Days','%'],rows),'daySplit');
+  };
 
   /* ── 4. The week you actually have ──────────────────────────────────────
      The tiles named the best weekday and the worst and stopped there, which
      is the argmax of a shape nobody had seen. Here is the shape. Green above
      the line and red below is the app's own word for it: a day in the red. */
-  {
+  _chartBuilders.typicalWeek=function(){
     const names=isEs?['Lun','Mar','Mié','Jue','Vie','Sáb','Dom']:['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
     const buckets=[[],[],[],[],[],[],[]];
     win.forEach(d=>{buckets[(new Date(d.date+'T12:00:00').getDay()+6)%7].push(d.pts);});
@@ -7483,19 +7513,19 @@ function renderCharts(sc,isEs){
     if(avgs.some(v=>v>=0))keys.push(['var(--cg)',isEs?'Promedio en positivo':'Average in the black']);
     if(avgs.some(v=>v<0))keys.push(['var(--cr)',isEs?'Promedio en negativo':'Average in the red']);
     const lg=chLegend(keys);
-    chartsGrid.appendChild(chCard(
+    return chCard(
       isEs?'Tu semana típica':'Your typical week',
       isEs?'Promedio de puntos por día de la semana.':'Average points by weekday.',
       holder,lg,
       ()=>chTable([isEs?'Día':'Day',isEs?'Promedio':'Average',isEs?'Días':'Days'],
-        names.map((n,i)=>[n,avgs[i].toLocaleString(),String(buckets[i].length)]))));
-  }
+        names.map((n,i)=>[n,avgs[i].toLocaleString(),String(buckets[i].length)])),'typicalWeek');
+  };
 
   /* ── 5. Running total ───────────────────────────────────────────────────
      Every other chart here is about one day at a time; this is the only one
      that answers "where did this stretch actually leave me" — the same line
      the lifetime number at the top of the page is one frozen instant of. */
-  {
+  _chartBuilders.running=function(){
     const H=140;
     /* Run from the start of ALL history, not from the start of whatever
        range happens to be selected. Resetting to zero at the window's own
@@ -7554,18 +7584,19 @@ function renderCharts(sc,isEs){
     const xs=dv('ch-x');
     xs.appendChild(sp('',fmtDay(win[0].date)));xs.appendChild(sp('',fmtDay(win[win.length-1].date)));
     const holder=dv('');holder.appendChild(plot);holder.appendChild(xs);
-    chartsGrid.appendChild(chCard(
+    return chCard(
       isEs?'Acumulado':'Running total',
       isEs?`Tu puntaje sumado, día tras día, en estos ${win.length} días.`
           :`Your score, summed day after day, over these ${win.length} days.`,
       holder,null,
       ()=>chTable([isEs?'Día':'Day',isEs?'Acumulado':'Running total'],
         [...win].reverse().map((d,ri)=>[fmtFull(d.date),cum[win.length-1-ri].toLocaleString()]),
-        i=>openDay([...win].reverse()[i]))));
-  }
+        i=>openDay([...win].reverse()[i])),'running');
+  };
 
   // ── 6. Sleep per night ─────────────────────────────────────────────────
-  chartsGrid.appendChild(barChart({
+  _chartBuilders.sleep=()=>barChart({
+    id:'sleep',
     title:isEs?'Sueño por noche':'Sleep per night',
     sub:isEs?`Sueño principal, noche a noche. ${win.length} días.`:`Main sleep, night by night. ${win.length} days.`,
     valueOf:d=>d.sleepMin/60,
@@ -7575,10 +7606,11 @@ function renderCharts(sc,isEs){
                      ['var(--ac)',isEs?'Ninguno de los dos':'Neither']]),
     tableCol:isEs?'Sueño':'Sleep',
     tableVal:d=>fmtDur(d.sleepMin)+(d.sleptEarly?' · '+(isEs?'temprano':'early'):(d.sleptLate?' · '+(isEs?'tarde':'late'):''))
-  }));
+  });
 
   // ── 7. Pomodoros per day ───────────────────────────────────────────────
-  chartsGrid.appendChild(barChart({
+  _chartBuilders.pomodoros=()=>barChart({
+    id:'pomodoros',
     title:isEs?'Pomodoros por día':'Pomodoros per day',
     sub:isEs?`${win.reduce((s,d)=>s+d.pomodoros,0)} en total, en estos ${win.length} días.`
             :`${win.reduce((s,d)=>s+d.pomodoros,0)} total, over these ${win.length} days.`,
@@ -7586,10 +7618,11 @@ function renderCharts(sc,isEs){
     barColor:'var(--cp)',
     tableCol:'🍅',
     tableVal:d=>String(d.pomodoros)
-  }));
+  });
 
   // ── 8. Work minutes per day ────────────────────────────────────────────
-  chartsGrid.appendChild(barChart({
+  _chartBuilders.work=()=>barChart({
+    id:'work',
     title:isEs?'Trabajo por día':'Work per day',
     sub:isEs?`${fmtDur(win.reduce((s,d)=>s+d.workMin,0))} en total, en estos ${win.length} días.`
             :`${fmtDur(win.reduce((s,d)=>s+d.workMin,0))} total, over these ${win.length} days.`,
@@ -7597,10 +7630,11 @@ function renderCharts(sc,isEs){
     barColor:'var(--ac)',
     tableCol:isEs?'Trabajo':'Work',
     tableVal:d=>fmtDur(d.workMin)
-  }));
+  });
 
   // ── 9. Tasks completed per day ──────────────────────────────────────────
-  chartsGrid.appendChild(barChart({
+  _chartBuilders.tasks=()=>barChart({
+    id:'tasks',
     title:isEs?'Tareas completadas por día':'Tasks completed per day',
     sub:isEs?`${win.reduce((s,d)=>s+d.tasksDone,0)} en total, en estos ${win.length} días.`
             :`${win.reduce((s,d)=>s+d.tasksDone,0)} total, over these ${win.length} days.`,
@@ -7608,15 +7642,16 @@ function renderCharts(sc,isEs){
     barColor:'var(--cg)',
     tableCol:isEs?'Tareas':'Tasks',
     tableVal:d=>String(d.tasksDone)
-  }));
+  });
 
   // ── 10. The named reward measured in minutes, per day ───────────────────
   // Procrastination by default, but this is whichever timed reward you kept
   // the built-in id for — same reasoning renderStats already uses to name it.
-  {
+  _chartBuilders.procrastination=()=>{
     const rwProc=rewardById('internet');
     const nmProc=rwProc?rewardName(rwProc):(isEs?'Procrastinación':'Procrastination');
-    chartsGrid.appendChild(barChart({
+    return barChart({
+      id:'procrastination',
       title:isEs?`${nmProc} por día`:`${nmProc} per day`,
       sub:isEs?`${fmtDur(win.reduce((s,d)=>s+d.procMin,0))} en total, en estos ${win.length} días.`
               :`${fmtDur(win.reduce((s,d)=>s+d.procMin,0))} total, over these ${win.length} days.`,
@@ -7624,24 +7659,35 @@ function renderCharts(sc,isEs){
       barColor:'var(--ng)',
       tableCol:nmProc,
       tableVal:d=>fmtDur(d.procMin)
-    }));
-  }
+    });
+  };
 
   // ── 11 & 12. The two count-based built-in rewards, per day ──────────────
   // Whatever you renamed them to — same reasoning as the minutes one above.
-  [['drugs','drugsCount','var(--cy)'],['macanazo','orgCount','var(--cp)']].forEach(([id,key,color])=>{
-    const r=rewardById(id);
-    const nm=r?rewardName(r):id;
-    chartsGrid.appendChild(barChart({
-      title:isEs?`${nm} por día`:`${nm} per day`,
-      sub:isEs?`${win.reduce((s,d)=>s+d[key],0)} en total, en estos ${win.length} días.`
-              :`${win.reduce((s,d)=>s+d[key],0)} total, over these ${win.length} days.`,
-      valueOf:d=>d[key],
-      barColor:color,
-      tableCol:nm,
-      tableVal:d=>String(d[key])
-    }));
+  [['drugs','drugsCount','var(--cy)'],['macanazo','orgCount','var(--cp)']].forEach(([rid,key,color])=>{
+    _chartBuilders[rid]=()=>{
+      const r=rewardById(rid);
+      const nm=r?rewardName(r):rid;
+      return barChart({
+        id:rid,
+        title:isEs?`${nm} por día`:`${nm} per day`,
+        sub:isEs?`${win.reduce((s,d)=>s+d[key],0)} en total, en estos ${win.length} días.`
+                :`${win.reduce((s,d)=>s+d[key],0)} total, over these ${win.length} days.`,
+        valueOf:d=>d[key],
+        barColor:color,
+        tableCol:nm,
+        tableVal:d=>String(d[key])
+      });
+    };
   });
+
+  _chartOrder=['dayByDay','heatmap','daySplit','typicalWeek','running','sleep','pomodoros','work','tasks','procrastination','drugs','macanazo'];
+  _chartOrder.forEach(id=>chartsGrid.appendChild(_chartBuilders[id]()));
+  // The expanded chart, if any, is rebuilt from these same fresh builders —
+  // right here, so an edit that changed the numbers (Edit History, most
+  // often, opened from a day clicked inside the very popup this refreshes)
+  // shows up in it without having to close and reopen it.
+  refreshChartExpand();
 
   box.appendChild(chartsGrid);
   return box;
@@ -9270,7 +9316,7 @@ document.addEventListener('keydown',e=>{
        in the list above. Checked only once nothing in that list is open, so
        a day detail opened from inside it still closes first, on its own
        Escape, the same as it would opened from anywhere else. */
-    if(_chartExpandClose){_chartExpandClose();return;}
+    if(_chartExpand){_chartExpand.close();return;}
     /* Nothing on top of the list — Escape clears the tag filter, the same as
        the ✕ on the filter bar. Skipped while a field is focused, where Escape
        means "leave this field" (a title being renamed, say). */
@@ -9301,6 +9347,17 @@ document.addEventListener('keydown',e=>{
   if(!scope)return;
   const btns=[...scope.querySelectorAll('button.btn-ac')].filter(b=>!b.disabled&&b.offsetParent!==null);
   if(btns.length){e.preventDefault();btns[btns.length-1].click();}
+});
+
+/* Left/right steps an expanded chart to the previous or next one — see
+   openChartExpand/_chartOrder — the same move a swipe on it makes. Skipped
+   while a field is focused, where the arrow keys mean move the cursor. */
+document.addEventListener('keydown',e=>{
+  if(!_chartExpand)return;
+  if(e.key!=='ArrowLeft'&&e.key!=='ArrowRight')return;
+  if(/^(INPUT|TEXTAREA|SELECT)$/.test((e.target||{}).tagName||''))return;
+  e.preventDefault();
+  chartExpandNav(e.key==='ArrowRight'?1:-1);
 });
 
 /* Scrolling is when the bubble is meant to arrive, so it answers the scroll
