@@ -366,6 +366,12 @@ button{cursor:pointer;font-family:var(--ff);font-size:15px;font-weight:600;borde
    bar, which obliges relief rather than a shrug: every chart carries a named
    legend and a table view, so nothing here is ever told by colour alone. */
 .ch{margin-bottom:14px}
+/* Two narrow charts side by side beat one narrow chart alone in a full-width
+   row of empty space. auto-fit does the packing: as many 340px-or-wider
+   columns as the row holds, however many that turns out to be — a wide chart
+   opts out with its own gridColumn and keeps a row to itself. */
+.charts-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:14px}
+.charts-grid .ch{margin-bottom:0}
 .ch-h{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:2px}
 .ch-sub{color:var(--t3);font-size:11px;margin-bottom:10px}
 /* Recessive by design: one step off the surface, hairline, solid, never dashed. */
@@ -1051,6 +1057,7 @@ en:{
   'ms-fortitude':'Fortitude','ms-virtue':'Virtue','ms-wisdom':'Wisdom','ms-ataraxia':'Ataraxia',
   'ms-sub':'days in a row',
   'md-day':'Days without red','md-morning':'Morning routine','md-flags':'Goals annihilated','md-work':'Work',
+  'md-pomodoros':'Pomodoros','md-earlybed':'Early bed',
   'md-cleand':'No stimulants','md-cleanp':'No procrastination','md-cleano':'No orgasm',
   'medals-title':'Medals','medals-none':'None yet. Positive streaks earn them; rewards never do.',
   'medals-locked':'Not won yet',
@@ -1259,6 +1266,7 @@ es:{
   'ms-fortitude':'Fortaleza','ms-virtue':'Virtud','ms-wisdom':'Sabiduría','ms-ataraxia':'Ataraxia',
   'ms-sub':'días seguidos',
   'md-day':'Días sin rojo','md-morning':'Rutina matutina','md-flags':'Metas exterminadas','md-work':'Trabajo',
+  'md-pomodoros':'Pomodoros','md-earlybed':'Dormir temprano',
   'md-cleand':'Sin estimulantes','md-cleanp':'Sin procrastinar','md-cleano':'Sin orgasmo',
   'medals-title':'Medallas','medals-none':'Aún ninguna. Las dan las rachas positivas; las recompensas nunca.',
   'medals-locked':'Aún sin conseguir',
@@ -5622,6 +5630,12 @@ const MEDAL_KINDS=[
   {k:'morning',name:'md-morning',ok:d=>d.morning},
   {k:'flags',  name:'md-flags',  ok:d=>d.flags},
   {k:'work',   name:'md-work',   ok:d=>d.work>0},
+  // These two are as much a positive run as morning or work — they show right
+  // beside them on the streaks card — and were simply never added here, so a
+  // pomodoro or early-bed run could climb past every threshold and never once
+  // earn the medal it was owed.
+  {k:'pomodoros',name:'md-pomodoros',ok:d=>d.pomodoros>0},
+  {k:'earlyBed', name:'md-earlybed', ok:d=>d.earlyBed},
   {k:'cleand', name:'md-cleand', rw:'drugs',    ok:d=>!d.drugs},
   {k:'cleanp', name:'md-cleanp', rw:'internet', ok:d=>!d.proc},
   {k:'cleano', name:'md-cleano', rw:'macanazo', ok:d=>!d.org}
@@ -5645,6 +5659,7 @@ function dayFacts(entry,isToday){
     const pens=STATE.today.penalties||[];
     return{status:live.status,morning:!!STATE.today.morningCompleted,flags:!!STATE.today.flagCompleted,
       work:STATE.today.work?.workDuration||0,
+      pomodoros:STATE.today.pomodoros||0,earlyBed:!!STATE.today.sleep?.sleptEarly,
       drugs:pens.some(p=>p.type==='drugs'),proc:pens.some(p=>p.type==='internet'),org:pens.some(p=>p.type==='macanazo')};
   }
   const pens=entry.penalties||[];
@@ -5652,6 +5667,7 @@ function dayFacts(entry,isToday){
     morning:!!entry.streaks?.some(s=>s.type==='morning'&&s.active),
     flags:!!entry.streaks?.some(s=>s.type==='flags'&&s.active),
     work:entry.workDuration||0,
+    pomodoros:entry.pomodoros||0,earlyBed:!!entry.sleptEarly,
     drugs:pens.some(p=>p.type==='drugs'),proc:pens.some(p=>p.type==='internet'),org:pens.some(p=>p.type==='macanazo')};
 }
 /* Every medal ever earned, worked out from the days themselves rather than
@@ -5683,22 +5699,30 @@ function medalsByDate(){
 function checkMilestone(){
   if(document.querySelector('.ms-ov'))return;
   const tk=todayKey();
-  const today=medalsByDate().get(tk)||[];
+  const byDate=medalsByDate();
+  const today=byDate.get(tk)||[];
   let seen=[];try{seen=JSON.parse(localStorage.getItem('st_milestones')||'[]');}catch(e){}
-  const id=m=>m.kind.k+':'+m.n+':'+tk;
-  const todayIds=new Set(today.map(id));
+  const id=(m,d)=>m.kind.k+':'+m.n+':'+d;
+  const todayIds=new Set(today.map(m=>id(m,tk)));
   /* Undoing whatever earned a medal — pulling out today's work log, say —
      and then redoing it should feel like earning it again, not like a box
      that was already ticked. Only today's own entries can un-happen this
      way; a past day is fixed once logged, so this never touches those. */
   const pruned=seen.filter(s=>s.endsWith(':'+tk)?todayIds.has(s):true);
   if(pruned.length!==seen.length){seen=pruned;try{localStorage.setItem('st_milestones',JSON.stringify(seen));}catch(e){}}
-  if(!today.length)return;
-  const fresh=today.filter(m=>!seen.includes(id(m)));
+  /* Every medal ever earned, not only today's. A kind that only just started
+     being tracked — or a past day corrected into crossing a threshold after
+     the fact, by fixing a gap or backfilling a number — can make a medal new
+     on a day that already happened. It never got its moment because of when
+     it was, not because it wasn't real, so the first check to see it still
+     shows it, the same as any medal earned today. */
+  const seenSet=new Set(seen);
+  const fresh=[];
+  byDate.forEach((list,d)=>list.forEach(m=>{const mid=id(m,d);if(!seenSet.has(mid))fresh.push({m,mid});}));
   if(!fresh.length)return;
   // Several at once would talk over each other; the biggest speaks for them.
-  const best=fresh.reduce((a,b)=>b.n>a.n?b:a);
-  try{localStorage.setItem('st_milestones',JSON.stringify([...seen,...today.map(id)].slice(-300)));}catch(e){}
+  const best=fresh.reduce((a,b)=>b.m.n>a.m.n?b:a).m;
+  try{localStorage.setItem('st_milestones',JSON.stringify([...seen,...fresh.map(f=>f.mid)].slice(-300)));}catch(e){}
   showMilestone(best);
 }
 function showMilestone(m){
@@ -7116,6 +7140,12 @@ function renderCharts(sc,isEs){
     ctrl.appendChild(b);
   });
   box.appendChild(ctrl);
+  // Every chart from here on lands in this grid rather than straight in the
+  // page flow, so two narrow ones (a 30-day bar chart is mostly empty space
+  // at full page width) sit side by side instead of each claiming a full row
+  // for a fraction of it. Wide ones — right now just the heatmap — opt out
+  // with their own gridColumn and keep the row to themselves.
+  const chartsGrid=dv('charts-grid');
   const win=STATE.chRange?days.slice(-STATE.chRange):days;
   const fmtDay=d=>capFirst(new Date(d+'T12:00:00').toLocaleDateString(isEs?'es-MX':'en-US',{day:'numeric',month:'short'}));
   const fmtFull=d=>capFirst(new Date(d+'T12:00:00').toLocaleDateString(isEs?'es-MX':'en-US',{weekday:'short',day:'numeric',month:'short'}));
@@ -7235,7 +7265,7 @@ function renderCharts(sc,isEs){
     const present=CH_ORDER.filter(s=>win.some(d=>d.status===s));
     const lg=chLegend([...present.map(s=>[chColor(s),chStatusName(s)]),
                        ['var(--t1)',isEs?'Promedio de 7 días':'7-day average',true]]);
-    box.appendChild(chCard(
+    chartsGrid.appendChild(chCard(
       isEs?'Día por día':'Day by day',
       isEs?`El alto es lo que pagó el día; el color, cómo cerró. ${win.length} días.`
           :`Height is what the day paid; colour is how it closed. ${win.length} days.`,
@@ -7270,14 +7300,19 @@ function renderCharts(sc,isEs){
     const hmw=dv('ch-hmw');hmw.appendChild(plot);
     const lg=chLegend(CH_ORDER.filter(s=>hm.some(d=>d.status===s))
       .map(s=>[chColor(s),chStatusName(s)]));
-    box.appendChild(chCard(
+    // The one chart that always wants the whole row: it is meant to be read
+    // as a year at a glance, and squeezing it to share a row with another
+    // card would only put its own horizontal scrollbar back to work.
+    const hmCard=chCard(
       isEs?'Mapa de tus días':'Every day at once',
       isEs?'Cada cuadrito es un día. Las columnas son semanas, de lunes a domingo.'
           :'One square per day. Columns are weeks, Monday to Sunday.',
       hmw,lg,
       ()=>chTable([isEs?'Color':'Colour',isEs?'Días':'Days','%'],
         CH_ORDER.map(s=>{const n=hm.filter(d=>d.status===s).length;
-          return [chStatusName(s),String(n),hm.length?Math.round(n/hm.length*100)+'%':'0%'];}))));
+          return [chStatusName(s),String(n),hm.length?Math.round(n/hm.length*100)+'%':'0%'];})));
+    hmCard.style.gridColumn='1 / -1';
+    chartsGrid.appendChild(hmCard);
   }
 
   /* ── 3. How the days split ──────────────────────────────────────────────
@@ -7302,7 +7337,7 @@ function renderCharts(sc,isEs){
       const n=win.filter(d=>d.status===s).length;
       return [chColor(s),`${chStatusName(s)} · ${n} (${tot?Math.round(n/tot*100):0}%)`];
     }));
-    box.appendChild(chCard(
+    chartsGrid.appendChild(chCard(
       isEs?'Cómo se reparten tus días':'How your days split',
       isEs?`${good} de ${tot} cerraron en verde o morado.`
           :`${good} of ${tot} closed green or purple.`,
@@ -7368,7 +7403,7 @@ function renderCharts(sc,isEs){
     if(avgs.some(v=>v>=0))keys.push(['var(--cg)',isEs?'Promedio en positivo':'Average in the black']);
     if(avgs.some(v=>v<0))keys.push(['var(--cr)',isEs?'Promedio en negativo':'Average in the red']);
     const lg=chLegend(keys);
-    box.appendChild(chCard(
+    chartsGrid.appendChild(chCard(
       isEs?'Tu semana típica':'Your typical week',
       isEs?'Promedio de puntos por día de la semana.':'Average points by weekday.',
       holder,lg,
@@ -7382,8 +7417,17 @@ function renderCharts(sc,isEs){
      the lifetime number at the top of the page is one frozen instant of. */
   {
     const H=140;
-    const cum=[];let run=0;
-    win.forEach(d=>{run+=d.pts;cum.push(run);});
+    /* Run from the start of ALL history, not from the start of whatever
+       range happens to be selected. Resetting to zero at the window's own
+       edge used to make this chart answer a different question at every
+       zoom level — 30 days could climb while the month sitting inside them
+       was deep in the red, because most of that climb happened in the days
+       just before the window, invisible at that zoom but still real. This
+       way every range is the same line, just cropped: the mark under "All"
+       is the same lifetime number the card at the top of the page shows. */
+    const fullCum=[];let run=0;
+    days.forEach(d=>{run+=d.pts;fullCum.push(run);});
+    const cum=fullCum.slice(days.length-win.length);
     const hi=Math.max(0,...cum),lo=Math.min(0,...cum);
     const span=(hi-lo)||1;
     const y=v=>H-((v-lo)/span)*H;
@@ -7430,7 +7474,7 @@ function renderCharts(sc,isEs){
     const xs=dv('ch-x');
     xs.appendChild(sp('',fmtDay(win[0].date)));xs.appendChild(sp('',fmtDay(win[win.length-1].date)));
     const holder=dv('');holder.appendChild(plot);holder.appendChild(xs);
-    box.appendChild(chCard(
+    chartsGrid.appendChild(chCard(
       isEs?'Acumulado':'Running total',
       isEs?`Tu puntaje sumado, día tras día, en estos ${win.length} días.`
           :`Your score, summed day after day, over these ${win.length} days.`,
@@ -7441,7 +7485,7 @@ function renderCharts(sc,isEs){
   }
 
   // ── 6. Sleep per night ─────────────────────────────────────────────────
-  box.appendChild(barChart({
+  chartsGrid.appendChild(barChart({
     title:isEs?'Sueño por noche':'Sleep per night',
     sub:isEs?`Sueño principal, noche a noche. ${win.length} días.`:`Main sleep, night by night. ${win.length} days.`,
     valueOf:d=>d.sleepMin/60,
@@ -7454,7 +7498,7 @@ function renderCharts(sc,isEs){
   }));
 
   // ── 7. Pomodoros per day ───────────────────────────────────────────────
-  box.appendChild(barChart({
+  chartsGrid.appendChild(barChart({
     title:isEs?'Pomodoros por día':'Pomodoros per day',
     sub:isEs?`${win.reduce((s,d)=>s+d.pomodoros,0)} en total, en estos ${win.length} días.`
             :`${win.reduce((s,d)=>s+d.pomodoros,0)} total, over these ${win.length} days.`,
@@ -7465,7 +7509,7 @@ function renderCharts(sc,isEs){
   }));
 
   // ── 8. Work minutes per day ────────────────────────────────────────────
-  box.appendChild(barChart({
+  chartsGrid.appendChild(barChart({
     title:isEs?'Trabajo por día':'Work per day',
     sub:isEs?`${fmtDur(win.reduce((s,d)=>s+d.workMin,0))} en total, en estos ${win.length} días.`
             :`${fmtDur(win.reduce((s,d)=>s+d.workMin,0))} total, over these ${win.length} days.`,
@@ -7475,6 +7519,7 @@ function renderCharts(sc,isEs){
     tableVal:d=>fmtDur(d.workMin)
   }));
 
+  box.appendChild(chartsGrid);
   return box;
 }
 
