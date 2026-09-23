@@ -1738,7 +1738,9 @@ const CALC={
     // A goal closed today is paid today, the same as in liveParts.
     const goalsPts=(typeof goalPointsOn==='function')?goalPointsOn(day._date||todayKey()):0;
     const total=base+mB+fB+pom+wrk+slp+pen+col+goalsPts+latePen;
-    return{total,base,status,pct,mB,fB,pom,wrk,slp,pen,penBy,col,goals:goalsPts,latePen};
+    return{total,base,status,pct,mB,fB,pom,wrk,slp,pen,penBy,col,goals:goalsPts,latePen,
+      runs:{flagStreak:s.flagStreak,morningStreak:s.morningStreak,pomoStreak:s.pomoStreak,
+        workStreak:s.workStreak,earlyBedStreak:s.earlyBedStreak,lateStreak:s.lateStreak,colorMult:s.colorStreak}};
   },
   /* #2 FIX: histTotal must exclude today to avoid double-count.
      And it counts the gaps. A day never logged is worth −1,000 and shows that
@@ -1886,7 +1888,10 @@ const CALC={
       /* A good enough night still costs the base — it used to cost nothing at
          all, which is not what "charged at base" means. */
       latePen:(e.sleptLate?-100*this.penMult()*(lateFree?1:capPenStreak(lateStreak)):0),
-      pen:0
+      pen:0,
+      // The run behind each line above, in days — so the day-detail popup can
+      // say not just what a line paid but what it paid it FOR.
+      runs:{flagStreak,morningStreak,pomoStreak,workStreak,earlyBedStreak,lateStreak,colorMult}
     };
 
     /* Kept beside the total, by type: "Rewards −595,925" says how much they
@@ -6013,6 +6018,7 @@ function renderApp(){
   };
   ch.appendChild(renderCalendar(drawPanel));ch.appendChild(panel);drawPanel();
   wrap.appendChild(ch);
+  if(STATE.dayDetail)wrap.appendChild(renderDayDetailModal(STATE.dayDetail));
   if(STATE.histDay)wrap.appendChild(renderHistModal(STATE.histDay));
   wrap.appendChild(renderStats(total,sc));
   // Reset All — at the bottom where it's hard to hit accidentally
@@ -6800,6 +6806,88 @@ function summaryCut(body){
   return body.split('\n').findIndex(l=>sums.includes(l.trim()));
 }
 
+/* ═══ DAY DETAIL — the popup a bar, a heatmap square or a calendar cell opens ═══
+   The same breakdown the score card already gives today — which line paid
+   what, and what run it paid it for — asked of any day instead of only the
+   one being lived. Editing is one button away, and that button REPLACES this
+   popup with Edit History on the same date rather than opening a second one
+   on top of it — a day is being read here or being rewritten, never both. */
+function renderDayDetailModal(date){
+  const close=()=>{STATE.dayDetail=null;render();};
+  const ov=dv('fi');ov.classList.add('ovl');
+  closeOnBackdrop(ov,close);
+  const panel=dv('card');
+  panel.style.cssText='max-width:440px;width:100%;margin:auto';
+
+  const isEs=STATE.lang==='es';
+  const isToday=date===todayKey();
+  const entry=isToday?null:histMap().get(date);
+
+  const hd=dv('rowb mb10');
+  hd.appendChild(sp('ctit',capFirst(new Date(date+'T12:00:00').toLocaleDateString(isEs?'es-MX':'en-US',{weekday:'long',day:'numeric',month:'long'}))));
+  hd.appendChild(bt('btn-icon','✕',close));
+  panel.appendChild(hd);
+
+  let sc=null,status='red',gap=false;
+  if(isToday){
+    sc=CALC.score(STATE.today,applyStreakOverrides(CALC.streaks(STATE.history,STATE.today)));
+    status=sc.status;
+  }else if(entry){
+    if(entry._gap){gap=true;}
+    else{sc=CALC.liveParts(entry,STATE.history);sc.total=CALC.liveScore(entry,STATE.history);status=entry.status;}
+  }else gap=true;
+
+  if(gap||!sc){
+    panel.appendChild(dv('sm dimmer ctr mt10 mb10',t('day-not-logged')));
+  }else{
+    const tr=dv('row gap8 mb10');tr.style.alignItems='center';
+    tr.appendChild(sbadge(status));
+    const tot=sp('xxl w8 mo',(sc.total>=0?'+':'−')+Math.abs(sc.total).toLocaleString());
+    tot.style.color=sc.total>=0?'var(--ac)':'var(--ng)';
+    tr.appendChild(tot);
+    panel.appendChild(tr);
+
+    // One line per source, the run behind it named right under the points —
+    // the same question posRows answers on the score card, asked with a date
+    // attached instead of always meaning today.
+    const runD=n=>n?`${isEs?'racha':'run'} ${n}d`:'';
+    const posRows=[
+      [t('daily-tasks'),sc.base,runD(sc.runs?.flagStreak)],
+      [t('morning-lbl'),sc.mB,runD(sc.runs?.morningStreak)],
+      [t('flags-lbl'),sc.fB,runD(sc.runs?.flagStreak)],
+      [t('pom-lbl'),sc.pom,runD(sc.runs?.pomoStreak)],
+      [t('work-lbl'),sc.wrk,runD(sc.runs?.workStreak)],
+      [t('sleep-lbl'),sc.slp,(isToday?STATE.today.sleep?.sleptEarly:entry?.sleptEarly)?runD(sc.runs?.earlyBedStreak):''],
+      [t('color-lbl'),sc.col,runD(sc.runs?.colorMult)],
+      [t('src-goals'),sc.goals||0,'']
+    ].filter(r=>r[1]>0);
+    const negRows=[
+      [t('rewards-lbl'),sc.pen,''],
+      [t('late-night-lbl'),sc.latePen||0,runD(sc.runs?.lateStreak)]
+    ].filter(r=>r[1]!==0);
+    if(posRows.length||negRows.length){
+      const bd=dv('s6');
+      const row=([l,v,sub])=>{
+        const r=dv('rowb');
+        const lft=dv('');lft.appendChild(sp('sm dim',l));
+        if(sub)lft.appendChild(dv('xs dimmer',sub));
+        r.appendChild(lft);
+        r.appendChild(sp('sm mo w6 '+(v>=0?'ac':'ng'),(v>=0?'+':'')+v.toLocaleString()));
+        bd.appendChild(r);
+      };
+      posRows.forEach(row);negRows.forEach(row);
+      panel.appendChild(bd);
+    }else{
+      panel.appendChild(dv('xs dimmer',t('src-none')));
+    }
+  }
+
+  panel.appendChild(bt('btn-ac btn-sm mt14',t('edit-hist'),()=>{STATE.histDay=date;STATE.dayDetail=null;render();}));
+
+  ov.appendChild(panel);
+  return ov;
+}
+
 /* ═══ HISTORY EDITOR — one day, opened over the calendar ═══ */
 function renderHistModal(key){
   const close=()=>{STATE.histDay=null;render();};
@@ -7019,7 +7107,7 @@ function renderCharts(sc,isEs){
   const fmtFull=d=>capFirst(new Date(d+'T12:00:00').toLocaleDateString(isEs?'es-MX':'en-US',{weekday:'short',day:'numeric',month:'short'}));
   // Opens the same day detail every bar and every table row already opens —
   // one place, so a day clicked from anywhere on this page reads the same.
-  const openDay=d=>{STATE.calSel=d.date;STATE.histDay=d.date;render();};
+  const openDay=d=>{STATE.calSel=d.date;STATE.dayDetail=d.date;render();};
   /* One plain bar-per-day chart, built once and reused for anything that is
      just a number logged per day (sleep, pomodoros, work…) rather than typed
      out three times with the same plumbing and a different field name. */
@@ -7142,7 +7230,7 @@ function renderCharts(sc,isEs){
         const rev=[...win].reverse();
         return chTable([isEs?'Día':'Day',t('pts-s'),isEs?'Color':'Colour'],
           rev.map(d=>[fmtFull(d.date),d.pts.toLocaleString(),chStatusName(d.status)]),
-          i=>{STATE.calSel=rev[i].date;STATE.histDay=rev[i].date;render();});
+          i=>openDay(rev[i]));
       }));
   }
 
