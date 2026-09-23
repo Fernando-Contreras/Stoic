@@ -3566,10 +3566,13 @@ function weeklyGoalNote(r){
   if(!links.length)return null;
   const open=links.filter(g=>!g.doneOn);
   if(open.length)return{text:open.map(g=>g.title).join(', '),done:false};
-  // Every linked weekly goal is closed — show the one closed most recently,
-  // so the goal you just finished is the one you see right after finishing it.
+  // Every linked weekly goal is closed — show only the one closed most
+  // recently, not all of them: a task can carry links to several weekly
+  // goals from several different weeks, and joining every closed one together
+  // read as one goal with a nonsense compound name made of two unrelated
+  // ones. The goal you just finished is the one you came here to see.
   const closed=[...links].sort((a,b)=>(b.doneOn||'').localeCompare(a.doneOn||''));
-  return{text:closed.map(g=>g.title).join(', '),done:true};
+  return{text:closed[0].title,done:true};
 }
 // Everything that still has the link, whether or not it has been finished.
 function tasksServing(goalId){
