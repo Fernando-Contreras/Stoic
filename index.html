@@ -6990,8 +6990,13 @@ function renderCharts(sc,isEs){
      red −1,000 and is drawn as one, rather than leaving a hole in the line
      that makes a bad stretch look like no stretch at all. */
   const days=[...histMap().values()].filter(d=>d.date!==tk)
-    .map(d=>({date:d.date,pts:CALC.liveScore(d,STATE.history),status:d._gap?'red':(d.status||'red'),gap:!!d._gap}))
-    .concat([{date:tk,pts:sc.total,status:sc.status,gap:false}])
+    .map(d=>({date:d.date,pts:CALC.liveScore(d,STATE.history),status:d._gap?'red':(d.status||'red'),gap:!!d._gap,
+      pomodoros:d.pomodoros||0,workMin:d.workDuration||0,sleepMin:d.sleepDuration||0,
+      sleptEarly:!!d.sleptEarly,sleptLate:!!d.sleptLate}))
+    .concat([{date:tk,pts:sc.total,status:sc.status,gap:false,
+      pomodoros:STATE.today.pomodoros||0,workMin:STATE.today.work?.workDuration||0,
+      sleepMin:STATE.today.sleep?.sleepDuration||0,
+      sleptEarly:!!STATE.today.sleep?.sleptEarly,sleptLate:!!STATE.today.sleep?.sleptLate}])
     .sort((a,b)=>a.date.localeCompare(b.date));
   if(days.length<2)return null;
 
@@ -7012,6 +7017,39 @@ function renderCharts(sc,isEs){
   const win=STATE.chRange?days.slice(-STATE.chRange):days;
   const fmtDay=d=>capFirst(new Date(d+'T12:00:00').toLocaleDateString(isEs?'es-MX':'en-US',{day:'numeric',month:'short'}));
   const fmtFull=d=>capFirst(new Date(d+'T12:00:00').toLocaleDateString(isEs?'es-MX':'en-US',{weekday:'short',day:'numeric',month:'short'}));
+  // Opens the same day detail every bar and every table row already opens —
+  // one place, so a day clicked from anywhere on this page reads the same.
+  const openDay=d=>{STATE.calSel=d.date;STATE.histDay=d.date;render();};
+  /* One plain bar-per-day chart, built once and reused for anything that is
+     just a number logged per day (sleep, pomodoros, work…) rather than typed
+     out three times with the same plumbing and a different field name. */
+  function barChart({title,sub,H=110,valueOf,barColor,legend,tableCol,tableVal}){
+    const vals=win.map(valueOf);
+    const hi=Math.max(1,...vals);
+    const plot=dv('ch-plot');plot.style.height=H+'px';
+    const cols=dv('ch-cols');cols.style.height=H+'px';
+    cols.style.gap=win.length>170?'1px':'2px';
+    win.forEach((d,i)=>{
+      const c=dv('ch-col');
+      const bar=dv('ch-bar');
+      const v=vals[i];
+      const h=v?Math.max(1,(v/hi)*H):0;
+      bar.style.top=(H-h)+'px';bar.style.height=h+'px';
+      bar.style.background=typeof barColor==='function'?barColor(d):barColor;
+      c.appendChild(bar);
+      chHover(c,`<b>${fmtFull(d.date)}</b><br>${tableVal(d)}`);
+      c.style.cursor='pointer';
+      c.onclick=()=>openDay(d);
+      cols.appendChild(c);
+    });
+    plot.appendChild(cols);
+    const xs=dv('ch-x');
+    xs.appendChild(sp('',fmtDay(win[0].date)));xs.appendChild(sp('',fmtDay(win[win.length-1].date)));
+    const holder=dv('');holder.appendChild(plot);holder.appendChild(xs);
+    return chCard(title,sub,holder,legend||null,
+      ()=>chTable([isEs?'Día':'Day',tableCol],[...win].reverse().map(d=>[fmtFull(d.date),tableVal(d)]),
+        i=>openDay([...win].reverse()[i])));
+  }
 
   /* ── 1. Day by day ──────────────────────────────────────────────────────
      Height is what the day paid; colour is what the day was called. They are
@@ -7053,6 +7091,10 @@ function renderCharts(sc,isEs){
       bar.style.background=chColor(d.status);
       c.appendChild(bar);
       chHover(c,`<b>${fmtFull(d.date)}</b><br>${d.pts>=0?'+':'−'}${Math.abs(d.pts).toLocaleString()} ${t('pts-s')}<br><span style="color:var(--t3)">${chStatusName(d.status)}${d.gap?' · '+t('gap-warn'):''}</span>`);
+      // Every bar opens the same day detail the table twin's rows already
+      // do — one day, whichever way you happened to be looking at it.
+      c.style.cursor='pointer';
+      c.onclick=()=>openDay(d);
       cols.appendChild(c);
     });
     plot.appendChild(cols);
@@ -7119,6 +7161,8 @@ function renderCharts(sc,isEs){
       const c=document.createElement('i');
       c.style.background=chColor(d.status);
       chHover(c,`<b>${fmtFull(d.date)}</b><br>${d.pts>=0?'+':'−'}${Math.abs(d.pts).toLocaleString()} ${t('pts-s')}<br><span style="color:var(--t3)">${chStatusName(d.status)}</span>`);
+      c.style.cursor='pointer';
+      c.onclick=()=>openDay(d);
       plot.appendChild(c);
     });
     const hmw=dv('ch-hmw');hmw.appendChild(plot);
@@ -7229,6 +7273,106 @@ function renderCharts(sc,isEs){
       ()=>chTable([isEs?'Día':'Day',isEs?'Promedio':'Average',isEs?'Días':'Days'],
         names.map((n,i)=>[n,avgs[i].toLocaleString(),String(buckets[i].length)]))));
   }
+
+  /* ── 5. Running total ───────────────────────────────────────────────────
+     Every other chart here is about one day at a time; this is the only one
+     that answers "where did this stretch actually leave me" — the same line
+     the lifetime number at the top of the page is one frozen instant of. */
+  {
+    const H=140;
+    const cum=[];let run=0;
+    win.forEach(d=>{run+=d.pts;cum.push(run);});
+    const hi=Math.max(0,...cum),lo=Math.min(0,...cum);
+    const span=(hi-lo)||1;
+    const y=v=>H-((v-lo)/span)*H;
+    const zero=y(0);
+    const plot=dv('ch-plot');plot.style.height=H+'px';
+    const grid=dv('ch-grid');
+    [hi,0,lo].forEach(v=>{
+      if(v===0||Math.abs(v)>span*0.08){
+        const i=document.createElement('i');i.style.top=y(v)+'px';if(v===0)i.className='zero';grid.appendChild(i);
+      }
+    });
+    plot.appendChild(grid);
+    const ns='http://www.w3.org/2000/svg';
+    const svg=document.createElementNS(ns,'svg');
+    svg.setAttribute('class','ch-line');
+    svg.setAttribute('viewBox',`0 0 ${win.length} ${H}`);
+    svg.setAttribute('preserveAspectRatio','none');
+    const linePts=cum.map((v,i)=>`${i+0.5},${y(v).toFixed(1)}`);
+    const area=document.createElementNS(ns,'polygon');
+    area.setAttribute('points',`0.5,${zero} ${linePts.join(' ')} ${win.length-0.5},${zero}`);
+    area.setAttribute('fill',cum[cum.length-1]>=0?'var(--ac)':'var(--ng)');
+    area.setAttribute('opacity','.14');
+    svg.appendChild(area);
+    const line=document.createElementNS(ns,'polyline');
+    line.setAttribute('points',linePts.join(' '));
+    line.setAttribute('fill','none');
+    line.setAttribute('stroke',cum[cum.length-1]>=0?'var(--ac)':'var(--ng)');
+    line.setAttribute('stroke-width','2');
+    line.setAttribute('stroke-linejoin','round');line.setAttribute('stroke-linecap','round');
+    line.setAttribute('vector-effect','non-scaling-stroke');
+    svg.appendChild(line);
+    plot.appendChild(svg);
+    // A transparent column per day, purely so hovering and clicking work the
+    // same way they do on every bar chart on this page.
+    const cols=dv('ch-cols');cols.style.height=H+'px';
+    win.forEach((d,i)=>{
+      const c=dv('ch-col');
+      chHover(c,`<b>${fmtFull(d.date)}</b><br>${cum[i]>=0?'+':'−'}${Math.abs(cum[i]).toLocaleString()} ${t('pts-s')}`);
+      c.style.cursor='pointer';
+      c.onclick=()=>openDay(d);
+      cols.appendChild(c);
+    });
+    plot.appendChild(cols);
+    const xs=dv('ch-x');
+    xs.appendChild(sp('',fmtDay(win[0].date)));xs.appendChild(sp('',fmtDay(win[win.length-1].date)));
+    const holder=dv('');holder.appendChild(plot);holder.appendChild(xs);
+    box.appendChild(chCard(
+      isEs?'Acumulado':'Running total',
+      isEs?`Tu puntaje sumado, día tras día, en estos ${win.length} días.`
+          :`Your score, summed day after day, over these ${win.length} days.`,
+      holder,null,
+      ()=>chTable([isEs?'Día':'Day',isEs?'Acumulado':'Running total'],
+        [...win].reverse().map((d,ri)=>[fmtFull(d.date),cum[win.length-1-ri].toLocaleString()]),
+        i=>openDay([...win].reverse()[i]))));
+  }
+
+  // ── 6. Sleep per night ─────────────────────────────────────────────────
+  box.appendChild(barChart({
+    title:isEs?'Sueño por noche':'Sleep per night',
+    sub:isEs?`Sueño principal, noche a noche. ${win.length} días.`:`Main sleep, night by night. ${win.length} days.`,
+    valueOf:d=>d.sleepMin/60,
+    barColor:d=>d.sleptEarly?'var(--cg)':(d.sleptLate?'var(--ng)':'var(--ac)'),
+    legend:chLegend([['var(--cg)',isEs?'Dormiste temprano':'Slept early'],
+                     ['var(--ng)',isEs?'Dormiste tarde':'Slept late'],
+                     ['var(--ac)',isEs?'Ninguno de los dos':'Neither']]),
+    tableCol:isEs?'Sueño':'Sleep',
+    tableVal:d=>fmtDur(d.sleepMin)+(d.sleptEarly?' · '+(isEs?'temprano':'early'):(d.sleptLate?' · '+(isEs?'tarde':'late'):''))
+  }));
+
+  // ── 7. Pomodoros per day ───────────────────────────────────────────────
+  box.appendChild(barChart({
+    title:isEs?'Pomodoros por día':'Pomodoros per day',
+    sub:isEs?`${win.reduce((s,d)=>s+d.pomodoros,0)} en total, en estos ${win.length} días.`
+            :`${win.reduce((s,d)=>s+d.pomodoros,0)} total, over these ${win.length} days.`,
+    valueOf:d=>d.pomodoros,
+    barColor:'var(--cp)',
+    tableCol:'🍅',
+    tableVal:d=>String(d.pomodoros)
+  }));
+
+  // ── 8. Work minutes per day ────────────────────────────────────────────
+  box.appendChild(barChart({
+    title:isEs?'Trabajo por día':'Work per day',
+    sub:isEs?`${fmtDur(win.reduce((s,d)=>s+d.workMin,0))} en total, en estos ${win.length} días.`
+            :`${fmtDur(win.reduce((s,d)=>s+d.workMin,0))} total, over these ${win.length} days.`,
+    valueOf:d=>d.workMin,
+    barColor:'var(--ac)',
+    tableCol:isEs?'Trabajo':'Work',
+    tableVal:d=>fmtDur(d.workMin)
+  }));
+
   return box;
 }
 
@@ -7428,6 +7572,15 @@ function renderStats(total,sc){
   atBox.appendChild(dv('xs dimmer up ls',t('all-time')));
   atBox.appendChild(atN);
   atBox.appendChild(dv('xs dimmer mt4',t('all-time-sub')));
+  /* Everything the old page dumped below the charts — every tile, every run,
+     every "best day" — lived on screen whether or not it was what you opened
+     the tab to see, and a phone paid for that in scrolling. The charts are
+     the shape of your history and stay where they always were; the numbers
+     behind that shape are one tap away, on the tile that is already the
+     headline of the whole page. */
+  atBox.style.cursor='pointer';
+  atBox.title=isEs?'Ver el detalle':'See the breakdown';
+  atBox.onclick=()=>{STATE.showStatsDetail=true;render();};
   topRow.appendChild(atBox);
   const inBox=dv('card2 s-ac fi');
   inBox.style.cssText='display:flex;align-items:center';
@@ -7435,6 +7588,11 @@ function renderStats(total,sc){
   topRow.appendChild(inBox);
   body.appendChild(topRow);
 
+  // Everything from here down is the DETAIL: every tile, every run, every
+  // record. It only ever reaches the page inside the popup atBox opens — see
+  // the bottom of this function — so it is built exactly as before and just
+  // handed to a different container.
+  const detail=dv('fi');
   const mbox=dv('card2 mb10');
   const mh=dv('rowb mb8');
   mh.appendChild(sp('xs dimmer up ls',t('medals-title')));
@@ -7468,7 +7626,7 @@ function renderStats(total,sc){
   });
   mbox.appendChild(mg);
   if(!allMedals.length)mbox.appendChild(dv('xs dimmer ctr mt8',t('medals-none')));
-  body.appendChild(mbox);
+  detail.appendChild(mbox);
 
   /* The charts come after the shelf now — the lifetime number, then what it
      was earned for, then the shape of it over time. */
@@ -7583,7 +7741,7 @@ function renderStats(total,sc){
     srcBox.appendChild(dv('xs dimmer mt6',
       t('cap-note').replace('{n}',multAt(100)).replace('{p}',PEN_CAP)));
   }
-  body.appendChild(srcBox);
+  detail.appendChild(srcBox);
 
   /* ── Momentum: the one row that answers "how am I doing", as opposed to
      "how have I ever done" ─────────────────────────────────────────────────
@@ -7595,7 +7753,7 @@ function renderStats(total,sc){
   let curNonRed=0;
   for(let k=sortedH.length-1;k>=0;k--){const d=sortedH[k];if(d._gap||d.status==='red')break;curNonRed++;}
   const momCol=momentum>0?'var(--cg)':(momentum<0?'var(--ng)':'var(--ac)');
-  body.appendChild(grid4(
+  detail.appendChild(grid4(
     statCard(isEs?'Momentum':'Momentum',(momentum>0?'+':'')+momentum+'%',momCol,
       isEs?'últimos 7 vs siempre':'last 7 vs all-time','xl',
       momentum===0&&Math.abs(avg)<100
@@ -7611,8 +7769,8 @@ function renderStats(total,sc){
   ));
 
   // ── Records and overview ─────────────────────────────────────────────────
-  body.appendChild(gA);
-  body.appendChild(grid4(
+  detail.appendChild(gA);
+  detail.appendChild(grid4(
     statCard(t('total-days-lbl'),String(totalTracked),'var(--ac)',null),
     statCard(t('best-streak'),bStrk+'d','var(--cp)',isEs?'sin rojo':'non-red','xl',spanOf(bStrk,bStrkEnd)),
     statCard(t('clean-streak'),pfStrk+'d','var(--cg)',isEs?'sin recompensas':'no rewards'),
@@ -7620,7 +7778,7 @@ function renderStats(total,sc){
   ));
 
   // ── 3. Work: Best days ───────────────────────────────────────────────────
-  body.appendChild(grid4(
+  detail.appendChild(grid4(
     statCard(isEs?'Día más productivo (ever)':'Most productive day',prodEverStr,'var(--cg)',prodEverSub,'xl',
       bestWorkDay?(isEs?fmtD(bestWorkDay)+' — '+fmtDur(bestWorkMin)+' de trabajo registrado, más que cualquier otro día':fmtD(bestWorkDay)+' — '+fmtDur(bestWorkMin)+' of work logged, more than any other day'):''),
     statCard(isEs?'Más trabajo (semana)':'Most worked weekday',prodDayStr,'var(--ac)',prodDaySub,'xl',prodDay>=0?(isEs?'Minutos de trabajo, promediados sobre todos tus '+dowFull[prodDay]:'Minutes worked, averaged across every '+dowFull[prodDay]):''),
@@ -7629,7 +7787,7 @@ function renderStats(total,sc){
   ));
 
   // ── 4. Work: Focus & Routine ─────────────────────────────────────────────
-  body.appendChild(grid4(
+  detail.appendChild(grid4(
     statCard(t('total-poms'),String(totalPoms),'var(--ac)',null),
     statCard(t('poms-day'),String(pomPerDay),'var(--ac)',null),
     statCard(t('best-morn-lbl'),bestMornStrk+'d','var(--cg)',null,'xl',spanOf(bestMornStrk,mornEnd)),
@@ -7637,7 +7795,7 @@ function renderStats(total,sc){
   ));
 
   // ── 5. The grave reward, its peak day and its peak weekday ───────────────
-  body.appendChild(grid4(
+  detail.appendChild(grid4(
     statCard(hornEverLbl,hornEverStr,'var(--ng)',hornEverSub,'xl',fmtD(bestOrgDay)),
     statCard(hornDowLbl,hornDayStr,'var(--ng)',hornDaySub,'xl',hornDay>=0?(isEs?(graveFun?'Orgasmos':graveLbl)+', promediados sobre todos tus '+dowFull[hornDay]:(graveFun?'Orgasms':graveLbl)+', averaged across every '+dowFull[hornDay]):''),
     /* This row used to be padded out with a second copy of Total
@@ -7743,7 +7901,7 @@ function renderStats(total,sc){
   });
 
   // ── 7. Sleep ─────────────────────────────────────────────────────────────
-  body.appendChild(grid4(
+  detail.appendChild(grid4(
     statCard(t('sleep-total'),fmtDur(totalSleepMin),'var(--ac)',null),
     statCard(t('avg-sleep'),fmtDur(avgSleepMin),avgSleepMin>=420?'var(--cg)':'var(--ng)',isEs?'por noche':'per night'),
     statCard(t('early-nights'),earlyNights+'d','var(--cg)',null),
@@ -7763,7 +7921,7 @@ function renderStats(total,sc){
   const withTarget=realDays.filter(d=>(d.totalTasks||0)>0);
   const hitPct=withTarget.length
     ? Math.round(withTarget.reduce((s,d)=>s+Math.min(1,(d.completedTasks||0)/d.totalTasks),0)/withTarget.length*100):0;
-  body.appendChild(grid4(
+  detail.appendChild(grid4(
     statCard(isEs?'Racha matutina actual':'Current morning streak',curMornNow+'d',
       curMornNow?'var(--cg)':'var(--ng)',null,'xl',
       curMornNow?spanOf(curMornNow,sortedH[sortedH.length-1].date):''),
@@ -7796,7 +7954,7 @@ function renderStats(total,sc){
   });
   const totalNaps=STATE.history.reduce((s,d)=>s+(d.napDuration||0),0);
   const goalsDone=goals().filter(g=>g.doneOn).length;
-  body.appendChild(grid4(
+  detail.appendChild(grid4(
     statCard(isEs?'Mejor día por puntos':'Best weekday by points',bestDow>=0?dowNames[bestDow]:'—','var(--cg)',
       bestDow>=0?'⌀ '+Math.round(bestDowAvg):null,'xl',
       bestDow>=0?(isEs?'Puntos del día, promediados sobre todos tus '+dowFull[bestDow]:'Points for the day, averaged across every '+dowFull[bestDow]):''),
@@ -7809,14 +7967,14 @@ function renderStats(total,sc){
   ));
 
   // The habits first, then what they are up against.
-  body.appendChild(posGrid);
+  detail.appendChild(posGrid);
   // Last of the tiles, so its ragged end is the end of the tiles.
-  body.appendChild(rwBlock);
+  detail.appendChild(rwBlock);
 
   // ── 8. Day color counts ───────────────────────────────────────────────────
   const dr=dv('row gap8 mb10');
   [['purple','🟣'],['green','🟢'],['yellow','🟡'],['red','🔴']].forEach(([s,e])=>dr.appendChild(sp(`badge s-${s}`,`${e} ${counts[s]}d`)));
-  body.appendChild(dr);
+  detail.appendChild(dr);
 
   // The insight moved to the top, beside the lifetime total — see topRow.
 
@@ -7884,9 +8042,28 @@ function renderStats(total,sc){
     });
     tbox.appendChild(tl);
   }
-  body.appendChild(tbox);
+  detail.appendChild(tbox);
 
-  wrap.appendChild(body);return wrap;
+  wrap.appendChild(body);
+
+  // The popup itself — everything in `detail`, over whatever you were
+  // reading, the same shape every other overlay in the app already uses.
+  if(STATE.showStatsDetail){
+    const close=()=>{STATE.showStatsDetail=false;render();};
+    const ov=dv('fi');ov.classList.add('ovl');
+    closeOnBackdrop(ov,close);
+    const panel=dv('card');
+    panel.style.cssText='max-width:900px;width:100%;margin:auto;max-height:88vh;overflow-y:auto';
+    const hd=dv('rowb mb12');
+    hd.appendChild(sp('ctit',t('all-time')));
+    hd.appendChild(bt('btn-icon','✕',close));
+    panel.appendChild(hd);
+    panel.appendChild(detail);
+    ov.appendChild(panel);
+    wrap.appendChild(ov);
+  }
+
+  return wrap;
 }
 
 
