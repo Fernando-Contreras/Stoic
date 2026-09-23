@@ -3548,15 +3548,20 @@ function goalsServedBy(r){
 }
 /* The weekly-goal marker a task carries wherever its name is shown: the
    still-open weekly goals it serves, joined together — or, once every one of
-   them is already checked off, a plain "no weekly goal right now" rather than
-   quietly saying nothing, so a task that used to point at a finished goal
-   reads as needing a new one instead of reading as if nothing had changed. A
+   them is already checked off, the goal it just finished, struck through,
+   rather than a plain "no weekly goal right now" that read as if the task
+   had never been linked to one at all. Finishing the goal is the whole
+   point; the marker should say so, not go quiet the moment it happens. A
    task that never had a weekly link at all stays silent — null. */
 function weeklyGoalNote(r){
   const links=goalsServedBy(r).filter(g=>g.kind==='week');
   if(!links.length)return null;
   const open=links.filter(g=>!g.doneOn);
-  return open.length?open.map(g=>g.title).join(', '):t('goal-week-none');
+  if(open.length)return{text:open.map(g=>g.title).join(', '),done:false};
+  // Every linked weekly goal is closed — show the one closed most recently,
+  // so the goal you just finished is the one you see right after finishing it.
+  const closed=[...links].sort((a,b)=>(b.doneOn||'').localeCompare(a.doneOn||''));
+  return{text:closed.map(g=>g.title).join(', '),done:true};
 }
 // Everything that still has the link, whether or not it has been finished.
 function tasksServing(goalId){
@@ -3867,7 +3872,8 @@ function renderPlanner(){
         row.appendChild(ttl);
         const wkNote=weeklyGoalNote(r);
         if(wkNote!==null){
-          const suf=sp('sm dimmer','🏁 '+wkNote);
+          const suf=sp('sm dimmer','🏁 '+wkNote.text);
+          if(wkNote.done)suf.style.textDecoration='line-through';
           suf.title=t('rem-goal-for');
           row.appendChild(suf);
         }
@@ -4470,7 +4476,12 @@ function buildGoals(redraw){
       served.slice(0,8).forEach(x=>{
         const done=x.completedOn===tk||x.done;
         const c=bt('tagchip',(done?'✓ ':'🏁 ')+x.title.slice(0,26)+' ✕',()=>{
-          setGoalLink(x.id,g.id,false);redraw();
+          // A full render, not the panel's own: the task this unlinks also
+          // carries the weekly-goal marker wherever ITS row is drawn, and the
+          // panel's local redraw never touches that DOM at all — so the marker
+          // sat stale on the task list until something else happened to
+          // rebuild the whole page.
+          setGoalLink(x.id,g.id,false);render();
         });
         c.title=t('goal-unlink')+' — '+x.title;
         c.style.cssText+=';cursor:pointer'+(done?';opacity:.5;text-decoration:line-through':'');
@@ -4503,7 +4514,9 @@ function buildGoals(redraw){
         if(!hits.length){pres.appendChild(sp('xs dimmer',t('rem-parent-none')));return;}
         hits.slice(0,8).forEach(x=>{
           pres.appendChild(bt('btn-ghost btn-xs',x.title.slice(0,34),()=>{
-            setGoalLink(x.id,g.id,true);redraw();
+            // Same reason as the unlink chip above: the newly-linked task's
+            // own row needs to pick this up too, not only the panel here.
+            setGoalLink(x.id,g.id,true);render();
           }));
         });
       };
@@ -4889,7 +4902,7 @@ function remChip(r,tk,redraw){
        has no room for that in its title row, already fighting the checkbox,
        the flag and the quadrant for width, so it rides the meta line instead. */
     const wkNote=weeklyGoalNote(r);
-    if(wkNote!==null)meta.push('🏁 '+wkNote.slice(0,28));
+    if(wkNote!==null)meta.push('🏁 '+wkNote.text.slice(0,28));
     const m=dv('xs '+(late?'cr':'dimmer'));m.style.marginTop='3px';m.textContent=meta.join(' · ');
     cell.appendChild(m);
     // Standing on its own, a subtask says where it came from.
@@ -5302,7 +5315,8 @@ function renderReminderRow(r,tk,opts){
      the clutter this is meant to avoid. Quarterly and yearly keep the chip. */
   const wkNote=weeklyGoalNote(r);
   if(wkNote!==null){
-    const suf=sp('md dimmer',' 🏁 '+wkNote);
+    const suf=sp('md dimmer',' 🏁 '+wkNote.text);
+    if(wkNote.done)suf.style.textDecoration='line-through';
     suf.title=t('rem-goal-for');
     titleLine.appendChild(suf);
   }
@@ -7575,6 +7589,14 @@ function renderStats(total,sc){
   const prodEverStr=bestWorkDay?fmtShort(bestWorkDay):'—';
   const prodEverSub=bestWorkDay?fmtDur(bestWorkMin):(isEs?'Sin datos':'No data');
 
+  // The single best pomodoro day — the record "total pomodoros" used to sit
+  // next to, un-asked, before it turned out to be a second, disagreeing copy
+  // of the total the habit grid below already gives (that one never counts
+  // today; this scalar always did). One of them had to go, and a record earns
+  // its place here the same way it already has for work, above.
+  let bestPomDay=null,bestPomCount=0;
+  sortedH.filter(d=>!d._gap).forEach(d=>{if((d.pomodoros||0)>bestPomCount){bestPomCount=d.pomodoros;bestPomDay=d.date;}});
+
   /* The peak day for the grave reward, and what it is called. The tile was
      written about Orgasmo — "Día más cachondo", counted in "orgasmo(s)" — and
      that reward is renameable, so the joke could end up being about a habit it
@@ -7739,7 +7761,7 @@ function renderStats(total,sc){
   const posPct=allPts.length?Math.round(posDays/allPts.length*100):0;
   [[t('best-day'),best,'var(--cg)',fmtD(dayOfPts(best))],
    [t('worst-day'),worst,'var(--ng)',fmtD(dayOfPts(worst))],
-   [isEs?'Día mediano':'Median day',median,median>0?'var(--cg)':'var(--ng)',
+   [isEs?'Mediana':'Median',median,median>0?'var(--cg)':'var(--ng)',
     isEs?'La mitad de tus días quedan arriba de esto y la mitad abajo. Un solo día enorme no lo mueve, como sí mueve al promedio.'
         :'Half your days land above this and half below. One enormous day cannot drag it the way it drags the mean.'],
    [isEs?'Días en positivo':'Days in the black',posPct+'%',posPct>=50?'var(--cg)':'var(--ng)',
@@ -7876,7 +7898,11 @@ function renderStats(total,sc){
 
   // ── 4. Work: Focus & Routine ─────────────────────────────────────────────
   detail.appendChild(grid4(
-    statCard(t('total-poms'),String(totalPoms),'var(--ac)',null),
+    statCard(isEs?'Más pomodoros en un día':'Most pomodoros in a day',
+      bestPomDay?fmtShort(bestPomDay):'—','var(--cp)',
+      bestPomDay?bestPomCount+' 🍅':(isEs?'Sin datos':'No data'),'xl',
+      bestPomDay?(isEs?fmtD(bestPomDay)+' — '+bestPomCount+' pomodoros, más que cualquier otro día'
+                      :fmtD(bestPomDay)+' — '+bestPomCount+' pomodoros, more than any other day'):''),
     statCard(t('poms-day'),String(pomPerDay),'var(--ac)',null),
     statCard(t('best-morn-lbl'),bestMornStrk+'d','var(--cg)',null,'xl',spanOf(bestMornStrk,mornEnd)),
     statCard(t('total-proc-lbl'),fmtDur(totalProcMin),'var(--ng)',null)
@@ -9066,7 +9092,7 @@ document.addEventListener('keydown',e=>{
   // Its own line, because closing it can throw a half-written task away and so
   // it goes through the same question the ✕ and the backdrop ask.
   if(STATE.showAddForm){closeAddForm();return;}
-  const open=['showReset','showRewards','restoreList','taskTree','histDay','showTZ','showRules','showSyncPanel','showGoals','showFlags'].find(k=>STATE[k]);
+  const open=['showReset','showRewards','restoreList','taskTree','dayDetail','histDay','showTZ','showRules','showSyncPanel','showGoals','showFlags','showStatsDetail'].find(k=>STATE[k]);
   if(!open){
     /* Nothing on top of the list — Escape clears the tag filter, the same as
        the ✕ on the filter bar. Skipped while a field is focused, where Escape
@@ -9077,7 +9103,7 @@ document.addEventListener('keydown',e=>{
     }
     return;
   }
-  STATE[open]=(open==='showTZ'||open==='showRules'||open==='showSyncPanel'||open==='showGoals'||open==='showFlags'||open==='showRewards')?false:(open==='showReset'?0:null);
+  STATE[open]=(open==='showTZ'||open==='showRules'||open==='showSyncPanel'||open==='showGoals'||open==='showFlags'||open==='showRewards'||open==='showStatsDetail')?false:(open==='showReset'?0:null);
   // An editor opened inside the one-task overlay leaves with it, rather than
   // being left open on the list underneath.
   if(open==='taskTree')STATE.editingRem=null;
@@ -9139,10 +9165,13 @@ setInterval(()=>{
          one a locked phone can swallow whole, so it needs the channel that
          works when the app is not on screen. */
       notify(wasFocus?t('pomo-done'):t('pomo-break-over'));
-      /* A pomodoro landing while you are writing a task must not take the
-         half-written one with it. The phase has already switched either way;
-         only the screen waits, and closing the popup redraws it. */
-      if(!STATE.showAddForm)render();
+      /* A pomodoro landing while you are writing a task, or while any popup is
+         open, must not take it with it. A full render() rebuilds every open
+         overlay from scratch — new DOM, so its entrance animation replays —
+         which is what made a popup visibly blink out and back the instant a
+         pomodoro finished. The phase has already switched either way; only
+         the screen waits, and closing whatever is open redraws it fresh. */
+      if(!STATE.showAddForm&&!document.querySelector('.ovl'))render();
     }
   }
   const nd=todayKey();
