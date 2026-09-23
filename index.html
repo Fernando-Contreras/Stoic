@@ -7183,16 +7183,19 @@ function renderCharts(sc,isEs){
   /* The same filled-in day list the total adds up: a day never logged is a
      red −1,000 and is drawn as one, rather than leaving a hole in the line
      that makes a bad stretch look like no stretch at all. */
+  const countOf=(day,type)=>(day.penalties||[]).filter(p=>p.type===type).reduce((a,p)=>a+(p.count||1),0);
   const days=[...histMap().values()].filter(d=>d.date!==tk)
     .map(d=>({date:d.date,pts:CALC.liveScore(d,STATE.history),status:d._gap?'red':(d.status||'red'),gap:!!d._gap,
       pomodoros:d.pomodoros||0,workMin:d.workDuration||0,sleepMin:d.sleepDuration||0,
       sleptEarly:!!d.sleptEarly,sleptLate:!!d.sleptLate,
-      tasksDone:d.completedTasks||0,procMin:penMinutesOn(d,'internet')}))
+      tasksDone:d.completedTasks||0,procMin:penMinutesOn(d,'internet'),
+      drugsCount:countOf(d,'drugs'),orgCount:countOf(d,'macanazo')}))
     .concat([{date:tk,pts:sc.total,status:sc.status,gap:false,
       pomodoros:STATE.today.pomodoros||0,workMin:STATE.today.work?.workDuration||0,
       sleepMin:STATE.today.sleep?.sleepDuration||0,
       sleptEarly:!!STATE.today.sleep?.sleptEarly,sleptLate:!!STATE.today.sleep?.sleptLate,
-      tasksDone:STATE.today.completed||0,procMin:penMinutesOn(STATE.today,'internet')}])
+      tasksDone:STATE.today.completed||0,procMin:penMinutesOn(STATE.today,'internet'),
+      drugsCount:countOf(STATE.today,'drugs'),orgCount:countOf(STATE.today,'macanazo')}])
     .sort((a,b)=>a.date.localeCompare(b.date));
   if(days.length<2)return null;
 
@@ -7623,6 +7626,22 @@ function renderCharts(sc,isEs){
       tableVal:d=>fmtDur(d.procMin)
     }));
   }
+
+  // ── 11 & 12. The two count-based built-in rewards, per day ──────────────
+  // Whatever you renamed them to — same reasoning as the minutes one above.
+  [['drugs','drugsCount','var(--cy)'],['macanazo','orgCount','var(--cp)']].forEach(([id,key,color])=>{
+    const r=rewardById(id);
+    const nm=r?rewardName(r):id;
+    chartsGrid.appendChild(barChart({
+      title:isEs?`${nm} por día`:`${nm} per day`,
+      sub:isEs?`${win.reduce((s,d)=>s+d[key],0)} en total, en estos ${win.length} días.`
+              :`${win.reduce((s,d)=>s+d[key],0)} total, over these ${win.length} days.`,
+      valueOf:d=>d[key],
+      barColor:color,
+      tableCol:nm,
+      tableVal:d=>String(d[key])
+    }));
+  });
 
   box.appendChild(chartsGrid);
   return box;
