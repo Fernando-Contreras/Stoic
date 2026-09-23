@@ -7150,7 +7150,15 @@ function renderCharts(sc,isEs){
     if(!on)b.style.cssText='background:none;border:none;color:var(--t3)';
     ctrl.appendChild(b);
   });
-  box.appendChild(ctrl);
+  /* Sticky against the stats panel's own scroll — see body's overflow-y:auto
+     in renderStats — so the range you picked stays one tap away the whole
+     time you are reading the charts it scopes, instead of scrolling off with
+     the first one. A solid backdrop the width of the row, not just the pill,
+     so a chart scrolling underneath does not show through beside it. */
+  const ctrlWrap=dv('');
+  ctrlWrap.style.cssText='position:sticky;top:0;z-index:5;background:var(--sur);padding-top:2px;padding-bottom:8px';
+  ctrlWrap.appendChild(ctrl);
+  box.appendChild(ctrlWrap);
   // Every chart from here on lands in this grid rather than straight in the
   // page flow, so two narrow ones (a 30-day bar chart is mostly empty space
   // at full page width) sit side by side instead of each claiming a full row
@@ -7777,7 +7785,9 @@ function renderStats(total,sc){
   atBox.onclick=()=>{STATE.showStatsDetail=true;render();};
   topRow.appendChild(atBox);
   const inBox=dv('card2 s-ac fi');
-  inBox.style.cssText='display:flex;align-items:center';
+  inBox.style.cssText='display:flex;align-items:center;cursor:pointer';
+  inBox.title=isEs?'Ver el detalle':'See the breakdown';
+  inBox.onclick=()=>{STATE.showStatsDetail=true;render();};
   inBox.appendChild(sp('sm dim',insight));
   topRow.appendChild(inBox);
   body.appendChild(topRow);
