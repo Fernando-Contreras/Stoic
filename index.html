@@ -7087,7 +7087,66 @@ function chCard(title,sub,plot,legend,tableFn){
   if(sub)c.appendChild(dv('ch-sub',sub));
   c.appendChild(plot);
   if(legend)c.appendChild(legend);
+  /* The card's own background — its title, its subtitle, the empty margin
+     around the plot, anything that is not a specific day or a button —
+     opens this one chart alone, full width, over the page. A day cell
+     already does its own thing (openDay) and keeps doing it; this only ever
+     answers for the rest of the card. The plot and legend move into the
+     popup and back rather than being rebuilt, so every bar keeps working
+     exactly as it does here — click one there and its day detail opens on
+     top of this, the same as it would inline. */
+  c.style.cursor='zoom-in';
+  c.onclick=e=>{
+    if(e.target.closest('button, .ch-tbl'))return;
+    const dayEl=e.target.closest('.ch-col, .ch-hm i');
+    if(dayEl&&dayEl.onclick)return;
+    openChartExpand(c,title,sub,plot,legend);
+  };
   return c;
+}
+/* Where a chart's plot and legend go while a card is expanded, and where
+   they come back to when it closes — see chCard. Kept outside #root, like
+   the pomodoro pill and the milestone overlay, so a render() elsewhere (a
+   day detail opened from inside this very popup, say) cannot tear it down
+   out from under itself. Only one at a time: opening a second one first
+   closes whichever was already open, restoring its own card in passing. */
+let _chartExpandClose=null;
+function openChartExpand(card,title,sub,plot,legend){
+  if(_chartExpandClose)_chartExpandClose();
+  const ov=dv('fi');
+  ov.classList.add('ovl');
+  // Under the day-detail popup's z-index (60): clicking a day inside this
+  // expanded chart has to open on top of it, not behind it.
+  ov.style.zIndex='55';
+  const close=()=>{
+    if(_chartExpandClose!==close)return;
+    _chartExpandClose=null;
+    ov.remove();
+    // Only if this card is still the one on screen — a render() elsewhere
+    // may already have rebuilt the grid with its own fresh copy, which
+    // needs nothing handed back to it.
+    if(card.isConnected){
+      card.appendChild(plot);
+      if(legend)card.appendChild(legend);
+    }
+  };
+  _chartExpandClose=close;
+  // Escape is answered by the app's one central handler, not a listener of
+  // its own here — see _chartExpandClose there. Two independent listeners on
+  // the same key used to close this AND whatever was open on top of it (a
+  // day detail opened from inside this very popup) on the same press.
+  closeOnBackdrop(ov,close);
+  const panel=dv('card');
+  panel.style.cssText='max-width:1100px;width:100%;margin:auto;max-height:88vh;overflow-y:auto';
+  const hd=dv('rowb mb4');
+  hd.appendChild(sp('ctit',title));
+  hd.appendChild(bt('btn-icon','✕',close));
+  panel.appendChild(hd);
+  if(sub)panel.appendChild(dv('ch-sub mb10',sub));
+  panel.appendChild(plot);
+  if(legend)panel.appendChild(legend);
+  ov.appendChild(panel);
+  document.body.appendChild(ov);
 }
 function chLegend(items){
   const l=dv('ch-lg');
@@ -7319,19 +7378,18 @@ function renderCharts(sc,isEs){
     const hmw=dv('ch-hmw');hmw.appendChild(plot);
     const lg=chLegend(CH_ORDER.filter(s=>hm.some(d=>d.status===s))
       .map(s=>[chColor(s),chStatusName(s)]));
-    // The one chart that always wants the whole row: it is meant to be read
-    // as a year at a glance, and squeezing it to share a row with another
-    // card would only put its own horizontal scrollbar back to work.
-    const hmCard=chCard(
+    // No forced full width any more — a short range is genuinely narrow (17
+    // weeks is nowhere near a full row) and belongs beside other charts like
+    // any of them. ch-hmw's own overflow-x:auto is what a stretch long
+    // enough to need more room than its column gives it falls back on.
+    chartsGrid.appendChild(chCard(
       isEs?'Mapa de tus días':'Every day at once',
       isEs?'Cada cuadrito es un día. Las columnas son semanas, de lunes a domingo.'
           :'One square per day. Columns are weeks, Monday to Sunday.',
       hmw,lg,
       ()=>chTable([isEs?'Color':'Colour',isEs?'Días':'Days','%'],
         CH_ORDER.map(s=>{const n=hm.filter(d=>d.status===s).length;
-          return [chStatusName(s),String(n),hm.length?Math.round(n/hm.length*100)+'%':'0%'];})));
-    hmCard.style.gridColumn='1 / -1';
-    chartsGrid.appendChild(hmCard);
+          return [chStatusName(s),String(n),hm.length?Math.round(n/hm.length*100)+'%':'0%'];}))));
   }
 
   /* ── 3. How the days split ──────────────────────────────────────────────
@@ -9188,6 +9246,12 @@ document.addEventListener('keydown',e=>{
   if(STATE.showAddForm){closeAddForm();return;}
   const open=['showReset','showRewards','restoreList','taskTree','dayDetail','histDay','showTZ','showRules','showSyncPanel','showGoals','showFlags','showStatsDetail'].find(k=>STATE[k]);
   if(!open){
+    /* A chart's own expand popup lives outside STATE (see openChartExpand) so
+       a render() elsewhere cannot tear it down — which also means it is not
+       in the list above. Checked only once nothing in that list is open, so
+       a day detail opened from inside it still closes first, on its own
+       Escape, the same as it would opened from anywhere else. */
+    if(_chartExpandClose){_chartExpandClose();return;}
     /* Nothing on top of the list — Escape clears the tag filter, the same as
        the ✕ on the filter bar. Skipped while a field is focused, where Escape
        means "leave this field" (a title being renamed, say). */
