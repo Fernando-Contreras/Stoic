@@ -9375,7 +9375,10 @@ document.addEventListener('keydown',e=>{
    cards, and stealing the arrow keys from someone typing a task title two
    inches away would be worse than not having this at all. */
 let _lastClickedDiary=false;
-document.addEventListener('click',e=>{_lastClickedDiary=!!e.target.closest('.day-panel');});
+// .cal-c: picking a day on the calendar is the usual way INTO the day panel
+// in the first place — the day you just picked is exactly the one the
+// arrows below should walk from, not only a click on the panel it opened.
+document.addEventListener('click',e=>{_lastClickedDiary=!!e.target.closest('.day-panel, .cal-c');});
 /* Left/right steps the day panel's OWN date by one day and redraws it — the
    same jump openDay makes, just walked one day at a time instead of picked
    off a chart — so a diary read top to bottom keeps going with the keys
