@@ -1032,7 +1032,7 @@ en:{
   'rw-title':'Your rewards','rw-edit':'Edit your rewards',
   'rw-help':'These are the things you want to keep at bay. Rename them, give them your own icon, drop the ones that mean nothing to you, add your own.',
   'rw-light':'Light','rw-serious':'Medium','rw-grave':'Large',
-  'rw-per-min':'−{r} per minute · the first {m} min of a day are charged at base and leave the run alone',
+  'rw-per-min':'−{r} per minute · the first {m}+ min of a day (more with pomodoros logged) are charged at base and leave the run alone',
   'rw-measure':'Measured in','rw-by-count':'Times','rw-by-mins':'Minutes',
   'rw-measure-warn':'Changing how this is measured re-scores every day you have ever logged it on. Continue?',
   'rw-clears-flat':'A run only ends by not doing the thing. A day this good charges it at base and leaves the run alone:',
@@ -1240,7 +1240,7 @@ es:{
   'rw-title':'Tus recompensas','rw-edit':'Editar tus recompensas',
   'rw-help':'Son las cosas que quieres mantener a raya. Renómbralas, ponles tu propio ícono, quita las que no te digan nada, agrega las tuyas.',
   'rw-light':'Ligera','rw-serious':'Media','rw-grave':'Grande',
-  'rw-per-min':'−{r} por minuto · los primeros {m} min del día se cobran a base y no le mueven a la racha',
+  'rw-per-min':'−{r} por minuto · los primeros {m}+ min del día (más si metes pomodoros) se cobran a base y no le mueven a la racha',
   'rw-measure':'Se mide en','rw-by-count':'Veces','rw-by-mins':'Minutos',
   'rw-measure-warn':'Cambiar cómo se mide recalcula todos los días en que la hayas registrado. ¿Continuar?',
   'rw-clears-flat':'Una racha solo termina no haciendo la cosa. Un día así de bueno la cobra a precio base y no le toca la racha:',
@@ -1522,8 +1522,19 @@ function capPenStreak(n){return Math.min(PEN_CAP,Math.max(1,n||1));}
    The loophole this leaves is deliberate and priced: 29 minutes every day
    forever keeps a clean run, and costs PEN_RATE a minute for every one of
    them, which over a year is not a rounding error. What it never becomes is
-   a hundred-day run — because it never was one. */
-const FREE_MINS=30;
+   a hundred-day run — because it never was one.
+
+   The allowance itself scales with the day's own focus rather than sitting
+   fixed: 8 pomodoros buys the base 30 minutes, half that many buys half the
+   allowance, and more than 8 buys proportionally more — 12 buys 45, 16 buys
+   60 — but it never drops below the 30-minute base, whatever the pomodoro
+   count. A day spent actually focused earns a longer leash on the side of it
+   that is not. */
+const FREE_MINS_BASE=30;
+const FREE_MINS_POMS=8;
+function freeMinsFor(pomodoros){
+  return Math.max(FREE_MINS_BASE,Math.round(FREE_MINS_BASE*(pomodoros||0)/FREE_MINS_POMS));
+}
 // Minutes logged against one reward on one day, however many entries it took.
 function penMinutesOn(day,type){
   return (day.penalties||[]).filter(p=>p.type===type)
@@ -1536,7 +1547,7 @@ function dayHasReward(day,rOrId){
     :(typeof rewardById==='function'?rewardById(rOrId):null);
   const type=(rOrId&&typeof rOrId==='object')?rOrId.id:rOrId;
   if(!(day.penalties||[]).some(p=>p.type===type))return false;
-  return r&&r.byMinutes?penMinutesOn(day,type)>FREE_MINS:true;
+  return r&&r.byMinutes?penMinutesOn(day,type)>freeMinsFor(day.pomodoros):true;
 }
 /* A good day used to END a reward run, and then for a while nothing ended one
    but breaking it. Both were wrong in the same way: a run is a fact about what
@@ -1591,22 +1602,22 @@ const CALC={
   // Renamed from diffMult — there is no difficulty left for it to read.
   penMult(){return PEN_RATE;},
   /* What a minutes-based reward multiplies by on a day. Under the allowance
-     it is charged at base — see FREE_MINS — and over it, by its run. This
+     it is charged at base — see freeMinsFor — and over it, by its run. This
      used to be named for procrastination and applied only to it; any reward
      you set to count minutes gets the same deal, because the reason is about
      time and not about which reward it is. */
-  minsMult(mins,streak){
-    return mins>FREE_MINS?capPenStreak(streak):1;
+  minsMult(mins,streak,pomodoros){
+    return mins>freeMinsFor(pomodoros)?capPenStreak(streak):1;
   },
   // Kept under its old name: called from renderPenCard and from score().
-  procMult(procMins,streak){return this.minsMult(procMins,streak);},
+  procMult(procMins,streak,pomodoros){return this.minsMult(procMins,streak,pomodoros);},
   streaks(history,today){
     const tk=todayKey();
     // #1 FIX: exclude today from history scan entirely
     const hist=[...history].filter(d=>d.date!==tk).sort((a,b)=>new Date(a.date)-new Date(b.date));
     /* Through dayHasReward, so a day inside the daily allowance of a
        minutes-based reward neither carries its run forward nor breaks the
-       clean one. See FREE_MINS. */
+       clean one. See freeMinsFor. */
     const hasPen=(d,t)=>dayHasReward(d,t);
     const hasSt=(d,t)=>d.streaks?.some(s=>s.type===t&&s.active)||false;
     function pStrk(type,resetOn){let c=0;for(let i=hist.length-1;i>=0;i--){if(!hasPen(hist[i],type))break;if(resetOn.includes(hist[i].status))break;c++;}return c;}
@@ -1698,14 +1709,14 @@ const CALC={
     const pen=penalties.reduce((sum,p)=>{
       const b=this.penBase(p);let mult=1;
       if(p.type==='drugs')mult=freeToday('drugs')?1:capPenStreak(s.substancesPenaltyStreak);
-      else if(p.type==='internet')mult=freeToday('internet')?1:this.procMult(procMins,s.procrastinationPenaltyStreak);
+      else if(p.type==='internet')mult=freeToday('internet')?1:this.procMult(procMins,s.procrastinationPenaltyStreak,pomodoros);
       else if(p.type==='macanazo')mult=freeToday('macanazo')?1:capPenStreak(s.macanazoPenaltyStreak);
       // Yours multiply by their own run, and are discounted by their own weight
       // — and if you set one to count minutes, by the same allowance.
       else if(typeof penKey==='function'){
         const r=(typeof rewardById==='function')?rewardById(p.type):null;
         mult=(r&&rewardForgives(r).includes(status))?1
-          :(r&&r.byMinutes)?this.minsMult(penMinutesOn({penalties},p.type),s[penKey(p.type)])
+          :(r&&r.byMinutes)?this.minsMult(penMinutesOn({penalties},p.type),s[penKey(p.type)],pomodoros)
           :capPenStreak(s[penKey(p.type)]);
       }
       const v=b*mult;
@@ -1882,7 +1893,7 @@ const CALC={
          the same twenty-minute evening cost base while it was today and
          base × its run the moment it became history — the one number the
          calendar shows disagreeing with the one the card showed. */
-      else if(p.type==='internet') mult=procFree?1:this.minsMult(penMinutesOn(e,'internet'),procStreak);
+      else if(p.type==='internet') mult=procFree?1:this.minsMult(penMinutesOn(e,'internet'),procStreak,e.pomodoros);
       else if(p.type==='macanazo') mult=macFree?1:capPenStreak(macStreak);
       /* One you added. Its run through history is counted here the same way
          the three above are, and its own weight says which colour discounts a
@@ -1895,7 +1906,7 @@ const CALC={
           const idx=sorted.findIndex(h=>h.date===e.date);
           if(idx>=0){
             const run=this.streakAtDay(sorted,idx,d=>dayHasReward(d,r));
-            mult=r.byMinutes?this.minsMult(penMinutesOn(e,p.type),run):capPenStreak(run);
+            mult=r.byMinutes?this.minsMult(penMinutesOn(e,p.type),run,e.pomodoros):capPenStreak(run);
           }
         }
       }
@@ -6222,12 +6233,12 @@ function renderPenCard(sk_,todayStatus){
   const freeToday=kind=>builtinForgives(kind).includes(todayStatus);
   const penMultFor=(p,procMins)=>{
     if(p.type==='drugs')return freeToday('drugs')?1:capPenStreak(sk_.substancesPenaltyStreak);
-    if(p.type==='internet')return freeToday('internet')?1:CALC.procMult(procMins,sk_.procrastinationPenaltyStreak);
+    if(p.type==='internet')return freeToday('internet')?1:CALC.procMult(procMins,sk_.procrastinationPenaltyStreak,STATE.today.pomodoros);
     if(p.type==='macanazo')return freeToday('macanazo')?1:capPenStreak(sk_.macanazoPenaltyStreak);
     const r=rewardById(p.type);
     if(r&&rewardForgives(r).includes(todayStatus))return 1;
     // Yours, measured in minutes, get the same allowance the built-in one has.
-    if(r&&r.byMinutes)return CALC.minsMult(penMinutesOn(STATE.today,p.type),sk_[penKey(p.type)]);
+    if(r&&r.byMinutes)return CALC.minsMult(penMinutesOn(STATE.today,p.type),sk_[penKey(p.type)],STATE.today.pomodoros);
     return capPenStreak(sk_[penKey(p.type)]);
   };
   const procMinsTotal=()=>penMinutesOn(STATE.today,'internet');
@@ -6354,7 +6365,18 @@ function renderWorkCard(sk_,todayStatus){
   card.appendChild(sp('xs dim mb8',ptsLine(STATE.today.work.workDuration,sk_.workStreak,todayStatus)));
   const errD=dv('xs ng mt4');
   const wi=ip('text','','',t('eg-work'));
-  function doSet(){const r=parseDur(wi.value);if(r.v===null){errD.textContent=r.err;return;}STATE.today.work.workDuration=r.v;wi.value='';errD.textContent='';commitAndRefresh();}
+  function doSet(){
+    const r=parseDur(wi.value);if(r.v===null){errD.textContent=r.err;return;}
+    STATE.today.work.workDuration=r.v;
+    /* Focused work does not happen in one unbroken block with zero pomodoros
+       to show for it — 25 minutes is one, by the same unit the timer itself
+       uses. The count only ever rises to meet this floor; it never drops one
+       already logged by hand or earned from a real session, the same rule
+       daily tasks already follow with what you have completed. */
+    const minPoms=Math.floor(r.v/POMO_UNIT);
+    if((STATE.today.pomodoros||0)<minPoms)STATE.today.pomodoros=minPoms;
+    wi.value='';errD.textContent='';commitAndRefresh();
+  }
   wi.onkeydown=e=>{if(e.key==='Enter')doSet();};
   const row=dv('row gap8 mt8');row.appendChild(wi);row.appendChild(bt('btn-ac btn-sm',t('set-btn'),doSet));
   card.appendChild(row);card.appendChild(errD);return card;
@@ -7804,8 +7826,8 @@ function renderStats(total,sc){
       `Duermes ${fmtDur(avgSleepMin)} en promedio. Cada minuto vale +1, así que media hora más son ~30 pts diarios — casi 1,000 al mes, sin hacer nada extra. Y la racha de dormir temprano es la forma más rentable de sacar puntos que hay.`,
       `You sleep ${fmtDur(avgSleepMin)} on average. Every minute is +1, so half an hour more is ~30 pts a day — nearly 1,000 a month for nothing extra. And the early-bed streak is the most profitable run of points there is.`);
     if(procFreePct<70)add(70,rwProc?.icon||'🌐',
-      `Caíste en ${nmProc} en ${100-procFreePct}% de tus días. Los primeros ${FREE_MINS} minutos no cuentan como recaída ni te suben la racha: si vas a caer, que sea corto.`,
-      `You logged ${nmProc} on ${100-procFreePct}% of your days. The first ${FREE_MINS} minutes are not a slip and do not build the run: if you are going to slip, keep it short.`);
+      `Caíste en ${nmProc} en ${100-procFreePct}% de tus días. Los primeros ${FREE_MINS_BASE} minutos (más si metiste pomodoros ese día) no cuentan como recaída ni te suben la racha: si vas a caer, que sea corto.`,
+      `You logged ${nmProc} on ${100-procFreePct}% of your days. The first ${FREE_MINS_BASE} minutes (more on a day with pomodoros logged) are not a slip and do not build the run: if you are going to slip, keep it short.`);
     if(workPct<50)add(65,'💼',
       `Solo registraste trabajo en ${workPct}% de tus días. La racha de trabajo multiplica cada minuto, y basta con no romperla.`,
       `You logged work on only ${workPct}% of your days. The work streak multiplies every minute, and it only needs to stay alive.`);
@@ -7933,7 +7955,7 @@ function renderRules(onClose){
     <div class="md up ls ng w7 mb10">🤤 Recompensas</div>
     <div class="s6">
       <div>Son los gustos que quieres mantener a raya. Cuestan puntos, y entre más seguido caes, más caro te sale: <span class="ng w6">× su racha, hasta ×${PEN_CAP}</span>.</div>
-      ${rewards().map(r=>`<div><span class="ng w6">${escapeHtml(rewardLabel(r))}</span> — ${r.byMinutes?`−${PEN_RATE} por minuto; los primeros ${FREE_MINS} del día no cuentan como recaída`:t(REWARD_TIERS[r.tier].name).toLowerCase()+', −'+rewardCost(r).toLocaleString()}</div>`).join('')}
+      ${rewards().map(r=>`<div><span class="ng w6">${escapeHtml(rewardLabel(r))}</span> — ${r.byMinutes?`−${PEN_RATE} por minuto; los primeros ${FREE_MINS_BASE} del día no cuentan como recaída (más, según tus pomodoros — ver abajo)`:t(REWARD_TIERS[r.tier].name).toLowerCase()+', −'+rewardCost(r).toLocaleString()}</div>`).join('')}
       <div><span class="ng w6">🌙 Trasnoché</span> — caro × tu racha de desvelo.</div>
       <div class="xs dimmer"><span class="ac w6">La lista es tuya</span>: renómbralas, cámbiales el ícono, quítalas o agrega las tuyas (hasta 5) con el ⚙ de la tarjeta.</div>
     </div>
@@ -7946,7 +7968,7 @@ function renderRules(onClose){
       <div><span class="cr w6">🔴 Rojo</span> — ese día paga a <strong>precio base</strong> y la racha sigue mañana donde iba. Lo único que rompe es la racha de <span class="cp">días sin rojo</span>.</div>
       <div><span class="ac w6">Un día bueno</span> te cobra la recompensa a base <strong>sin romperle la racha</strong>: <span class="cy">🟡</span> una ligera · <span class="cg">🟢</span> una media · <span class="cp">🟣</span> una grande.</div>
       <div>Lo único que rompe una racha es <strong>dejar de hacer la cosa</strong>, o saltarte un día.</div>
-      <div><span class="ac w6">Las que se miden en minutos traen ${FREE_MINS} min diarios de gracia.</span> Un día por debajo de eso se cobra igual (−${PEN_RATE} por minuto), pero <strong>no cuenta como recaída</strong>: no arrastra la racha ni te la sube. El multiplicador es para un hábito, y un día dentro del margen no lo es. Pasando los ${FREE_MINS}, el día cuenta entero y la racha corre.</div>
+      <div><span class="ac w6">Las que se miden en minutos traen ${FREE_MINS_BASE} min diarios de gracia como piso</span> — y suben si metiste pomodoros ese día: cada ${FREE_MINS_POMS} pomodoros valen otros ${FREE_MINS_BASE} minutos de margen (4 pomodoros = 15 min, 12 = 45, 16 = 1 hora — nunca menos de ${FREE_MINS_BASE}, aunque no hayas hecho ninguno). Un día por debajo de tu margen se cobra igual (−${PEN_RATE} por minuto), pero <strong>no cuenta como recaída</strong>: no arrastra la racha ni te la sube. El multiplicador es para un hábito, y un día dentro del margen no lo es. Pasándote, el día cuenta entero y la racha corre.</div>
       <div><span class="ac w6">🎖️ Medallas</span> a los 10, 20, 50, 100, 200, 500 y 1000 días de cualquier racha positiva. Las recompensas nunca dan.</div>
       <div class="xs dimmer">Un día sin registrar cuenta como −1,000 y día rojo. ¡Registra diario!</div>
     </div>
@@ -8005,7 +8027,7 @@ function renderRules(onClose){
     <div class="md up ls ng w7 mb10">🤤 Rewards</div>
     <div class="s6">
       <div>The treats you want to keep at bay. They cost points, and the more often you give in, the dearer they get: <span class="ng w6">× their run, up to ×${PEN_CAP}</span>.</div>
-      ${rewards().map(r=>`<div><span class="ng w6">${escapeHtml(rewardLabel(r))}</span> — ${r.byMinutes?`−${PEN_RATE} a minute; the first ${FREE_MINS} of a day do not count as a slip`:t(REWARD_TIERS[r.tier].name).toLowerCase()+', −'+rewardCost(r).toLocaleString()}</div>`).join('')}
+      ${rewards().map(r=>`<div><span class="ng w6">${escapeHtml(rewardLabel(r))}</span> — ${r.byMinutes?`−${PEN_RATE} a minute; the first ${FREE_MINS_BASE} of a day do not count as a slip (more with pomodoros logged that day — see below)`:t(REWARD_TIERS[r.tier].name).toLowerCase()+', −'+rewardCost(r).toLocaleString()}</div>`).join('')}
       <div><span class="ng w6">🌙 Slept Late</span> — expensive × your late-night run.</div>
       <div class="xs dimmer"><span class="ac w6">The list is yours</span>: rename them, change the icon, drop them or add your own (up to 5) from the ⚙ on the card.</div>
     </div>
@@ -8018,7 +8040,7 @@ function renderRules(onClose){
       <div><span class="cr w6">🔴 Red</span> — that day pays <strong>base</strong> and tomorrow the run carries on where it was. The only run it breaks is the <span class="cp">non-red</span> one.</div>
       <div><span class="ac w6">A good day</span> charges a reward at base <strong>without ending its run</strong>: <span class="cy">🟡</span> a light one · <span class="cg">🟢</span> a medium one · <span class="cp">🟣</span> a large one.</div>
       <div>The only things that end a run are <strong>not doing the thing</strong> and skipping a day.</div>
-      <div><span class="ac w6">The ones measured in minutes carry a ${FREE_MINS}-minute daily allowance.</span> A day under it is still charged (−${PEN_RATE} a minute) but <strong>does not count as a slip</strong>: it neither carries the run forward nor starts one. The multiplier is for a habit, and a day inside the allowance is not one. Past ${FREE_MINS}, the day counts in full and the run advances.</div>
+      <div><span class="ac w6">The ones measured in minutes carry a ${FREE_MINS_BASE}-minute daily allowance as a floor</span> — and it grows with pomodoros logged that day: every ${FREE_MINS_POMS} pomodoros buy another ${FREE_MINS_BASE} minutes (4 pomodoros = 15 min, 12 = 45, 16 = an hour — never below ${FREE_MINS_BASE}, even with none). A day under your allowance is still charged (−${PEN_RATE} a minute) but <strong>does not count as a slip</strong>: it neither carries the run forward nor starts one. The multiplier is for a habit, and a day inside the allowance is not one. Past it, the day counts in full and the run advances.</div>
       <div><span class="ac w6">🎖️ Medals</span> at 10, 20, 50, 100, 200, 500 and 1000 days of any positive run. Rewards never earn one.</div>
       <div class="xs dimmer">A day you forget to log counts as −1,000 and a red day. Log every day!</div>
     </div>
@@ -8131,7 +8153,7 @@ function renderRewardsModal(){
       // What it costs. How a run ends is the same for every reward, so it is
       // said once, under the whole list, instead of five times over.
       row.appendChild(dv('xs dimmer mt4',
-        r.byMinutes?t('rw-per-min').replace('{r}',PEN_RATE).replace('{m}',FREE_MINS)
+        r.byMinutes?t('rw-per-min').replace('{r}',PEN_RATE).replace('{m}',FREE_MINS_BASE)
                    :`−${rewardCost(r).toLocaleString()}`));
       box.appendChild(row);
     });
