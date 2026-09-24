@@ -5919,6 +5919,13 @@ function renderLogin(){
    tab switch, where the new tab's content is a different shape and the old
    numeric offset means nothing in it. */
 let _tabScroll={plan:0,score:0};
+/* Which stat block the stats-detail popup should scroll to once it opens —
+   set by whichever streak tile was clicked (see makeStreakItem), read once
+   by renderApp right after the popup is built, then cleared. All-time and
+   Momentum set it to null themselves, so the popup opens at the top for
+   those two exactly as it always has — nothing here defaults quietly to
+   "wherever it was last opened". */
+let _statsScrollKey=null;
 /* ═══ MAIN APP ═══ */
 function renderApp(){
   /* loadToday already called at boot and after save */
@@ -6610,10 +6617,13 @@ function renderStreaks(sk_){
          honestly. Anyone can add one. */
       // Same door as the all-time tile and the momentum card: every one of
       // these numbers is built from the same breakdown, so any of them
-      // opens it — not only the two that said so first.
+      // opens it — not only the two that said so first. This one also knows
+      // which block it is — the popup scrolls straight to it instead of
+      // opening at the top every time, whichever streak you actually asked
+      // about.
       c.style.cursor='pointer';
       c.title=STATE.lang==='es'?'Ver el detalle':'See the breakdown';
-      c.onclick=()=>{STATE.showStatsDetail=true;render();};
+      c.onclick=()=>{_statsScrollKey=item.k;STATE.showStatsDetail=true;render();};
     }
     return c;
   }
@@ -7957,12 +7967,15 @@ function renderStats(total,sc){
      headline of the whole page. */
   atBox.style.cursor='pointer';
   atBox.title=isEs?'Ver el detalle':'See the breakdown';
-  atBox.onclick=()=>{STATE.showStatsDetail=true;render();};
+  // These two open at the top, always — a streak tile is the one that asks
+  // for a specific block, so it is the one that sets _statsScrollKey; these
+  // clear it, in case the last thing to open the popup was one of those.
+  atBox.onclick=()=>{_statsScrollKey=null;STATE.showStatsDetail=true;render();};
   topRow.appendChild(atBox);
   const inBox=dv('card2 s-ac fi');
   inBox.style.cssText='display:flex;align-items:center;cursor:pointer';
   inBox.title=isEs?'Ver el detalle':'See the breakdown';
-  inBox.onclick=()=>{STATE.showStatsDetail=true;render();};
+  inBox.onclick=()=>{_statsScrollKey=null;STATE.showStatsDetail=true;render();};
   inBox.appendChild(sp('sm dim',insight));
   topRow.appendChild(inBox);
   body.appendChild(topRow);
@@ -8231,9 +8244,14 @@ function renderStats(total,sc){
   const rwGrid=dv('g4 tiles mb10');rwGrid.style.gap='8px';
   rwStats.forEach(x=>{
     const nm=escapeHtml(rewardLabel(x.r));   // the tiles render their label as HTML
-    rwGrid.appendChild(statCard(nm,x.r.byMinutes?fmtDur(x.total):String(x.total),
+    // Both the "bad streak" tile and the "clean streak" tile on the Streaks
+    // card point at this same row — whichever one you clicked, this is the
+    // block that answers it.
+    const rwFirst=statCard(nm,x.r.byMinutes?fmtDur(x.total):String(x.total),
       x.total?'var(--ng)':'var(--cg)',
-      x.r.byMinutes?(isEs?'en total':'in total'):(isEs?'veces':'times')));
+      x.r.byMinutes?(isEs?'en total':'in total'):(isEs?'veces':'times'));
+    rwFirst.dataset.scrollKey=penKey(x.r.id)+' '+cleanKey(x.r.id);
+    rwGrid.appendChild(rwFirst);
     rwGrid.appendChild(statCard(`${t('sk-without')} ${nm}`,x.pct+'%',
       x.pct>=70?'var(--cg)':'var(--ng)',x.cleanDays+'d'));
     rwGrid.appendChild(statCard(isEs?'Mejor racha limpia':'Best clean run',x.best+'d',
@@ -8251,20 +8269,20 @@ function renderStats(total,sc){
      how often, the longest run, the run you are on. A run here counts the
      days you did the thing, which is what the scoring counts too. */
   const POS_ATTRS=[
-    {icon:'🌞',name:t('sk-morning'), did:d=>didMorning(d),
+    {icon:'🌞',name:t('sk-morning'), key:'morningStreak', did:d=>didMorning(d),
      total:ds=>ds.filter(d=>didMorning(d)).length+'d'},
-    {icon:'🏁',name:t('sk-goals'),   did:d=>!!d.streaks?.some(s=>s.type==='flags'&&s.active),
+    {icon:'🏁',name:t('sk-goals'),   key:'flagStreak', did:d=>!!d.streaks?.some(s=>s.type==='flags'&&s.active),
      total:ds=>ds.filter(d=>d.streaks?.some(s=>s.type==='flags'&&s.active)).length+'d'},
-    {icon:'💼',name:t('sk-work'),    did:d=>(d.workDuration||0)>0,
+    {icon:'💼',name:t('sk-work'),    key:'workStreak', did:d=>(d.workDuration||0)>0,
      total:ds=>fmtDur(ds.reduce((s,d)=>s+(d.workDuration||0),0))},
-    {icon:'🍅',name:t('sk-pom'),     did:d=>(d.pomodoros||0)>0,
+    {icon:'🍅',name:t('sk-pom'),     key:'pomoStreak', did:d=>(d.pomodoros||0)>0,
      total:ds=>String(Math.round(ds.reduce((s,d)=>s+(d.pomodoros||0),0)*10)/10)},
-    {icon:'🎨',name:isEs?'Días sin rojo':'Non-red days', did:d=>d.status&&d.status!=='red',
+    {icon:'🎨',name:isEs?'Días sin rojo':'Non-red days', key:null, did:d=>d.status&&d.status!=='red',
      total:ds=>ds.filter(d=>d.status&&d.status!=='red').length+'d'},
     // Early bed goes last so its own row sits right next to Late nights below
     // — a run and its own clean run, read together instead of a whole grid
     // of other habits apart.
-    {icon:'😴',name:isEs?'Dormir temprano':'Early bed', did:d=>!!d.sleptEarly,
+    {icon:'😴',name:isEs?'Dormir temprano':'Early bed', key:'earlyBedStreak', did:d=>!!d.sleptEarly,
      total:ds=>ds.filter(d=>d.sleptEarly).length+'d'}
   ];
   const posGrid=dv('g4 tiles mb10');posGrid.style.gap='8px';
@@ -8276,8 +8294,12 @@ function renderStats(total,sc){
     sortedH.forEach(d=>{if(!d._gap&&a.did(d)){cur++;if(cur>best){best=cur;end=d.date;}}else cur=0;});
     let now=0;
     for(let k=sortedH.length-1;k>=0;k--){const d=sortedH[k];if(d._gap||!a.did(d))break;now++;}
-    posGrid.appendChild(statCard(nm,a.total(realDays),
-      daysDid?'var(--cg)':'var(--t3)',isEs?'en total':'in total'));
+    // Tagged on the first tile of the row only — scrolling it into view
+    // brings the whole row with it, same height, same grid line.
+    const firstTile=statCard(nm,a.total(realDays),
+      daysDid?'var(--cg)':'var(--t3)',isEs?'en total':'in total');
+    if(a.key)firstTile.dataset.scrollKey=a.key;
+    posGrid.appendChild(firstTile);
     posGrid.appendChild(statCard(`${isEs?'Días con':'Days with'} ${nm}`,pct+'%',
       pct>=50?'var(--cg)':'var(--ng)',daysDid+'d'));
     posGrid.appendChild(statCard(isEs?'Mejor racha':'Best run',best+'d',
@@ -8301,8 +8323,10 @@ function renderStats(total,sc){
     let now=0;
     for(let k=sortedH.length-1;k>=0;k--){const d=sortedH[k];if(d._gap||has(d))break;now++;}
     const nmLate=isEs?'🌙 Trasnoche':'🌙 Late nights';
-    posGrid.appendChild(statCard(nmLate,String(total),
-      total?'var(--ng)':'var(--cg)',isEs?'veces':'times'));
+    const lateFirst=statCard(nmLate,String(total),
+      total?'var(--ng)':'var(--cg)',isEs?'veces':'times');
+    lateFirst.dataset.scrollKey='lateStreak';
+    posGrid.appendChild(lateFirst);
     posGrid.appendChild(statCard(`${t('sk-without')} ${nmLate}`,pct+'%',
       pct>=70?'var(--cg)':'var(--ng)',cleanDays+'d'));
     posGrid.appendChild(statCard(isEs?'Mejor racha limpia':'Best clean run',best+'d',
@@ -8472,6 +8496,20 @@ function renderStats(total,sc){
     panel.appendChild(detail);
     ov.appendChild(panel);
     wrap.appendChild(ov);
+    /* Scrolls to the block the clicked streak tile asked for, once the popup
+       actually has layout to scroll within — a frame late, same as every
+       other scrollIntoView in this file. Smooth on purpose, even though an
+       instant jump would land in the same place: the point is to still pass
+       the medals shelf on the way down, if only for a moment, rather than
+       arriving as if it had never been there. All-time and Momentum cleared
+       this to null themselves, so they still open sitting at the top. */
+    if(_statsScrollKey){
+      const key=_statsScrollKey;_statsScrollKey=null;
+      requestAnimationFrame(()=>{
+        panel.querySelector(`[data-scroll-key~="${key}"]`)
+          ?.scrollIntoView({behavior:'smooth',block:'center'});
+      });
+    }
   }
 
   return wrap;
