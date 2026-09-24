@@ -6580,6 +6580,12 @@ function renderStreaks(sk_){
          once it is over — counting today early would mean the number goes DOWN
          the moment you log honestly, which is no way to ask anyone to log
          honestly. Anyone can add one. */
+      // Same door as the all-time tile and the momentum card: every one of
+      // these numbers is built from the same breakdown, so any of them
+      // opens it — not only the two that said so first.
+      c.style.cursor='pointer';
+      c.title=STATE.lang==='es'?'Ver el detalle':'See the breakdown';
+      c.onclick=()=>{STATE.showStatsDetail=true;render();};
     }
     return c;
   }
