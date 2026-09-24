@@ -3094,20 +3094,25 @@ function pomoReset(){
   const p=STATE.pomo;
   p.running=false;p.startedAt=0;p.elapsed=0;savePomo();
 }
-/* Ends the current leg. Focused minutes are banked and pushed to tab 2;
-   breaks simply hand back to the next focus session. */
+/* Ends the current leg. A focus leg finished on its own banks the minutes
+   and advances the cycle; ended early by hand it earns nothing — see below.
+   Breaks simply hand back to the next focus session either way. */
 function pomoFinishPhase(auto){
   const p=STATE.pomo;
   pomoRollDay();
-  const secs=pomoElapsed(p);
   if(p.phase==='focus'){
-    const mins=auto?Math.max(1,p.focus):Math.floor(secs/60);
-    if(mins>0){
+    /* Ending a focus leg early used to bank whatever fraction of it you had
+       worked — 17 of 25 minutes paid .7 of a pomodoro. Cancelling is
+       cancelling: pressed by hand, before the leg was actually done, it pays
+       nothing and does not advance the cycle, the same as Reset. Only the
+       clock finishing on its own still pays the leg in full. */
+    if(auto){
+      const mins=Math.max(1,p.focus);
       p.minutesToday+=mins;
       addPomodoroMinutes(mins);
+      p.doneInCycle=(p.doneInCycle+1)%Math.max(1,p.cycle);
+      p.phase=p.doneInCycle===0?'long':'short';
     }
-    p.doneInCycle=(p.doneInCycle+1)%Math.max(1,p.cycle);
-    p.phase=p.doneInCycle===0?'long':'short';
   }else{
     p.phase='focus';
   }
@@ -4653,7 +4658,8 @@ function renderPomoCard(){
   }));
   ctr.appendChild(bt('btn-ghost btn-sm',t('pomo-reset'),()=>{pomoReset();render();}));
   ctr.appendChild(bt('btn-ghost btn-sm',t('pomo-skip'),()=>{
-    // Ends the leg early. A focus leg still banks the minutes truly worked.
+    // Ends the leg early. A focus leg cancelled this way earns nothing —
+    // see pomoFinishPhase — a break just hands back to focus either way.
     pomoFinishPhase(false);render();
   }));
   card.appendChild(ctr);
@@ -6825,7 +6831,10 @@ function renderDayPanel(){
     const cut=summaryCut(body);
     const head=dv('row gap6 mt10 note-prev');head.style.alignItems='baseline';
     if(cut>=0){
-      const arr=sp('sm dimmer',folded?'▸':'▾');arr.style.cursor='pointer';
+      // Named so Shift+↑/↓ can find and press it without a stored reference —
+      // this whole row is rebuilt fresh every render, so anything a keydown
+      // handler kept from last time would already be stale.
+      const arr=sp('sm dimmer diary-fold-arrow',folded?'▸':'▾');arr.style.cursor='pointer';
       arr.onclick=e=>{e.stopPropagation();STATE.diaryFold[key]=!folded;refresh();};
       head.appendChild(arr);
     }
@@ -9396,6 +9405,20 @@ document.addEventListener('keydown',e=>{
   e.preventDefault();
   STATE.calSel=nextKey;
   render();
+});
+/* Shift+↑/↓ presses the diary's own fold arrow — the one that puts the
+   template away and leaves the summary, the part worth re-reading (see
+   summaryCut). Up or down both work: this isn't a scroll, it's a toggle,
+   and asking anyone to remember which arrow key means "fold" is one more
+   thing to remember for no reason. Skipped while typing, same as the plain
+   arrows above — Shift+arrow there means extend the text selection. */
+document.addEventListener('keydown',e=>{
+  if(!e.shiftKey||(e.key!=='ArrowUp'&&e.key!=='ArrowDown'))return;
+  if(/^(INPUT|TEXTAREA|SELECT)$/.test((e.target||{}).tagName||''))return;
+  const arr=document.querySelector('.day-panel .diary-fold-arrow');
+  if(!arr)return;
+  e.preventDefault();
+  arr.click();
 });
 
 /* Scrolling is when the bubble is meant to arrive, so it answers the scroll
