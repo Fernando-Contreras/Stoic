@@ -4921,12 +4921,21 @@ function remChip(r,tk,redraw){
     cell.appendChild(top);
     const meta=[r.due===tk?t('rem-today-h'):fmtShort(r.due)];
     if(kids)meta.push('↳'+kids);
+    const m=dv('xs '+(late?'cr':'dimmer'));m.style.marginTop='3px';m.textContent=meta.join(' · ');
     /* The same weekly-goal marker the list gives the task's own name — a chip
        has no room for that in its title row, already fighting the checkbox,
-       the flag and the quadrant for width, so it rides the meta line instead. */
+       the flag and the quadrant for width, so it rides the meta line instead.
+       Its own span, not folded into the plain-text join above: a goal closed
+       this way needs its own strikethrough, the same one the full list gives
+       it, and text joined into one string cannot carry that on just part of
+       itself. */
     const wkNote=weeklyGoalNote(r);
-    if(wkNote!==null)meta.push('🏁 '+wkNote.text.slice(0,28));
-    const m=dv('xs '+(late?'cr':'dimmer'));m.style.marginTop='3px';m.textContent=meta.join(' · ');
+    if(wkNote!==null){
+      if(meta.length)m.appendChild(document.createTextNode(' · '));
+      const wk=sp('','🏁 '+wkNote.text.slice(0,28));
+      if(wkNote.done)wk.style.textDecoration='line-through';
+      m.appendChild(wk);
+    }
     cell.appendChild(m);
     // Standing on its own, a subtask says where it came from.
     if(r.parent){
