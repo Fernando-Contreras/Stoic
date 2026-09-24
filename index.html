@@ -6043,9 +6043,11 @@ function renderApp(){
       if(active){
         // Already on this tab — pressed again, the same as Home: forget
         // where you were on it, so leaving and coming back does not bring
-        // you right back down again.
+        // you right back down again. Smooth, since this one is not covering
+        // for a page swap underneath it — there is nothing to hide a jump
+        // cut behind, so the scroll itself is the whole of what you see.
         _tabScroll[id]=0;
-        window.scrollTo(0,0);
+        window.scrollTo({top:0,behavior:'smooth'});
         return;
       }
       _tabScroll[STATE.tab]=window.scrollY;
@@ -8257,10 +8259,13 @@ function renderStats(total,sc){
      total:ds=>fmtDur(ds.reduce((s,d)=>s+(d.workDuration||0),0))},
     {icon:'🍅',name:t('sk-pom'),     did:d=>(d.pomodoros||0)>0,
      total:ds=>String(Math.round(ds.reduce((s,d)=>s+(d.pomodoros||0),0)*10)/10)},
-    {icon:'😴',name:isEs?'Dormir temprano':'Early bed', did:d=>!!d.sleptEarly,
-     total:ds=>ds.filter(d=>d.sleptEarly).length+'d'},
     {icon:'🎨',name:isEs?'Días sin rojo':'Non-red days', did:d=>d.status&&d.status!=='red',
-     total:ds=>ds.filter(d=>d.status&&d.status!=='red').length+'d'}
+     total:ds=>ds.filter(d=>d.status&&d.status!=='red').length+'d'},
+    // Early bed goes last so its own row sits right next to Late nights below
+    // — a run and its own clean run, read together instead of a whole grid
+    // of other habits apart.
+    {icon:'😴',name:isEs?'Dormir temprano':'Early bed', did:d=>!!d.sleptEarly,
+     total:ds=>ds.filter(d=>d.sleptEarly).length+'d'}
   ];
   const posGrid=dv('g4 tiles mb10');posGrid.style.gap='8px';
   POS_ATTRS.forEach(a=>{
@@ -8280,6 +8285,31 @@ function renderStats(total,sc){
     posGrid.appendChild(statCard(isEs?'Racha actual':'Current run',now+'d',
       now?'var(--cg)':'var(--ng)',nm,'xl',now?spanOf(now,lastDay):''));
   });
+  /* Late nights never got the four-tile treatment every reward has — it is
+     exactly the same shape of question (how often, how often clear of it,
+     the longest clean run, the run you are on right now), just never asked
+     because sleptLate lives on the day itself rather than in the rewards
+     list. Placed right here, straight after Early bed's own row, because
+     the two are the same fact read from either side. */
+  {
+    const has=d=>!!d.sleptLate;
+    const total=realDays.filter(has).length;
+    const cleanDays=realDays.filter(d=>!has(d)).length;
+    const pct=totalTracked?Math.round(cleanDays/totalTracked*100):100;
+    let best=0,cur=0,end='';
+    sortedH.forEach(d=>{if(!d._gap&&!has(d)){cur++;if(cur>best){best=cur;end=d.date;}}else cur=0;});
+    let now=0;
+    for(let k=sortedH.length-1;k>=0;k--){const d=sortedH[k];if(d._gap||has(d))break;now++;}
+    const nmLate=isEs?'🌙 Trasnoche':'🌙 Late nights';
+    posGrid.appendChild(statCard(nmLate,String(total),
+      total?'var(--ng)':'var(--cg)',isEs?'veces':'times'));
+    posGrid.appendChild(statCard(`${t('sk-without')} ${nmLate}`,pct+'%',
+      pct>=70?'var(--cg)':'var(--ng)',cleanDays+'d'));
+    posGrid.appendChild(statCard(isEs?'Mejor racha limpia':'Best clean run',best+'d',
+      'var(--cp)',nmLate,'xl',spanOf(best,end)));
+    posGrid.appendChild(statCard(isEs?'Racha limpia actual':'Current clean run',now+'d',
+      now?'var(--cg)':'var(--ng)',nmLate,'xl',now?spanOf(now,lastDay):''));
+  }
 
   // ── 7. Sleep ─────────────────────────────────────────────────────────────
   detail.appendChild(grid4(
