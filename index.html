@@ -5912,6 +5912,13 @@ function renderLogin(){
   wrap.appendChild(card);return wrap;
 }
 
+/* Where each tab was scrolled to, last time it was the one on screen. A
+   render() rebuilds #root's children but never resets the window's own
+   scroll position on its own, so a normal in-tab render leaves you exactly
+   where you were without any help — this only has to step in for an actual
+   tab switch, where the new tab's content is a different shape and the old
+   numeric offset means nothing in it. */
+let _tabScroll={plan:0,score:0};
 /* ═══ MAIN APP ═══ */
 function renderApp(){
   /* loadToday already called at boot and after save */
@@ -6033,7 +6040,17 @@ function renderApp(){
    ['score',`📊 ${t('tab-score')}`,'']].forEach(([id,label,badge])=>{
     const active=STATE.tab===id;
     const b=bt(active?'btn-ac btn-sm f1':'btn-sm f1',label+(badge?`  ${badge}`:''),()=>{
+      if(active){
+        // Already on this tab — pressed again, the same as Home: forget
+        // where you were on it, so leaving and coming back does not bring
+        // you right back down again.
+        _tabScroll[id]=0;
+        window.scrollTo(0,0);
+        return;
+      }
+      _tabScroll[STATE.tab]=window.scrollY;
       STATE.tab=id;localStorage.setItem('st_tab',id);render();
+      requestAnimationFrame(()=>window.scrollTo(0,_tabScroll[id]||0));
     });
     if(!active)b.style.cssText='background:none;border:none;color:var(--t3);flex:1';
     else b.style.flex='1';
