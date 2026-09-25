@@ -1211,7 +1211,7 @@ en:{
   'rem-subtasks':'subtasks','rem-collapse':'Hide subtasks','rem-expand':'Show subtasks',
   'rem-indent':'Make it a subtask of the one above','rem-outdent':'Lift out of its parent',
   'pomo-title':'Pomodoro','pomo-focus':'Focus','pomo-short':'Short break','pomo-long':'Long break',
-  'pomo-start':'Start','pomo-pause':'Pause','pomo-reset':'Reset','pomo-skip':'Finish',
+  'pomo-start':'Start','pomo-pause':'Pause','pomo-reset':'Reset','pomo-skip':'Skip',
   'pomo-done':'Session finished. Take a break.','pomo-break-over':'Break over. Back to it.',
   'pomo-from-timer':'from the timer today',
   'pomo-note':'Every 25 focused minutes is one 🍅, worth +{n} pts × its run — a 50-minute session reads as 2. Breaks pay nothing. The minutes themselves are paid by 💼 Work; this is paid for keeping them unbroken.',
@@ -1422,7 +1422,7 @@ es:{
   'rem-subtasks':'subtareas','rem-collapse':'Ocultar subtareas','rem-expand':'Ver subtareas',
   'rem-indent':'Volverla subtarea de la de arriba','rem-outdent':'Sacarla de su tarea madre',
   'pomo-title':'Pomodoro','pomo-focus':'Enfoque','pomo-short':'Descanso corto','pomo-long':'Descanso largo',
-  'pomo-start':'Iniciar','pomo-pause':'Pausar','pomo-reset':'Reiniciar','pomo-skip':'Terminar',
+  'pomo-start':'Iniciar','pomo-pause':'Pausar','pomo-reset':'Reiniciar','pomo-skip':'Saltar',
   'pomo-done':'Sesión terminada. Tómate un descanso.','pomo-break-over':'Se acabó el descanso. A darle.',
   'pomo-from-timer':'del timer hoy',
   'pomo-note':'Cada 25 minutos enfocados son un 🍅 y valen +{n} pts × su racha — una sesión de 50 min cuenta como 2. Los descansos no pagan. Los minutos ya te los paga 💼 Trabajo; esto te lo paga por no romperlos.',
@@ -3098,25 +3098,25 @@ function pomoReset(){
   const p=STATE.pomo;
   p.running=false;p.startedAt=0;p.elapsed=0;savePomo();
 }
-/* Ends the current leg. A focus leg finished on its own banks the minutes
-   and advances the cycle; ended early by hand it earns nothing — see below.
-   Breaks simply hand back to the next focus session either way. */
+/* Ends the current leg and always moves on to the next one — focus to
+   whichever break the cycle calls for next, either break back to focus.
+   Only the credit is conditional: a focus leg the clock finished on its own
+   banks its minutes and counts as a pomodoro; one cut short by hand (Skip)
+   still advances the cycle, the same as if it had run out, but earns
+   nothing — cancelling the work is not the same as never having moved the
+   slot forward, which is what used to leave Skip looking identical to
+   Reset on a focus leg and reading as broken. */
 function pomoFinishPhase(auto){
   const p=STATE.pomo;
   pomoRollDay();
   if(p.phase==='focus'){
-    /* Ending a focus leg early used to bank whatever fraction of it you had
-       worked — 17 of 25 minutes paid .7 of a pomodoro. Cancelling is
-       cancelling: pressed by hand, before the leg was actually done, it pays
-       nothing and does not advance the cycle, the same as Reset. Only the
-       clock finishing on its own still pays the leg in full. */
     if(auto){
       const mins=Math.max(1,p.focus);
       p.minutesToday+=mins;
       addPomodoroMinutes(mins);
-      p.doneInCycle=(p.doneInCycle+1)%Math.max(1,p.cycle);
-      p.phase=p.doneInCycle===0?'long':'short';
     }
+    p.doneInCycle=(p.doneInCycle+1)%Math.max(1,p.cycle);
+    p.phase=p.doneInCycle===0?'long':'short';
   }else{
     p.phase='focus';
   }
@@ -4693,8 +4693,9 @@ function renderPomoCard(){
   }));
   ctr.appendChild(bt('btn-ghost btn-sm',t('pomo-reset'),()=>{pomoReset();render();}));
   ctr.appendChild(bt('btn-ghost btn-sm',t('pomo-skip'),()=>{
-    // Ends the leg early. A focus leg cancelled this way earns nothing —
-    // see pomoFinishPhase — a break just hands back to focus either way.
+    // Jumps to the next leg early — see pomoFinishPhase for which one that
+    // is and why a skipped focus leg still moves the cycle on but earns
+    // nothing.
     pomoFinishPhase(false);render();
   }));
   card.appendChild(ctr);
