@@ -118,7 +118,7 @@ html,body{overflow-x:clip}
 .rowb{display:flex;align-items:center;justify-content:space-between}
 .col{display:flex;flex-direction:column}
 .gap4{gap:4px}.gap6{gap:6px}.gap8{gap:8px}.gap10{gap:10px}.gap12{gap:12px}.gap16{gap:16px}
-.f1{flex:1}.w100{width:100%}
+.f1{flex:1}.f1-desktop{flex:1}.w100{width:100%}
 .mt4{margin-top:4px}.mt6{margin-top:6px}.mt8{margin-top:8px}.mt10{margin-top:10px}.mt12{margin-top:12px}.mt16{margin-top:16px}.mt20{margin-top:20px}
 .mb4{margin-bottom:4px}.mb6{margin-bottom:6px}.mb8{margin-bottom:8px}.mb10{margin-bottom:10px}.mb12{margin-bottom:12px}.mb16{margin-bottom:16px}
 .s4{display:flex;flex-direction:column;gap:4px}
@@ -345,7 +345,7 @@ button{cursor:pointer;font-family:var(--ff);font-size:15px;font-weight:600;borde
 ::-webkit-scrollbar-thumb{background:var(--b2);border-radius:3px}
 
 @media(max-width:900px){.g4{grid-template-columns:repeat(2,1fr)}.g3{grid-template-columns:1fr}.sk-g{grid-template-columns:repeat(2,1fr)}}
-@media(max-width:580px){.g4{grid-template-columns:1fr}.g2{grid-template-columns:1fr}.xxxl{font-size:30px}.xxl{font-size:24px}}
+@media(max-width:580px){.g4{grid-template-columns:1fr}.g2{grid-template-columns:1fr}.xxxl{font-size:30px}.xxl{font-size:24px}.f1-desktop{flex:none}}
 /* One column is right for the four cards you type into. It is wrong for the
    stat tiles, which are a number and a caption each and were stacking forty
    deep — the whole reason the score tab read as a mile of scrolling on a
@@ -4703,7 +4703,7 @@ function renderPomoCard(){
   });
   arBtn.title=t('pomo-auto-title');
   ctr.appendChild(arBtn);
-  ctr.appendChild(bt(p.running?'btn-ghost btn-sm':'btn-ac btn-sm',p.running?'⏸ '+t('pomo-pause'):'▶ '+t('pomo-start'),()=>{
+  ctr.appendChild(bt(p.running?'btn-ghost btn-sm f1-desktop':'btn-ac btn-sm f1-desktop',p.running?'⏸ '+t('pomo-pause'):'▶ '+t('pomo-start'),()=>{
     // Both of these need a press to be allowed at all, and this is the press.
     unlockAudio();askToNotify();
     p.running?pomoPause():pomoStart();render();
