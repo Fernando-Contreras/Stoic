@@ -1212,6 +1212,7 @@ en:{
   'rem-indent':'Make it a subtask of the one above','rem-outdent':'Lift out of its parent',
   'pomo-title':'Pomodoro','pomo-focus':'Focus','pomo-short':'Short break','pomo-long':'Long break',
   'pomo-start':'Start','pomo-pause':'Pause','pomo-reset':'Reset','pomo-skip':'Skip',
+  'pomo-auto-title':'Auto-run: chain focus and breaks back to back with no need to press Start again',
   'pomo-done':'Session finished. Take a break.','pomo-break-over':'Break over. Back to it.',
   'pomo-from-timer':'from the timer today',
   'pomo-note':'Every 25 focused minutes is one 🍅, worth +{n} pts × its run — a 50-minute session reads as 2. Breaks pay nothing. The minutes themselves are paid by 💼 Work; this is paid for keeping them unbroken.',
@@ -1423,6 +1424,7 @@ es:{
   'rem-indent':'Volverla subtarea de la de arriba','rem-outdent':'Sacarla de su tarea madre',
   'pomo-title':'Pomodoro','pomo-focus':'Enfoque','pomo-short':'Descanso corto','pomo-long':'Descanso largo',
   'pomo-start':'Iniciar','pomo-pause':'Pausar','pomo-reset':'Reiniciar','pomo-skip':'Saltar',
+  'pomo-auto-title':'Corrido automático: encadena enfoque y descansos sin tener que darle a Iniciar otra vez',
   'pomo-done':'Sesión terminada. Tómate un descanso.','pomo-break-over':'Se acabó el descanso. A darle.',
   'pomo-from-timer':'del timer hoy',
   'pomo-note':'Cada 25 minutos enfocados son un 🍅 y valen +{n} pts × su racha — una sesión de 50 min cuenta como 2. Los descansos no pagan. Los minutos ya te los paga 💼 Trabajo; esto te lo paga por no romperlos.',
@@ -3120,7 +3122,11 @@ function pomoFinishPhase(auto){
   }else{
     p.phase='focus';
   }
-  p.running=false;p.startedAt=0;p.elapsed=0;
+  // Auto-run carries straight into the new leg instead of leaving it parked
+  // at zero — the one flag both the tick and a manual Skip go through.
+  p.running=!!p.autoRun;
+  p.startedAt=p.running?CLOCK.now():0;
+  p.elapsed=0;
   savePomo();
 }
 /* Tab 1 only ever ADDS to tab 2's pomodoro count — it can never subtract,
@@ -4685,8 +4691,19 @@ function renderPomoCard(){
   }
   card.appendChild(dots);
 
-  const ctr=dv('row gap8 mt10');
-  ctr.appendChild(bt(p.running?'btn-ghost btn-sm f1':'btn-ac btn-sm f1',p.running?'⏸ '+t('pomo-pause'):'▶ '+t('pomo-start'),()=>{
+  const ctr=dv('row gap8 mt10');ctr.style.flexWrap='wrap';
+  /* Chains phases back to back with no press in between once it is on — see
+     pomoFinishPhase, the single place that decides whether the next leg
+     starts running on its own. Kept as its own tiny toggle rather than a
+     fixed always-on behaviour, since sitting down for a long run of them is
+     a choice, not the default. Start/Pause dropped its f1 stretch to make
+     room for it in the same row instead of pushing it to its own line. */
+  const arBtn=bt(p.autoRun?'btn-ac btn-sm':'btn-ghost btn-sm','🔁',()=>{
+    p.autoRun=!p.autoRun;savePomo();render();
+  });
+  arBtn.title=t('pomo-auto-title');
+  ctr.appendChild(arBtn);
+  ctr.appendChild(bt(p.running?'btn-ghost btn-sm':'btn-ac btn-sm',p.running?'⏸ '+t('pomo-pause'):'▶ '+t('pomo-start'),()=>{
     // Both of these need a press to be allowed at all, and this is the press.
     unlockAudio();askToNotify();
     p.running?pomoPause():pomoStart();render();
