@@ -3932,6 +3932,21 @@ function renderPlanner(){
     });
     return g;
   };
+  /* A timed task due at 22:00 has nothing useful to say to you at 8am — it
+     just sits there adding to the count until its hour gets close. Hidden
+     here means exactly that and nothing more: it is still on the list under
+     "Todos" and it is never held back once it is actually overdue, only
+     while it is timed, due today, and still comfortably far off. Kept as a
+     picker rather than a fixed 4h because "comfortably far off" is not the
+     same number for everyone. The global select rule makes every <select>
+     stretch to fill its row, so width has to be forced back down to the
+     size of its own text or this one swallows the whole toolbar. */
+  const tgSel=sk('',[['0',t('view-timegate-off')],['1','1h'],['2','2h'],['3','3h'],['4','4h'],['6','6h'],['8','8h'],['12','12h']],
+    String(V.hideTimedHours??4));
+  tgSel.title=t('view-timegate-lbl');
+  tgSel.style.cssText='width:auto;border:1px solid var(--b2);border-radius:9px;padding:2px 6px;background:var(--sur2);color:var(--t3);font-size:11px';
+  tgSel.onchange=()=>{V.hideTimedHours=parseInt(tgSel.value)||0;saveView();render();};
+  ctrl.appendChild(tgSel);
   ctrl.appendChild(seg([['today',t('view-today')],['all',t('view-all')]],V.scope,v=>{
     // Either button is a way back to solid ground — neither should leave a
     // swiped-ahead peek behind it for the next visit to Today.
@@ -3968,19 +3983,6 @@ function renderPlanner(){
     sortSeg.appendChild(b);
   });
   ctrl.appendChild(sortSeg);
-  /* A timed task due at 22:00 has nothing useful to say to you at 8am — it
-     just sits there adding to the count until its hour gets close. Hidden
-     here means exactly that and nothing more: it is still on the list under
-     "Todos" and it is never held back once it is actually overdue, only
-     while it is timed, due today, and still comfortably far off. Kept as a
-     picker rather than a fixed 4h because "comfortably far off" is not the
-     same number for everyone. */
-  const tgSel=sk('',[['0',t('view-timegate-off')],['1','1h'],['2','2h'],['3','3h'],['4','4h'],['6','6h'],['8','8h'],['12','12h']],
-    String(V.hideTimedHours??4));
-  tgSel.title=t('view-timegate-lbl');
-  tgSel.style.cssText='border:1px solid var(--b2);border-radius:9px;padding:2px 4px;background:var(--sur2);color:var(--t3);font-size:11px';
-  tgSel.onchange=()=>{V.hideTimedHours=parseInt(tgSel.value)||0;saveView();render();};
-  ctrl.appendChild(tgSel);
   /* In the cross the sort does not decide the shape — the quadrants do — so
      saying "grouped under parents" there would describe a list that is not
      on screen. */
