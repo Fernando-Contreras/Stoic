@@ -1171,6 +1171,8 @@ en:{
   'sort-date-asc':'earliest first','sort-date-desc':'latest first','sort-prio':'by quadrant','sort-alpha':'alphabetical',
   'view-hidden':'later ones hidden','view-hidden-1':'later one hidden',
   'view-hidden-f':'hidden by the filter','view-hidden-f-1':'hidden by the filter',
+  'view-timegate':'hidden until closer to their time','view-timegate-1':'hidden until closer to its time',
+  'view-timegate-lbl':'Hide timed until','view-timegate-off':'Off',
   'view-flat':'flat list','view-grouped':'grouped under parents',
   'rep-none':'Does not repeat','rep-day':'Daily','rep-week':'Weekly','rep-month':'Monthly','rep-year':'Yearly',
   'rem-overdue':'overdue','rem-overdue-1':'overdue','rem-overdue-h':'Overdue','rem-open-h':'To do',
@@ -1380,6 +1382,8 @@ es:{
   'sort-date-asc':'más temprano primero','sort-date-desc':'más tarde primero','sort-prio':'por cuadrante','sort-alpha':'alfabético',
   'view-hidden':'de más adelante, ocultos','view-hidden-1':'de más adelante, oculto',
   'view-hidden-f':'ocultas por el filtro','view-hidden-f-1':'oculta por el filtro',
+  'view-timegate':'ocultos hasta acercarse su hora','view-timegate-1':'oculto hasta acercarse su hora',
+  'view-timegate-lbl':'Ocultar con hora hasta','view-timegate-off':'Sin ocultar',
   'view-flat':'lista plana','view-grouped':'agrupadas por madre',
   'rep-none':'No se repite','rep-day':'Diario','rep-week':'Semanal','rep-month':'Mensual','rep-year':'Anual',
   'rem-overdue':'atrasados','rem-overdue-1':'atrasado','rem-overdue-h':'Atrasados','rem-open-h':'Pendientes',
@@ -3964,6 +3968,19 @@ function renderPlanner(){
     sortSeg.appendChild(b);
   });
   ctrl.appendChild(sortSeg);
+  /* A timed task due at 22:00 has nothing useful to say to you at 8am — it
+     just sits there adding to the count until its hour gets close. Hidden
+     here means exactly that and nothing more: it is still on the list under
+     "Todos" and it is never held back once it is actually overdue, only
+     while it is timed, due today, and still comfortably far off. Kept as a
+     picker rather than a fixed 4h because "comfortably far off" is not the
+     same number for everyone. */
+  const tgSel=sk('',[['0',t('view-timegate-off')],['1','1h'],['2','2h'],['3','3h'],['4','4h'],['6','6h'],['8','8h'],['12','12h']],
+    String(V.hideTimedHours??4));
+  tgSel.title=t('view-timegate-lbl');
+  tgSel.style.cssText='border:1px solid var(--b2);border-radius:9px;padding:2px 4px;background:var(--sur2);color:var(--t3);font-size:11px';
+  tgSel.onchange=()=>{V.hideTimedHours=parseInt(tgSel.value)||0;saveView();render();};
+  ctrl.appendChild(tgSel);
   /* In the cross the sort does not decide the shape — the quadrants do — so
      saying "grouped under parents" there would describe a list that is not
      on screen. */
@@ -4056,7 +4073,15 @@ function renderPlanner(){
     if(!peek)return tk;
     const d=new Date(tk+'T12:00:00');d.setDate(d.getDate()+peek);return isoDate(d);
   })();
-  const passes=r=>(V.scope==='all'?true:peek?r.due===viewDate:r.due<=tk)&&passesTags(tagsOf(r));
+  /* A timed reminder due today keeps quiet until its hour is actually close.
+     Only today's own — a peeked or far-future day still shows its full
+     schedule — and only while it has not come due yet, so an overdue timed
+     task never goes missing behind this. 0 turns it off. */
+  const timeGateHrs=V.hideTimedHours??4;
+  const isTimeGated=r=>timeGateHrs>0&&!!r.time&&r.due===tk
+    &&(new Date(r.due+'T'+r.time+':00')-appNow())/3600000>timeGateHrs;
+  const scopeDatePasses=r=>(V.scope==='all'?true:peek?r.due===viewDate:r.due<=tk);
+  const passes=r=>scopeDatePasses(r)&&passesTags(tagsOf(r))&&!isTimeGated(r);
   /* Subtasks are judged by the very same rule as the rows above them. They had
      their own, older one, so a repeating subtask ticked today vanished from
      under its parent even under All — the family read 9 on the list and 13 in
@@ -4101,6 +4126,11 @@ function renderPlanner(){
   const hidden=peek>0
     ? open.filter(r=>r.due>viewDate&&passesTags(tagsOf(r))).length
     : open.length-shownIds.size;
+  /* Split out of that same tally whatever is missing purely because its hour
+     has not arrived yet, so the count next to the tag filter or "más
+     adelante" never gets padded with tasks that are neither filtered out nor
+     actually later — they are today, just not due yet. */
+  const nTimeHidden=peek>0?0:open.filter(r=>scopeDatePasses(r)&&passesTags(tagsOf(r))&&isTimeGated(r)).length;
   const card=dv('card');
   /* Swipe the card to peek a day ahead — left for tomorrow, further left for
      the day after, the same direction the calendar already uses for
@@ -4206,9 +4236,12 @@ function renderPlanner(){
        hide a row is the scope, so "later ones" was true. With one picked, most
        of what is missing is missing because of the filter — and blaming the
        dates for it sends you looking for a bug that is not there. */
-    if(hidden>0)card.appendChild(dv('xs dimmer ctr mt8',
-      F.length?`${hidden} ${hidden===1?t('view-hidden-f-1'):t('view-hidden-f')}`
-              :`${hidden} ${hidden===1?t('view-hidden-1'):t('view-hidden')}`));
+    const hiddenElse=hidden-nTimeHidden;
+    if(hiddenElse>0)card.appendChild(dv('xs dimmer ctr mt8',
+      F.length?`${hiddenElse} ${hiddenElse===1?t('view-hidden-f-1'):t('view-hidden-f')}`
+              :`${hiddenElse} ${hiddenElse===1?t('view-hidden-1'):t('view-hidden')}`));
+    if(nTimeHidden>0)card.appendChild(dv('xs dimmer ctr mt8',
+      `${nTimeHidden} ${nTimeHidden===1?t('view-timegate-1'):t('view-timegate')}`));
   }
   wrap.appendChild(card);
 
