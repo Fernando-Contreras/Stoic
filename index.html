@@ -3112,6 +3112,19 @@ function pomoElapsed(p){
   return p.running?p.elapsed+Math.floor((CLOCK.now()-p.startedAt)/1000):p.elapsed;
 }
 function pomoRemaining(p){return Math.max(0,pomoPhaseLen(p)-pomoElapsed(p));}
+/* Catch up on pomodoro phases if the app was closed. Completes any phases that
+   should have finished, up to a max of 6 hours to protect against bugs. */
+function catchUpPomodoro(){
+  const p=STATE.pomo;
+  if(!p||!p.running)return;
+  const MAX_CATCHUP=6*3600;let caught=0;
+  while(caught<MAX_CATCHUP){
+    const elapsed=pomoElapsed(p),phaseLen=pomoPhaseLen(p);
+    if(elapsed<phaseLen)break;
+    pomoFinishPhase(true);caught+=phaseLen;
+  }
+  if(caught>0)render();
+}
 /* Midnight bookkeeping, and nothing more. This used to go through savePomo,
    which stamps _ts — the field that decides which device owns the timer. So
    the first time the Plan tab was drawn on a new day, this device claimed the
@@ -9697,6 +9710,7 @@ setInterval(()=>{
   // one second, no re-render, nothing you are typing gets touched.
   syncPomoPill();
   syncPomoTitle();
+  catchUpPomodoro();
   if(p&&p.running){
     // So the context is awake when the timer expires, not asked to wake then.
     keepAudioAwake();
@@ -9743,6 +9757,8 @@ setInterval(()=>{
     render();
   }
 },1000);
+// Catch up on pomodoro when tab becomes visible again
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)catchUpPomodoro();});
 </script>
 </body>
 </html>
