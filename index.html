@@ -3842,7 +3842,7 @@ function renderPlanner(){
   // and the pomodoro's break phase — and neither read clearly.
   const right=dv('row gap8');
   right.appendChild(sbadge(dayStatus));
-  right.appendChild(sp('md mo ac w7',`${s.done}/${s.total} <span class="xs" style="opacity:.7">(${dayPct}%)</span>`));
+  const taskCount=sp('md mo ac w7',`${s.done}/${s.total}`);const pctSpan=el('span','xs');pctSpan.style.opacity='.7';pctSpan.textContent=` (${dayPct}%)`;taskCount.appendChild(pctSpan);right.appendChild(taskCount);
   sr.appendChild(right);
   sum.appendChild(sr);
   const bits=[`${s.total} ${t('tasks-lbl')}`];
