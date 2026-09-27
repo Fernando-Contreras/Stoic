@@ -3150,6 +3150,7 @@ function pomoReset(){
    Reset on a focus leg and reading as broken. */
 function pomoFinishPhase(auto){
   const p=STATE.pomo;
+  console.log(`[Finish] phase: ${p.phase}, auto: ${auto}, autoRun: ${p.autoRun}`);
   pomoRollDay();
   if(p.phase==='focus'){
     if(auto){
@@ -3175,6 +3176,7 @@ function addPomodoroMinutes(mins){
   const add=mins/POMO_UNIT;
   const now=Math.max(0,STATE.today.pomodoros||0);
   STATE.today.pomodoros=Math.round((now+add)*10)/10; // one decimal, never more
+  console.log(`[Pomo] +${add} → total: ${STATE.today.pomodoros}`, {phase: STATE.pomo.phase, autoRun: STATE.pomo.autoRun});
   markManual('pomodoros'); // the sum is the truth from here on
   commit();
 }
