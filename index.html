@@ -3842,7 +3842,7 @@ function renderPlanner(){
   // and the pomodoro's break phase — and neither read clearly.
   const right=dv('row gap8');
   right.appendChild(sbadge(dayStatus));
-  right.appendChild(sp('md mo ac w7',`${s.done}/${s.total}`));
+  right.appendChild(sp('md mo ac w7',`${s.done}/${s.total} <span class="xs" style="opacity:.7">(${dayPct}%)</span>`));
   sr.appendChild(right);
   sum.appendChild(sr);
   const bits=[`${s.total} ${t('tasks-lbl')}`];
@@ -6396,7 +6396,7 @@ function renderScoreCard(total,sc,sk_,nav){
   card.appendChild(big);
   const pct=sc.pct,R=28,circ=2*Math.PI*R,off=circ-(pct/100)*circ;
   const cr=dv('row gap12 mt10');cr.style.justifyContent='center';
-  cr.innerHTML=`<svg width="70" height="70" class="circ" viewBox="0 0 70 70"><circle cx="35" cy="35" r="${R}" stroke="#22222e" stroke-width="7" fill="none"/><circle cx="35" cy="35" r="${R}" stroke="var(--ac)" stroke-width="7" fill="none" stroke-dasharray="${circ}" stroke-dashoffset="${off}" stroke-linecap="round" style="transition:stroke-dashoffset .4s"/></svg><div><div class="xxl w7 ac mo">${pct}%</div><div class="xs dimmer">${STATE.today.completed}/${STATE.today.target} ${t('tasks-lbl')} <span class="ac">(${pct}%)</span></div></div>`;
+  cr.innerHTML=`<svg width="70" height="70" class="circ" viewBox="0 0 70 70"><circle cx="35" cy="35" r="${R}" stroke="#22222e" stroke-width="7" fill="none"/><circle cx="35" cy="35" r="${R}" stroke="var(--ac)" stroke-width="7" fill="none" stroke-dasharray="${circ}" stroke-dashoffset="${off}" stroke-linecap="round" style="transition:stroke-dashoffset .4s"/></svg><div><div class="xxl w7 ac mo">${pct}%</div><div class="xs dimmer">${STATE.today.completed}/${STATE.today.target} ${t('tasks-lbl')}</div></div>`;
   card.appendChild(cr);
   // Goals sit in this list like anything else the day paid for, so the number
   // above can be checked against the lines under it without leaving the card.
