@@ -1182,6 +1182,10 @@ en:{
   'rem-del-warn':'Delete "{t}"?','rem-del-warn-kids':'Delete "{t}" and its {n} subtask(s)?',
   'rem-tag-ph':'New tag (work, home, gym…)','rem-filter':'Filter by tag','rem-filter-clear':'clear',
   'rem-filter-all':'· must have all of them',
+  'tagmgr-open':'Rename or delete a tag everywhere','tagmgr-title':'Manage tags',
+  'tagmgr-none':'No tags yet.','tagmgr-one':'reminder','tagmgr-count':'reminders',
+  'tagmgr-rename-ask':'Rename "{tg}" to:',
+  'tagmgr-del-warn':'Remove "{tg}" from {n} reminder(s)? This only drops the tag — the reminders themselves stay.',
   'rem-subtask':'subtask','rem-subtask-ask':'Subtask of "{t}":',
   'rem-notes-ph':'Note (optional)','rem-edit':'Edit','rem-no-parent':'↳ Not a subtask',
   'rem-add-note':'Add note','rem-edit-note':'Click to edit',
@@ -1394,6 +1398,10 @@ es:{
   'rem-del-warn':'¿Borrar "{t}"?','rem-del-warn-kids':'¿Borrar "{t}" y sus {n} subtarea(s)?',
   'rem-tag-ph':'Etiqueta nueva (trabajo, casa, gym…)','rem-filter':'Filtrar por etiqueta','rem-filter-clear':'limpiar',
   'rem-filter-all':'· deben tener todas',
+  'tagmgr-open':'Renombrar o borrar una etiqueta en todos lados','tagmgr-title':'Administrar etiquetas',
+  'tagmgr-none':'Todavía no hay etiquetas.','tagmgr-one':'pendiente','tagmgr-count':'pendientes',
+  'tagmgr-rename-ask':'Renombrar "{tg}" a:',
+  'tagmgr-del-warn':'¿Quitar "{tg}" de {n} pendiente(s)? Solo se quita la etiqueta — los pendientes se quedan igual.',
   'rem-subtask':'subtarea','rem-subtask-ask':'Subtarea de "{t}":',
   'rem-notes-ph':'Nota (opcional)','rem-edit':'Editar','rem-no-parent':'↳ No es subtarea',
   'rem-add-note':'Agregar nota','rem-edit-note':'Click para editar',
@@ -2774,6 +2782,38 @@ function toggleTagFilter(tg){
   if(i>=0)f.splice(i,1); else f.push(tg);
   saveView();
 }
+/* Both walk every reminder there is, done ones and subtasks included — not
+   only whatever the current scope or filter happens to be showing — since a
+   tag is being retired or relabelled everywhere at once, not just on screen.
+   Whichever active filter named the old tag follows the rename, or drops
+   out on a delete, so the toolbar never keeps pointing at a tag that no
+   longer exists on anything. */
+function renameTagEverywhere(oldTg,newTg){
+  const nn=String(newTg||'').trim();
+  if(!nn||nn===oldTg)return 0;
+  let n=0;
+  reminders().forEach(r=>{
+    if(!hasTag(r,oldTg))return;
+    n++;
+    updateReminder(r.id,{tags:normTags(tagsOf(r).map(tg=>tg===oldTg?nn:tg))});
+  });
+  const f=STATE.view.tags;
+  if(f){const i=f.indexOf(oldTg);if(i>=0)f[i]=nn;}
+  saveView();
+  return n;
+}
+function deleteTagEverywhere(tg){
+  let n=0;
+  reminders().forEach(r=>{
+    if(!hasTag(r,tg))return;
+    n++;
+    updateReminder(r.id,{tags:tagsOf(r).filter(x=>x!==tg)});
+  });
+  const f=STATE.view.tags;
+  if(f){const i=f.indexOf(tg);if(i>=0)f.splice(i,1);}
+  saveView();
+  return n;
+}
 
 /* A tag box: type a new one, or click one you already use. Used by both the
    create form and the editor so they never drift apart. */
@@ -4011,6 +4051,13 @@ function renderPlanner(){
        list gets smaller instead of bigger and the reason has to be visible. */
     if((STATE.view.tags||[]).length>1)tagBar.appendChild(sp('xs dimmer',t('rem-filter-all')));
     if((STATE.view.tags||[]).length)tagBar.appendChild(bt('btn-icon xs','✕ '+t('rem-filter-clear'),()=>{STATE.view.tags=[];saveView();commitAndRefresh();}));
+    /* Renaming or dropping a tag used to mean opening every task that carried
+       it, one at a time. This reaches every reminder that has it — done ones
+       and subtasks included, not only what the current filter happens to show
+       — in one pass. */
+    const mgrBtn=bt('btn-icon xs','🏷️✏️',()=>{STATE.showTagMgr=true;render();});
+    mgrBtn.title=t('tagmgr-open');
+    tagBar.appendChild(mgrBtn);
   }
   /* What is still to do. A repeating task ticked today is not finished — it has
      another turn coming — so under "All", which is the view for everything
@@ -4405,7 +4452,60 @@ function renderPlanner(){
     wrap.appendChild(ov);
   }
   if(STATE.showFlags)wrap.appendChild(renderFlagsModal());
+  if(STATE.showTagMgr)wrap.appendChild(renderTagManagerModal());
   return wrap;
+}
+
+/* Every tag in one list, each with how many reminders carry it and a rename
+   or delete that reaches all of them — the thing the bulk-select bar
+   deliberately does not do, because there the selection can be a mixed bag
+   of tags and a rename or delete would have to guess which one you meant.
+   Here there is no guessing: the row is the tag. */
+function renderTagManagerModal(){
+  const close=()=>{STATE.showTagMgr=false;render();};
+  const ov=dv('fi');ov.classList.add('ovl');
+  closeOnBackdrop(ov,close);
+  const panel=dv('card');
+  panel.style.cssText='max-width:440px;width:100%;margin:auto';
+  ov.appendChild(panel);
+  const draw=()=>{
+    panel.innerHTML='';
+    const hd=dv('rowb mb10');
+    hd.appendChild(sp('ctit',t('tagmgr-title')));
+    hd.appendChild(bt('btn-icon','✕',close));
+    panel.appendChild(hd);
+    const tags=allTags();
+    if(!tags.length){
+      panel.appendChild(dv('sm dimmer ctr mt8 mb8',t('tagmgr-none')));
+      return;
+    }
+    const box=dv('s6');
+    tags.forEach(tg=>{
+      const n=reminders().filter(r=>hasTag(r,tg)).length;
+      const row=dv('row gap8');row.style.alignItems='center';
+      row.appendChild(sp('tagchip',tg));
+      const cnt=sp('xs dimmer',`${n} ${n===1?t('tagmgr-one'):t('tagmgr-count')}`);
+      cnt.style.flex='1';
+      row.appendChild(cnt);
+      row.appendChild(bt('btn-ghost btn-xs','✏️',()=>{
+        const nn=prompt(t('tagmgr-rename-ask').replace('{tg}',tg),tg);
+        if(nn==null)return;
+        const trimmed=nn.trim();
+        if(!trimmed||trimmed===tg)return;
+        renameTagEverywhere(tg,trimmed);
+        draw();
+      }));
+      row.appendChild(bt('btn-ng btn-xs','🗑',()=>{
+        if(!confirm(t('tagmgr-del-warn').replace('{tg}',tg).replace('{n}',n)))return;
+        deleteTagEverywhere(tg);
+        draw();
+      }));
+      box.appendChild(row);
+    });
+    panel.appendChild(box);
+  };
+  draw();
+  return ov;
 }
 
 /* The panel redraws itself rather than asking the whole page to. Stepping a
