@@ -1190,6 +1190,7 @@ en:{
   'rem-notes-ph':'Note (optional)','rem-edit':'Edit','rem-no-parent':'↳ Not a subtask',
   'rem-add-note':'Add note','rem-edit-note':'Click to edit',
   'rem-goal-for':'🎯 In service of','rem-goal-none':'— No goal —',
+  'wkgoal-none':'No goal scheduled',
   'goal-unlink':'Remove from this goal','goal-link-task':'Add a task to this goal',
   'goal-link-search':'Which task is a step toward it? (type to search)',
   'rem-has-kids':'This one has subtasks of its own, so it cannot become one. Two levels is the limit.',
@@ -1406,6 +1407,7 @@ es:{
   'rem-notes-ph':'Nota (opcional)','rem-edit':'Editar','rem-no-parent':'↳ No es subtarea',
   'rem-add-note':'Agregar nota','rem-edit-note':'Click para editar',
   'rem-goal-for':'🎯 Al servicio de','rem-goal-none':'— Sin meta —',
+  'wkgoal-none':'Sin meta programada',
   'goal-unlink':'Quitar de esta meta','goal-link-task':'Agregar una tarea a esta meta',
   'goal-link-search':'¿Cuál tarea es un paso hacia ella? (escribe para buscar)',
   'rem-has-kids':'Esta ya tiene subtareas, así que no puede volverse una. El límite son 2 niveles.',
@@ -3659,19 +3661,22 @@ function goalsServedBy(r){
    them is already checked off, the goal it just finished, struck through,
    rather than a plain "no weekly goal right now" that read as if the task
    had never been linked to one at all. Finishing the goal is the whole
-   point; the marker should say so, not go quiet the moment it happens. A
-   task that never had a weekly link at all stays silent — null. */
+   point; the marker should say so, not go quiet the moment it happens.
+   Once that week is over, the task still carries the link — it is a task
+   this app knows to expect a weekly goal on, it just does not have a live
+   one right now — so it gets its own flag: ⚠️ rather than 🏁, and none of
+   the old goal's name, so a name that stopped applying weeks ago cannot be
+   mistaken for the current one. A task that never had a weekly link at all
+   stays silent — null. */
 function weeklyGoalNote(r){
+  const allLinks=goalsServedBy(r).filter(g=>g.kind==='week');
+  if(!allLinks.length)return null;
   /* Same rule goalsOf('week') already uses to decide what still belongs to
      the live week: open, or closed without the week having rolled over
-     since. Without it a goal closed weeks ago never stopped being "the one
-     you just finished" — goalsServedBy pulls every weekly link a task has
-     ever carried, with nothing to age the old ones out, so a task linked
-     to a done goal from a month ago kept showing that goal struck through
-     forever, long after the week it belonged to was over. */
+     since. */
   const wkStart=periodBounds('week',todayKey()).start;
-  const links=goalsServedBy(r).filter(g=>g.kind==='week'&&(!g.doneOn||g.doneOn>=wkStart));
-  if(!links.length)return null;
+  const links=allLinks.filter(g=>!g.doneOn||g.doneOn>=wkStart);
+  if(!links.length)return{text:t('wkgoal-none'),done:false,stale:true};
   const open=links.filter(g=>!g.doneOn);
   if(open.length)return{text:open.map(g=>g.title).join(', '),done:false};
   // Every linked weekly goal is closed — show only the one closed most
@@ -3991,7 +3996,7 @@ function renderPlanner(){
         row.appendChild(ttl);
         const wkNote=weeklyGoalNote(r);
         if(wkNote!==null){
-          const suf=sp('sm dimmer','🏁 '+wkNote.text);
+          const suf=sp('sm dimmer',(wkNote.stale?'⚠️ ':'🏁 ')+wkNote.text);
           if(wkNote.done)suf.style.textDecoration='line-through';
           suf.title=t('rem-goal-for');
           row.appendChild(suf);
@@ -5142,7 +5147,7 @@ function remChip(r,tk,redraw,peeking){
     const wkNote=weeklyGoalNote(r);
     if(wkNote!==null){
       if(meta.length)m.appendChild(document.createTextNode(' · '));
-      const wk=sp('','🏁 '+wkNote.text.slice(0,28));
+      const wk=sp('',(wkNote.stale?'⚠️ ':'🏁 ')+wkNote.text.slice(0,28));
       if(wkNote.done)wk.style.textDecoration='line-through';
       m.appendChild(wk);
     }
@@ -5563,7 +5568,7 @@ function renderReminderRow(r,tk,opts){
      the clutter this is meant to avoid. Quarterly and yearly keep the chip. */
   const wkNote=weeklyGoalNote(r);
   if(wkNote!==null){
-    const suf=sp('md dimmer',' 🏁 '+wkNote.text);
+    const suf=sp('md dimmer',(wkNote.stale?' ⚠️ ':' 🏁 ')+wkNote.text);
     if(wkNote.done)suf.style.textDecoration='line-through';
     suf.title=t('rem-goal-for');
     titleLine.appendChild(suf);
