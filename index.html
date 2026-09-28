@@ -4072,16 +4072,27 @@ function renderPlanner(){
     mgrBtn.title=t('tagmgr-open');
     tagBar.appendChild(mgrBtn);
   }
+  /* A peek ahead, swiped in rather than picked from a third button — see the
+     gesture wired on the card below. Today itself still rolls overdue work
+     forward (r.due<=tk); a peeked day shows only what actually falls on it,
+     since anything older than that already belongs to Today. Computed here,
+     ahead of stillOpen below, because stillOpen needs to know whether today
+     itself is what is on screen. */
+  const peek=V.scope==='today'?Math.max(0,V.peek||0):0;
+  const viewDate=(()=>{
+    if(!peek)return tk;
+    const d=new Date(tk+'T12:00:00');d.setDate(d.getDate()+peek);return isoDate(d);
+  })();
   /* What is still to do. A repeating task ticked today is not finished — it has
-     another turn coming — so under "All", which is the view for everything
-     ahead of you, it stays on the list with the date of that next turn. Under
-     "Today" it drops out, because today's turn is done. */
-  /* One rule for what is still to do, used by the rows and by the subtasks
-     under them alike. A repeating task ticked today is not finished — it has
-     another turn coming — so under All, the view for what is ahead of you, it
-     stays on the list with the date of that next turn. Under Today it drops
-     out, because today's turn is done. */
-  const stillOpen=r=>!r.done&&(r.completedOn!==tk||(V.scope==='all'&&!!r.repeat));
+     another turn coming, already moved to its next due date — so it stays on
+     the list wherever that date actually lands: under "All", under a peeked
+     day that turns out to be it, or today itself if it repeats more than once
+     a day. Only looking at today itself drops it, because today's turn really
+     is done. A peeked day used to fall under that same drop, so a daily
+     reminder finished this morning could never be seen on tomorrow's peek
+     either — completedOn===tk stayed true right up until midnight actually
+     turned it into yesterday. */
+  const stillOpen=r=>!r.done&&(r.completedOn!==tk||peek>0||(V.scope==='all'&&!!r.repeat));
   const open=list.filter(stillOpen);
   /* A subtask is drawn under its own parent, always — a column is chosen by the
      parent's date, and the subtask keeps and shows its own. Nesting is
@@ -4132,15 +4143,6 @@ function renderPlanner(){
     'alpha':(a,b)=>(a.title||'').localeCompare(b.title||'',undefined,{numeric:true,sensitivity:'base'}),
   }[V.sort]||((a,b)=>a.due.localeCompare(b.due));
   const F=STATE.view.tags||[];
-  /* A peek ahead, swiped in rather than picked from a third button — see the
-     gesture wired on the card below. Today itself still rolls overdue work
-     forward (r.due<=tk); a peeked day shows only what actually falls on it,
-     since anything older than that already belongs to Today. */
-  const peek=V.scope==='today'?Math.max(0,V.peek||0):0;
-  const viewDate=(()=>{
-    if(!peek)return tk;
-    const d=new Date(tk+'T12:00:00');d.setDate(d.getDate()+peek);return isoDate(d);
-  })();
   /* A timed reminder due today keeps quiet until its hour is actually close.
      Only today's own — a peeked or far-future day still shows its full
      schedule — and only while it has not come due yet, so an overdue timed
