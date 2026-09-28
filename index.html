@@ -3662,7 +3662,15 @@ function goalsServedBy(r){
    point; the marker should say so, not go quiet the moment it happens. A
    task that never had a weekly link at all stays silent — null. */
 function weeklyGoalNote(r){
-  const links=goalsServedBy(r).filter(g=>g.kind==='week');
+  /* Same rule goalsOf('week') already uses to decide what still belongs to
+     the live week: open, or closed without the week having rolled over
+     since. Without it a goal closed weeks ago never stopped being "the one
+     you just finished" — goalsServedBy pulls every weekly link a task has
+     ever carried, with nothing to age the old ones out, so a task linked
+     to a done goal from a month ago kept showing that goal struck through
+     forever, long after the week it belonged to was over. */
+  const wkStart=periodBounds('week',todayKey()).start;
+  const links=goalsServedBy(r).filter(g=>g.kind==='week'&&(!g.doneOn||g.doneOn>=wkStart));
   if(!links.length)return null;
   const open=links.filter(g=>!g.doneOn);
   if(open.length)return{text:open.map(g=>g.title).join(', '),done:false};
