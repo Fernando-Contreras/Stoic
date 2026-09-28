@@ -4100,18 +4100,24 @@ function renderPlanner(){
      overdue, so nothing has to be spelled out in words. */
   // kidsFor decides which subtasks a row is allowed to show; the filters run
   // through it so nothing can ride in on its parent's ticket.
-  function fillCard(card,tops,kidsFor){
+  /* `peeking` defaults to false rather than closing over the outer peek —
+     this same function draws the Done-today list further down, reusing the
+     to-do list's shape for a different question ("what did I finish"),
+     where a row is always about today regardless of which day the to-do
+     list above it happens to be peeking at. Only the to-do list's own call
+     passes the real peek state. */
+  function fillCard(card,tops,kidsFor,peeking){
     if(!tops.length){card.appendChild(dv('xs dimmer ctr','—'));return;}
     const box=dv('s6');
     tops.forEach((p,i)=>{
       const kids=kidsFor(p);
       // In a flat list "the row above" is not a parent candidate, so the
       // indent arrow is left out rather than nesting things at random.
-      box.appendChild(renderReminderRow(p,tk,{prevTop:V.flat?null:(i>0?tops[i-1].id:null),kids:kids.length}));
+      box.appendChild(renderReminderRow(p,tk,{prevTop:V.flat?null:(i>0?tops[i-1].id:null),kids:kids.length,peeking:!!peeking}));
       if(kids.length&&!isCollapsed(p.id)){
         kids.forEach(c=>{
           const w=dv('rem-sub');
-          w.appendChild(renderReminderRow(c,tk,{prevTop:p.id}));
+          w.appendChild(renderReminderRow(c,tk,{prevTop:p.id,peeking:!!peeking}));
           box.appendChild(w);
         });
       }
@@ -4299,9 +4305,9 @@ function renderPlanner(){
     const grid=lay==='grid'&&tops.length;
     const quad=lay==='quad'&&tops.length;
     if(STATE.selecting)card.appendChild(renderBulkBar((grid||quad)?tops.map(r=>r.id):[...shownIds]));
-    if(quad)card.appendChild(renderQuadrants(tops,tk));
-    else if(grid)card.appendChild(renderCompactGrid(tops,tk));
-    else fillCard(card,tops,kidsFor);
+    if(quad)card.appendChild(renderQuadrants(tops,tk,null,peek>0));
+    else if(grid)card.appendChild(renderCompactGrid(tops,tk,null,peek>0));
+    else fillCard(card,tops,kidsFor,peek>0);
     /* What is doing the hiding. With no tag picked, the only thing that can
        hide a row is the scope, so "later ones" was true. With one picked, most
        of what is missing is missing because of the filter — and blaming the
@@ -5035,10 +5041,10 @@ function renderReminderEditor(r){
    the whole of each one to find one of them is the wrong shape: a long column
    of paragraphs you scroll past. Here it is names, in a grid, small enough to
    take in at once — and any of them opens in full with a click. */
-function renderCompactGrid(items,tk,redraw){
+function renderCompactGrid(items,tk,redraw,peeking){
   const rd=redraw||render;
   const g=dv('rem-grid');
-  items.forEach(r=>g.appendChild(remChip(r,tk,rd)));
+  items.forEach(r=>g.appendChild(remChip(r,tk,rd,peeking)));
   return g;
 }
 
@@ -5046,11 +5052,13 @@ function renderCompactGrid(items,tk,redraw){
    chips in two different arrangements, so they are built in one place — a
    tick box that ticks, a name that opens the task in full, and the few marks
    that say what kind of thing it is. */
-function remChip(r,tk,redraw){
+function remChip(r,tk,redraw,peeking){
   const rd=redraw||render;
   {
     const late=r.due<tk&&r.completedOn!==tk;
-    const doneToday=r.completedOn===tk;
+    // Same reasoning as renderReminderRow: a chip drawn for a peeked future
+    // day is showing that day's own turn, not today's already-finished one.
+    const doneToday=r.completedOn===tk&&!peeking;
     /* How many are still inside — the live steps, the same count the list view
        and the family window show, so grid and list never disagree. Steps
        filtered out by a tag or the scope still count; only being finished and
@@ -5121,7 +5129,7 @@ function remChip(r,tk,redraw){
    before its name is. Each box says what it is asking of you rather than
    just naming itself: the point of sorting into 4 is to notice how much of
    the week lives in a box whose instruction is "postpone it". */
-function renderQuadrants(items,tk,redraw){
+function renderQuadrants(items,tk,redraw,peeking){
   const rd=redraw||render;
   const g=dv('quad-grid');
   [1,2,3,4].forEach(q=>{
@@ -5137,7 +5145,7 @@ function renderQuadrants(items,tk,redraw){
     h.appendChild(sp('xs dimmer mo',String(mine.length)));
     cell.appendChild(h);
     cell.appendChild(dv('xs dimmer quad-do',t('quad-'+q+'-do')));
-    mine.forEach(r=>cell.appendChild(remChip(r,tk,rd)));
+    mine.forEach(r=>cell.appendChild(remChip(r,tk,rd,peeking)));
     /* The empty part of a box is the natural place to say "one more of
        these". Clicking it opens the add form with this quadrant already
        chosen — you answered the question by choosing where you clicked.
@@ -5165,7 +5173,7 @@ function renderQuadrants(items,tk,redraw){
   uh.appendChild(sp('xs dimmer mo',String(rest.length)));
   un.appendChild(uh);
   const ug=dv('rem-grid');
-  rest.forEach(r=>ug.appendChild(remChip(r,tk,rd)));
+  rest.forEach(r=>ug.appendChild(remChip(r,tk,rd,peeking)));
   un.appendChild(ug);
   wrap.appendChild(un);
   return wrap;
@@ -5430,7 +5438,13 @@ function renderReminderRow(r,tk,opts){
      inside the one-task overlay it is only the overlay, which otherwise tore
      itself down and built itself again on every tick. */
   const rd=opts.redraw||render;
-  const doneToday=r.completedOn===tk;
+  /* A row drawn under a peeked future day is never "done today" even when
+     r.completedOn happens to equal today's key — that field only records
+     when it was last finished, and a repeating reminder's due date has
+     already moved on to the day being peeked at. It is that future turn
+     sitting here unfinished, not today's turn a second time, so the
+     checkbox and the strikethrough must not read it as checked. */
+  const doneToday=r.completedOn===tk&&!opts.peeking;
   const late=!doneToday&&r.due<tk;
   const kids=opts.kids||0;
   const row=dv('row gap10 rem-row');
