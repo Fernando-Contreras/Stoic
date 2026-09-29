@@ -1218,6 +1218,8 @@ en:{
   'pomo-title':'Pomodoro','pomo-focus':'Focus','pomo-short':'Short break','pomo-long':'Long break',
   'pomo-start':'Start','pomo-pause':'Pause','pomo-reset':'Reset','pomo-skip':'Skip',
   'pomo-auto-title':'Auto-run: chain focus and breaks back to back with no need to press Start again',
+  'pomo-auto-cap-title':'Turn auto-run back off by itself after this long, so it never runs unwatched all night',
+  'pomo-auto-cap-off':'No limit',
   'pomo-done':'Session finished. Take a break.','pomo-break-over':'Break over. Back to it.',
   'pomo-from-timer':'from the timer today',
   'pomo-note':'Every 25 focused minutes is one 🍅, worth +{n} pts × its run — a 50-minute session reads as 2. Breaks pay nothing. The minutes themselves are paid by 💼 Work; this is paid for keeping them unbroken.',
@@ -1435,6 +1437,8 @@ es:{
   'pomo-title':'Pomodoro','pomo-focus':'Enfoque','pomo-short':'Descanso corto','pomo-long':'Descanso largo',
   'pomo-start':'Iniciar','pomo-pause':'Pausar','pomo-reset':'Reiniciar','pomo-skip':'Saltar',
   'pomo-auto-title':'Corrido automático: encadena enfoque y descansos sin tener que darle a Iniciar otra vez',
+  'pomo-auto-cap-title':'Apaga el corrido automático solo después de este tiempo, para que nunca corra toda la noche sin que nadie lo vea',
+  'pomo-auto-cap-off':'Sin límite',
   'pomo-done':'Sesión terminada. Tómate un descanso.','pomo-break-over':'Se acabó el descanso. A darle.',
   'pomo-from-timer':'del timer hoy',
   'pomo-note':'Cada 25 minutos enfocados son un 🍅 y valen +{n} pts × su racha — una sesión de 50 min cuenta como 2. Los descansos no pagan. Los minutos ya te los paga 💼 Trabajo; esto te lo paga por no romperlos.',
@@ -3203,8 +3207,22 @@ function pomoFinishPhase(auto){
   }else{
     p.phase='focus';
   }
-  // Auto-run carries straight into the new leg instead of leaving it parked
-  // at zero — the one flag both the tick and a manual Skip go through.
+  /* Auto-run carries straight into the new leg instead of leaving it parked
+     at zero — the one flag both the tick and a manual Skip go through — but
+     only for so long. Left running overnight with nobody there to notice,
+     it silently banked 24 "pomodoros" made of nothing but sleep. A real cap
+     is a wall-clock one, not a focused-minutes one: the point is not to
+     limit how much gets credited, it is that nobody genuinely runs pomodoro
+     after pomodoro for hours with no one there to hear the timer land, so
+     past that stretch of real time this is almost certainly not being
+     watched. Turns the toggle itself off rather than just pausing, so
+     coming back to it is a decision, not a press it happens to already be
+     armed for. */
+  if(p.autoRun&&!p.autoRunSince)p.autoRunSince=CLOCK.now(); // safety net for a state saved before this existed
+  const capH=p.autoRunCapHours??2;
+  if(p.autoRun&&capH>0&&(CLOCK.now()-p.autoRunSince)>=capH*3600000){
+    p.autoRun=false;
+  }
   p.running=!!p.autoRun;
   p.startedAt=p.running?CLOCK.now():0;
   p.elapsed=0;
@@ -4859,10 +4877,26 @@ function renderPomoCard(){
      a choice, not the default. Start/Pause dropped its f1 stretch to make
      room for it in the same row instead of pushing it to its own line. */
   const arBtn=bt(p.autoRun?'btn-ac btn-sm':'btn-ghost btn-sm','🔁',()=>{
-    p.autoRun=!p.autoRun;savePomo();render();
+    p.autoRun=!p.autoRun;
+    // The safety cap counts from the moment it is actually turned on, not
+    // from whenever it happened to be armed before — otherwise re-enabling
+    // it after it had already run for an hour would only buy back whatever
+    // was left of the earlier cap instead of a genuine fresh stretch.
+    if(p.autoRun)p.autoRunSince=CLOCK.now();
+    savePomo();render();
   });
   arBtn.title=t('pomo-auto-title');
   ctr.appendChild(arBtn);
+  /* How long auto-run is allowed to carry on completely unwatched before it
+     turns itself back off — see pomoFinishPhase. A width-only select, same
+     trick as the hide-timed-reminders picker: the global select{width:100%}
+     rule would otherwise stretch it across the whole row. */
+  const capSel=sk('',[['0',t('pomo-auto-cap-off')],['1','1h'],['2','2h'],['3','3h'],['4','4h'],['6','6h']],
+    String(p.autoRunCapHours??2));
+  capSel.title=t('pomo-auto-cap-title');
+  capSel.style.cssText='width:auto;border:1px solid var(--b2);border-radius:9px;padding:2px 6px;background:var(--sur2);color:var(--t3);font-size:11px';
+  capSel.onchange=()=>{p.autoRunCapHours=parseInt(capSel.value)||0;savePomo();render();};
+  ctr.appendChild(capSel);
   ctr.appendChild(bt(p.running?'btn-ghost btn-sm f1-desktop':'btn-ac btn-sm f1-desktop',p.running?'⏸ '+t('pomo-pause'):'▶ '+t('pomo-start'),()=>{
     // Both of these need a press to be allowed at all, and this is the press.
     unlockAudio();askToNotify();
