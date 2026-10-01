@@ -6214,7 +6214,15 @@ function renderApp(){
      how its multipliers were tuned. Browsing an old month is free: the
      arithmetic per day never changed, only which stretch of days is being
      added up — see CALC.rangeTotal. */
-  if(!STATE.scoreYM)STATE.scoreYM={y:(new Date(tk)).getFullYear(),m:(new Date(tk)).getMonth()};
+  /* tk is a bare date string ("2026-10-01"), and new Date() on one of those
+     parses it as UTC midnight — read back through getFullYear()/getMonth()
+     in any timezone behind UTC (Mexico among them), UTC midnight on the 1st
+     is still the evening of the 30th locally, so this was quietly
+     initialising the score tab to LAST month on every fresh load, not just
+     once today had actually rolled over. nowD two lines down already parses
+     tk the safe way the rest of the file uses everywhere else; this is the
+     one spot that had not been. */
+  if(!STATE.scoreYM){const d=new Date(tk+'T12:00:00');STATE.scoreYM={y:d.getFullYear(),m:d.getMonth()};}
   const scY=STATE.scoreYM.y,scM=STATE.scoreYM.m;
   const monStart=isoDate(new Date(scY,scM,1));
   const monEnd=isoDate(new Date(scY,scM+1,0));
