@@ -9789,6 +9789,52 @@ let _ppQueued=false;
 
 // Start clock ticker once (not inside renderApp to prevent accumulation)
 let _lastDay=todayKey();
+/* Pulled out of the per-second tick so it can also run the instant the tab
+   comes back to the front — a backgrounded phone can have its JS timers
+   throttled or frozen outright for as long as it is out of sight, same
+   trouble catchUpPomodoro has on its own. Waiting on the ordinary tick to
+   get around to noticing the day had changed meant the score tab could sit
+   showing last month for however long it took the browser to let a
+   setInterval fire again, which on some phones is "not until you touch the
+   screen" — reading as "still broken" well after the fix that was meant to
+   catch exactly this had already shipped. */
+function checkDayRollover(){
+  const nd=todayKey();
+  if(nd===_lastDay)return;
+  const oldDay=_lastDay;
+  _lastDay=nd;
+  /* The score tab's big number follows whichever month you last browsed
+     to, which used to mean literally forever: nothing ever moved it off
+     September once the page had been open since September, so October
+     arriving read as the score tab being stuck a month behind. Only
+     nudged forward here when it was actually still following today —
+     browsed off to some other month on purpose, it is left alone, the
+     same as if you had scrolled the calendar on your phone to check an
+     old month and did not want today's rollover to scroll it back. */
+  if(STATE.scoreYM){
+    const od=new Date(oldDay+'T12:00:00');
+    if(STATE.scoreYM.y===od.getFullYear()&&STATE.scoreYM.m===od.getMonth()){
+      const newD=new Date(nd+'T12:00:00');
+      STATE.scoreYM={y:newD.getFullYear(),m:newD.getMonth()};
+    }
+  }
+  // New day — save yesterday, reset today, then render
+  const sk=CALC.streaks(STATE.history,STATE.today);
+  upsertHist(CALC.buildEntry(STATE.today,sk,STATE.today._date||nd),STATE.today._date||nd);
+  // Reset today to zero
+  STATE.today={
+    completed:0,target:0,morningCompleted:false,flagCompleted:false,
+    pomodoros:0,penalties:[],
+    sleep:{sleepDuration:0,napDuration:0,sleptEarly:false,earlyBedStreak:STATE.today.sleep?.earlyBedStreak||0},
+    work:{workDuration:0},_date:nd,_ts:CLOCK.now()
+  };
+  S.set(K.TODAY,STATE.today);
+  S.set(K.HIST,STATE.history);
+  SB.push(STATE.history,STATE.today,STATE.diary,STATE.streakOverrides).catch(()=>{});
+  // Auto-save daily backup at midnight
+  SB.saveBackup(STATE.history,STATE.today,STATE.diary,STATE.streakOverrides).catch(()=>{});
+  render();
+}
 setInterval(()=>{
   const cl=document.getElementById('clk');
   if(cl)cl.textContent=new Date().toLocaleTimeString(STATE.lang==='es'?'es-MX':'en-US',{timeZone:appTZ(),hour:'2-digit',minute:'2-digit',second:'2-digit'});
@@ -9827,45 +9873,16 @@ setInterval(()=>{
       if(!STATE.showAddForm&&!document.querySelector('.ovl'))render();
     }
   }
-  const nd=todayKey();
-  if(nd!==_lastDay){
-    const oldDay=_lastDay;
-    _lastDay=nd;
-    /* The score tab's big number follows whichever month you last browsed
-       to, which used to mean literally forever: nothing ever moved it off
-       September once the page had been open since September, so October
-       arriving read as the score tab being stuck a month behind. Only
-       nudged forward here when it was actually still following today —
-       browsed off to some other month on purpose, it is left alone, the
-       same as if you had scrolled the calendar on your phone to check an
-       old month and did not want today's rollover to scroll it back. */
-    if(STATE.scoreYM){
-      const od=new Date(oldDay+'T12:00:00');
-      if(STATE.scoreYM.y===od.getFullYear()&&STATE.scoreYM.m===od.getMonth()){
-        const newD=new Date(nd+'T12:00:00');
-        STATE.scoreYM={y:newD.getFullYear(),m:newD.getMonth()};
-      }
-    }
-    // New day — save yesterday, reset today, then render
-    const sk=CALC.streaks(STATE.history,STATE.today);
-    upsertHist(CALC.buildEntry(STATE.today,sk,STATE.today._date||nd),STATE.today._date||nd);
-    // Reset today to zero
-    STATE.today={
-      completed:0,target:0,morningCompleted:false,flagCompleted:false,
-      pomodoros:0,penalties:[],
-      sleep:{sleepDuration:0,napDuration:0,sleptEarly:false,earlyBedStreak:STATE.today.sleep?.earlyBedStreak||0},
-      work:{workDuration:0},_date:nd,_ts:CLOCK.now()
-    };
-    S.set(K.TODAY,STATE.today);
-    S.set(K.HIST,STATE.history);
-    SB.push(STATE.history,STATE.today,STATE.diary,STATE.streakOverrides).catch(()=>{});
-    // Auto-save daily backup at midnight
-    SB.saveBackup(STATE.history,STATE.today,STATE.diary,STATE.streakOverrides).catch(()=>{});
-    render();
-  }
+  checkDayRollover();
 },1000);
-// Catch up on pomodoro when tab becomes visible again
-document.addEventListener('visibilitychange',()=>{if(!document.hidden)catchUpPomodoro();});
+// Catch up on pomodoro, and on a rolled-over day/month, when the tab comes
+// back to the front — a backgrounded phone can leave the 1s ticker stalled
+// well past either moment actually happening.
+document.addEventListener('visibilitychange',()=>{
+  if(document.hidden)return;
+  catchUpPomodoro();
+  checkDayRollover();
+});
 </script>
 </body>
 </html>
