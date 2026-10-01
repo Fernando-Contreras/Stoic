@@ -9829,7 +9829,23 @@ setInterval(()=>{
   }
   const nd=todayKey();
   if(nd!==_lastDay){
+    const oldDay=_lastDay;
     _lastDay=nd;
+    /* The score tab's big number follows whichever month you last browsed
+       to, which used to mean literally forever: nothing ever moved it off
+       September once the page had been open since September, so October
+       arriving read as the score tab being stuck a month behind. Only
+       nudged forward here when it was actually still following today —
+       browsed off to some other month on purpose, it is left alone, the
+       same as if you had scrolled the calendar on your phone to check an
+       old month and did not want today's rollover to scroll it back. */
+    if(STATE.scoreYM){
+      const od=new Date(oldDay+'T12:00:00');
+      if(STATE.scoreYM.y===od.getFullYear()&&STATE.scoreYM.m===od.getMonth()){
+        const newD=new Date(nd+'T12:00:00');
+        STATE.scoreYM={y:newD.getFullYear(),m:newD.getMonth()};
+      }
+    }
     // New day — save yesterday, reset today, then render
     const sk=CALC.streaks(STATE.history,STATE.today);
     upsertHist(CALC.buildEntry(STATE.today,sk,STATE.today._date||nd),STATE.today._date||nd);
