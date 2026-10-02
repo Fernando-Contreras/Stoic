@@ -6232,9 +6232,12 @@ function renderApp(){
      month is the days and nothing else. Adding them again here is what would
      double-count them. */
   const total=CALC.rangeTotal(STATE.history,monStart,monEnd)+(isCurMonth?sc.total:0);
+  const prevM=scM===0?11:scM-1,prevY=scM===0?scY-1:scY;
+  const prevMonStart=isoDate(new Date(prevY,prevM,1)),prevMonEnd=isoDate(new Date(prevY,prevM+1,0));
+  const prevTotal=CALC.rangeTotal(STATE.history,prevMonStart,prevMonEnd);
   const monthLabel=capFirst(new Date(scY,scM,1).toLocaleDateString(STATE.lang==='es'?'es-MX':'en-US',{month:'long',year:'numeric'}));
   const scoreNav={
-    label:monthLabel,isCurMonth,
+    label:monthLabel,isCurMonth,prevTotal,
     onPrev:()=>{let m=scM-1,y=scY;if(m<0){m=11;y--;}STATE.scoreYM={y,m};render();},
     onNext:()=>{if(isCurMonth)return;let m=scM+1,y=scY;if(m>11){m=0;y++;}STATE.scoreYM={y,m};render();}
   };
@@ -6488,7 +6491,7 @@ function renderScoreCard(total,sc,sk_,nav){
      part of, which is exactly the double-count rangeTotal's caller avoids. */
   const sub=nav.isCurMonth
     ?`${t('today-lbl')}: <span class="ac w7">${sc.total>=0?'+':''}${sc.total}</span>`
-    :t('score-past-month');
+    :(nav.prevTotal>0?(total>nav.prevTotal?'+':'')+(Math.round((total-nav.prevTotal)/nav.prevTotal*100))+'% '+(STATE.lang==='es'?(total>nav.prevTotal?'mayor que el mes pasado':'menor que el mes pasado'):(total>nav.prevTotal?'higher than last month':'lower than last month')):t('score-past-month'));
   big.innerHTML=`<div class="xxxl w8 ac mo">${total>=0?'':'−'}${Math.abs(total).toLocaleString()}</div><div class="sm dim mt4">${sub}</div>`;
   card.appendChild(big);
   const pct=sc.pct,R=28,circ=2*Math.PI*R,off=circ-(pct/100)*circ;
@@ -8087,8 +8090,12 @@ function renderStats(total,sc){
   const totalProcMin=STATE.history.reduce((s,d)=>s+(d.penalties?.filter(p=>p.type==='internet').reduce((a,p)=>a+(p.count||p.details?.minutes||0),0)||0),0);
 
   // Sleep
-  const totalSleepMin=STATE.history.reduce((s,d)=>s+(d.sleepDuration||0),0)+(STATE.today.sleep?.sleepDuration||0);
-  const avgSleepMin=totalTracked>0?Math.round(STATE.history.filter(d=>!d._gap).reduce((s,d)=>s+(d.sleepDuration||0),0)/totalTracked):0;
+  /* Naps are sleep. The score already pays them as sleep (see liveParts), but
+     these two totals only read sleepDuration, so a nap counted toward points
+     and toward its own Naps card yet vanished from total and average sleep. */
+  const sleepOf=d=>(d.sleepDuration||0)+(d.napDuration||0);
+  const totalSleepMin=STATE.history.reduce((s,d)=>s+sleepOf(d),0)+sleepOf(STATE.today.sleep||{});
+  const avgSleepMin=totalTracked>0?Math.round(STATE.history.filter(d=>!d._gap).reduce((s,d)=>s+sleepOf(d),0)/totalTracked):0;
   const earlyNights=STATE.history.filter(d=>d.sleptEarly).length;
   const lateNights=STATE.history.filter(d=>d.sleptLate).length;
 
@@ -8650,7 +8657,7 @@ function renderStats(total,sc){
     if(a>bestDowAvg){bestDowAvg=a;bestDow=k;}
     if(a<worstDowAvg){worstDowAvg=a;worstDow=k;}
   });
-  const totalNaps=STATE.history.reduce((s,d)=>s+(d.napDuration||0),0);
+  const totalNaps=STATE.history.reduce((s,d)=>s+(d.napDuration||0),0)+(STATE.today.sleep?.napDuration||0);
   const goalsDone=goals().filter(g=>g.doneOn).length;
   detail.appendChild(grid4(
     statCard(isEs?'Mejor día por puntos':'Best weekday by points',bestDow>=0?dowNames[bestDow]:'—','var(--cg)',
