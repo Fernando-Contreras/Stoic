@@ -8096,6 +8096,16 @@ function renderStats(total,sc){
   const sleepOf=d=>(d.sleepDuration||0)+(d.napDuration||0);
   const totalSleepMin=STATE.history.reduce((s,d)=>s+sleepOf(d),0)+sleepOf(STATE.today.sleep||{});
   const avgSleepMin=totalTracked>0?Math.round(STATE.history.filter(d=>!d._gap).reduce((s,d)=>s+sleepOf(d),0)/totalTracked):0;
+  /* The same sleep three ways, so none of them has to pretend to be another:
+     the night alone, naps alone, and both together. "Per night" only ever
+     means the night — folding naps into it made an average that was neither
+     a night nor a day. */
+  const sleepDays=STATE.history.filter(d=>!d._gap);
+  const totalNightMin=STATE.history.reduce((s,d)=>s+(d.sleepDuration||0),0)+(STATE.today.sleep?.sleepDuration||0);
+  const avgNightMin=totalTracked>0?Math.round(sleepDays.reduce((s,d)=>s+(d.sleepDuration||0),0)/totalTracked):0;
+  const totalNapMin=STATE.history.reduce((s,d)=>s+(d.napDuration||0),0)+(STATE.today.sleep?.napDuration||0);
+  const napDays=sleepDays.filter(d=>(d.napDuration||0)>0).length;
+  const avgNapMin=napDays>0?Math.round(sleepDays.reduce((s,d)=>s+(d.napDuration||0),0)/napDays):0;
   const earlyNights=STATE.history.filter(d=>d.sleptEarly).length;
   const lateNights=STATE.history.filter(d=>d.sleptLate).length;
 
@@ -8606,11 +8616,18 @@ function renderStats(total,sc){
   }
 
   // ── 7. Sleep ─────────────────────────────────────────────────────────────
+  // Row 1: the night. Row 2: naps, and everything together.
   detail.appendChild(grid4(
-    statCard(t('sleep-total'),fmtDur(totalSleepMin),'var(--ac)',null),
-    statCard(t('avg-sleep'),fmtDur(avgSleepMin),avgSleepMin>=420?'var(--cg)':'var(--ng)',isEs?'por noche':'per night'),
+    statCard(isEs?'Sueño de noche':'Night sleep',fmtDur(totalNightMin),'var(--ac)',null),
+    statCard(isEs?'Promedio de noche':'Avg night',fmtDur(avgNightMin),avgNightMin>=420?'var(--cg)':'var(--ng)',isEs?'por noche':'per night'),
     statCard(t('early-nights'),earlyNights+'d','var(--cg)',null),
     statCard(t('late-nights-lbl'),lateNights+'d','var(--ng)',null)
+  ));
+  detail.appendChild(grid4(
+    statCard(isEs?'Siestas':'Naps',fmtDur(totalNapMin),'var(--ac)',napDays+(isEs?(napDays===1?' día con siesta':' días con siesta'):(napDays===1?' day with a nap':' days with a nap'))),
+    statCard(isEs?'Promedio de siesta':'Avg nap',fmtDur(avgNapMin),'var(--ac)',isEs?'por día con siesta':'per nap day'),
+    statCard(t('sleep-total'),fmtDur(totalSleepMin),'var(--ac)',isEs?'noche + siestas':'night + naps'),
+    statCard(t('avg-sleep'),fmtDur(avgSleepMin),avgSleepMin>=420?'var(--cg)':'var(--ng)',isEs?'por día, con siestas':'per day, naps included')
   ));
 
   // ── 7b. More of the same day, from other angles ──────────────────────────
@@ -8657,7 +8674,6 @@ function renderStats(total,sc){
     if(a>bestDowAvg){bestDowAvg=a;bestDow=k;}
     if(a<worstDowAvg){worstDowAvg=a;worstDow=k;}
   });
-  const totalNaps=STATE.history.reduce((s,d)=>s+(d.napDuration||0),0)+(STATE.today.sleep?.napDuration||0);
   const goalsDone=goals().filter(g=>g.doneOn).length;
   detail.appendChild(grid4(
     statCard(isEs?'Mejor día por puntos':'Best weekday by points',bestDow>=0?dowNames[bestDow]:'—','var(--cg)',
@@ -8666,7 +8682,8 @@ function renderStats(total,sc){
     statCard(isEs?'Peor día por puntos':'Worst weekday by points',worstDow>=0?dowNames[worstDow]:'—','var(--ng)',
       worstDow>=0?'⌀ '+Math.round(worstDowAvg):null,'xl',
       worstDow>=0?(isEs?'Puntos del día, promediados sobre todos tus '+dowFull[worstDow]:'Points for the day, averaged across every '+dowFull[worstDow]):''),
-    statCard(isEs?'Siestas':'Naps',fmtDur(totalNaps),'var(--ac)',null),
+    statCard(isEs?'Días con siesta':'Days with a nap',napDays+'d','var(--ac)',
+      totalTracked>0?Math.round(napDays/totalTracked*100)+'%':null),
     statCard(isEs?'Metas logradas':'Goals achieved',String(goalsDone),'var(--ac)',
       goalsTotal()?'+'+goalsTotal().toLocaleString():null)
   ));
