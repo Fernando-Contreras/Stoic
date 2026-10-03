@@ -5853,7 +5853,20 @@ function renderAddModal(){
 }
 
 /* ═══ RENDER ═══ */
+/* Work logged implies pomodoros: 25 minutes of it is one, by the same unit
+   the timer uses. The Work card applies this when you press Set, but the
+   count can fall behind afterwards by other routes — a sync landing an older
+   copy of the day, the history editor, a reset of the count — and a day
+   reading 5h worked and 0 pomodoros contradicts itself. So it is enforced on
+   every draw, and only ever raises the count, never lowers one already
+   higher. */
+function enforcePomodoroFloor(){
+  const td=STATE.today;if(!td)return;
+  const minPoms=Math.floor(((td.work&&td.work.workDuration)||0)/POMO_UNIT);
+  if((td.pomodoros||0)<minPoms){td.pomodoros=minPoms;S.set(K.TODAY,td);}
+}
 function render(){
+  enforcePomodoroFloor();
   /* A dirty, unsaved note is written before the DOM under it is torn down.
      Its own 600ms debounce would normally catch it, but render() can be
      called for reasons that have nothing to do with the diary at all — a
