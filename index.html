@@ -1091,7 +1091,7 @@ en:{
   'sel-mode':'Select several','sel-count':'selected','sel-one':'selected','sel-all':'All',
   'sel-date':'Move them to this date','sel-prio':'Quadrant…','sel-flag':'Flag','sel-unflag':'Unflag','sel-del':'Delete',
   'sel-del-warn':'Delete {n} tasks? They go to the bin and can be put back.',
-  'sel-morning':'Morning','sel-unmorning':'Not morning','sel-done':'Complete','sel-undone':'Mark as not done','sel-repeat':'🔁 Repeat…','sel-undo':'Undo',
+  'sel-morning':'Morning','sel-unmorning':'Not morning','sel-done':'Complete','sel-undone':'Mark as not done','sel-repeat':'🔁 Repeat…','sel-repeat-done':'{r} applied to {n}','sel-undo':'Undo',
   'sel-nest':'Nest under…','sel-nest-ask':'Nest them under which task? Type a few letters of its name:',
   'sel-nest-none':'No task found matching {q}.','sel-nest-some':'{n} could not be nested: a task with subtasks of its own cannot become one.',
   'sel-tag-add':'+ tag','sel-goal-add':'🎯 In service of…',
@@ -1315,7 +1315,7 @@ es:{
   'sel-mode':'Seleccionar varias','sel-count':'seleccionadas','sel-one':'seleccionada','sel-all':'Todas',
   'sel-date':'Moverlas a esta fecha','sel-prio':'Cuadrante…','sel-flag':'Poner bandera','sel-unflag':'Quitar bandera','sel-del':'Eliminar',
   'sel-del-warn':'¿Eliminar {n} tareas? Se van a la papelera y se pueden devolver.',
-  'sel-morning':'Rutina','sel-unmorning':'Quitar rutina','sel-done':'Completar','sel-undone':'Marcar como no hechas','sel-repeat':'🔁 Repetir…','sel-undo':'Deshacer',
+  'sel-morning':'Rutina','sel-unmorning':'Quitar rutina','sel-done':'Completar','sel-undone':'Marcar como no hechas','sel-repeat':'🔁 Repetir…','sel-repeat-done':'{r}: aplicado a {n}','sel-undo':'Deshacer',
   'sel-nest':'Anidar en…','sel-nest-ask':'¿Dentro de qué tarea? Escribe unas letras de su nombre:',
   'sel-nest-none':'No encontré ninguna tarea que coincida con {q}.','sel-nest-some':'{n} no se pudieron anidar: una tarea que ya tiene subtareas no puede volverse una.',
   'sel-tag-add':'+ etiqueta','sel-goal-add':'🎯 Al servicio de…',
@@ -5415,6 +5415,11 @@ function renderBulkBar(visibleIds,redraw){
   bar.style.cssText='flex-wrap:wrap;align-items:center;background:var(--acd);border:1px solid var(--acb);border-radius:10px;padding:8px 10px';
   const n=(STATE.selected||[]).length;
   bar.appendChild(sp('sm w6 ac',`${n} ${n===1?t('sel-one'):t('sel-count')}`));
+  if(STATE.bulkNote){
+    const note=sp('xs cg w6','✓ '+STATE.bulkNote);
+    bar.appendChild(note);
+    STATE.bulkNote=null;   // said once, on the redraw that follows the change
+  }
 
   const all=bt('btn-ghost btn-xs',t('sel-all'),()=>{
     const every=visibleIds.every(id=>isSelected(id));
@@ -5439,11 +5444,24 @@ function renderBulkBar(visibleIds,redraw){
        or year keeps each task's own day of the month, so a clamped 31st does
        not drift. A subtask is left alone, since it follows its parent's
        rhythm. */
-    const rpi=sk('',[['',t('sel-repeat')],['none',t('rep-none')],['day',t('rep-day')],['week',t('rep-week')],['month',t('rep-month')],['year',t('rep-year')]],'');
+    /* Applied the instant it is picked, like every other control on this bar
+       — there is no Save, and Undo is the way back. Since a select snaps back
+       to its placeholder on redraw, which read as "nothing happened", it now
+       shows the repeat the whole selection shares once they all have one, and
+       says how many it changed. */
+    const topRows=(STATE.selected||[]).map(id=>reminders().find(x=>x.id===id)).filter(r=>r&&!r.parent);
+    const shared=(()=>{
+      if(!topRows.length)return'';
+      const key=r=>r.repeat?(r.repeat.nth||r.repeat.days||r.repeat.doms?'custom':r.repeat.unit):'none';
+      const k=key(topRows[0]);
+      return k!=='custom'&&topRows.every(r=>key(r)===k)?k:'';
+    })();
+    const rpi=sk('',[['',t('sel-repeat')],['none',t('rep-none')],['day',t('rep-day')],['week',t('rep-week')],['month',t('rep-month')],['year',t('rep-year')]],shared);
     rpi.style.cssText='flex:0 0 140px';
     rpi.onchange=()=>{
       const u=rpi.value;if(!u)return;
       snapshot();
+      STATE.bulkNote=t('sel-repeat-done').replace('{n}',topRows.length).replace('{r}',rpi.options[rpi.selectedIndex].text);
       bulkApply(r=>{
         if(r.parent)return null;
         if(u==='none')return{repeat:null};
