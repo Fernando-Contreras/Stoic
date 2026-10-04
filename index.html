@@ -5443,14 +5443,14 @@ function renderBulkBar(visibleIds,redraw){
        days of the week, days of the month and weekday positions are chosen
        per task in its own editor, where there is room to say which. A month
        or year keeps each task's own day of the month, so a clamped 31st does
-       not drift. A subtask is left alone, since it follows its parent's
-       rhythm. */
+       not drift. Subtasks are included: each keeps its own date and its own
+       repeat, which is exactly what a list of birthdays under one parent is. */
     /* Applied the instant it is picked, like every other control on this bar
        — there is no Save, and Undo is the way back. Since a select snaps back
        to its placeholder on redraw, which read as "nothing happened", it now
        shows the repeat the whole selection shares once they all have one, and
        says how many it changed. */
-    const topRows=(STATE.selected||[]).map(id=>reminders().find(x=>x.id===id)).filter(r=>r&&!r.parent);
+    const topRows=(STATE.selected||[]).map(id=>reminders().find(x=>x.id===id)).filter(Boolean);
     const shared=(()=>{
       if(!topRows.length)return'';
       const key=r=>r.repeat?(r.repeat.nth||r.repeat.days||r.repeat.doms?'custom':r.repeat.unit):'none';
@@ -5464,7 +5464,6 @@ function renderBulkBar(visibleIds,redraw){
       snapshot();
       STATE.bulkNote=t('sel-repeat-done').replace('{n}',topRows.length).replace('{r}',rpi.options[rpi.selectedIndex].text);
       bulkApply(r=>{
-        if(r.parent)return null;
         if(u==='none')return{repeat:null};
         return{repeat:{unit:u,every:1,
           ...(u==='month'||u==='year'?{dom:new Date(r.due+'T12:00:00').getDate()}:{})}};
