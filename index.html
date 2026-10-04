@@ -5160,8 +5160,6 @@ function renderReminderEditor(r){
   drawChips();
   goalRow.appendChild(dv('xs dimmer mb2',t('rem-goal-for')));
   goalRow.appendChild(gchips);
-  if(openG.length)box.appendChild(goalRow);
-
   const wd=weekdayPicker(r.repeat&&r.repeat.days||[]);
   const md=monthdayPicker(r.repeat&&r.repeat.doms||[]);
   wd.el.style.display=(r.repeat&&r.repeat.unit==='week')?'':'none';
@@ -5173,7 +5171,10 @@ function renderReminderEditor(r){
     md.el.style.display=ri.value==='month'?'':'none';
     np.show(ri.value);
   });
+  // The repeat's own options sit right under the repeat row; the goals go
+  // last, after everything that describes when the task happens.
   box.appendChild(wd.el);box.appendChild(md.el);box.appendChild(np.el);
+  if(openG.length)box.appendChild(goalRow);
 
   /* Three ways to keep the changes, any of them: the Save button, Ctrl/⌘+Enter,
      or clicking anywhere off the task (that last one wired in renderReminderRow,
