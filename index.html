@@ -1106,6 +1106,7 @@ en:{
   'tz-warn':'Change it during the day, not around midnight: a day that has already closed does not reopen.',
   'tpl-grateful':'3 reasons why I am deeply grateful',
   'tpl-bad':'1 bad thing of today (feel free to complain):',
+  'tpl-bad-act':'What are you going to do about it?',
   'tpl-weekly-left':'There are still {n} weekly goals waiting to be completed.',
   'tpl-weekly-done':"You've completed all your weekly goals.",
   'tpl-weekly-plan':'Plan for doing so:',
@@ -1327,6 +1328,7 @@ es:{
   'tz-warn':'Cámbialo de día, no cerca de la medianoche: un día que ya cerró no se vuelve a abrir.',
   'tpl-grateful':'3 razones por las que estoy profundamente agradecido',
   'tpl-bad':'1 cosa mala de hoy (quéjate a gusto):',
+  'tpl-bad-act':'¿Qué vas a hacer al respecto?',
   'tpl-weekly-left':'Todavía quedan {n} metas semanales por completar.',
   'tpl-weekly-done':'Ya completaste todas tus metas semanales.',
   'tpl-weekly-plan':'Plan para lograrlo:',
@@ -9574,6 +9576,7 @@ function diaryTemplate(){
   return [
     t('tpl-grateful'),'    1. ','    2. ','    3. ','',
     t('tpl-bad'),'','',
+    t('tpl-bad-act'),'','',
     weekly,'',
     t('tpl-why'),'','',
     t('tpl-dream'),'','',
@@ -9588,7 +9591,7 @@ function diaryTemplate(){
    stays plain text, so nothing already saved changes shape or risks being
    mangled by a format it was not written in. */
 function diaryHeadings(){
-  return ['tpl-grateful','tpl-bad','tpl-weekly-plan','tpl-why','tpl-dream',
+  return ['tpl-grateful','tpl-bad','tpl-bad-act','tpl-weekly-plan','tpl-why','tpl-dream',
           'tpl-feel','tpl-feel-why','tpl-cool','tpl-improve','tpl-summary']
     .map(k=>t(k))
     // Wording these two headings once had. Notes already written keep their
