@@ -1091,7 +1091,7 @@ en:{
   'sel-mode':'Select several','sel-count':'selected','sel-one':'selected','sel-all':'All',
   'sel-date':'Move them to this date','sel-prio':'Quadrant…','sel-flag':'Flag','sel-unflag':'Unflag','sel-del':'Delete',
   'sel-del-warn':'Delete {n} tasks? They go to the bin and can be put back.',
-  'sel-morning':'Morning','sel-unmorning':'Not morning','sel-done':'Complete','sel-undone':'Mark as not done','sel-undo':'Undo',
+  'sel-morning':'Morning','sel-unmorning':'Not morning','sel-done':'Complete','sel-undone':'Mark as not done','sel-repeat':'🔁 Repeat…','sel-undo':'Undo',
   'sel-nest':'Nest under…','sel-nest-ask':'Nest them under which task? Type a few letters of its name:',
   'sel-nest-none':'No task found matching {q}.','sel-nest-some':'{n} could not be nested: a task with subtasks of its own cannot become one.',
   'sel-tag-add':'+ tag','sel-goal-add':'🎯 In service of…',
@@ -1181,6 +1181,8 @@ en:{
   'rep-hour-1':'Every hour','rep-hour-n':'Every {n} hours',
   'rep-day-1':'Every day','rep-day-n':'Every {n} days',
   'rep-week-1':'Every week','rep-week-n':'Every {n} weeks',
+  'rep-by-date':'Same date each time','rep-ord-1':'The 1st','rep-ord-2':'The 2nd','rep-ord-3':'The 3rd','rep-ord-4':'The 4th','rep-ord-5':'The last',
+  'rep-of':'of','weekdays-sing':'Sunday,Monday,Tuesday,Wednesday,Thursday,Friday,Saturday',
   'rep-month-1':'Every month','rep-month-n':'Every {n} months',
   'rep-year-1':'Every year','rep-year-n':'Every {n} years',
   'rep-weekends':'Weekends','rep-weekdays':'Weekdays','rep-everyday':'Every day',
@@ -1313,7 +1315,7 @@ es:{
   'sel-mode':'Seleccionar varias','sel-count':'seleccionadas','sel-one':'seleccionada','sel-all':'Todas',
   'sel-date':'Moverlas a esta fecha','sel-prio':'Cuadrante…','sel-flag':'Poner bandera','sel-unflag':'Quitar bandera','sel-del':'Eliminar',
   'sel-del-warn':'¿Eliminar {n} tareas? Se van a la papelera y se pueden devolver.',
-  'sel-morning':'Rutina','sel-unmorning':'Quitar rutina','sel-done':'Completar','sel-undone':'Marcar como no hechas','sel-undo':'Deshacer',
+  'sel-morning':'Rutina','sel-unmorning':'Quitar rutina','sel-done':'Completar','sel-undone':'Marcar como no hechas','sel-repeat':'🔁 Repetir…','sel-undo':'Deshacer',
   'sel-nest':'Anidar en…','sel-nest-ask':'¿Dentro de qué tarea? Escribe unas letras de su nombre:',
   'sel-nest-none':'No encontré ninguna tarea que coincida con {q}.','sel-nest-some':'{n} no se pudieron anidar: una tarea que ya tiene subtareas no puede volverse una.',
   'sel-tag-add':'+ etiqueta','sel-goal-add':'🎯 Al servicio de…',
@@ -1403,6 +1405,8 @@ es:{
   'rep-hour-1':'Cada hora','rep-hour-n':'Cada {n} horas',
   'rep-day-1':'Todos los días','rep-day-n':'Cada {n} días',
   'rep-week-1':'Cada semana','rep-week-n':'Cada {n} semanas',
+  'rep-by-date':'Misma fecha cada vez','rep-ord-1':'El primer','rep-ord-2':'El segundo','rep-ord-3':'El tercer','rep-ord-4':'El cuarto','rep-ord-5':'El último',
+  'rep-of':'de','weekdays-sing':'domingo,lunes,martes,miércoles,jueves,viernes,sábado',
   'rep-month-1':'Cada mes','rep-month-n':'Cada {n} meses',
   'rep-year-1':'Cada año','rep-year-n':'Cada {n} años',
   'rep-weekends':'Fines de semana','rep-weekdays':'Entre semana','rep-everyday':'Todos los días',
@@ -2592,6 +2596,30 @@ function appNow(){
   return new Date(new Date(CLOCK.now()).toLocaleString('en-US',{timeZone:appTZ()}));
 }
 
+// The nth (1-4) or last (5) given weekday (JS Sun=0) of a month, at noon.
+function nthWeekdayOf(y,m,n,dow){
+  if(n>=5){
+    const last=new Date(y,m+1,0,12,0,0);
+    last.setDate(last.getDate()-((last.getDay()-dow+7)%7));
+    return last;
+  }
+  const first=new Date(y,m,1,12,0,0);
+  return new Date(y,m,1+((dow-first.getDay()+7)%7)+7*(n-1),12,0,0);
+}
+/* A reminder saved with a weekday-position repeat has to start on one of its
+   own occurrences, or the first turn would be on whatever date happened to be
+   typed. Monthly: this month's if still ahead, else next month's. Yearly: that
+   month, this year or next. */
+function snapNthDue(dueStr,rep){
+  const d=new Date(dueStr+'T12:00:00');
+  let c=nthWeekdayOf(d.getFullYear(),rep.unit==='year'&&rep.nth.m!=null?rep.nth.m:d.getMonth(),rep.nth.n,rep.nth.dow);
+  if(c<d){
+    c=rep.unit==='year'
+      ?nthWeekdayOf(d.getFullYear()+1,c.getMonth(),rep.nth.n,rep.nth.dow)
+      :nthWeekdayOf(d.getFullYear(),d.getMonth()+1,rep.nth.n,rep.nth.dow);
+  }
+  return isoDate(c);
+}
 /* Advancing a repeat. Day-and-longer repeats move to the first date that is
    not already past. Hourly ones move to the first slot still ahead on the
    clock, so a thing due every three hours can come back several times within
@@ -2669,6 +2697,21 @@ function advanceDue(due,rep,tk,time){
     };
     let cur=d;
     do{cur=next(cur);guard++;}while(cur<=today&&guard<3000);
+    return{due:isoDate(cur),time:time||''};
+  }
+  /* "The third Sunday of the month" — a weekday position rather than a date,
+     so it lands on a different number every time. n 1-4 counts from the start
+     of the month; 5 means the last one, which always exists, where a "fifth"
+     Sunday would not. Monthly steps N months on; yearly steps N years in the
+     same month. */
+  if((unit==='month'||unit==='year')&&rep.nth){
+    let cur=d;
+    do{
+      const tm=cur.getMonth()+(unit==='month'?every:12*every);
+      const ty=cur.getFullYear()+Math.floor(tm/12);
+      cur=nthWeekdayOf(ty,((tm%12)+12)%12,rep.nth.n,rep.nth.dow);
+      guard++;
+    }while(cur<=today&&guard<8000);
     return{due:isoDate(cur),time:time||''};
   }
   const stepMonths=(dt,months)=>{
@@ -3829,7 +3872,41 @@ function repeatLabel(rep){
     const which=t('rep-on-days')+' '+joinList([...new Set(rep.doms)].sort((a,b)=>a-b).map(String));
     return '🔁 '+(n===1?capFirst(which):t('rep-month-n').replace('{n}',n)+', '+which);
   }
+  if((rep.unit==='month'||rep.unit==='year')&&rep.nth){
+    const o=t('rep-ord-'+rep.nth.n);
+    const dn=t('weekdays-sing').split(',')[rep.nth.dow];
+    let of='';
+    if(rep.unit==='year'&&rep.nth.m!=null){
+      const mn=new Date(2024,rep.nth.m,1).toLocaleDateString(STATE.lang==='es'?'es-MX':'en-US',{month:'long'});
+      of=' '+t('rep-of')+' '+mn;
+    }
+    return '🔁 '+every(rep.unit)+' · '+o+' '+dn+of;
+  }
   return '🔁 '+every(rep.unit);
+}
+/* The same weekday-position choice for the add form and the editor: "the
+   third Sunday" instead of a fixed date. Native date inputs cannot be taught
+   new tricks, so it sits just under the repeat row, shown only for monthly and
+   yearly. Left on "same date" it changes nothing. */
+function nthPicker(rep,dueFn){
+  const wrap=dv('row gap6 mt6');wrap.style.flexWrap='wrap';wrap.style.alignItems='center';
+  const cur=rep&&rep.nth||null;
+  const ordSel=sk('',[['',t('rep-by-date')],['1',t('rep-ord-1')],['2',t('rep-ord-2')],['3',t('rep-ord-3')],['4',t('rep-ord-4')],['5',t('rep-ord-5')]],cur?String(cur.n):'');
+  const dowSel=sk('',t('weekdays-sing').split(',').map((n,i)=>[String(i),n]),String(cur?cur.dow:new Date((dueFn()||todayKey())+'T12:00:00').getDay()));
+  [ordSel,dowSel].forEach(s=>{s.style.cssText='width:auto;flex:1;min-width:110px';});
+  const sync=()=>{dowSel.style.display=ordSel.value?'':'none';};
+  ordSel.onchange=sync;sync();
+  wrap.appendChild(ordSel);wrap.appendChild(dowSel);
+  return{
+    el:wrap,
+    show:unit=>{wrap.style.display=(unit==='month'||unit==='year')?'':'none';},
+    get:unit=>{
+      if(!ordSel.value||(unit!=='month'&&unit!=='year'))return null;
+      const n={n:parseInt(ordSel.value),dow:parseInt(dowSel.value)};
+      if(unit==='year')n.m=new Date((dueFn()||todayKey())+'T12:00:00').getMonth();
+      return n;
+    }
+  };
 }
 /* Seven toggles for a weekly repeat. Empty means the plain "every N weeks"
    stride; picking days switches it to those weekdays. */
@@ -5089,28 +5166,34 @@ function renderReminderEditor(r){
   const md=monthdayPicker(r.repeat&&r.repeat.doms||[]);
   wd.el.style.display=(r.repeat&&r.repeat.unit==='week')?'':'none';
   md.el.style.display=(r.repeat&&r.repeat.unit==='month')?'':'none';
+  const np=nthPicker(r.repeat,()=>di.value||r.due);
+  np.show(r.repeat?r.repeat.unit:'');
   ri.addEventListener('change',()=>{
     wd.el.style.display=ri.value==='week'?'':'none';
     md.el.style.display=ri.value==='month'?'':'none';
+    np.show(ri.value);
   });
-  box.appendChild(wd.el);box.appendChild(md.el);
+  box.appendChild(wd.el);box.appendChild(md.el);box.appendChild(np.el);
 
   /* Three ways to keep the changes, any of them: the Save button, Ctrl/⌘+Enter,
      or clicking anywhere off the task (that last one wired in renderReminderRow,
      the way renaming a title already works). Escape and Cancel throw them away. */
   const commit=()=>{
-    updateReminder(r.id,{
-      tags:picker.get(),
-      due:di.value||r.due,time:hi.value,priority:parseInt(pi.value)||0,flagged:fc.checked,morning:mcb.checked,
-      // Kept whatever the flag is doing — see goalsServedBy.
-      goal:picked.size?[...picked]:null,
-      repeat:ri.value?{unit:ri.value,every:Math.max(1,parseInt(ni.value)||1),
+    const nth=np.get(ri.value);
+    const rep=ri.value?{unit:ri.value,every:Math.max(1,parseInt(ni.value)||1),
         ...(ri.value==='week'&&wd.get().length?{days:wd.get()}:{}),
-        ...(ri.value==='month'&&md.get().length?{doms:md.get()}:{}),
+        ...(ri.value==='month'&&!nth&&md.get().length?{doms:md.get()}:{}),
+        ...(nth?{nth}:{}),
         // Remember which day of the month was meant, so clamping short months
         // never drags the date down permanently.
         ...(ri.value==='month'||ri.value==='year'
-            ?{dom:new Date((di.value||r.due)+'T12:00:00').getDate()}:{})}:null
+            ?{dom:new Date((di.value||r.due)+'T12:00:00').getDate()}:{})}:null;
+    updateReminder(r.id,{
+      tags:picker.get(),
+      due:nth?snapNthDue(di.value||r.due,rep):(di.value||r.due),time:hi.value,priority:parseInt(pi.value)||0,flagged:fc.checked,morning:mcb.checked,
+      // Kept whatever the flag is doing — see goalsServedBy.
+      goal:picked.size?[...picked]:null,
+      repeat:rep
     });
     STATE.editingRem=null;render();
   };
@@ -5349,6 +5432,26 @@ function renderBulkBar(visibleIds,redraw){
     pi.style.cssText='flex:0 0 130px';
     pi.onchange=()=>{if(pi.value!=='-1'){snapshot();bulkApply({priority:parseInt(pi.value)||0},rd);}};
     bar.appendChild(pi);
+
+    /* Give them all the same repeat, or take it off. Plain every-1 steps only:
+       days of the week, days of the month and weekday positions are chosen
+       per task in its own editor, where there is room to say which. A month
+       or year keeps each task's own day of the month, so a clamped 31st does
+       not drift. A subtask is left alone, since it follows its parent's
+       rhythm. */
+    const rpi=sk('',[['',t('sel-repeat')],['none',t('rep-none')],['day',t('rep-day')],['week',t('rep-week')],['month',t('rep-month')],['year',t('rep-year')]],'');
+    rpi.style.cssText='flex:0 0 140px';
+    rpi.onchange=()=>{
+      const u=rpi.value;if(!u)return;
+      snapshot();
+      bulkApply(r=>{
+        if(r.parent)return null;
+        if(u==='none')return{repeat:null};
+        return{repeat:{unit:u,every:1,
+          ...(u==='month'||u==='year'?{dom:new Date(r.due+'T12:00:00').getDate()}:{})}};
+      },rd);
+    };
+    bar.appendChild(rpi);
 
     /* Tag every one of them. The list offers the tags already in use so the
        same one is not spelled two ways; a tag not on the list is simply new.
@@ -5854,25 +5957,31 @@ function renderAddModal(){
   const wd=weekdayPicker([]);
   const md=monthdayPicker([]);
   wd.el.style.display='none';md.el.style.display='none';
+  const np=nthPicker(null,()=>di.value||todayKey());
+  np.show('');
   ri.addEventListener('change',()=>{
     wd.el.style.display=ri.value==='week'?'':'none';
     md.el.style.display=ri.value==='month'?'':'none';
+    np.show(ri.value);
   });
-  panel.appendChild(wd.el);panel.appendChild(md.el);
+  panel.appendChild(wd.el);panel.appendChild(md.el);panel.appendChild(np.el);
   const err=dv('xs ng mt6');panel.appendChild(err);
   function doAdd(){
     const title=ti.value.trim();
     if(!title){err.textContent=t('rem-need-title');ti.focus();return;}
     err.textContent='';
-    addReminder({title,notes:noi.value,due:di.value||todayKey(),time:hi.value,priority:parseInt(pi.value)||0,
-      flagged:fc.checked,morning:mcb.checked,tags:picker.get(),
-      repeat:ri.value?{unit:ri.value,every:Math.max(1,parseInt(ni.value)||1),
+    const nth=np.get(ri.value);
+    const rep=ri.value?{unit:ri.value,every:Math.max(1,parseInt(ni.value)||1),
         ...(ri.value==='week'&&wd.get().length?{days:wd.get()}:{}),
-        ...(ri.value==='month'&&md.get().length?{doms:md.get()}:{}),
+        ...(ri.value==='month'&&!nth&&md.get().length?{doms:md.get()}:{}),
+        ...(nth?{nth}:{}),
         // Remember which day of the month was meant, so clamping short months
         // never drags the date down permanently.
         ...(ri.value==='month'||ri.value==='year'
-            ?{dom:new Date((di.value||todayKey())+'T12:00:00').getDate()}:{})}:null});
+            ?{dom:new Date((di.value||todayKey())+'T12:00:00').getDate()}:{})}:null;
+    addReminder({title,notes:noi.value,due:nth?snapNthDue(di.value||todayKey(),rep):(di.value||todayKey()),time:hi.value,priority:parseInt(pi.value)||0,
+      flagged:fc.checked,morning:mcb.checked,tags:picker.get(),
+      repeat:rep});
     // The task is in; the popup goes, and the list behind it shows what landed.
     _addFormDirty=null;STATE.showAddForm=false;STATE.addQuad=0;render();
   }
