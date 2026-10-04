@@ -1091,7 +1091,7 @@ en:{
   'sel-mode':'Select several','sel-count':'selected','sel-one':'selected','sel-all':'All',
   'sel-date':'Move them to this date','sel-prio':'Quadrant…','sel-flag':'Flag','sel-unflag':'Unflag','sel-del':'Delete',
   'sel-del-warn':'Delete {n} tasks? They go to the bin and can be put back.',
-  'sel-morning':'Morning','sel-unmorning':'Not morning','sel-done':'Complete','sel-undo':'Undo',
+  'sel-morning':'Morning','sel-unmorning':'Not morning','sel-done':'Complete','sel-undone':'Mark as not done','sel-undo':'Undo',
   'sel-nest':'Nest under…','sel-nest-ask':'Nest them under which task? Type a few letters of its name:',
   'sel-nest-none':'No task found matching {q}.','sel-nest-some':'{n} could not be nested: a task with subtasks of its own cannot become one.',
   'sel-tag-add':'+ tag','sel-goal-add':'🎯 In service of…',
@@ -1313,7 +1313,7 @@ es:{
   'sel-mode':'Seleccionar varias','sel-count':'seleccionadas','sel-one':'seleccionada','sel-all':'Todas',
   'sel-date':'Moverlas a esta fecha','sel-prio':'Cuadrante…','sel-flag':'Poner bandera','sel-unflag':'Quitar bandera','sel-del':'Eliminar',
   'sel-del-warn':'¿Eliminar {n} tareas? Se van a la papelera y se pueden devolver.',
-  'sel-morning':'Rutina','sel-unmorning':'Quitar rutina','sel-done':'Completar','sel-undo':'Deshacer',
+  'sel-morning':'Rutina','sel-unmorning':'Quitar rutina','sel-done':'Completar','sel-undone':'Marcar como no hechas','sel-undo':'Deshacer',
   'sel-nest':'Anidar en…','sel-nest-ask':'¿Dentro de qué tarea? Escribe unas letras de su nombre:',
   'sel-nest-none':'No encontré ninguna tarea que coincida con {q}.','sel-nest-some':'{n} no se pudieron anidar: una tarea que ya tiene subtareas no puede volverse una.',
   'sel-tag-add':'+ etiqueta','sel-goal-add':'🎯 Al servicio de…',
@@ -5309,12 +5309,20 @@ function bulkDelete(redraw){
   [...(STATE.selected||[])].forEach(id=>deleteReminder(id));
   STATE.selected=[];(redraw||render)();
 }
-// Only the ones not yet ticked, so a mixed selection all ends up done rather
-// than half of it being undone.
+// True once every selected reminder is already ticked today.
+function selectionAllDone(tk){
+  const rs=(STATE.selected||[]).map(id=>reminders().find(x=>x.id===id)).filter(Boolean);
+  return rs.length>0&&rs.every(r=>r.completedOn===tk);
+}
+// A mixed selection all ends up done rather than half of it being undone;
+// pressed again once every one is done, it un-ticks them all.
 function bulkComplete(tk,redraw){
+  const undo=selectionAllDone(tk);
   (STATE.selected||[]).forEach(id=>{
     const r=reminders().find(x=>x.id===id);
-    if(r&&r.completedOn!==tk&&!r.done)toggleReminder(id);
+    if(!r)return;
+    if(undo){if(r.completedOn===tk)toggleReminder(id);}
+    else if(r.completedOn!==tk&&!r.done)toggleReminder(id);
   });
   (redraw||render)();
 }
@@ -5417,8 +5425,9 @@ function renderBulkBar(visibleIds,redraw){
     });
     bar.appendChild(nest);
 
-    const doneBtn=bt('btn-ghost btn-xs','✅',()=>{snapshot();bulkComplete(todayKey(),rd);});
-    doneBtn.title=t('sel-done');doneBtn.style.fontSize='15px';
+    const allDoneNow=selectionAllDone(todayKey());
+    const doneBtn=bt('btn-ghost btn-xs',allDoneNow?'↩️':'✅',()=>{snapshot();bulkComplete(todayKey(),rd);});
+    doneBtn.title=allDoneNow?t('sel-undone'):t('sel-done');doneBtn.style.fontSize='15px';
     bar.appendChild(doneBtn);
 
     const del=bt('btn-ng btn-xs','🗑 '+t('sel-del'),()=>{
