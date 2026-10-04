@@ -903,13 +903,32 @@ const SB={
 };
 function uid(){return Math.random().toString(36).slice(2)+Date.now().toString(36)}
 
+const DAY_MIN=1440;
+/* No single entry can be longer than the day it is logged on. "25h" for
+   "2.5h" is a slip of a decimal point, and it used to be accepted as written
+   and paid out as points. */
 function parseDur(s){
+  const r=parseDurRaw(s);
+  if(r.v!==null&&r.v>DAY_MIN)return{v:null,err:t('dur-max')};
+  return r;
+}
+function parseDurRaw(s){
   if(!s||!s.trim())return{v:0};s=s.trim();let m;
   if(m=s.match(/^(\d+)h(\d+)m$/))return{v:+m[1]*60+ +m[2]};
   if(m=s.match(/^(\d+(?:\.\d+)?)h$/))return{v:Math.round(parseFloat(m[1])*60)};
   if(m=s.match(/^(\d+)m$/))return{v:+m[1]};
   const n=parseInt(s);if(!isNaN(n)&&n>=0)return{v:n};
   return{v:null,err:t('use-dur')};
+}
+/* Sleep, nap and work together cannot add up to more than the day either.
+   Anything else in a day can overlap with something (a pomodoro is work),
+   but sleeping and working are the three that are meant to be separate
+   stretches of the same 24 hours. */
+function overDayLimit(kind,v){
+  const td=STATE.today,s=td.sleep||{},w=td.work||{};
+  const cur={main:s.sleepDuration||0,nap:s.napDuration||0,work:w.workDuration||0};
+  cur[kind]=v;
+  return cur.main+cur.nap+cur.work>DAY_MIN;
 }
 function fmtDur(min){
   if(!min)return'0m';const h=Math.floor(min/60),m=min%60;
@@ -1225,6 +1244,8 @@ en:{
   'pomo-note':'Every 25 focused minutes is one 🍅, worth +{n} pts × its run — a 50-minute session reads as 2. Breaks pay nothing. The minutes themselves are paid by 💼 Work; this is paid for keeping them unbroken.',
   'pomo-jump-title':'Go to Score to add one done without the timer, or fix today\'s count',
   'use-dur':'Use: 5h, 300m, 2h30m or number (minutes)',
+  'dur-max':'A day only has 24 hours — check the number.',
+  'dur-day-max':'Sleep, nap and work together would pass 24 hours in one day.',
   'ej-dur':'e.g. 2h30m',
 },
 es:{
@@ -1444,6 +1465,8 @@ es:{
   'pomo-note':'Cada 25 minutos enfocados son un 🍅 y valen +{n} pts × su racha — una sesión de 50 min cuenta como 2. Los descansos no pagan. Los minutos ya te los paga 💼 Trabajo; esto te lo paga por no romperlos.',
   'pomo-jump-title':'Ir a Puntaje para sumar uno que hiciste sin el timer, o corregir el conteo de hoy',
   'use-dur':'Usa: 5h, 300m, 2h30m o número (minutos)',
+  'dur-max':'Un día solo tiene 24 horas — revisa el número.',
+  'dur-day-max':'Sueño, siesta y trabajo juntos pasarían de 24 horas en un día.',
   'ej-dur':'ej. 2h30m',
 }};
 function t(k){return T[STATE?.lang||'en']?.[k]??T.en[k]??k}
@@ -6766,6 +6789,7 @@ function renderWorkCard(sk_,todayStatus){
   const wi=ip('text','','',t('eg-work'));
   function doSet(){
     const r=parseDur(wi.value);if(r.v===null){errD.textContent=r.err;return;}
+    if(overDayLimit('work',r.v)){errD.textContent=t('dur-day-max');return;}
     STATE.today.work.workDuration=r.v;
     /* Focused work does not happen in one unbroken block with zero pomodoros
        to show for it — 25 minutes is one, by the same unit the timer itself
@@ -6784,15 +6808,17 @@ function renderWorkCard(sk_,todayStatus){
 /* ═══ SLEEP CARD ═══ */
 function renderSleepCard(sk_,todayStatus){
   const sl=STATE.today.sleep;const card=dv('card s12');card.appendChild(sp('ctit',t('sleep-lbl')));
-  function sleepRow(label,val,onSet){
+  function sleepRow(label,val,onSet,kind){
     const w=dv('');const lr=dv('rowb mb6');lr.innerHTML=`<span class="xs dimmer up ls">${label}</span><span class="md mo ac w6">${fmtDur(val)}</span>`;w.appendChild(lr);
     const errD=dv('xs ng mt4');const si=ip('text','','',t('eg-work'));
-    function doS(){const r=parseDur(si.value);if(r.v===null){errD.textContent=r.err;return;}onSet(r.v);si.value='';errD.textContent='';commitAndRefresh();}
+    function doS(){const r=parseDur(si.value);if(r.v===null){errD.textContent=r.err;return;}
+      if(overDayLimit(kind,r.v)){errD.textContent=t('dur-day-max');return;}
+      onSet(r.v);si.value='';errD.textContent='';commitAndRefresh();}
     si.onkeydown=e=>{if(e.key==='Enter')doS();};
     const ir=dv('row gap8');ir.appendChild(si);ir.appendChild(bt('btn-ac btn-sm',t('set-btn'),doS));w.appendChild(ir);w.appendChild(errD);return w;
   }
-  card.appendChild(sleepRow(t('main-sleep'),sl.sleepDuration,v=>STATE.today.sleep.sleepDuration=v));
-  card.appendChild(sleepRow(t('nap-lbl'),sl.napDuration,v=>STATE.today.sleep.napDuration=v));
+  card.appendChild(sleepRow(t('main-sleep'),sl.sleepDuration,v=>STATE.today.sleep.sleepDuration=v,'main'));
+  card.appendChild(sleepRow(t('nap-lbl'),sl.napDuration,v=>STATE.today.sleep.napDuration=v,'nap'));
   card.appendChild(hr());
   const earlyStreak=Math.max(1,sk_?.earlyBedStreak||sl.earlyBedStreak||1);
   const earlyBase=sl.sleepDuration||0;
