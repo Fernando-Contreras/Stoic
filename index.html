@@ -9420,7 +9420,10 @@ function renderTaskTreeModal(id){
   if(!reminders().some(x=>x.id===id)){STATE.taskTree=null;return dv('');}
   // Closing redraws the page, which has been standing still behind the
   // overlay while its own rows were being ticked and edited.
-  const close=()=>{STATE.taskTree=null;STATE.editingRem=null;render();};
+  // Select mode is turned off with the popup: it was switched on to act on
+  // what is in here, and left on it would be waiting behind the list with
+  // the toggle all the way at the top to undo.
+  const close=()=>{STATE.taskTree=null;STATE.editingRem=null;STATE.selecting=false;STATE.selected=[];render();};
   const ov=dv('fi');
   ov.classList.add('ovl');
   closeOnBackdrop(ov,close);
