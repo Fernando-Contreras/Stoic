@@ -2977,6 +2977,9 @@ function setDone(r,tk,on){
   }else{
     r.completedOn=null;r.done=false;
     bumpDone(r,tk,-1);
+    // Done more than once today (this turn and an early next one): undoing
+    // the last leaves the earlier one standing.
+    if(doneCount(r,tk)>0)r.completedOn=tk;
     unlogCompletion(r,tk);
     if(r.repeat&&r._prevDue){r.due=r._prevDue;r.time=r._prevTime||'';delete r._prevDue;delete r._prevTime;}
   }
@@ -3009,10 +3012,14 @@ function restoreFromLog(logId){
   STATE.planner.log=completionLog().filter(x=>x.logId!==logId);
   savePlanner();
 }
-function toggleReminder(id){
+/* forceDone is for a row drawn under a peeked future day. Ticking it there
+   means "do this turn too", but completedOn is still today (the turn just
+   before it was done today), so the plain test read it as already done and
+   un-ticked it — handing back today's turn instead of finishing tomorrow's. */
+function toggleReminder(id,forceDone){
   const r=reminders().find(x=>x.id===id);if(!r)return;
   const tk=todayKey();
-  const on=r.completedOn!==tk;
+  const on=forceDone?true:r.completedOn!==tk;
   // A parent is ticked on its own. It used to carry its subtasks with it,
   // which breaks the way this is actually used: the parent is a bonus task in
   // its own right — "finish the oldest thing under here" — and its subtasks
@@ -5285,8 +5292,8 @@ function remChip(r,tk,redraw,peeking){
       // Same rule as the list: only when the chip is actually leaving the grid.
       cb.onchange=e=>{
         e.stopPropagation();
-        if(doneToday||(STATE.view.scope==='all'&&r.repeat)){toggleReminder(r.id);return rd();}
-        leaveThen(cell,()=>{toggleReminder(r.id);rd();});
+        if(doneToday||(STATE.view.scope==='all'&&r.repeat)){toggleReminder(r.id,!!peeking);return rd();}
+        leaveThen(cell,()=>{toggleReminder(r.id,!!peeking);rd();});
       };
       top.appendChild(cb);
     }
@@ -5754,8 +5761,8 @@ function renderReminderRow(r,tk,opts){
     const leaves=!doneToday&&!opts.keepsDone&&
                  !(STATE.view.scope==='all'&&r.repeat);
     cb.onchange=()=>{
-      if(!leaves){toggleReminder(r.id);return rd();}
-      leaveThen(row,()=>{toggleReminder(r.id);rd();});
+      if(!leaves){toggleReminder(r.id,!!opts.peeking);return rd();}
+      leaveThen(row,()=>{toggleReminder(r.id,!!opts.peeking);rd();});
     };
     row.appendChild(cb);
   }
