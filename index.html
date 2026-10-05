@@ -1213,6 +1213,8 @@ en:{
   'rem-add-note':'Add note','rem-edit-note':'Click to edit',
   'rem-goal-for':'🎯 In service of','rem-goal-none':'— No goal —',
   'wkgoal-none':'No goal scheduled',
+  'wkgoal-ask':'New weekly goal for "{t}":','wkgoal-full':'You already have {n} weekly goals this week.',
+  'wkgoal-add-title':'Add a weekly goal for this task',
   'goal-unlink':'Remove from this goal','goal-link-task':'Add a task to this goal',
   'goal-link-search':'Which task is a step toward it? (type to search)',
   'rem-has-kids':'This one has subtasks of its own, so it cannot become one. Two levels is the limit.',
@@ -1437,6 +1439,8 @@ es:{
   'rem-add-note':'Agregar nota','rem-edit-note':'Click para editar',
   'rem-goal-for':'🎯 Al servicio de','rem-goal-none':'— Sin meta —',
   'wkgoal-none':'Sin meta programada',
+  'wkgoal-ask':'Nueva meta semanal para "{t}":','wkgoal-full':'Ya tienes {n} metas semanales esta semana.',
+  'wkgoal-add-title':'Añadir una meta semanal para esta tarea',
   'goal-unlink':'Quitar de esta meta','goal-link-task':'Agregar una tarea a esta meta',
   'goal-link-search':'¿Cuál tarea es un paso hacia ella? (escribe para buscar)',
   'rem-has-kids':'Esta ya tiene subtareas, así que no puede volverse una. El límite son 2 niveles.',
@@ -3808,6 +3812,22 @@ function goalPointsOn(dateKey){
   }
   return _goalDayMap.get(dateKey)||0;
 }
+/* The ⚠️ "no goal scheduled" marker is also the way out of it: press it, name
+   a weekly goal, and the task is pointed at that goal in the same step. A
+   weekly goal is capped, so when the week is already full it says so rather
+   than silently doing nothing. */
+function addWeeklyGoalFor(r){
+  const title=(prompt(t('wkgoal-ask').replace('{t}',(r.title||'').slice(0,40)))||'').trim();
+  if(!title)return;
+  if(!addGoal('week',title)){alert(t('wkgoal-full').replace('{n}',GOAL_MAX.week));return;}
+  setGoalLink(r.id,goals()[0].id,true);
+  render();
+}
+function staleGoalClick(el,r){
+  el.style.cursor='pointer';
+  el.title=t('wkgoal-add-title');
+  el.onclick=e=>{e.stopPropagation();addWeeklyGoalFor(r);};
+}
 function addGoal(kind,title){
   if(goalsOf(kind).length>=GOAL_MAX[kind])return false;
   const b=periodBounds(kind,todayKey());
@@ -4119,6 +4139,7 @@ function renderPlanner(){
           const suf=sp('sm dimmer',(wkNote.stale?'⚠️ ':'🏁 ')+wkNote.text);
           if(wkNote.done)suf.style.textDecoration='line-through';
           suf.title=t('rem-goal-for');
+          if(wkNote.stale)staleGoalClick(suf,r);
           row.appendChild(suf);
         }
         box.appendChild(row);
@@ -5292,6 +5313,7 @@ function remChip(r,tk,redraw,peeking){
       if(meta.length)m.appendChild(document.createTextNode(' · '));
       const wk=sp('',(wkNote.stale?'⚠️ ':'🏁 ')+wkNote.text.slice(0,28));
       if(wkNote.done)wk.style.textDecoration='line-through';
+      if(wkNote.stale)staleGoalClick(wk,r);
       m.appendChild(wk);
     }
     cell.appendChild(m);
@@ -5760,6 +5782,7 @@ function renderReminderRow(r,tk,opts){
     const suf=sp('md dimmer',(wkNote.stale?' ⚠️ ':' 🏁 ')+wkNote.text);
     if(wkNote.done)suf.style.textDecoration='line-through';
     suf.title=t('rem-goal-for');
+    if(wkNote.stale)staleGoalClick(suf,r);
     titleLine.appendChild(suf);
   }
   if(r.flagged)titleLine.appendChild(sp('sm','🏁'));
