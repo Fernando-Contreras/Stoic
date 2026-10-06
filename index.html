@@ -3677,7 +3677,18 @@ function goalsOf(kind){
   // g.period only ever records where the goal was BORN, and a goal carried
   // over unfinished and closed after the rollover would otherwise read as
   // belonging to a period that already ended, on the very day it was finished.
-  return goals().filter(g=>g.kind===kind&&(!g.doneOn||g.doneOn>=now.start));
+  /* A goal that belonged to an earlier period (its fixed deadline falls
+     before this one opened) and was finished late only stays on the board for
+     the day it was finished, struck through, and is gone the next. Left to
+     the rule above alone it sat there for the rest of the period, taking one
+     of the few slots a new goal could have used. */
+  const today=todayKey();
+  return goals().filter(g=>{
+    if(g.kind!==kind)return false;
+    if(!g.doneOn)return true;
+    if(g.doneOn===today)return true;
+    return g.doneOn>=now.start&&goalDeadline(g)>=now.start;
+  });
 }
 /* The deadline is fixed the day a goal is created and never moves again.
    Paying by the days left in whatever period happens to be current made
