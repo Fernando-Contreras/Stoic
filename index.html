@@ -685,6 +685,7 @@ const SB={
       if((history||[]).length<this.cloudDays){this.status='error';this.blocked='would-shrink';return;}
     }
     this.blocked='';
+    const sentAt=CLOCK.now();
     try{
       const res=await fetch(`${this.url}/rest/v1/stoic_data`, {
         method:'POST',
@@ -702,13 +703,33 @@ const SB={
           // The pomodoro rides inside the planner column rather than needing a
           // second one, so no further database change is required.
           ...(SB.hasPlannerColumn?{planner:{...(STATE.planner||{reminders:[]}),pomo:STATE.pomo}}:{}),
-          saved_at: CLOCK.now(),
+          saved_at: sentAt,
           updated_at: new Date().toISOString()
         })
       });
       if(!res.ok){const t=await res.text();console.warn('Push failed:',res.status,t);this.status='error';}
-      else {this.status='ok';this.cloudDays=(history||[]).length;}
+      else {this.status='ok';this.cloudDays=(history||[]).length;this.lastSavedAt=sentAt;}
     }catch(e){console.warn('Supabase push failed',e);this.status='error';}
+  },
+  /* The cloud row's saved_at as last seen — from our own push or from a pull.
+     Lets the background sync ask a question that costs a few dozen bytes
+     ("has it changed?") instead of downloading the whole row, history, diary,
+     planner and all, every few seconds just to find out it has not. That
+     download, times every device left open all day, is what burns the
+     monthly egress allowance. */
+  lastSavedAt:null,
+  async peek(){
+    if(!this.init()) return null;
+    if(!await this.ensureFresh()) return null;
+    try{
+      let r=await fetch(`${this.url}/rest/v1/stoic_data?select=saved_at&limit=1`,{headers:this.headers()});
+      if(r.status===401&&await this.refresh()){
+        r=await fetch(`${this.url}/rest/v1/stoic_data?select=saved_at&limit=1`,{headers:this.headers()});
+      }
+      if(!r.ok) return null;
+      const rows=await r.json();
+      return rows&&rows.length?rows[0].saved_at:undefined;
+    }catch(e){return null;}
   },
   // null = we have not asked yet. Set on the first pull, so a database that
   // predates the planner keeps working instead of failing every write.
@@ -741,6 +762,7 @@ const SB={
       // We have now read the cloud, so pushing is safe and we know its size.
       this.pulledOk=true;
       this.cloudDays=(rows&&rows.length&&Array.isArray(rows[0].history))?rows[0].history.length:0;
+      this.lastSavedAt=rows&&rows.length?rows[0].saved_at:null;
       return rows&&rows.length?rows[0]:null;
     }catch(e){console.warn('Supabase pull failed',e);this.status='error';return null;}
   },
@@ -2476,15 +2498,24 @@ async function flushUnsent(){
 }
 async function bgSync(){
   if(!STATE.authed||!SB.init()) return;
+  // Nobody is looking at a hidden tab, and coming back to it syncs at once
+  // (see the visibilitychange listener), so polling it is pure download.
+  if(document.hidden) return;
   try{
     // Ours first, theirs second — never the other way round while we owe a push.
     if(STATE._unsent&&!await flushUnsent())return;
+    // Ask whether the cloud copy changed before downloading it. Unchanged,
+    // there is nothing to apply and nothing worth the bandwidth.
+    if(SB.lastSavedAt!==null){
+      const seen=await SB.peek();
+      if(seen===null||seen===SB.lastSavedAt)return;
+    }
     const remote=await SB.pull();
     if(applyRemote(remote))_redrawOwed=true;
     if(_redrawOwed&&!isEditing()){_redrawOwed=false;render();}
   }catch(e){/* silent — will retry next cycle */}
 }
-setInterval(bgSync,5000); // every 5s for fast cross-device sync // every 8s
+setInterval(bgSync,10000); // the check is a few bytes now, so this can stay quick
 window.addEventListener('online',()=>{bgSync();});
 /* ═══ DOM HELPERS ═══ */
 function el(t,c,h){const e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e}
@@ -10134,6 +10165,7 @@ setInterval(()=>{
 // well past either moment actually happening.
 document.addEventListener('visibilitychange',()=>{
   if(document.hidden)return;
+  bgSync();
   catchUpPomodoro();
   checkDayRollover();
 });
