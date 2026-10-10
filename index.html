@@ -449,6 +449,13 @@ button{cursor:pointer;font-family:var(--ff);font-size:15px;font-weight:600;borde
 .gnudge-track{display:inline-flex;gap:22px;white-space:nowrap;will-change:transform;
   animation:gnudge-roll linear infinite}
 .gnudge:hover .gnudge-track{animation-play-state:paused}
+/* Under the pointer the goals also grow, so they are read and not just seen
+   drifting past. The strip keeps a fixed height tall enough for the large
+   size, so growing never shoves the cards below it down the page. */
+.gnudge{min-height:30px;display:flex;align-items:center}
+.gnudge-track>span{transition:font-size .18s ease}
+.gnudge:hover .gnudge-track>span{font-size:18px}
+@media(prefers-reduced-motion:reduce){.gnudge-track>span{transition:none}}
 @keyframes gnudge-roll{from{transform:translateX(0)}to{transform:translateX(-50%)}}
 @media(prefers-reduced-motion:reduce){
   .gnudge-track{animation:none}
