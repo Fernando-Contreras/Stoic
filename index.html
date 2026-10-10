@@ -449,13 +449,18 @@ button{cursor:pointer;font-family:var(--ff);font-size:15px;font-weight:600;borde
 .gnudge-track{display:inline-flex;gap:22px;white-space:nowrap;will-change:transform;
   animation:gnudge-roll linear infinite}
 .gnudge:hover .gnudge-track{animation-play-state:paused}
-/* Under the pointer the goals also grow, so they are read and not just seen
-   drifting past. The strip keeps a fixed height tall enough for the large
-   size, so growing never shoves the cards below it down the page. */
+/* Under the pointer the goal being pointed at also grows, so it is read and
+   not just seen drifting past — only that one, so moving along the strip
+   enlarges each in turn. The gap between goals is padding on the goals
+   themselves rather than a flex gap, so there is no dead strip between two
+   of them where nothing is enlarged and the pointer flickers. The strip keeps
+   a fixed height tall enough for the large size, so growing never shoves the
+   cards below it down the page. */
 .gnudge{min-height:30px;display:flex;align-items:center}
-.gnudge-track>span{transition:font-size .18s ease}
-.gnudge:hover .gnudge-track>span{font-size:18px}
-@media(prefers-reduced-motion:reduce){.gnudge-track>span{transition:none}}
+.gnudge-track{gap:0;transition:margin-left .18s ease}
+.gnudge-track>span{padding-right:22px;transition:font-size .18s ease}
+.gnudge-track>span:hover{font-size:18px}
+@media(prefers-reduced-motion:reduce){.gnudge-track,.gnudge-track>span{transition:none}}
 @keyframes gnudge-roll{from{transform:translateX(0)}to{transform:translateX(-50%)}}
 @media(prefers-reduced-motion:reduce){
   .gnudge-track{animation:none}
@@ -4125,13 +4130,41 @@ function renderPlanner(){
     strip.title=t('goal-nudge');
     strip.onclick=()=>{STATE.showGoals=true;render();};
     const track=dv('gnudge-track');
+    let nudgeUntil=0;
     const icon={week:'📅',quarter:'📈',year:'🏆'};
     // Twice through, so the loop meets itself; see the keyframes.
     for(let pass=0;pass<2;pass++)openGoals.forEach(({kind,g})=>{
       const it=sp('xs ac w6',`${icon[kind]} ${g.title}`);
       it.setAttribute('aria-hidden',pass?'true':'false');
+      /* A goal that grows while it sits at the edge would grow out of view,
+         which is exactly where it is hardest to read. Once it has finished
+         growing, the whole row is nudged so it ends up inside the faded
+         margins; the pointer stays on it because it is only moved by as much
+         as it overhangs. */
+      it.addEventListener('mouseenter',()=>{
+        // Moving the row slides other goals under a pointer that has not
+        // moved, and each of those fires its own mouseenter — which would
+        // nudge again, and again. Ignored until the move has settled.
+        if(Date.now()<nudgeUntil)return;
+        setTimeout(()=>{
+          if(!it.matches(':hover')||Date.now()<nudgeUntil)return;
+          const sr=strip.getBoundingClientRect(),r=it.getBoundingClientRect();
+          const pad=sr.width*0.08;
+          let shift=0;
+          if(r.right>sr.right-pad)shift=(sr.right-pad)-r.right;
+          // A goal wider than the strip cannot fit; show its start, not its end.
+          if(r.width>sr.width-2*pad)shift=(sr.left+pad)-r.left;
+          else if(shift===0&&r.left<sr.left+pad)shift=(sr.left+pad)-r.left;
+          if(Math.abs(shift)>1){
+            const cur=parseFloat(track.style.marginLeft)||0;
+            track.style.marginLeft=(cur+shift)+'px';
+            nudgeUntil=Date.now()+600;
+          }
+        },200);
+      });
       track.appendChild(it);
     });
+    strip.addEventListener('mouseleave',()=>{track.style.marginLeft='';});
     /* Paced by how much there is to read rather than by a fixed duration, so
        one goal does not crawl and eight do not sprint. */
     const chars=openGoals.reduce((s,x)=>s+x.g.title.length+3,0);
