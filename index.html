@@ -3853,20 +3853,23 @@ function goalsServedBy(r){
    the old goal's name, so a name that stopped applying weeks ago cannot be
    mistaken for the current one. A task that never had a weekly link at all
    stays silent — null. */
-/* A flag is one of the day's priorities, so it should always point at
-   something. When there is no weekly goal for it — the week's few slots went
-   to other things — it borrows the nearest long one instead: whichever open
-   quarterly goal ends soonest, then the same for yearly, preferring one the
-   task already serves. Nothing is written to the task; this is only what the
-   marker says, and it goes back to the weekly goal the moment there is one.
-   Only when there is no open goal of any length does it fall through to the
+/* A flag is one of the day's priorities, so it should point at something.
+   When the week's goal slots are all taken, so it cannot be given a weekly
+   one, it shows a longer goal it is already a step toward: the open
+   quarterly goal ending soonest that lists it, then the same for yearly.
+   Nothing is written to the task; this is only what the marker says. When no
+   open quarterly or yearly goal lists it either, it falls through to the
    "no goal scheduled" warning. */
 function goalFallbackNote(r){
+  /* Only a goal this task actually serves. Handing a flag whichever
+     quarterly goal happens to come first made a piano task announce a
+     songwriting goal it had no link to, which reads as a fact about the task
+     rather than a placeholder. Nothing linked, nothing shown: the warning. */
   const icon={quarter:'📈',year:'🏆'};
   const served=new Set(goalIdsOf(r));
   for(const kind of ['quarter','year']){
-    const open=goalsOf(kind).filter(g=>!g.doneOn)
-      .sort((a,b)=>(served.has(b.id)-served.has(a.id))||goalDeadline(a).localeCompare(goalDeadline(b)));
+    const open=goalsOf(kind).filter(g=>!g.doneOn&&served.has(g.id))
+      .sort((a,b)=>goalDeadline(a).localeCompare(goalDeadline(b)));
     if(open.length)return{text:open[0].title,done:false,fallback:true,icon:icon[kind]};
   }
   return null;
