@@ -5235,9 +5235,12 @@ function renderPomoCard(){
     card.appendChild(renderPomoCalendar());
   }
   const goPage=p2=>{STATE.pomoPage=p2;try{localStorage.setItem('st_pomopage',p2);}catch(e){}render();};
-  const sw=bt('btn-icon',onCal?'‹':'›',()=>goPage(onCal?'timer':'cal'));
+  /* A filled, labelled button rather than a bare arrow: on the calendar page
+     it sat right beside the ‹ › that change the day and read as one more of
+     them. This one carries what it goes to. */
+  const sw=bt('btn-ac btn-sm',onCal?'‹ ⏱':'📅 ›',()=>goPage(onCal?'timer':'cal'));
   sw.title=onCal?t('cal-to-timer'):t('cal-to-cal');
-  sw.style.cssText+=';font-size:18px;padding:0 8px';
+  sw.style.cssText+=';padding:4px 10px;font-size:13px;white-space:nowrap';
   head.appendChild(sw);
   // Swipe between the pages, same gesture the list card uses for peeking a
   // day ahead. Not from anything that is itself draggable or typed into.
@@ -5291,20 +5294,24 @@ function renderPomoCalendar(){
   if(day!==tk)nav.appendChild(bt('btn-ghost btn-xs',t('cal-today'),()=>{STATE.calDay=null;render();}));
   wrap.appendChild(nav);
 
-  // What belongs to this day. Overdue work counts as today's, the way the
-  // list treats it. One with a time still sits at that time — setting it in
-  // the list is exactly how you say when to do it — drawn in red so it reads
-  // as late; one without a time waits in the tray.
+  /* What belongs to this day: what is due on it, plus whatever was due before
+     it and is still not done, up to and including today. So a task that was
+     meant for the 10th shows on the 10th, the 11th and the 12th until it is
+     ticked, and disappears from all of them at once. Days ahead of today show
+     only what is due on them. One with a time sits at that time — setting it
+     in the list is exactly how you say when to do it — drawn in red when it
+     is late; one without a time waits in the tray. Nothing here ever changes
+     a task's date. */
   const open=reminders().filter(r=>!r.done&&r.completedOn!==tk&&r.due);
   const timed=[],untimed=[];
   open.forEach(r=>{
-    if(r.due===day||(day===tk&&r.due<tk)){(calMin(r.time)!==null?timed:untimed).push(r);}
+    if(r.due===day||(day<=tk&&r.due<day)){(calMin(r.time)!==null?timed:untimed).push(r);}
   });
 
   const tray=dv('cal-tray');
   tray.appendChild(sp('xs dimmer',t('cal-untimed')));
   untimed.forEach(r=>{
-    const c=sp('cal-chip'+(r.due<tk?' late':''),r.title);
+    const c=sp('cal-chip'+(r.due<day?' late':''),r.title);
     c.title=r.title;
     attachCalDrag(c,r,'chip',day,()=>scroll,()=>grid,tray);
     tray.appendChild(c);
@@ -5341,7 +5348,7 @@ function renderPomoCalendar(){
     b.style.width='calc('+(100/n)+'% - 2px)';
     const q=quadOf(it.r);
     if(q)b.style.borderLeftColor=quadColor(q);
-    const late=it.r.due<tk;
+    const late=it.r.due<day;
     if(late){b.classList.add('late');}
     b.title=`${calFmt(it.s)}–${calFmt(it.e%1440)} · ${it.r.title}`+(late?` · ${t('rem-was-due')} ${it.r.due}`:'');
     b.appendChild(sp('w6',calFmt(it.s)+' '));
@@ -5434,7 +5441,12 @@ function attachCalDrag(el,r,kind,day,getScroll,getGrid,tray){
       if(g.ind)g.ind.remove();
       if(!g.dragging){STATE.editingRem=null;STATE.taskTree=r.id;render();return;}
       if(g.drop){
-        updateReminder(r.id,{time:calFmt(g.drop.min),due:day});
+        /* Only the time. The date is when the task was meant to be done, and
+           an overdue one dropped on today's hours used to be rewritten to
+           today — which erased how late it was (and for a repeating task,
+           where in its rhythm it belonged). It is still overdue; it just has
+           an hour now. */
+        updateReminder(r.id,{time:calFmt(g.drop.min)});
         render();
       }else if(g.inTray&&kind==='block'){
         updateReminder(r.id,{time:''});
