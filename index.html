@@ -467,6 +467,30 @@ button{cursor:pointer;font-family:var(--ff);font-size:15px;font-weight:600;borde
   .gnudge{overflow-x:auto;-webkit-mask-image:none;mask-image:none}
 }
 
+/* ── THE DAY CALENDAR (second page of the pomodoro card) ── */
+.cal-nav{display:flex;align-items:center;gap:6px;margin-bottom:8px}
+.cal-day{flex:1;text-align:center;font-weight:700;font-size:13px}
+.cal-tray{display:flex;flex-wrap:wrap;align-items:center;gap:6px;min-height:36px;padding:6px;
+  border:1px dashed var(--b2);border-radius:10px;margin-bottom:8px}
+.cal-tray.drop{border-color:var(--ac);background:var(--acd)}
+.cal-chip{padding:4px 9px;border-radius:99px;background:var(--sur2);border:1px solid var(--b2);
+  font-size:12px;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none;
+  max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cal-chip.late{border-color:var(--ng);color:var(--ng)}
+.cal-scroll{height:340px;overflow-y:auto;position:relative;border:1px solid var(--b1);
+  border-radius:10px;background:var(--sur2);touch-action:pan-y}
+.cal-grid{position:relative;margin-left:44px;margin-right:6px}
+.cal-hr{position:absolute;left:-44px;width:38px;text-align:right;font-size:10px;color:var(--t3);transform:translateY(-6px)}
+.cal-line{position:absolute;left:0;right:0;border-top:1px solid var(--b1)}
+.cal-block{position:absolute;box-sizing:border-box;border-radius:8px;padding:2px 6px;font-size:11px;
+  line-height:1.25;overflow:hidden;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none;
+  background:var(--acd);border:1px solid var(--acb);border-left:3px solid var(--ac);color:var(--t1)}
+.cal-block .cal-rs{position:absolute;left:0;right:0;bottom:0;height:9px;cursor:ns-resize;touch-action:none}
+.cal-now{position:absolute;left:-6px;right:0;border-top:2px solid var(--ng);z-index:3;pointer-events:none}
+.cal-now::before{content:'';position:absolute;left:-2px;top:-5px;width:8px;height:8px;border-radius:50%;background:var(--ng)}
+.cal-ind{position:absolute;left:0;right:0;border:2px dashed var(--ac);border-radius:8px;background:var(--acd);
+  pointer-events:none;z-index:2;font-size:11px;padding:1px 6px;color:var(--ac)}
+
 /* ── THE FLOATING TIMER ──
    A running pomodoro is the one number in the app that changes while you are
    looking somewhere else, so it is the one thing worth following you down the
@@ -1247,6 +1271,9 @@ en:{
   'rem-add-note':'Add note','rem-edit-note':'Click to edit',
   'rem-goal-for':'🎯 In service of','rem-goal-none':'— No goal —',
   'wkgoal-none':'No goal scheduled',
+  'cal-to-cal':'Day calendar','cal-to-timer':'Back to the timer','cal-today':'Today',
+  'cal-untimed':'No time','cal-tray-empty':'every task has a time',
+  'cal-hint':'Drag a task onto the hours to give it a time. Drag the bottom edge to change how long it is drawn — the list only ever shows when it starts.',
   'wkgoal-ask':'New weekly goal for "{t}":','wkgoal-full':'You already have {n} weekly goals this week.',
   'wkgoal-add-title':'Add a weekly goal for this task',
   'goal-unlink':'Remove from this goal','goal-link-task':'Add a task to this goal',
@@ -1473,6 +1500,9 @@ es:{
   'rem-add-note':'Agregar nota','rem-edit-note':'Click para editar',
   'rem-goal-for':'🎯 Al servicio de','rem-goal-none':'— Sin meta —',
   'wkgoal-none':'Sin meta programada',
+  'cal-to-cal':'Calendario del día','cal-to-timer':'Volver al temporizador','cal-today':'Hoy',
+  'cal-untimed':'Sin hora','cal-tray-empty':'todas tienen hora',
+  'cal-hint':'Arrastra una tarea a las horas para darle hora. Arrastra el borde de abajo para cambiar cuánto dura en el dibujo — la lista solo muestra a qué hora empieza.',
   'wkgoal-ask':'Nueva meta semanal para "{t}":','wkgoal-full':'Ya tienes {n} metas semanales esta semana.',
   'wkgoal-add-title':'Añadir una meta semanal para esta tarea',
   'goal-unlink':'Quitar de esta meta','goal-link-task':'Agregar una tarea a esta meta',
@@ -2091,6 +2121,10 @@ let STATE={
   lang: localStorage.getItem('st_lang')||'en',
   // Tab 1 (planner) feeds tab 2 (score). Never the other way around.
   tab: localStorage.getItem('st_tab')||'score',
+  // Which page of the pomodoro card is showing, and which day its calendar
+  // page is looking at (null = today) and how far down it is scrolled.
+  pomoPage: localStorage.getItem('st_pomopage')==='cal'?'cal':'timer',
+  calDay: null, calScroll: null, calScrollDay: null,
   planner: S.get(K.PLANNER,{reminders:[],_ts:0}),
   /* Pomodoro. Durations are yours to set; the classic 25-5 with a longer
      fourth break is just the default. The timer stores when the current leg
@@ -3819,7 +3853,32 @@ function goalsServedBy(r){
    the old goal's name, so a name that stopped applying weeks ago cannot be
    mistaken for the current one. A task that never had a weekly link at all
    stays silent — null. */
+/* A flag is one of the day's priorities, so it should always point at
+   something. When there is no weekly goal for it — the week's few slots went
+   to other things — it borrows the nearest long one instead: whichever open
+   quarterly goal ends soonest, then the same for yearly, preferring one the
+   task already serves. Nothing is written to the task; this is only what the
+   marker says, and it goes back to the weekly goal the moment there is one.
+   Only when there is no open goal of any length does it fall through to the
+   "no goal scheduled" warning. */
+function goalFallbackNote(r){
+  const icon={quarter:'📈',year:'🏆'};
+  const served=new Set(goalIdsOf(r));
+  for(const kind of ['quarter','year']){
+    const open=goalsOf(kind).filter(g=>!g.doneOn)
+      .sort((a,b)=>(served.has(b.id)-served.has(a.id))||goalDeadline(a).localeCompare(goalDeadline(b)));
+    if(open.length)return{text:open[0].title,done:false,fallback:true,icon:icon[kind]};
+  }
+  return null;
+}
 function weeklyGoalNote(r){
+  const base=weeklyGoalNoteBase(r);
+  if(!r||!r.flagged)return base;
+  // Already pointing at a live weekly goal, open or closed this week: leave it.
+  if(base&&!base.stale)return base;
+  return goalFallbackNote(r)||base||{text:t('wkgoal-none'),done:false,stale:true};
+}
+function weeklyGoalNoteBase(r){
   const allLinks=goalsServedBy(r).filter(g=>g.kind==='week');
   if(!allLinks.length)return null;
   /* Same rule goalsOf('week') already uses to decide what still belongs to
@@ -4225,7 +4284,7 @@ function renderPlanner(){
         row.appendChild(ttl);
         const wkNote=weeklyGoalNote(r);
         if(wkNote!==null){
-          const suf=sp('sm dimmer',(wkNote.stale?'⚠️ ':'🏁 ')+wkNote.text);
+          const suf=sp('sm dimmer',(wkNote.icon||(wkNote.stale?'⚠️':'🏁'))+' '+wkNote.text);
           if(wkNote.done)suf.style.textDecoration='line-through';
           suf.title=t('rem-goal-for');
           if(wkNote.stale)staleGoalClick(suf,r);
@@ -5134,7 +5193,263 @@ function renderPomoCard(){
   });
   card.appendChild(cfg);
   card.appendChild(dv('xs dimmer mt6',t('pomo-note').replace('{n}',POM_PTS)));
+
+  /* The card has two pages — the timer and a day calendar — and everything
+     built above belongs to the first. It is gathered into its own container
+     rather than rebuilt, so the clock, the progress bar and the pill logic
+     that look them up by id keep finding exactly what they did before. */
+  const onCal=STATE.pomoPage==='cal';
+  const timerPage=dv('');
+  [...card.children].slice(1).forEach(n=>timerPage.appendChild(n));
+  timerPage.style.display=onCal?'none':'';
+  card.appendChild(timerPage);
+  if(onCal){
+    const mini=sp('xs mo',(focusing?'🍅 ':'☕ ')+fmtClock(pomoRemaining(p)));
+    mini.id='pomo-mini';mini.style.color=accent;
+    head.insertBefore(mini,stat);
+    card.appendChild(renderPomoCalendar());
+  }
+  const goPage=p2=>{STATE.pomoPage=p2;try{localStorage.setItem('st_pomopage',p2);}catch(e){}render();};
+  const sw=bt('btn-icon',onCal?'‹':'›',()=>goPage(onCal?'timer':'cal'));
+  sw.title=onCal?t('cal-to-timer'):t('cal-to-cal');
+  sw.style.cssText+=';font-size:18px;padding:0 8px';
+  head.appendChild(sw);
+  // Swipe between the pages, same gesture the list card uses for peeking a
+  // day ahead. Not from anything that is itself draggable or typed into.
+  card.style.touchAction='pan-y';
+  let sx=null,sy=null;
+  card.addEventListener('pointerdown',e=>{
+    if(e.target.closest&&e.target.closest('button,input,select,textarea,.cal-block,.cal-chip'))return;
+    sx=e.clientX;sy=e.clientY;
+  });
+  card.addEventListener('pointerup',e=>{
+    if(sx===null)return;
+    const dx=e.clientX-sx,dy=e.clientY-sy;sx=null;
+    if(Math.abs(dx)<60||Math.abs(dx)<Math.abs(dy)*1.5)return;
+    if(dx<0&&!onCal)goPage('cal');
+    else if(dx>0&&onCal)goPage('timer');
+  });
+  card.addEventListener('pointercancel',()=>{sx=null;});
   return card;
+}
+
+/* ═══ DAY CALENDAR ═══════════════════════════════════════════════════════════
+   A day laid out by the hour, in the spirit of the Apple one. It shows the
+   same reminders as the list and holds no schedule of its own: a task's start
+   is r.time, so putting it at 16:00 here is editing the task, and a task
+   already set for 16:00 in the list is simply there. The only thing that
+   lives here alone is how long a block is drawn (r.calDur), which the list
+   never shows. Tasks with no time wait in the tray above; dragging one onto
+   the hours gives it a time, and dragging a block back to the tray takes it
+   away. ═══════════════════════════════════════════════════════════════════ */
+const CAL_HOUR_PX=48,CAL_SNAP=15,CAL_DEF_DUR=30;
+function calMin(ts){const m=/^(\d{1,2}):(\d{2})/.exec(ts||'');return m?(+m[1])*60+(+m[2]):null;}
+function calFmt(min){return pad2(Math.floor(min/60))+':'+pad2(min%60);}
+function syncCalNow(){
+  const el=document.getElementById('cal-now');
+  if(!el)return;
+  const n=appNow();
+  el.style.top=((n.getHours()*60+n.getMinutes())/60*CAL_HOUR_PX)+'px';
+}
+function renderPomoCalendar(){
+  const tk=todayKey();
+  const day=STATE.calDay||tk;
+  const isEs=STATE.lang==='es';
+  const wrap=dv('');
+
+  const nav=dv('cal-nav');
+  const shift=n=>{const d=new Date(day+'T12:00:00');d.setDate(d.getDate()+n);STATE.calDay=isoDate(d);render();};
+  nav.appendChild(bt('btn-icon','‹',()=>shift(-1)));
+  const lbl=sp('cal-day',capFirst(new Date(day+'T12:00:00').toLocaleDateString(isEs?'es-MX':'en-US',{weekday:'long',day:'numeric',month:'short'})));
+  nav.appendChild(lbl);
+  nav.appendChild(bt('btn-icon','›',()=>shift(1)));
+  if(day!==tk)nav.appendChild(bt('btn-ghost btn-xs',t('cal-today'),()=>{STATE.calDay=null;render();}));
+  wrap.appendChild(nav);
+
+  // What belongs to this day. Overdue work counts as today's, the way the
+  // list treats it, and arrives in the tray because its own time is stale.
+  const open=reminders().filter(r=>!r.done&&r.completedOn!==tk&&r.due);
+  const timed=[],untimed=[];
+  open.forEach(r=>{
+    if(r.due===day){(calMin(r.time)!==null?timed:untimed).push(r);}
+    else if(day===tk&&r.due<tk)untimed.push(r);
+  });
+
+  const tray=dv('cal-tray');
+  tray.appendChild(sp('xs dimmer',t('cal-untimed')));
+  untimed.forEach(r=>{
+    const c=sp('cal-chip'+(r.due<tk?' late':''),r.title);
+    c.title=r.title;
+    attachCalDrag(c,r,'chip',day,()=>scroll,()=>grid,tray);
+    tray.appendChild(c);
+  });
+  if(!untimed.length)tray.appendChild(sp('xs dimmer',t('cal-tray-empty')));
+  wrap.appendChild(tray);
+
+  const scroll=dv('cal-scroll');
+  const grid=dv('cal-grid');
+  grid.style.height=(24*CAL_HOUR_PX)+'px';
+  for(let h=0;h<24;h++){
+    const ln=dv('cal-line');ln.style.top=(h*CAL_HOUR_PX)+'px';grid.appendChild(ln);
+    const hl=dv('cal-hr',pad2(h)+':00');hl.style.top=(h*CAL_HOUR_PX)+'px';grid.appendChild(hl);
+  }
+
+  // Overlapping blocks share the width instead of covering each other.
+  const ev=timed.map(r=>{
+    const s=calMin(r.time),d=Math.max(CAL_SNAP,r.calDur||CAL_DEF_DUR);
+    return{r,s,e:Math.min(24*60,s+d),d};
+  }).sort((a,b)=>a.s-b.s);
+  let grp=null;
+  ev.forEach(it=>{
+    if(!grp||it.s>=grp.end){grp={items:[],end:0,cols:[]};}
+    let c=grp.cols.findIndex(end=>end<=it.s);
+    if(c<0){c=grp.cols.length;grp.cols.push(0);}
+    grp.cols[c]=it.e;it.col=c;it.grp=grp;grp.items.push(it);grp.end=Math.max(grp.end,it.e);
+  });
+  ev.forEach(it=>{
+    const n=it.grp.cols.length;
+    const b=dv('cal-block');
+    b.style.top=(it.s/60*CAL_HOUR_PX)+'px';
+    b.style.height=Math.max(18,(it.e-it.s)/60*CAL_HOUR_PX-1)+'px';
+    b.style.left=(it.col*100/n)+'%';
+    b.style.width='calc('+(100/n)+'% - 2px)';
+    const q=quadOf(it.r);
+    if(q)b.style.borderLeftColor=quadColor(q);
+    b.title=`${calFmt(it.s)}–${calFmt(it.e%1440)} · ${it.r.title}`;
+    b.appendChild(sp('w6',calFmt(it.s)+' '));
+    b.appendChild(document.createTextNode(it.r.title));
+    const rs=dv('cal-rs');
+    b.appendChild(rs);
+    attachCalResize(rs,b,it.r,it.s);
+    attachCalDrag(b,it.r,'block',day,()=>scroll,()=>grid,tray);
+    grid.appendChild(b);
+  });
+
+  if(day===tk){
+    const nl=dv('cal-now');nl.id='cal-now';grid.appendChild(nl);
+    syncCalNow();
+  }
+  scroll.appendChild(grid);
+  wrap.appendChild(scroll);
+  wrap.appendChild(dv('xs dimmer mt6',t('cal-hint')));
+
+  // Open already near the present (or the morning, on another day), and keep
+  // the place across redraws, which a drop or a tick of the clock causes.
+  scroll.addEventListener('scroll',()=>{STATE.calScroll=scroll.scrollTop;});
+  requestAnimationFrame(()=>{
+    if(STATE.calScroll==null||STATE.calScrollDay!==day){
+      const n=appNow();
+      const mins=day===tk?Math.max(0,n.getHours()*60+n.getMinutes()-60):7*60;
+      STATE.calScroll=mins/60*CAL_HOUR_PX;
+      STATE.calScrollDay=day;
+    }
+    scroll.scrollTop=STATE.calScroll;
+  });
+  return wrap;
+}
+
+/* One drag for blocks and chips. Pointer events rather than HTML5 drag and
+   drop, which does nothing on a phone. A press that never travels is a click
+   and opens the task; one that does follows the finger with a ghost, shows
+   where it would land, and writes the time when it is let go. */
+function attachCalDrag(el,r,kind,day,getScroll,getGrid,tray){
+  el.addEventListener('pointerdown',e=>{
+    if(e.button&&e.button!==0)return;
+    if(e.target.classList&&e.target.classList.contains('cal-rs'))return;
+    const rect=el.getBoundingClientRect();
+    const g={sx:e.clientX,sy:e.clientY,offX:e.clientX-rect.left,offY:e.clientY-rect.top,
+             w:rect.width,dragging:false,ghost:null,ind:null,drop:null,inTray:false};
+    try{el.setPointerCapture(e.pointerId);}catch(_){}
+    const scroll=getScroll(),grid=getGrid();
+    const dur=Math.max(CAL_SNAP,r.calDur||CAL_DEF_DUR);
+    const move=ev=>{
+      if(!g.dragging){
+        if(Math.hypot(ev.clientX-g.sx,ev.clientY-g.sy)<6)return;
+        g.dragging=true;
+        g.ghost=el.cloneNode(true);
+        g.ghost.style.cssText+=`;position:fixed;z-index:90;pointer-events:none;opacity:.85;width:${Math.max(120,g.w)}px;left:0;top:0;height:auto`;
+        document.body.appendChild(g.ghost);
+        el.style.opacity='.3';
+        g.ind=dv('cal-ind');g.ind.style.display='none';grid.appendChild(g.ind);
+      }
+      g.ghost.style.left=(ev.clientX-Math.min(g.offX,60))+'px';
+      g.ghost.style.top=(ev.clientY-Math.min(g.offY,14))+'px';
+      const sr=scroll.getBoundingClientRect();
+      const inTL=ev.clientX>=sr.left&&ev.clientX<=sr.right&&ev.clientY>=sr.top&&ev.clientY<=sr.bottom;
+      const tr=tray.getBoundingClientRect();
+      g.inTray=!inTL&&ev.clientX>=tr.left&&ev.clientX<=tr.right&&ev.clientY>=tr.top&&ev.clientY<=tr.bottom;
+      tray.classList.toggle('drop',g.inTray&&kind==='block');
+      if(inTL){
+        if(ev.clientY<sr.top+24)scroll.scrollTop-=10;
+        else if(ev.clientY>sr.bottom-24)scroll.scrollTop+=10;
+        const gt=grid.getBoundingClientRect().top;
+        const topPx=ev.clientY-gt-(kind==='block'?Math.min(g.offY,CAL_HOUR_PX/2):8);
+        let min=Math.round(topPx/CAL_HOUR_PX*60/CAL_SNAP)*CAL_SNAP;
+        min=Math.max(0,Math.min(24*60-CAL_SNAP,min));
+        g.drop={min};
+        g.ind.style.display='';
+        g.ind.style.top=(min/60*CAL_HOUR_PX)+'px';
+        g.ind.style.height=Math.max(18,dur/60*CAL_HOUR_PX)+'px';
+        g.ind.textContent=calFmt(min);
+      }else{
+        g.drop=null;g.ind.style.display='none';
+      }
+    };
+    const end=ev=>{
+      el.removeEventListener('pointermove',move);
+      el.removeEventListener('pointerup',end);
+      el.removeEventListener('pointercancel',cancel);
+      try{el.releasePointerCapture(e.pointerId);}catch(_){}
+      el.style.opacity='';
+      tray.classList.remove('drop');
+      if(g.ghost)g.ghost.remove();
+      if(g.ind)g.ind.remove();
+      if(!g.dragging){STATE.editingRem=null;STATE.taskTree=r.id;render();return;}
+      if(g.drop){
+        updateReminder(r.id,{time:calFmt(g.drop.min),due:day});
+        render();
+      }else if(g.inTray&&kind==='block'){
+        updateReminder(r.id,{time:''});
+        render();
+      }
+    };
+    const cancel=()=>{
+      el.removeEventListener('pointermove',move);
+      el.removeEventListener('pointerup',end);
+      el.removeEventListener('pointercancel',cancel);
+      el.style.opacity='';tray.classList.remove('drop');
+      if(g.ghost)g.ghost.remove();
+      if(g.ind)g.ind.remove();
+    };
+    el.addEventListener('pointermove',move);
+    el.addEventListener('pointerup',end);
+    el.addEventListener('pointercancel',cancel);
+  });
+}
+// The bottom edge of a block sets how long it is drawn — and nothing else.
+function attachCalResize(handle,block,r,startMin){
+  handle.addEventListener('pointerdown',e=>{
+    e.stopPropagation();e.preventDefault();
+    try{handle.setPointerCapture(e.pointerId);}catch(_){}
+    const top=block.getBoundingClientRect().top;
+    let dur=Math.max(CAL_SNAP,r.calDur||CAL_DEF_DUR);
+    const move=ev=>{
+      let d=Math.round((ev.clientY-top)/CAL_HOUR_PX*60/CAL_SNAP)*CAL_SNAP;
+      dur=Math.max(CAL_SNAP,Math.min(24*60-startMin,d));
+      block.style.height=Math.max(18,dur/60*CAL_HOUR_PX-1)+'px';
+    };
+    const end=()=>{
+      handle.removeEventListener('pointermove',move);
+      handle.removeEventListener('pointerup',end);
+      handle.removeEventListener('pointercancel',end);
+      try{handle.releasePointerCapture(e.pointerId);}catch(_){}
+      updateReminder(r.id,{calDur:dur});
+      render();
+    };
+    handle.addEventListener('pointermove',move);
+    handle.addEventListener('pointerup',end);
+    handle.addEventListener('pointercancel',end);
+  });
 }
 
 /* Notes hold real paragraphs, so they get a textarea rather than a one-line
@@ -5400,7 +5715,7 @@ function remChip(r,tk,redraw,peeking){
     const wkNote=weeklyGoalNote(r);
     if(wkNote!==null){
       if(meta.length)m.appendChild(document.createTextNode(' · '));
-      const wk=sp('',(wkNote.stale?'⚠️ ':'🏁 ')+wkNote.text.slice(0,28));
+      const wk=sp('',(wkNote.icon||(wkNote.stale?'⚠️':'🏁'))+' '+wkNote.text.slice(0,28));
       if(wkNote.done)wk.style.textDecoration='line-through';
       if(wkNote.stale)staleGoalClick(wk,r);
       m.appendChild(wk);
@@ -5868,7 +6183,7 @@ function renderReminderRow(r,tk,opts){
      the clutter this is meant to avoid. Quarterly and yearly keep the chip. */
   const wkNote=weeklyGoalNote(r);
   if(wkNote!==null){
-    const suf=sp('md dimmer',(wkNote.stale?' ⚠️ ':' 🏁 ')+wkNote.text);
+    const suf=sp('md dimmer',' '+(wkNote.icon||(wkNote.stale?'⚠️':'🏁'))+' '+wkNote.text);
     if(wkNote.done)suf.style.textDecoration='line-through';
     suf.title=t('rem-goal-for');
     if(wkNote.stale)staleGoalClick(suf,r);
@@ -10170,8 +10485,11 @@ setInterval(()=>{
   // one second, no re-render, nothing you are typing gets touched.
   syncPomoPill();
   syncPomoTitle();
+  syncCalNow();
   catchUpPomodoro();
   if(p&&p.running){
+    const mini=document.getElementById('pomo-mini');
+    if(mini)mini.textContent=(p.phase==='focus'?'🍅 ':'☕ ')+fmtClock(pomoRemaining(p));
     // So the context is awake when the timer expires, not asked to wake then.
     keepAudioAwake();
     const left=pomoRemaining(p);
