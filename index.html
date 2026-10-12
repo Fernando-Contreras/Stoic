@@ -3876,7 +3876,14 @@ function weeklyGoalNote(r){
   if(!r||!r.flagged)return base;
   // Already pointing at a live weekly goal, open or closed this week: leave it.
   if(base&&!base.stale)return base;
-  return goalFallbackNote(r)||base||{text:t('wkgoal-none'),done:false,stale:true};
+  const warn=base||{text:t('wkgoal-none'),done:false,stale:true};
+  /* Borrowing a longer goal is for when there is no way to give the flag a
+     weekly one — the week's slots are all taken. While there is still room,
+     the warning is the right thing to show: it is the nudge to add one, and
+     pressing it does exactly that. Same cap addGoal enforces. */
+  const weekFull=goalsOf('week').length>=GOAL_MAX.week;
+  if(!weekFull)return warn;
+  return goalFallbackNote(r)||warn;
 }
 function weeklyGoalNoteBase(r){
   const allLinks=goalsServedBy(r).filter(g=>g.kind==='week');
