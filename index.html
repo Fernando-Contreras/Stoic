@@ -1275,7 +1275,10 @@ en:{
   'cal-untimed':'No time','cal-tray-empty':'every task has a time',
   'cal-hint':'Drag a task onto the hours to give it a time. Drag the bottom edge to change how long it is drawn — the list only ever shows when it starts.',
   'wkgoal-ask':'New weekly goal for "{t}":','wkgoal-full':'You already have {n} weekly goals this week.',
-  'wkgoal-add-title':'Add a weekly goal for this task',
+  'wkgoal-ask-quarter':'The week is full. New quarterly goal for "{t}":',
+  'wkgoal-ask-year':'The week and the quarter are full. New yearly goal for "{t}":',
+  'wkgoal-all-full':'Weekly, quarterly and yearly goals are all full. Finish or delete one first.',
+  'wkgoal-add-title':'Add a goal for this task',
   'goal-unlink':'Remove from this goal','goal-link-task':'Add a task to this goal',
   'goal-link-search':'Which task is a step toward it? (type to search)',
   'rem-has-kids':'This one has subtasks of its own, so it cannot become one. Two levels is the limit.',
@@ -1504,7 +1507,10 @@ es:{
   'cal-untimed':'Sin hora','cal-tray-empty':'todas tienen hora',
   'cal-hint':'Arrastra una tarea a las horas para darle hora. Arrastra el borde de abajo para cambiar cuánto dura en el dibujo — la lista solo muestra a qué hora empieza.',
   'wkgoal-ask':'Nueva meta semanal para "{t}":','wkgoal-full':'Ya tienes {n} metas semanales esta semana.',
-  'wkgoal-add-title':'Añadir una meta semanal para esta tarea',
+  'wkgoal-ask-quarter':'La semana está llena. Nueva meta trimestral para "{t}":',
+  'wkgoal-ask-year':'La semana y el trimestre están llenos. Nueva meta anual para "{t}":',
+  'wkgoal-all-full':'Las metas semanales, trimestrales y anuales están llenas. Termina o borra una primero.',
+  'wkgoal-add-title':'Añadir una meta para esta tarea',
   'goal-unlink':'Quitar de esta meta','goal-link-task':'Agregar una tarea a esta meta',
   'goal-link-search':'¿Cuál tarea es un paso hacia ella? (escribe para buscar)',
   'rem-has-kids':'Esta ya tiene subtareas, así que no puede volverse una. El límite son 2 niveles.',
@@ -3947,9 +3953,17 @@ function goalPointsOn(dateKey){
    weekly goal is capped, so when the week is already full it says so rather
    than silently doing nothing. */
 function addWeeklyGoalFor(r){
-  const title=(prompt(t('wkgoal-ask').replace('{t}',(r.title||'').slice(0,40)))||'').trim();
+  /* The question is asked for the first kind that still has room — weekly,
+     then quarterly, then yearly — instead of asking for a weekly goal and
+     only then discovering the week was full. Asked for a longer goal, the
+     task shows it as its marker once the week has no slot for it (see
+     goalFallbackNote). */
+  const kind=['week','quarter','year'].find(k=>goalsOf(k).length<GOAL_MAX[k]);
+  if(!kind){alert(t('wkgoal-all-full'));return;}
+  const key={week:'wkgoal-ask',quarter:'wkgoal-ask-quarter',year:'wkgoal-ask-year'}[kind];
+  const title=(prompt(t(key).replace('{t}',(r.title||'').slice(0,40)))||'').trim();
   if(!title)return;
-  if(!addGoal('week',title)){alert(t('wkgoal-full').replace('{n}',GOAL_MAX.week));return;}
+  if(!addGoal(kind,title)){alert(t('wkgoal-all-full'));return;}
   setGoalLink(r.id,goals()[0].id,true);
   render();
 }
