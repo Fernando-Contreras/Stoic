@@ -485,6 +485,7 @@ button{cursor:pointer;font-family:var(--ff);font-size:15px;font-weight:600;borde
 .cal-block{position:absolute;box-sizing:border-box;border-radius:8px;padding:2px 6px;font-size:11px;
   line-height:1.25;overflow:hidden;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none;
   background:var(--acd);border:1px solid var(--acb);border-left:3px solid var(--ac);color:var(--t1)}
+.cal-block.late{background:var(--ngd);border-color:var(--ngb);border-left-color:var(--ng)}
 .cal-block .cal-rs{position:absolute;left:0;right:0;bottom:0;height:9px;cursor:ns-resize;touch-action:none}
 .cal-now{position:absolute;left:-6px;right:0;border-top:2px solid var(--ng);z-index:3;pointer-events:none}
 .cal-now::before{content:'';position:absolute;left:-2px;top:-5px;width:8px;height:8px;border-radius:50%;background:var(--ng)}
@@ -5291,12 +5292,13 @@ function renderPomoCalendar(){
   wrap.appendChild(nav);
 
   // What belongs to this day. Overdue work counts as today's, the way the
-  // list treats it, and arrives in the tray because its own time is stale.
+  // list treats it. One with a time still sits at that time — setting it in
+  // the list is exactly how you say when to do it — drawn in red so it reads
+  // as late; one without a time waits in the tray.
   const open=reminders().filter(r=>!r.done&&r.completedOn!==tk&&r.due);
   const timed=[],untimed=[];
   open.forEach(r=>{
-    if(r.due===day){(calMin(r.time)!==null?timed:untimed).push(r);}
-    else if(day===tk&&r.due<tk)untimed.push(r);
+    if(r.due===day||(day===tk&&r.due<tk)){(calMin(r.time)!==null?timed:untimed).push(r);}
   });
 
   const tray=dv('cal-tray');
@@ -5339,7 +5341,9 @@ function renderPomoCalendar(){
     b.style.width='calc('+(100/n)+'% - 2px)';
     const q=quadOf(it.r);
     if(q)b.style.borderLeftColor=quadColor(q);
-    b.title=`${calFmt(it.s)}–${calFmt(it.e%1440)} · ${it.r.title}`;
+    const late=it.r.due<tk;
+    if(late){b.classList.add('late');}
+    b.title=`${calFmt(it.s)}–${calFmt(it.e%1440)} · ${it.r.title}`+(late?` · ${t('rem-was-due')} ${it.r.due}`:'');
     b.appendChild(sp('w6',calFmt(it.s)+' '));
     b.appendChild(document.createTextNode(it.r.title));
     const rs=dv('cal-rs');
