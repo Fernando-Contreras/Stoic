@@ -1273,6 +1273,13 @@ en:{
   'rem-goal-for':'🎯 In service of','rem-goal-none':'— No goal —',
   'wkgoal-none':'No goal scheduled',
   'nlp-use':'use as date and time',
+  'wk-title':'Week at a glance','wk-vs':'vs','wk-this':'This week','wk-last':'Last week',
+  'wk-points':'Points','wk-tasks':'Tasks completed','wk-goals':'Goals closed','wk-pom':'Pomodoros',
+  'wk-work':'Work','wk-sleep':'Sleep per day','wk-reds':'Red days','wk-best':'Best day',
+  'wk-late':'Overdue now','wk-opengoals':'Open goals',
+  'wk-note':'This week counts Monday to today, against the whole of last week, so a week in progress will usually trail. Tasks come from the completion log (the last 200).',
+  'bk-never':'💾 You have never saved a backup file. A copy you hold is the one that survives anything happening to the account.',
+  'bk-old':'💾 It has been {n} days since your last backup file.','bk-now':'Download backup','bk-later':'In a week',
   'cal-to-cal':'Day calendar','cal-to-timer':'Back to the timer','cal-today':'Today',
   'cal-untimed':'No time','cal-tray-empty':'every task has a time',
   'cal-hint':'Drag a task onto the hours to give it a time. Drag the bottom edge to change how long it is drawn — the list only ever shows when it starts.',
@@ -1506,6 +1513,13 @@ es:{
   'rem-goal-for':'🎯 Al servicio de','rem-goal-none':'— Sin meta —',
   'wkgoal-none':'Sin meta programada',
   'nlp-use':'usar como fecha y hora',
+  'wk-title':'La semana de un vistazo','wk-vs':'contra','wk-this':'Esta semana','wk-last':'Pasada',
+  'wk-points':'Puntos','wk-tasks':'Tareas completadas','wk-goals':'Metas cerradas','wk-pom':'Pomodoros',
+  'wk-work':'Trabajo','wk-sleep':'Sueño por día','wk-reds':'Días rojos','wk-best':'Mejor día',
+  'wk-late':'Atrasadas ahora','wk-opengoals':'Metas abiertas',
+  'wk-note':'Esta semana cuenta de lunes a hoy, contra toda la pasada, así que una semana en curso casi siempre va por debajo. Las tareas salen del registro de completadas (las últimas 200).',
+  'bk-never':'💾 Nunca has guardado un archivo de respaldo. Una copia que tú tienes es la que sobrevive a cualquier cosa que le pase a la cuenta.',
+  'bk-old':'💾 Hace {n} días que no guardas un archivo de respaldo.','bk-now':'Descargar respaldo','bk-later':'En una semana',
   'cal-to-cal':'Calendario del día','cal-to-timer':'Volver al temporizador','cal-today':'Hoy',
   'cal-untimed':'Sin hora','cal-tray-empty':'todas tienen hora',
   'cal-hint':'Arrastra una tarea a las horas para darle hora. Arrastra el borde de abajo para cambiar cuánto dura en el dibujo — la lista solo muestra a qué hora empieza.',
@@ -2519,7 +2533,7 @@ function isEditing(){
      unfinished action held entirely on screen — a redraw underneath it is the
      same interruption an overlay blinking out would be. */
   return ['taskTree','histDay','restoreList','showTZ','showRules','showSyncPanel','showGoals','showFlags',
-          'showAddForm','showRewards','selecting']
+          'showAddForm','showRewards','selecting','showWeek','showTagMgr']
     .some(k=>STATE[k]);
 }
 /* The sync itself never waits — only the redraw does. What the cloud brought
@@ -4125,6 +4139,28 @@ function renderPlanner(){
   const tk=todayKey();
   const s=plannerTodayStats();
 
+  /* Once a month, ask for the file backup. The cloud copy lives in the same
+     account as the data it protects, so a copy you hold is the only one that
+     survives that account having a bad day. Snoozes for a week; a download
+     from anywhere clears it. */
+  {
+    const ds=daysSinceBackup();
+    let snoozed='';try{snoozed=localStorage.getItem('st_jsonsnooze')||'';}catch(e){}
+    if((ds===null||ds>=30)&&snoozed<tk){
+      const bn=dv('card mb12');bn.style.cssText='border-color:var(--b2);background:var(--sur2)';
+      bn.appendChild(dv('sm w6',ds===null?t('bk-never'):t('bk-old').replace('{n}',ds)));
+      const bb=dv('row gap8 mt8');
+      bb.appendChild(bt('btn-ac btn-sm',t('bk-now'),()=>{downloadBackupJson();render();}));
+      bb.appendChild(bt('btn-ghost btn-sm',t('bk-later'),()=>{
+        const d=new Date(tk+'T12:00:00');d.setDate(d.getDate()+7);
+        try{localStorage.setItem('st_jsonsnooze',isoDate(d));}catch(e){}
+        render();
+      }));
+      bn.appendChild(bb);
+      wrap.appendChild(bn);
+    }
+  }
+
   /* Once a day, a card that has to be dismissed rather than glanced past —
      for any open period goal with no live step pointed at it. The scrolling
      strip further down says the same thing without ever asking for a
@@ -4620,6 +4656,9 @@ function renderPlanner(){
   /* Pick several and act on all of them at once. Thirteen tasks that need the
      same new date, or the same priority, are thirteen trips through the editor
      otherwise — and one wrong 🗑 away from the afternoon that prompted this. */
+  const wkBtn=bt('btn-ghost btn-sm','🗓️',()=>{STATE.showWeek=true;render();});
+  wkBtn.title=t('wk-title');
+  h.appendChild(wkBtn);
   const selBtn=bt(STATE.selecting?'btn-ac btn-sm':'btn-ghost btn-sm','☑',()=>{
     STATE.selecting=!STATE.selecting;STATE.selected=[];render();
   });
@@ -4829,7 +4868,95 @@ function renderPlanner(){
   }
   if(STATE.showFlags)wrap.appendChild(renderFlagsModal());
   if(STATE.showTagMgr)wrap.appendChild(renderTagManagerModal());
+  if(STATE.showWeek)wrap.appendChild(renderWeekReviewModal());
   return wrap;
+}
+
+/* ═══ THE WEEK AT A GLANCE ═══════════════════════════════════════════════════
+   This week (Monday to today) against the whole of the last one, from what is
+   already recorded — nothing here is new data, and nothing is judged: it puts
+   the two side by side and shows which way each number went. ═══════════════ */
+function weekStats(startKey,endKey){
+  const tk=todayKey();
+  const days=STATE.history.filter(d=>!d._gap&&d.date>=startKey&&d.date<=endKey&&d.date!==tk);
+  const live=tk>=startKey&&tk<=endKey;
+  let pom=days.reduce((s,d)=>s+(d.pomodoros||0),0);
+  let work=days.reduce((s,d)=>s+(d.workDuration||0),0);
+  let sleep=days.reduce((s,d)=>s+(d.sleepDuration||0)+(d.napDuration||0),0);
+  let nDays=days.length;
+  let points=CALC.rangeTotal(STATE.history,startKey,endKey);
+  let best=days.reduce((b,d)=>(!b||(d.todayPoints||0)>(b.todayPoints||0))?d:b,null);
+  let bestPts=best?CALC.liveScore(best,STATE.history):null,bestDate=best?best.date:null;
+  if(live){
+    const td=STATE.today;
+    const sc=CALC.score(td,applyStreakOverrides(CALC.streaks(STATE.history,td)));
+    pom+=td.pomodoros||0;work+=(td.work&&td.work.workDuration)||0;
+    sleep+=((td.sleep&&td.sleep.sleepDuration)||0)+((td.sleep&&td.sleep.napDuration)||0);
+    nDays+=1;points+=sc.total;
+    if(bestPts===null||sc.total>bestPts){bestPts=sc.total;bestDate=tk;}
+  }
+  const tasks=completionLog().filter(x=>x.date>=startKey&&x.date<=endKey).length;
+  const goalsClosed=goals().filter(g=>g.doneOn&&g.doneOn>=startKey&&g.doneOn<=endKey).length;
+  const reds=days.filter(d=>d.status==='red').length+(live&&CALC.score(STATE.today,applyStreakOverrides(CALC.streaks(STATE.history,STATE.today))).status==='red'?1:0);
+  return{pom:Math.round(pom*10)/10,work,sleepAvg:nDays?Math.round(sleep/nDays):0,points:Math.round(points),
+    tasks,goalsClosed,reds,nDays,bestPts:bestPts===null?null:Math.round(bestPts),bestDate};
+}
+function renderWeekReviewModal(){
+  const close=()=>{STATE.showWeek=false;render();};
+  const ov=dv('fi');ov.classList.add('ovl');
+  closeOnBackdrop(ov,close);
+  const panel=dv('card');
+  panel.style.cssText='max-width:520px;width:100%;margin:auto';
+  ov.appendChild(panel);
+  const isEs=STATE.lang==='es';
+  const tk=todayKey();
+  const thisW=periodBounds('week',tk);
+  const lastStart=(()=>{const d=new Date(thisW.start+'T12:00:00');d.setDate(d.getDate()-7);return isoDate(d);})();
+  const lastW=periodBounds('week',lastStart);
+  const a=weekStats(thisW.start,thisW.end<tk?thisW.end:tk);
+  const b=weekStats(lastW.start,lastW.end);
+  const hd=dv('rowb mb10');
+  hd.appendChild(sp('ctit','🗓️ '+t('wk-title')));
+  hd.appendChild(bt('btn-icon','✕',close));
+  panel.appendChild(hd);
+  const fmt=d=>capFirst(new Date(d+'T12:00:00').toLocaleDateString(isEs?'es-MX':'en-US',{day:'numeric',month:'short'}));
+  panel.appendChild(dv('xs dimmer mb10',`${fmt(thisW.start)} – ${fmt(tk)}   ·   ${t('wk-vs')} ${fmt(lastW.start)} – ${fmt(lastW.end)}`));
+
+  const rows=[
+    [t('wk-points'),a.points,b.points,v=>v.toLocaleString(),1],
+    [t('wk-tasks'),a.tasks,b.tasks,v=>String(v),1],
+    [t('wk-goals'),a.goalsClosed,b.goalsClosed,v=>String(v),1],
+    [t('wk-pom'),a.pom,b.pom,v=>String(v),1],
+    [t('wk-work'),a.work,b.work,fmtDur,1],
+    [t('wk-sleep'),a.sleepAvg,b.sleepAvg,fmtDur,1],
+    [t('wk-reds'),a.reds,b.reds,v=>String(v),-1]
+  ];
+  const tbl=dv('s6');
+  const head=dv('row gap8');head.style.cssText='font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.06em;padding:0 10px';
+  [['',1.6],[t('wk-this'),1],[t('wk-last'),1],['',.4]].forEach(([x,f])=>{const c=sp('',x);c.style.flex=String(f);c.style.textAlign=f===1.6?'left':'right';head.appendChild(c);});
+  tbl.appendChild(head);
+  rows.forEach(([label,x,y,f,good])=>{
+    const r=dv('row gap8');
+    r.style.cssText='background:var(--sur2);border:1px solid var(--b1);border-radius:10px;padding:9px 10px;align-items:center';
+    const c1=sp('sm',label);c1.style.flex='1.6';
+    const c2=sp('sm mo w7',f(x));c2.style.cssText='flex:1;text-align:right';
+    const c3=sp('sm mo dimmer',f(y));c3.style.cssText='flex:1;text-align:right';
+    const diff=x-y;
+    const c4=sp('sm w7',diff===0?'=':(diff>0?'▲':'▼'));
+    c4.style.cssText='flex:.4;text-align:right;color:'+(diff===0?'var(--t3)':((diff>0)===(good>0)?'var(--cg)':'var(--ng)'));
+    [c1,c2,c3,c4].forEach(c=>r.appendChild(c));
+    tbl.appendChild(r);
+  });
+  panel.appendChild(tbl);
+  if(a.bestDate){
+    panel.appendChild(dv('sm mt12',`⭐ ${t('wk-best')}: ${capFirst(new Date(a.bestDate+'T12:00:00').toLocaleDateString(isEs?'es-MX':'en-US',{weekday:'long',day:'numeric'}))} · ${a.bestPts.toLocaleString()} pts`));
+  }
+  // What is still open, which is the part of a review worth acting on.
+  const late=reminders().filter(r=>!r.done&&r.completedOn!==tk&&r.due&&r.due<tk).length;
+  const openG=GOAL_KINDS.reduce((n,k)=>n+goalsOf(k).filter(g=>!g.doneOn).length,0);
+  panel.appendChild(dv('sm mt6',`⏳ ${t('wk-late')}: ${late}   ·   🎯 ${t('wk-opengoals')}: ${openG}`));
+  panel.appendChild(dv('xs dimmer mt10',t('wk-note')));
+  return ov;
 }
 
 /* Every tag in one list, each with how many reminders carry it and a rename
@@ -6385,6 +6512,27 @@ function renderReminderRow(r,tk,opts){
    A half-written task is the one thing in this app that a close can throw
    away, so a close with something typed in it asks first — the backdrop, the
    ✕ and Escape all come through here. */
+/* The file backup, shared by the button in Score and the monthly nudge in
+   Plan. It remembers the day it was last made, which is what the nudge reads.
+   Note the file holds everything in this browser's storage, sign-in tokens
+   included: keep it to yourself. */
+function downloadBackupJson(){
+  const dump={};
+  for(const k of Object.keys(localStorage))dump[k]=localStorage.getItem(k);
+  const blob=new Blob([JSON.stringify(dump,null,2)],{type:'application/json'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=`stoic-respaldo-${todayKey()}.json`;
+  a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+  try{localStorage.setItem('st_lastjson',todayKey());}catch(e){}
+}
+// Days since the file backup was last made; null if it never was.
+function daysSinceBackup(){
+  let d=null;try{d=localStorage.getItem('st_lastjson');}catch(e){}
+  if(!d)return null;
+  return Math.round((new Date(todayKey()+'T12:00:00')-new Date(d+'T12:00:00'))/86400000);
+}
 /* ── Dates written the way they are said ────────────────────────────────────
    "pagar renta mañana 4pm", "dentista el viernes a las 10", "llamar 20 de
    octubre". Pulls a date and/or a time out of the text and hands back what is
@@ -7169,16 +7317,7 @@ function renderApp(){
      ────────────────────────────────────────────────────────────────── */
   const fileRow=backupRow;
 
-  fileRow.appendChild(bt('btn-ghost btn-sm',t('export-btn'),()=>{
-    const dump={};
-    for(const k of Object.keys(localStorage))dump[k]=localStorage.getItem(k);
-    const blob=new Blob([JSON.stringify(dump,null,2)],{type:'application/json'});
-    const a=document.createElement('a');
-    a.href=URL.createObjectURL(blob);
-    a.download=`stoic-respaldo-${todayKey()}.json`;
-    a.click();
-    setTimeout(()=>URL.revokeObjectURL(a.href),1000);
-  }));
+  fileRow.appendChild(bt('btn-ghost btn-sm',t('export-btn'),()=>downloadBackupJson()));
 
   fileRow.appendChild(bt('btn-ghost btn-sm',t('import-btn'),()=>{
     const picker=document.createElement('input');
