@@ -73,3 +73,32 @@ self.addEventListener('fetch', e => {
 
   // Everything else — Supabase above all — is left alone.
 });
+
+/* ── Task alerts ──
+   A small server job (supabase/functions/stoic-push) sends a push at the
+   minute a task with a time comes due. This is the only part that runs on
+   the phone: it shows what it was sent, and a tap brings the app forward. */
+self.addEventListener('push', e => {
+  let d = {};
+  try { d = e.data ? e.data.json() : {}; } catch (_) { d = { body: e.data ? e.data.text() : '' }; }
+  e.waitUntil(self.registration.showNotification(d.title || 'Stoic', {
+    body: d.body || '',
+    tag: d.tag || 'stoic-task',
+    icon: './icons/icon-192.png',
+    badge: './icons/icon-192.png',
+    data: { url: d.url || './' }
+  }));
+});
+
+self.addEventListener('notificationclick', e => {
+  e.notification.close();
+  const target = new URL((e.notification.data && e.notification.data.url) || './', self.registration.scope).href;
+  e.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(list => {
+      for (const c of list) {
+        if (c.url.startsWith(self.registration.scope) && 'focus' in c) return c.focus();
+      }
+      return self.clients.openWindow(target);
+    })
+  );
+});

@@ -1273,6 +1273,13 @@ en:{
   'rem-goal-for':'🎯 In service of','rem-goal-none':'— No goal —',
   'wkgoal-none':'No goal scheduled',
   'nlp-use':'use as date and time',
+  'push-title-on':'Task alerts are on for this device. Press to turn off.',
+  'push-title-off':'Turn on alerts for tasks with a time (this device)',
+  'push-on':'Alerts are on. A test notification should arrive in a few seconds — if it does, a task with a time will notify you at that minute, even with the app closed.',
+  'push-unsupported':'This browser cannot receive alerts. On iPhone, add Stoic to the Home Screen (Share → Add to Home Screen) and open it from there.',
+  'push-needlogin':'Sign in first — alerts need your account.',
+  'push-denied':'Notifications are blocked for this site. Allow them in the browser settings and try again.',
+  'push-failed':'Could not turn alerts on. Try again in a moment.',
   'wk-title':'Week at a glance','wk-vs':'vs','wk-this':'This week','wk-last':'Last week',
   'wk-points':'Points','wk-tasks':'Tasks completed','wk-goals':'Goals closed','wk-pom':'Pomodoros',
   'wk-work':'Work','wk-sleep':'Sleep per day','wk-reds':'Red days','wk-best':'Best day',
@@ -1513,6 +1520,13 @@ es:{
   'rem-goal-for':'🎯 Al servicio de','rem-goal-none':'— Sin meta —',
   'wkgoal-none':'Sin meta programada',
   'nlp-use':'usar como fecha y hora',
+  'push-title-on':'Los avisos de tareas están prendidos en este aparato. Presiona para apagarlos.',
+  'push-title-off':'Prender avisos para las tareas con hora (este aparato)',
+  'push-on':'Avisos prendidos. En unos segundos debe llegarte una notificación de prueba — si llega, una tarea con hora te avisará en ese minuto, aunque la app esté cerrada.',
+  'push-unsupported':'Este navegador no puede recibir avisos. En iPhone, agrega Stoic a la pantalla de inicio (Compartir → Añadir a pantalla de inicio) y ábrela desde ahí.',
+  'push-needlogin':'Inicia sesión primero — los avisos necesitan tu cuenta.',
+  'push-denied':'Las notificaciones están bloqueadas para este sitio. Permítelas en los ajustes del navegador y vuelve a intentar.',
+  'push-failed':'No se pudieron prender los avisos. Intenta de nuevo en un momento.',
   'wk-title':'La semana de un vistazo','wk-vs':'contra','wk-this':'Esta semana','wk-last':'Pasada',
   'wk-points':'Puntos','wk-tasks':'Tareas completadas','wk-goals':'Metas cerradas','wk-pom':'Pomodoros',
   'wk-work':'Trabajo','wk-sleep':'Sueño por día','wk-reds':'Días rojos','wk-best':'Mejor día',
@@ -4659,6 +4673,18 @@ function renderPlanner(){
   const wkBtn=bt('btn-ghost btn-sm','🗓️',()=>{STATE.showWeek=true;render();});
   wkBtn.title=t('wk-title');
   h.appendChild(wkBtn);
+  // Alerts at the time of each task. Filled when this device has them on.
+  const bellBtn=bt(pushOn()?'btn-ac btn-sm':'btn-ghost btn-sm',pushOn()?'🔔':'🔕',async()=>{
+    bellBtn.disabled=true;
+    if(pushOn()){await disablePush();}
+    else{
+      const ok=await enablePush();
+      if(ok)alert(t('push-on'));
+    }
+    render();
+  });
+  bellBtn.title=pushOn()?t('push-title-on'):t('push-title-off');
+  h.appendChild(bellBtn);
   const selBtn=bt(STATE.selecting?'btn-ac btn-sm':'btn-ghost btn-sm','☑',()=>{
     STATE.selecting=!STATE.selecting;STATE.selected=[];render();
   });
@@ -6526,6 +6552,67 @@ function downloadBackupJson(){
   a.click();
   setTimeout(()=>URL.revokeObjectURL(a.href),1000);
   try{localStorage.setItem('st_lastjson',todayKey());}catch(e){}
+}
+/* ── Task alerts (web push) ─────────────────────────────────────────────────
+   Turning them on subscribes this device with the browser's push service and
+   saves that subscription in the cloud, where a job that runs every minute
+   looks for tasks with a time that has just arrived and sends one push per
+   task (see supabase/). The public key below is the half that is meant to be
+   public; the private half only ever lives in the server's secrets.
+   On iPhone this works only from the app added to the Home Screen. */
+const PUSH_PUBLIC_KEY='BKqk7LoTaqkBys5b_M2xXYOn7vQJ6Lst4GggM3NxxuYKhQk82DM1wfB2GXCDUtf2F_LC9ov5qeovyNr1VLEHo68';
+function pushSupported(){
+  return 'serviceWorker' in navigator&&'PushManager' in window&&'Notification' in window;
+}
+function pushOn(){try{return localStorage.getItem('st_push')==='1';}catch(e){return false;}}
+function b64uToBytes(s){
+  const pad='='.repeat((4-s.length%4)%4);
+  const raw=atob((s+pad).replace(/-/g,'+').replace(/_/g,'/'));
+  return Uint8Array.from(raw,c=>c.charCodeAt(0));
+}
+function bytesToB64u(buf){
+  let s='';new Uint8Array(buf).forEach(b=>s+=String.fromCharCode(b));
+  return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+}
+async function enablePush(){
+  if(!pushSupported()){alert(t('push-unsupported'));return false;}
+  if(!SB.init()||!await SB.ensureFresh()){alert(t('push-needlogin'));return false;}
+  const perm=await Notification.requestPermission();
+  if(perm!=='granted'){alert(t('push-denied'));return false;}
+  try{
+    const reg=await navigator.serviceWorker.ready;
+    let sub=await reg.pushManager.getSubscription();
+    if(!sub)sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:b64uToBytes(PUSH_PUBLIC_KEY)});
+    const j=sub.toJSON();
+    const res=await fetch(`${SB.url}/rest/v1/push_subs?on_conflict=endpoint`,{
+      method:'POST',
+      headers:{...SB.headers(),'Prefer':'resolution=merge-duplicates,return=minimal'},
+      body:JSON.stringify({endpoint:j.endpoint,user_id:SB.userId(),p256dh:j.keys.p256dh,auth:j.keys.auth,tz:appTZ()})
+    });
+    if(!res.ok){console.warn('push_subs',res.status,await res.text());alert(t('push-failed'));return false;}
+    localStorage.setItem('st_push','1');
+    // Ask the server to send one to this device now, so "on" is something
+    // seen arrive rather than something assumed.
+    try{
+      await SB.ensureFresh();
+      await fetch(`${SB.url}/functions/v1/stoic-push?test=1`,{method:'POST',headers:{...SB.headers()}});
+    }catch(e){console.warn('push test',e);}
+    return true;
+  }catch(e){console.warn('enablePush',e);alert(t('push-failed'));return false;}
+}
+async function disablePush(){
+  try{
+    const reg=await navigator.serviceWorker.ready;
+    const sub=await reg.pushManager.getSubscription();
+    if(sub){
+      const ep=sub.endpoint;
+      await sub.unsubscribe();
+      if(SB.init()&&await SB.ensureFresh()){
+        await fetch(`${SB.url}/rest/v1/push_subs?endpoint=eq.${encodeURIComponent(ep)}`,{method:'DELETE',headers:SB.headers()});
+      }
+    }
+  }catch(e){console.warn('disablePush',e);}
+  try{localStorage.removeItem('st_push');}catch(e){}
 }
 // Days since the file backup was last made; null if it never was.
 function daysSinceBackup(){
