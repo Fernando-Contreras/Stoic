@@ -228,6 +228,9 @@ button{cursor:pointer;font-family:var(--ff);font-size:15px;font-weight:600;borde
 .ms-spark{position:absolute;left:50%;top:42%;font-size:17px;pointer-events:none;animation:msSpark 1.6s ease-out forwards}
 @keyframes msSpark{0%{transform:translate(-50%,-50%) scale(.3);opacity:1}
   100%{transform:translate(calc(-50% + var(--dx)),calc(-50% + var(--dy))) scale(1.15);opacity:0}}
+/* The day's flame: the same card, with a flame that breathes. */
+.ms-ico.ms-flame{font-size:96px;animation:msFlame 1.1s ease-in-out infinite;transform-origin:50% 90%}
+@keyframes msFlame{0%,100%{transform:scale(1) rotate(-2deg)}35%{transform:scale(1.1,1.16) rotate(2deg)}70%{transform:scale(.96,1.05) rotate(-1deg)}}
 @media(prefers-reduced-motion:reduce){.ms-card,.ms-ico,.ms-spark{animation:none}.ms-spark{display:none}}
 
 /* ── PENALTY ITEM ── */
@@ -1140,6 +1143,7 @@ en:{
   'ms-constancy':'Constancy','ms-discipline':'Discipline','ms-temperance':'Temperance',
   'ms-fortitude':'Fortitude','ms-virtue':'Virtue','ms-wisdom':'Wisdom','ms-ataraxia':'Ataraxia',
   'ms-sub':'days in a row',
+  'flame-new':'New streak','flame-days':'day streak','flame-sub':'Today counts. Keep it going.',
   'md-day':'Days without red','md-morning':'Morning routine','md-flags':'Goals annihilated','md-work':'Work',
   'md-pomodoros':'Pomodoros','md-earlybed':'Early bed',
   'md-cleand':'No stimulants','md-cleanp':'No procrastination','md-cleano':'No orgasm',
@@ -1387,6 +1391,7 @@ es:{
   'ms-constancy':'Constancia','ms-discipline':'Disciplina','ms-temperance':'Templanza',
   'ms-fortitude':'Fortaleza','ms-virtue':'Virtud','ms-wisdom':'Sabiduría','ms-ataraxia':'Ataraxia',
   'ms-sub':'días seguidos',
+  'flame-new':'Racha nueva','flame-days':'días de racha','flame-sub':'Hoy ya cuenta. Que no se apague.',
   'md-day':'Días sin rojo','md-morning':'Rutina matutina','md-flags':'Metas exterminadas','md-work':'Trabajo',
   'md-pomodoros':'Pomodoros','md-earlybed':'Dormir temprano',
   'md-cleand':'Sin estimulantes','md-cleanp':'Sin procrastinar','md-cleano':'Sin orgasmo',
@@ -6858,6 +6863,7 @@ function render(){
   if(!STATE.authed){root.appendChild(renderLogin());return;}
   root.appendChild(renderApp());
   checkMilestone();
+  checkDayFlame();
   syncPomoPill();
   syncPomoTitle();
 }
@@ -6983,6 +6989,61 @@ function checkMilestone(){
   const best=fresh.reduce((a,b)=>b.m.n>a.m.n?b:a).m;
   try{localStorage.setItem('st_milestones',JSON.stringify([...seen,...fresh.map(f=>f.mid)].slice(-300)));}catch(e){}
   showMilestone(best);
+}
+/* ═══ THE DAY'S FLAME ═══════════════════════════════════════════════════════
+   Opening the app earns nothing; doing something does. The moment today
+   stops being red — the first thing that actually counts — a flame with the
+   number of days in a row comes up, once a day. It is only ever shown on that
+   change, seen while the app is open, never on load: a day that was already
+   out of red when the page started is not news. A milestone medal landing at
+   the same instant has the screen to itself and the flame waits for the next
+   change rather than talking over it. ══════════════════════════════════════ */
+let _flameWasRed=null;
+function checkDayFlame(){
+  if(!STATE.authed)return;
+  const tk=todayKey();
+  let red;
+  try{red=dayFacts(null,true).status==='red';}catch(e){return;}
+  const was=_flameWasRed;
+  _flameWasRed=red;
+  if(was===null||!was||red)return;            // only red -> not red, while open
+  let last='';try{last=localStorage.getItem('st_flame')||'';}catch(e){}
+  if(last===tk)return;
+  if(document.querySelector('.ms-ov')){_flameWasRed=true;return;}   // try again at the next change
+  // Days in a row ending today: every earlier day on record that was not red.
+  const map=histMap();
+  let n=1;
+  const d=new Date(tk+'T12:00:00');
+  for(let i=0;i<3650;i++){
+    d.setDate(d.getDate()-1);
+    const e=map.get(isoDate(d));
+    if(!e||e._gap||!e.status||e.status==='red')break;
+    n++;
+  }
+  try{localStorage.setItem('st_flame',tk);}catch(e){}
+  showDayFlame(n);
+}
+function showDayFlame(n){
+  const ov=dv('ms-ov');
+  const card=dv('ms-card');
+  card.style.setProperty('--ms','#f97316');
+  card.innerHTML=`<div class="ms-ico ms-flame">🔥</div>`+
+    `<div class="ms-n">${n}</div>`+
+    `<div class="ms-w">${n===1?t('flame-new'):t('flame-days')}</div>`+
+    `<div class="ms-sub">${t('flame-sub')}</div>`;
+  for(let i=0;i<12;i++){
+    const s=dv('ms-spark','🔥');
+    const a=(Math.PI*2*i)/12+Math.random()*.4, r=110+Math.random()*130;
+    s.style.setProperty('--dx',Math.cos(a)*r+'px');
+    s.style.setProperty('--dy',Math.sin(a)*r+'px');
+    s.style.animationDelay=(Math.random()*.3)+'s';
+    card.appendChild(s);
+  }
+  ov.appendChild(card);
+  document.body.appendChild(ov);
+  const close=()=>{if(!ov.isConnected)return;ov.classList.add('out');setTimeout(()=>ov.remove(),620);};
+  ov.onclick=close;
+  setTimeout(close,2800);
 }
 function showMilestone(m){
   const tier=tierOf(m.n);
@@ -10110,7 +10171,7 @@ function wipeEverything(){
   STATE.pomo={focus:25,brk:5,longBrk:15,cycle:4,running:false,phase:'focus',startedAt:0,elapsed:0,doneInCycle:0,minutesToday:0,day:''};
   STATE.calSel=null;STATE.calYM=null;STATE.scoreYM=null;STATE.histDay=null;STATE.diaryFold={};
   STATE.selected=[];STATE.selecting=false;STATE.bulkUndo=null;
-  [K.TODAY,K.HIST,K.DIARY,K.STREAK_OVR,K.PLANNER,'st_pomo','st_milestones','st_last_backup']
+  [K.TODAY,K.HIST,K.DIARY,K.STREAK_OVR,K.PLANNER,'st_pomo','st_milestones','st_flame','st_last_backup']
     .forEach(k=>localStorage.removeItem(k));
   commit();savePlanner();
 }
