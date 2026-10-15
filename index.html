@@ -7026,13 +7026,15 @@ function checkDayFlame(){
 function showDayFlame(n){
   const ov=dv('ms-ov');
   const card=dv('ms-card');
-  card.style.setProperty('--ms','#f97316');
-  card.innerHTML=`<div class="ms-ico ms-flame">🔥</div>`+
+  // A candle, not 🔥: the flame is already the 10-day medal and the two
+  // would read as the same thing.
+  card.style.setProperty('--ms','#fbbf24');
+  card.innerHTML=`<div class="ms-ico ms-flame">🕯️</div>`+
     `<div class="ms-n">${n}</div>`+
     `<div class="ms-w">${n===1?t('flame-new'):t('flame-days')}</div>`+
     `<div class="ms-sub">${t('flame-sub')}</div>`;
   for(let i=0;i<12;i++){
-    const s=dv('ms-spark','🔥');
+    const s=dv('ms-spark','✨');
     const a=(Math.PI*2*i)/12+Math.random()*.4, r=110+Math.random()*130;
     s.style.setProperty('--dx',Math.cos(a)*r+'px');
     s.style.setProperty('--dy',Math.sin(a)*r+'px');
