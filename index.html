@@ -231,6 +231,9 @@ button{cursor:pointer;font-family:var(--ff);font-size:15px;font-weight:600;borde
 /* The day's flame: the same card, with a flame that breathes. */
 .ms-ico.ms-flame{font-size:96px;animation:msFlame 1.1s ease-in-out infinite;transform-origin:50% 90%}
 @keyframes msFlame{0%,100%{transform:scale(1) rotate(-2deg)}35%{transform:scale(1.1,1.16) rotate(2deg)}70%{transform:scale(.96,1.05) rotate(-1deg)}}
+/* A finished goal: the flag waves in the wind. */
+.ms-ico.ms-flag{font-size:88px;animation:msFlag 1.3s ease-in-out infinite;transform-origin:20% 90%}
+@keyframes msFlag{0%,100%{transform:rotate(-7deg)}50%{transform:rotate(7deg) translateY(-4px)}}
 @media(prefers-reduced-motion:reduce){.ms-card,.ms-ico,.ms-spark{animation:none}.ms-spark{display:none}}
 
 /* ── PENALTY ITEM ── */
@@ -1143,6 +1146,7 @@ en:{
   'ms-constancy':'Constancy','ms-discipline':'Discipline','ms-temperance':'Temperance',
   'ms-fortitude':'Fortitude','ms-virtue':'Virtue','ms-wisdom':'Wisdom','ms-ataraxia':'Ataraxia',
   'ms-sub':'days in a row',
+  'goal-done-ttl':'Goal reached','goal-k-week':'📅 Weekly goal','goal-k-quarter':'📈 Quarterly goal','goal-k-year':'🏆 Yearly goal',
   'flame-new':'New streak','flame-days':'day streak','flame-sub':'Today counts. Keep it going.',
   'md-day':'Days without red','md-morning':'Morning routine','md-flags':'Goals annihilated','md-work':'Work',
   'md-pomodoros':'Pomodoros','md-earlybed':'Early bed',
@@ -1391,6 +1395,7 @@ es:{
   'ms-constancy':'Constancia','ms-discipline':'Disciplina','ms-temperance':'Templanza',
   'ms-fortitude':'Fortaleza','ms-virtue':'Virtud','ms-wisdom':'Sabiduría','ms-ataraxia':'Ataraxia',
   'ms-sub':'días seguidos',
+  'goal-done-ttl':'Meta cumplida','goal-k-week':'📅 Meta semanal','goal-k-quarter':'📈 Meta trimestral','goal-k-year':'🏆 Meta anual',
   'flame-new':'Racha nueva','flame-days':'días de racha','flame-sub':'Hoy ya cuenta. Que no se apague.',
   'md-day':'Días sin rojo','md-morning':'Rutina matutina','md-flags':'Metas exterminadas','md-work':'Trabajo',
   'md-pomodoros':'Pomodoros','md-earlybed':'Dormir temprano',
@@ -5098,7 +5103,12 @@ function buildGoals(redraw){
       // A real render, not the panel's own — this one moves points, and every
       // number on screen should agree the moment it happens, not only once
       // something else happens to redraw the page.
-      cb.onchange=()=>{toggleGoal(g.id);render();};
+      cb.onchange=()=>{
+        const wasOpen=!g.doneOn;
+        toggleGoal(g.id);render();
+        // Only the press that finishes it, not the one that takes it back.
+        if(wasOpen&&g.doneOn)showGoalDone(g);
+      };
       row.appendChild(cb);
       const mid=dv('f1');
       /* The wording is editable in place. Rewriting a goal used to mean
@@ -7046,6 +7056,47 @@ function showDayFlame(n){
   const close=()=>{if(!ov.isConnected)return;ov.classList.add('out');setTimeout(()=>ov.remove(),620);};
   ov.onclick=close;
   setTimeout(close,2800);
+}
+/* ═══ A GOAL FINISHED ═══════════════════════════════════════════════════════
+   The biggest things you do in the app were the only ones with no moment:
+   a tick, and the row changed. Same card as the medals, with the 🏁 the goals
+   already wear everywhere. The longer the goal, the longer and fuller it is —
+   a week is a nod, a year is a fanfare. Whatever else is on screen (a medal, the
+   day's candle) finishes first rather than being talked over. ══════════════ */
+const GOAL_DONE_FX={
+  week:   {hue:'#34d399',sparks:10,ms:2600},
+  quarter:{hue:'#5b9df9',sparks:18,ms:3400},
+  year:   {hue:'#e879f9',sparks:30,ms:4600}
+};
+function showGoalDone(g,tries){
+  tries=tries||0;
+  if(document.querySelector('.ms-ov')&&tries<16){setTimeout(()=>showGoalDone(g,tries+1),400);return;}
+  const fx=GOAL_DONE_FX[g.kind]||GOAL_DONE_FX.week;
+  const ov=dv('ms-ov');
+  const card=dv('ms-card');
+  card.style.setProperty('--ms',fx.hue);
+  const pts=goalPoints(g);
+  const title=String(g.title||'');
+  card.innerHTML=`<div class="ms-ico ms-flag">🏁</div>`+
+    `<div class="ms-n" style="font-size:52px;margin-top:10px">+${pts.toLocaleString()}</div>`+
+    `<div class="ms-w">${t('goal-done-ttl')}</div>`+
+    `<div class="ms-sub">${t('goal-k-'+g.kind)}</div>`+
+    `<div class="ms-sub" style="color:rgba(255,255,255,.85);font-size:14px;margin:6px auto 0;max-width:300px"></div>`;
+  card.lastChild.textContent=title.length>70?title.slice(0,69)+'…':title;
+  const icons=['🏁','✨','🎉'];
+  for(let i=0;i<fx.sparks;i++){
+    const s=dv('ms-spark',icons[i%icons.length]);
+    const a=(Math.PI*2*i)/fx.sparks+Math.random()*.4, r=110+Math.random()*(g.kind==='year'?220:150);
+    s.style.setProperty('--dx',Math.cos(a)*r+'px');
+    s.style.setProperty('--dy',Math.sin(a)*r+'px');
+    s.style.animationDelay=(Math.random()*.4)+'s';
+    card.appendChild(s);
+  }
+  ov.appendChild(card);
+  document.body.appendChild(ov);
+  const close=()=>{if(!ov.isConnected)return;ov.classList.add('out');setTimeout(()=>ov.remove(),620);};
+  ov.onclick=close;
+  setTimeout(close,fx.ms);
 }
 function showMilestone(m){
   const tier=tierOf(m.n);
