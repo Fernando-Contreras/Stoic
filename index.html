@@ -3342,10 +3342,15 @@ function catchUpPomodoro(){
   if(!p||!p.running)return;
   const MAX_CATCHUP=6*3600;
   let backlog=pomoElapsed(p),caught=0;
+  // When this leg actually began; each leg banked below ends that much later.
+  // The auto-run cap has to be asked at THAT moment, not at the real clock —
+  // otherwise coming back after the cap's length found it already "over" at the
+  // very first leg and stopped there, however many had really been done.
+  const legStart=CLOCK.now()-backlog*1000;
   while(caught<MAX_CATCHUP&&backlog>=pomoPhaseLen(p)){
     backlog-=pomoPhaseLen(p);
     caught+=pomoPhaseLen(p);
-    pomoFinishPhase(true);
+    pomoFinishPhase(true,legStart+caught*1000);
     // Auto-run off: pomoFinishPhase already left it paused at the leg that
     // was actually in progress — stop there rather than racing on through
     // legs nothing was ever running for.
@@ -3375,6 +3380,10 @@ function pomoRollDay(){
 function pomoStart(){
   const p=STATE.pomo;
   if(p.running)return;
+  // Pressing Start is someone being there: the cap counts from here, not from
+  // whenever 🔁 was switched on — which may be hours back, and used to make the
+  // timer stop itself well short of the stretch it was set to allow.
+  if(p.autoRun)p.autoRunSince=CLOCK.now();
   p.running=true;p.startedAt=CLOCK.now();savePomo();
 }
 function pomoPause(){
@@ -3396,9 +3405,12 @@ function pomoReset(){
    nothing — cancelling the work is not the same as never having moved the
    slot forward, which is what used to leave Skip looking identical to
    Reset on a focus leg and reading as broken. */
-function pomoFinishPhase(auto){
+function pomoFinishPhase(auto,atMs){
   const p=STATE.pomo;
   pomoRollDay();
+  // Skip is a person pressing something: whoever is there is watching, so the
+  // unwatched-stretch cap starts over.
+  if(!auto&&p.autoRun)p.autoRunSince=CLOCK.now();
   if(p.phase==='focus'){
     if(auto){
       const mins=Math.max(1,p.focus);
@@ -3423,7 +3435,7 @@ function pomoFinishPhase(auto){
      armed for. */
   if(p.autoRun&&!p.autoRunSince)p.autoRunSince=CLOCK.now(); // safety net for a state saved before this existed
   const capH=p.autoRunCapHours??2;
-  if(p.autoRun&&capH>0&&(CLOCK.now()-p.autoRunSince)>=capH*3600000){
+  if(p.autoRun&&capH>0&&((atMs||CLOCK.now())-p.autoRunSince)>=capH*3600000){
     p.autoRun=false;
   }
   p.running=!!p.autoRun;
