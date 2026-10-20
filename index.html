@@ -7075,6 +7075,10 @@ function checkDayFlame(){
   if(candle&&seenToday('st_flame'))candle=false;
   if(flag&&seenToday('st_flagfx'))flag=false;
   if(!candle&&!flag)return;
+  // One card per moment. Bringing the day's flags down always takes the day out
+  // of red as well, so when both land together the flags are the thing that
+  // was actually done and they speak; the candle is left for a later change.
+  if(candle&&flag)candle=false;
   // A medal has the screen: try again at the next change instead of losing it.
   if(document.querySelector('.ms-ov')){
     if(candle)_flameWasRed=true;
@@ -7099,17 +7103,7 @@ function checkDayFlame(){
     try{fn=applyStreakOverrides(CALC.streaks(STATE.history,STATE.today)).flagStreak||1;}catch(e){fn=1;}
     try{localStorage.setItem('st_flagfx',tk);}catch(e){}
   }
-  if(candle&&flag&&cn===fn)showDayFlame({n:cn,candle:true,flag:true});
-  else{
-    if(candle)showDayFlame({n:cn,candle:true});
-    if(flag)whenScreenFree(()=>showDayFlame({n:fn,flag:true}));
-  }
-}
-// Waits for whatever is on screen to finish; gives up waiting after ~6s.
-function whenScreenFree(fn,tries){
-  tries=tries||0;
-  if(document.querySelector('.ms-ov')&&tries<16){setTimeout(()=>whenScreenFree(fn,tries+1),400);return;}
-  fn();
+  showDayFlame(candle?{n:cn,candle:true}:{n:fn,flag:true});
 }
 function showDayFlame(o){
   const {n,candle,flag}=o;
@@ -7118,12 +7112,9 @@ function showDayFlame(o){
   // A candle, not 🔥: the flame is already the 10-day medal and the two
   // would read as the same thing.
   card.style.setProperty('--ms',candle?'#fbbf24':'#2dd4bf');
-  const ico=(candle&&flag)
-    ?`<div class="ms-ico" style="animation:none"><span class="ms-flame" style="display:inline-block;font-size:80px">🕯️</span><span class="ms-flag" style="display:inline-block;font-size:70px;margin-left:6px">🏁</span></div>`
-    :candle?`<div class="ms-ico ms-flame">🕯️</div>`:`<div class="ms-ico ms-flag">🏁</div>`;
+  const ico=candle?`<div class="ms-ico ms-flame">🕯️</div>`:`<div class="ms-ico ms-flag">🏁</div>`;
   const word=candle?(n===1?t('flame-new'):t('flame-days')):t('goal-day-done');
-  const sub=candle&&flag?`${t('goal-day-done')}<br>${t('flame-sub')}`
-    :candle?t('flame-sub'):t('flag-streak-sub');
+  const sub=candle?t('flame-sub'):t('flag-streak-sub');
   card.innerHTML=ico+
     `<div class="ms-n">${n}</div>`+
     `<div class="ms-w"${candle?'':' style="font-size:15px;letter-spacing:.2em"'}>${word}</div>`+
@@ -7141,7 +7132,7 @@ function showDayFlame(o){
   document.body.appendChild(ov);
   const close=()=>{if(!ov.isConnected)return;ov.classList.add('out');setTimeout(()=>ov.remove(),620);};
   ov.onclick=close;
-  setTimeout(close,candle&&flag?3600:flag?3200:2800);
+  setTimeout(close,flag?3200:2800);
 }
 /* ═══ A GOAL FINISHED ═══════════════════════════════════════════════════════
    The biggest things you do in the app were the only ones with no moment:
