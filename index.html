@@ -5367,19 +5367,16 @@ function renderPomoCard(){
   const accent=focusing?'var(--ac)':rest;
   const head=dv('rowb mb6');
   head.style.cssText+=';flex-wrap:wrap;gap:6px';
-  const onSw=STATE.pomoPage==='sw';
-  head.appendChild(sp('ctit',onSw?t('sw-title'):t('pomo-title')));
+  head.appendChild(sp('ctit',t('pomo-title')));
   /* Today's tally, read straight off the timer — and the way to it, since the
      count itself (its points, and the −/+ to correct it, for one run without
      the timer) lives in Score. Clicking it jumps there instead of duplicating
      a second, smaller +/- here. */
-  const stat=onSw
-    ?sp('xs dimmer',`⏱ ${fmtSecs(timeLoggedOn(todayKey()))} ${t('sw-today')}`)
-    :sp('xs dimmer',`${(p.minutesToday/POMO_UNIT).toFixed(1)} 🍅 · ${p.minutesToday} min`);
-  stat.style.cursor='pointer';stat.title=onSw?t('sw-jump-title'):t('pomo-jump-title');
+  const stat=sp('xs dimmer',`${(p.minutesToday/POMO_UNIT).toFixed(1)} 🍅 · ${p.minutesToday} min`);
+  stat.style.cursor='pointer';stat.title=t('pomo-jump-title');
   stat.onclick=()=>{
     if(STATE.tab!=='score'){STATE.tab='score';localStorage.setItem('st_tab','score');render();}
-    requestAnimationFrame(()=>document.getElementById(onSw?'timelog-card':'pomo-score-card')?.scrollIntoView({behavior:'smooth',block:'center'}));
+    requestAnimationFrame(()=>document.getElementById('pomo-score-card')?.scrollIntoView({behavior:'smooth',block:'center'}));
   };
   head.appendChild(stat);
   card.appendChild(head);
@@ -5462,49 +5459,9 @@ function renderPomoCard(){
   card.appendChild(cfg);
   card.appendChild(dv('xs dimmer mt6',t('pomo-note').replace('{n}',POM_PTS)));
 
-  /* The card has two pages — the pomodoro timer and a stopwatch — and
-     everything built above belongs to the first. It is gathered into its own
-     container rather than rebuilt, so the clock, the progress bar and the pill
-     logic that look them up by id keep finding exactly what they did before.
-     The day calendar used to be a third page here; it is a window of its own
-     now, big enough to actually plan a day in. */
-  const timerPage=dv('');
-  [...card.children].slice(1).forEach(n=>timerPage.appendChild(n));
-  timerPage.style.display=onSw?'none':'';
-  card.appendChild(timerPage);
-  if(onSw){
-    // The pomodoro keeps counting behind the stopwatch; its time stays in view.
-    if(p.running){
-      const mini=sp('xs mo',(focusing?'🍅 ':'☕ ')+fmtClock(pomoRemaining(p)));
-      mini.id='pomo-mini';mini.style.color=accent;
-      head.insertBefore(mini,stat);
-    }
-    card.appendChild(renderStopwatchPage());
-  }
-  const goPage=p2=>{STATE.pomoPage=p2;try{localStorage.setItem('st_pomopage',p2);}catch(e){}render();};
-  const tools=dv('row gap6');tools.style.marginLeft='auto';
-  /* A filled, labelled button carrying where it goes, not a bare arrow. */
-  const sw=bt('btn-ac btn-sm',onSw?'🍅 '+t('pomo-title'):'⏱ '+t('sw-title'),()=>goPage(onSw?'timer':'sw'));
-  sw.title=onSw?t('sw-to-pomo'):t('sw-to-sw');
-  sw.style.cssText+=';padding:4px 10px;font-size:13px;white-space:nowrap';
-  tools.appendChild(sw);
-  head.appendChild(tools);
-  // Swipe between the pages, same gesture the list card uses for peeking a
-  // day ahead. Not from anything that is itself draggable or typed into.
-  card.style.touchAction='pan-y';
-  let sx=null,sy=null;
-  card.addEventListener('pointerdown',e=>{
-    if(e.target.closest&&e.target.closest('button,input,select,textarea'))return;
-    sx=e.clientX;sy=e.clientY;
-  });
-  card.addEventListener('pointerup',e=>{
-    if(sx===null)return;
-    const dx=e.clientX-sx,dy=e.clientY-sy;sx=null;
-    if(Math.abs(dx)<60||Math.abs(dx)<Math.abs(dy)*1.5)return;
-    if(dx<0&&!onSw)goPage('sw');
-    else if(dx>0&&onSw)goPage('timer');
-  });
-  card.addEventListener('pointercancel',()=>{sx=null;});
+  /* The stopwatch sits right under the pomodoro, in the same card: one place
+     for both clocks, no button to flip between them. */
+  card.appendChild(renderStopwatchPage());
   return card;
 }
 
@@ -5586,9 +5543,25 @@ function flashToast(msg){
 
 function renderStopwatchPage(){
   const w=dv('');
+  w.style.cssText='margin-top:14px;padding-top:12px;border-top:1px solid var(--b1)';
   const s=swState();
   const sec=swSeconds();
-  const clock=dv('ctr xxxl w8 mo mt6');
+  const tk=todayKey();
+  const todayEntries=timeLog().filter(e=>e.date===tk);
+  const tot=todayEntries.reduce((a,e)=>a+e.sec,0);
+  const fl=todayEntries.filter(e=>e.flag).reduce((a,e)=>a+e.sec,0);
+  const hd=dv('rowb');hd.style.cssText+=';flex-wrap:wrap;gap:6px';
+  hd.appendChild(sp('ctit','⏱ '+t('sw-title')));
+  // What today has logged so far, and the way to the full breakdown in Score.
+  const stat=sp('xs dimmer',tot?`${fmtSecs(tot)} ${t('sw-today')}`+(fl?` · 🏁 ${fmtSecs(fl)}`:''):'');
+  stat.style.cursor='pointer';stat.title=t('sw-jump-title');
+  stat.onclick=()=>{
+    if(STATE.tab!=='score'){STATE.tab='score';localStorage.setItem('st_tab','score');render();}
+    requestAnimationFrame(()=>document.getElementById('timelog-card')?.scrollIntoView({behavior:'smooth',block:'center'}));
+  };
+  hd.appendChild(stat);
+  w.appendChild(hd);
+  const clock=dv('ctr xxl w8 mo mt6');
   clock.id='sw-clock';clock.style.color='var(--ac)';
   const cm=sp('');cm.id='sw-main';cm.textContent=fmtHMS(sec);
   clock.appendChild(cm);
@@ -5609,20 +5582,12 @@ function renderStopwatchPage(){
     if(swSeconds()>=60&&!confirm(t('sw-reset-ask')))return;
     swReset();render();
   }));
-  w.appendChild(row);
+  // Stopped with time on it: the way to put it on a task sits in the same row.
   if(!s.running&&sec>0){
-    const add=bt('btn-ac btn-sm w100 mt8',t('sw-add'),()=>{STATE.swPick=true;STATE.swQ='';render();});
-    add.style.width='100%';
-    w.appendChild(add);
-  }else{
-    w.appendChild(dv('xs dimmer mt8',s.running?t('sw-hint-running'):t('sw-hint-idle')));
+    row.appendChild(bt('btn-ac btn-sm',t('sw-add'),()=>{STATE.swPick=true;STATE.swQ='';render();}));
   }
-  const tk=todayKey();
-  const todayEntries=timeLog().filter(e=>e.date===tk);
-  // The day's total already sits in the card's header; the flags' share is
-  // the thing worth saying again here.
-  const fl=todayEntries.filter(e=>e.flag).reduce((a,e)=>a+e.sec,0);
-  if(fl)w.appendChild(dv('xs dim mt10',`🏁 ${fmtSecs(fl)} ${t('sw-today')}`));
+  w.appendChild(row);
+  if(sec===0&&!s.running)w.appendChild(dv('xs dimmer mt6',t('sw-hint-idle')));
   return w;
 }
 
