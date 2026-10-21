@@ -4288,6 +4288,10 @@ function renderPlanner(){
   // bar as well put green in two unrelated places at once — the day's standing
   // and the pomodoro's break phase — and neither read clearly.
   const right=dv('row gap8');
+  // The week against the last one: numbers about the day, so it sits with the day's numbers.
+  const wkBtn=bt('btn-ghost btn-sm','📊',()=>{STATE.showWeek=true;render();});
+  wkBtn.title=t('wk-title');
+  right.appendChild(wkBtn);
   right.appendChild(sbadge(dayStatus));
   const taskCount=sp('md mo ac w7',`${s.done}/${s.total}`);const pctSpan=el('span','xs');pctSpan.style.opacity='.7';pctSpan.textContent=` (${dayPct}%)`;taskCount.appendChild(pctSpan);right.appendChild(taskCount);
   sr.appendChild(right);
@@ -4741,9 +4745,11 @@ function renderPlanner(){
   /* Pick several and act on all of them at once. Thirteen tasks that need the
      same new date, or the same priority, are thirteen trips through the editor
      otherwise — and one wrong 🗑 away from the afternoon that prompted this. */
-  const wkBtn=bt('btn-ghost btn-sm','🗓️',()=>{STATE.showWeek=true;render();});
-  wkBtn.title=t('wk-title');
-  h.appendChild(wkBtn);
+  // The day calendar lives with the tasks it lays out. (The week at a glance
+  // moved up to the day's summary, where the numbers are.)
+  const dayCalBtn=bt('btn-ghost btn-sm','📅',()=>{STATE.showCal=true;render();});
+  dayCalBtn.title=t('cal-open');
+  h.appendChild(dayCalBtn);
   // Alerts at the time of each task. Filled when this device has them on.
   const bellBtn=bt(pushOn()?'btn-ac btn-sm':'btn-ghost btn-sm',pushOn()?'🔔':'🔕',async()=>{
     bellBtn.disabled=true;
@@ -5477,10 +5483,6 @@ function renderPomoCard(){
   }
   const goPage=p2=>{STATE.pomoPage=p2;try{localStorage.setItem('st_pomopage',p2);}catch(e){}render();};
   const tools=dv('row gap6');tools.style.marginLeft='auto';
-  const calBtn=bt('btn-ghost btn-sm','📅',()=>{STATE.showCal=true;render();});
-  calBtn.title=t('cal-open');
-  calBtn.style.cssText+=';padding:4px 10px;font-size:13px;white-space:nowrap';
-  tools.appendChild(calBtn);
   /* A filled, labelled button carrying where it goes, not a bare arrow. */
   const sw=bt('btn-ac btn-sm',onSw?'🍅 '+t('pomo-title'):'⏱ '+t('sw-title'),()=>goPage(onSw?'timer':'sw'));
   sw.title=onSw?t('sw-to-pomo'):t('sw-to-sw');
