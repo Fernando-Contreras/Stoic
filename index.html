@@ -498,6 +498,20 @@ button{cursor:pointer;font-family:var(--ff);font-size:15px;font-weight:600;borde
 .cal-ind{position:absolute;left:0;right:0;border:2px dashed var(--ac);border-radius:8px;background:var(--acd);
   pointer-events:none;z-index:2;font-size:11px;padding:1px 6px;color:var(--ac)}
 
+/* The day calendar as a window of its own: taller than the card it used to
+   squeeze into, so the whole day is in reach without scrolling so much. */
+.cal-big .cal-scroll{height:min(68vh,720px)}
+@supports(height:1dvh){.cal-big .cal-scroll{height:min(68dvh,720px)}}
+.cal-big .cal-block{font-size:12px}
+
+/* ── THE STOPWATCH ── */
+.sw-row{display:flex;align-items:center;gap:8px;width:100%;text-align:left;padding:8px 10px;
+  border:1px solid var(--b1);border-radius:9px;background:var(--sur2);color:var(--t1);cursor:pointer;font:inherit;font-size:13px}
+.sw-row:hover{border-color:var(--acb)}
+.sw-row .sw-t{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tl-bar{height:5px;border-radius:99px;background:var(--b1);overflow:hidden;margin-top:4px}
+.tl-bar>i{display:block;height:100%;background:var(--ac);border-radius:99px}
+
 /* ── THE FLOATING TIMER ──
    A running pomodoro is the one number in the app that changes while you are
    looking somewhere else, so it is the one thing worth following you down the
@@ -1297,6 +1311,20 @@ en:{
   'bk-never':'💾 You have never saved a backup file. A copy you hold is the one that survives anything happening to the account.',
   'bk-old':'💾 It has been {n} days since your last backup file.','bk-now':'Download backup','bk-later':'In a week',
   'cal-to-cal':'Day calendar','cal-to-timer':'Back to the timer','cal-today':'Today',
+  'cal-open':'Open the day calendar','cal-title':'Day calendar',
+  'sw-title':'Stopwatch','sw-today':'today','sw-jump-title':'See the logged time, in Score',
+  'sw-to-pomo':'Back to the pomodoro','sw-to-sw':'Stopwatch: time a task, then add it to one',
+  'sw-resume':'Resume','sw-add':'➕ Add to a task',
+  'sw-hint-running':'Pause the stopwatch to add the time to a task.',
+  'sw-hint-idle':'Time anything — a flag, a task, whatever — then add it to that task and see the total in Score.',
+  'sw-reset-ask':'Throw this time away without adding it to anything?',
+  'sw-add-to':'Add this time to…','sw-minutes':'Minutes','sw-search':'Search a task…',
+  'sw-flags':'🏁 Flags','sw-others':'Other tasks','sw-none':'No task matches.',
+  'sw-other-ph':'Or write something else (reading, gym…)','sw-other-add':'Add','sw-recent':'Recent',
+  'tl-title':'⏱ Time logged','tl-today':'Today','tl-week':'7 days','tl-month':'30 days','tl-all':'All',
+  'tl-total':'Total','tl-flags':'🏁 On flags','tl-items':'Tasks',
+  'tl-empty':'Nothing logged yet. Use the stopwatch ⏱ in Plan and add the time to a task.',
+  'tl-none-range':'Nothing logged in this period.','tl-del':'Remove this entry',
   'cal-untimed':'No time','cal-tray-empty':'every task has a time',
   'cal-hint':'Drag a task onto the hours to give it a time. Drag the bottom edge to change how long it is drawn — the list only ever shows when it starts.',
   'wkgoal-ask':'New weekly goal for "{t}":','wkgoal-full':'You already have {n} weekly goals this week.',
@@ -1547,6 +1575,20 @@ es:{
   'bk-never':'💾 Nunca has guardado un archivo de respaldo. Una copia que tú tienes es la que sobrevive a cualquier cosa que le pase a la cuenta.',
   'bk-old':'💾 Hace {n} días que no guardas un archivo de respaldo.','bk-now':'Descargar respaldo','bk-later':'En una semana',
   'cal-to-cal':'Calendario del día','cal-to-timer':'Volver al temporizador','cal-today':'Hoy',
+  'cal-open':'Abrir el calendario del día','cal-title':'Calendario del día',
+  'sw-title':'Cronómetro','sw-today':'hoy','sw-jump-title':'Ver el tiempo registrado, en Puntos',
+  'sw-to-pomo':'Volver al pomodoro','sw-to-sw':'Cronómetro: mide el tiempo de una tarea y súmalo a ella',
+  'sw-resume':'Continuar','sw-add':'➕ Añadir a una tarea',
+  'sw-hint-running':'Pausa el cronómetro para añadir el tiempo a una tarea.',
+  'sw-hint-idle':'Mide cuánto tiempo dedicas a algo — una bandera, una tarea, lo que sea — y súmalo a ella. El total lo ves en Puntos.',
+  'sw-reset-ask':'¿Tirar este tiempo sin añadirlo a nada?',
+  'sw-add-to':'Añadir este tiempo a…','sw-minutes':'Minutos','sw-search':'Buscar una tarea…',
+  'sw-flags':'🏁 Banderas','sw-others':'Otras tareas','sw-none':'Ninguna tarea coincide.',
+  'sw-other-ph':'O escribe otra cosa (leer, gym…)','sw-other-add':'Añadir','sw-recent':'Recientes',
+  'tl-title':'⏱ Tiempo registrado','tl-today':'Hoy','tl-week':'7 días','tl-month':'30 días','tl-all':'Todo',
+  'tl-total':'Total','tl-flags':'🏁 En banderas','tl-items':'Tareas',
+  'tl-empty':'Aún no hay tiempo registrado. Usa el cronómetro ⏱ en Plan y añade el tiempo a una tarea.',
+  'tl-none-range':'Nada registrado en este periodo.','tl-del':'Quitar este registro',
   'cal-untimed':'Sin hora','cal-tray-empty':'todas tienen hora',
   'cal-hint':'Arrastra una tarea a las horas para darle hora. Arrastra el borde de abajo para cambiar cuánto dura en el dibujo — la lista solo muestra a qué hora empieza.',
   'wkgoal-ask':'Nueva meta semanal para "{t}":','wkgoal-full':'Ya tienes {n} metas semanales esta semana.',
@@ -2172,7 +2214,7 @@ let STATE={
   tab: localStorage.getItem('st_tab')||'score',
   // Which page of the pomodoro card is showing, and which day its calendar
   // page is looking at (null = today) and how far down it is scrolled.
-  pomoPage: localStorage.getItem('st_pomopage')==='cal'?'cal':'timer',
+  pomoPage: localStorage.getItem('st_pomopage')==='sw'?'sw':'timer',   // 'cal' was a page once; it is a window now
   calDay: null, calScroll: null, calScrollDay: null,
   planner: S.get(K.PLANNER,{reminders:[],_ts:0}),
   /* Pomodoro. Durations are yours to set; the classic 25-5 with a longer
@@ -2559,7 +2601,7 @@ function isEditing(){
      unfinished action held entirely on screen — a redraw underneath it is the
      same interruption an overlay blinking out would be. */
   return ['taskTree','histDay','restoreList','showTZ','showRules','showSyncPanel','showGoals','showFlags',
-          'showAddForm','showRewards','selecting','showWeek','showTagMgr']
+          'showAddForm','showRewards','selecting','showWeek','showTagMgr','showCal','swPick']
     .some(k=>STATE[k]);
 }
 /* The sync itself never waits — only the redraw does. What the cloud brought
@@ -4923,6 +4965,8 @@ function renderPlanner(){
   if(STATE.showFlags)wrap.appendChild(renderFlagsModal());
   if(STATE.showTagMgr)wrap.appendChild(renderTagManagerModal());
   if(STATE.showWeek)wrap.appendChild(renderWeekReviewModal());
+  if(STATE.showCal)wrap.appendChild(renderCalModal());
+  if(STATE.swPick)wrap.appendChild(renderSwPick());
   return wrap;
 }
 
@@ -5315,16 +5359,20 @@ function renderPomoCard(){
   const rest='var(--cb)';
   const accent=focusing?'var(--ac)':rest;
   const head=dv('rowb mb6');
-  head.appendChild(sp('ctit',t('pomo-title')));
+  head.style.cssText+=';flex-wrap:wrap;gap:6px';
+  const onSw=STATE.pomoPage==='sw';
+  head.appendChild(sp('ctit',onSw?t('sw-title'):t('pomo-title')));
   /* Today's tally, read straight off the timer — and the way to it, since the
      count itself (its points, and the −/+ to correct it, for one run without
      the timer) lives in Score. Clicking it jumps there instead of duplicating
      a second, smaller +/- here. */
-  const stat=sp('xs dimmer',`${(p.minutesToday/POMO_UNIT).toFixed(1)} 🍅 · ${p.minutesToday} min`);
-  stat.style.cursor='pointer';stat.title=t('pomo-jump-title');
+  const stat=onSw
+    ?sp('xs dimmer',`⏱ ${fmtSecs(timeLoggedOn(todayKey()))} ${t('sw-today')}`)
+    :sp('xs dimmer',`${(p.minutesToday/POMO_UNIT).toFixed(1)} 🍅 · ${p.minutesToday} min`);
+  stat.style.cursor='pointer';stat.title=onSw?t('sw-jump-title'):t('pomo-jump-title');
   stat.onclick=()=>{
     if(STATE.tab!=='score'){STATE.tab='score';localStorage.setItem('st_tab','score');render();}
-    requestAnimationFrame(()=>document.getElementById('pomo-score-card')?.scrollIntoView({behavior:'smooth',block:'center'}));
+    requestAnimationFrame(()=>document.getElementById(onSw?'timelog-card':'pomo-score-card')?.scrollIntoView({behavior:'smooth',block:'center'}));
   };
   head.appendChild(stat);
   card.appendChild(head);
@@ -5407,45 +5455,329 @@ function renderPomoCard(){
   card.appendChild(cfg);
   card.appendChild(dv('xs dimmer mt6',t('pomo-note').replace('{n}',POM_PTS)));
 
-  /* The card has two pages — the timer and a day calendar — and everything
-     built above belongs to the first. It is gathered into its own container
-     rather than rebuilt, so the clock, the progress bar and the pill logic
-     that look them up by id keep finding exactly what they did before. */
-  const onCal=STATE.pomoPage==='cal';
+  /* The card has two pages — the pomodoro timer and a stopwatch — and
+     everything built above belongs to the first. It is gathered into its own
+     container rather than rebuilt, so the clock, the progress bar and the pill
+     logic that look them up by id keep finding exactly what they did before.
+     The day calendar used to be a third page here; it is a window of its own
+     now, big enough to actually plan a day in. */
   const timerPage=dv('');
   [...card.children].slice(1).forEach(n=>timerPage.appendChild(n));
-  timerPage.style.display=onCal?'none':'';
+  timerPage.style.display=onSw?'none':'';
   card.appendChild(timerPage);
-  if(onCal){
-    const mini=sp('xs mo',(focusing?'🍅 ':'☕ ')+fmtClock(pomoRemaining(p)));
-    mini.id='pomo-mini';mini.style.color=accent;
-    head.insertBefore(mini,stat);
-    card.appendChild(renderPomoCalendar());
+  if(onSw){
+    // The pomodoro keeps counting behind the stopwatch; its time stays in view.
+    if(p.running){
+      const mini=sp('xs mo',(focusing?'🍅 ':'☕ ')+fmtClock(pomoRemaining(p)));
+      mini.id='pomo-mini';mini.style.color=accent;
+      head.insertBefore(mini,stat);
+    }
+    card.appendChild(renderStopwatchPage());
   }
   const goPage=p2=>{STATE.pomoPage=p2;try{localStorage.setItem('st_pomopage',p2);}catch(e){}render();};
-  /* A filled, labelled button rather than a bare arrow: on the calendar page
-     it sat right beside the ‹ › that change the day and read as one more of
-     them. This one carries what it goes to. */
-  const sw=bt('btn-ac btn-sm',onCal?'‹ ⏱':'📅 ›',()=>goPage(onCal?'timer':'cal'));
-  sw.title=onCal?t('cal-to-timer'):t('cal-to-cal');
+  const tools=dv('row gap6');tools.style.marginLeft='auto';
+  const calBtn=bt('btn-ghost btn-sm','📅',()=>{STATE.showCal=true;render();});
+  calBtn.title=t('cal-open');
+  calBtn.style.cssText+=';padding:4px 10px;font-size:13px;white-space:nowrap';
+  tools.appendChild(calBtn);
+  /* A filled, labelled button carrying where it goes, not a bare arrow. */
+  const sw=bt('btn-ac btn-sm',onSw?'🍅 '+t('pomo-title'):'⏱ '+t('sw-title'),()=>goPage(onSw?'timer':'sw'));
+  sw.title=onSw?t('sw-to-pomo'):t('sw-to-sw');
   sw.style.cssText+=';padding:4px 10px;font-size:13px;white-space:nowrap';
-  head.appendChild(sw);
+  tools.appendChild(sw);
+  head.appendChild(tools);
   // Swipe between the pages, same gesture the list card uses for peeking a
   // day ahead. Not from anything that is itself draggable or typed into.
   card.style.touchAction='pan-y';
   let sx=null,sy=null;
   card.addEventListener('pointerdown',e=>{
-    if(e.target.closest&&e.target.closest('button,input,select,textarea,.cal-block,.cal-chip'))return;
+    if(e.target.closest&&e.target.closest('button,input,select,textarea'))return;
     sx=e.clientX;sy=e.clientY;
   });
   card.addEventListener('pointerup',e=>{
     if(sx===null)return;
     const dx=e.clientX-sx,dy=e.clientY-sy;sx=null;
     if(Math.abs(dx)<60||Math.abs(dx)<Math.abs(dy)*1.5)return;
-    if(dx<0&&!onCal)goPage('cal');
-    else if(dx>0&&onCal)goPage('timer');
+    if(dx<0&&!onSw)goPage('sw');
+    else if(dx>0&&onSw)goPage('timer');
   });
   card.addEventListener('pointercancel',()=>{sx=null;});
+  return card;
+}
+
+/* ═══ THE STOPWATCH ══════════════════════════════════════════════════════════
+   A pomodoro measures a stretch you chose in advance; this measures whatever
+   actually happened. Run it while you do something, stop it, and put the time
+   on a task — a flag above all — or on a name you type. Each addition is kept
+   as its own entry (what, when, how long, whether it was a flag at the time),
+   so the totals in Score can say how long went into the flags this week, and
+   still can after the task itself is finished or deleted.
+
+   It rides in the timer's own state (p.sw), so it travels with it: started on
+   the phone, it is the same stopwatch on the desktop. Time is read off the wall
+   clock, so a locked phone keeps counting. ═══════════════════════════════ */
+function swState(){const p=STATE.pomo;return p.sw||(p.sw={running:false,startedAt:0,elapsed:0});}
+function swSeconds(){
+  const s=swState();
+  return s.running?s.elapsed+Math.max(0,Math.floor((CLOCK.now()-s.startedAt)/1000)):s.elapsed;
+}
+function swStart(){const s=swState();if(s.running)return;s.running=true;s.startedAt=CLOCK.now();savePomo();}
+function swPause(){const s=swState();if(!s.running)return;s.elapsed=swSeconds();s.running=false;s.startedAt=0;savePomo();}
+function swReset(){const s=swState();s.running=false;s.startedAt=0;s.elapsed=0;savePomo();}
+function fmtHMS(sec){
+  sec=Math.max(0,Math.floor(sec));
+  const h=Math.floor(sec/3600),m=Math.floor(sec%3600/60),s=sec%60;
+  return (h?h+':'+pad2(m):String(m))+':'+pad2(s);
+}
+// "45s", "12m", "1h20m": the app's own way of writing a length, down to seconds.
+function fmtSecs(sec){
+  sec=Math.max(0,Math.round(sec));
+  if(sec<60)return sec+'s';
+  return fmtDur(Math.round(sec/60));
+}
+
+const TIMELOG_MAX=5000;
+function timeLog(){return STATE.planner.timeLog||(STATE.planner.timeLog=[]);}
+function timeLoggedOn(day){return timeLog().filter(e=>e.date===day).reduce((s,e)=>s+(e.sec||0),0);}
+function logTime(sec,r,label){
+  timeLog().unshift({
+    id:uid(),rid:r?r.id:null,title:r?r.title:label,
+    flag:!!(r&&r.flagged),date:todayKey(),sec:Math.round(sec),at:CLOCK.now()
+  });
+  STATE.planner.timeLog=timeLog().slice(0,TIMELOG_MAX);
+  savePlanner();
+}
+function flashToast(msg){
+  const toast=document.createElement('div');
+  toast.textContent=msg;
+  toast.style.cssText='position:fixed;left:50%;bottom:90px;transform:translateX(-50%);z-index:95;background:var(--sur3);color:var(--t1);border:1px solid var(--acb);border-radius:99px;padding:10px 18px;font-weight:700;box-shadow:0 6px 22px rgba(0,0,0,.4);max-width:90vw';
+  document.body.appendChild(toast);
+  setTimeout(()=>toast.remove(),2600);
+}
+
+function renderStopwatchPage(){
+  const w=dv('');
+  const s=swState();
+  const sec=swSeconds();
+  const clock=dv('ctr xxxl w8 mo mt6');
+  clock.id='sw-clock';clock.style.color='var(--ac)';
+  clock.textContent=fmtHMS(sec);
+  w.appendChild(clock);
+  const row=dv('row gap8 mt10');row.style.flexWrap='wrap';
+  row.appendChild(bt(s.running?'btn-ghost btn-sm f1-desktop':'btn-ac btn-sm f1-desktop',
+    s.running?'⏸ '+t('pomo-pause'):'▶ '+(sec>0?t('sw-resume'):t('pomo-start')),
+    ()=>{s.running?swPause():swStart();render();}));
+  row.appendChild(bt('btn-ghost btn-sm',t('pomo-reset'),()=>{
+    if(swSeconds()>=60&&!confirm(t('sw-reset-ask')))return;
+    swReset();render();
+  }));
+  w.appendChild(row);
+  if(!s.running&&sec>0){
+    const add=bt('btn-ac btn-sm w100 mt8',t('sw-add'),()=>{STATE.swPick=true;STATE.swQ='';render();});
+    add.style.width='100%';
+    w.appendChild(add);
+  }else{
+    w.appendChild(dv('xs dimmer mt8',s.running?t('sw-hint-running'):t('sw-hint-idle')));
+  }
+  const tk=todayKey();
+  const todayEntries=timeLog().filter(e=>e.date===tk);
+  // The day's total already sits in the card's header; the flags' share is
+  // the thing worth saying again here.
+  const fl=todayEntries.filter(e=>e.flag).reduce((a,e)=>a+e.sec,0);
+  if(fl)w.appendChild(dv('xs dim mt10',`🏁 ${fmtSecs(fl)} ${t('sw-today')}`));
+  return w;
+}
+
+/* Where the time can go. Flags first — they are what this was asked for —
+   then whatever is still open or was done today; typing narrows it to anything
+   by name. Or a name that is not a task at all, for anything else you time. */
+function renderSwPick(){
+  const tk=todayKey();
+  const sec=swSeconds();
+  const close=()=>{STATE.swPick=false;render();};
+  const ov=dv('fi');ov.classList.add('ovl');
+  closeOnBackdrop(ov,close);
+  const panel=dv('card');panel.style.cssText='max-width:520px;width:100%;margin:auto';
+  const hd=dv('rowb mb6');
+  hd.appendChild(sp('ctit',t('sw-add-to')));
+  hd.appendChild(bt('btn-icon','✕',close));
+  panel.appendChild(hd);
+
+  const defMin=Math.max(1,Math.round(sec/60));
+  const tr=dv('row gap8 mb8');
+  tr.appendChild(sp('xl w8 mo ac',fmtHMS(sec)));
+  const mw=dv('row gap4');mw.style.marginLeft='auto';
+  mw.appendChild(sp('xs dimmer',t('sw-minutes')));
+  const mi=ip('number','',String(defMin));mi.min=1;mi.style.cssText='width:76px';
+  mw.appendChild(mi);
+  tr.appendChild(mw);
+  panel.appendChild(tr);
+  // The stopwatch may have been left running past what you really did; the
+  // number can be trimmed here. Untouched, the exact seconds are kept.
+  const secs=()=>{
+    const v=parseFloat(mi.value);
+    if(!(v>0))return 0;
+    return Math.round(v)===defMin?sec:Math.round(v*60);
+  };
+  const put=(r,label)=>{
+    const s_=secs();
+    if(s_<=0){mi.focus();return;}
+    logTime(s_,r,label);
+    swReset();
+    STATE.swPick=false;
+    render();
+    flashToast('✓ '+fmtSecs(s_)+' → '+(r?r.title:label));
+  };
+
+  const qi=ip('text','',STATE.swQ||'',t('sw-search'));
+  qi.style.cssText='width:100%;margin-bottom:8px';
+  panel.appendChild(qi);
+  const list=dv('s4');list.style.cssText='max-height:38vh;overflow-y:auto';
+  panel.appendChild(list);
+
+  const rowFor=r=>{
+    const b=el('button','sw-row');
+    b.appendChild(sp('',r.flagged?'🏁':'•'));
+    b.appendChild(sp('sw-t',r.title));
+    if(r.done||r.completedOn===tk)b.appendChild(sp('xs dimmer','✓'));
+    b.onclick=()=>put(r);
+    return b;
+  };
+  const draw=()=>{
+    list.innerHTML='';
+    const q=(STATE.swQ||'').trim().toLowerCase();
+    const pool=reminders().filter(r=>(!r.done||r.completedOn===tk)&&(!q||String(r.title||'').toLowerCase().includes(q)));
+    const flags=pool.filter(r=>r.flagged);
+    const others=pool.filter(r=>!r.flagged&&(q||(r.due&&r.due<=tk))).slice(0,q?60:30);
+    if(flags.length){
+      list.appendChild(dv('xs dimmer up ls',t('sw-flags')));
+      flags.forEach(r=>list.appendChild(rowFor(r)));
+    }
+    if(others.length){
+      list.appendChild(dv('xs dimmer up ls mt6',t('sw-others')));
+      others.forEach(r=>list.appendChild(rowFor(r)));
+    }
+    if(!flags.length&&!others.length)list.appendChild(dv('xs dimmer ctr',t('sw-none')));
+  };
+  qi.oninput=()=>{STATE.swQ=qi.value;draw();};
+  draw();
+
+  // Something that is not a task: its name, and what you typed before.
+  const oi=ip('text','','',t('sw-other-ph'));
+  oi.style.cssText='flex:1;min-width:0';
+  const doOther=()=>{const v=oi.value.trim();if(v)put(null,v);};
+  oi.onkeydown=e=>{if(e.key==='Enter')doOther();};
+  const orow=dv('row gap6 mt10');
+  orow.appendChild(oi);
+  orow.appendChild(bt('btn-ghost btn-sm',t('sw-other-add'),doOther));
+  panel.appendChild(orow);
+  const recent=[];
+  timeLog().forEach(e=>{if(!e.rid&&e.title&&!recent.includes(e.title)&&recent.length<5)recent.push(e.title);});
+  if(recent.length){
+    const rr=dv('row gap6 mt6');rr.style.flexWrap='wrap';
+    rr.appendChild(sp('xs dimmer',t('sw-recent')));
+    recent.forEach(n=>{const c=bt('btn-ghost btn-xs',n,()=>put(null,n));rr.appendChild(c);});
+    panel.appendChild(rr);
+  }
+  ov.appendChild(panel);
+  return ov;
+}
+
+/* The day calendar, in a window of its own. */
+function renderCalModal(){
+  const close=()=>{STATE.showCal=false;render();};
+  const ov=dv('fi');ov.classList.add('ovl');
+  closeOnBackdrop(ov,close);
+  const panel=dv('card cal-big');panel.style.cssText='max-width:820px;width:100%;margin:auto;max-height:none';
+  const hd=dv('rowb mb6');
+  hd.appendChild(sp('ctit',t('cal-title')));
+  hd.appendChild(bt('btn-icon','✕',close));
+  panel.appendChild(hd);
+  panel.appendChild(renderPomoCalendar());
+  ov.appendChild(panel);
+  return ov;
+}
+
+/* How long went where — in Score, next to the other totals. Grouped by task,
+   so a task timed on five different days reads as one line, and any line opens
+   to the entries behind it, each of which can be taken back out. */
+function renderTimeLogCard(){
+  const tk=todayKey();
+  const card=dv('card mt12');card.id='timelog-card';
+  let range='week';try{range=localStorage.getItem('st_tlrange')||'week';}catch(e){}
+  if(!['today','week','month','all'].includes(range))range='week';
+  const hd=dv('rowb mb8');hd.style.flexWrap='wrap';hd.style.gap='6px';
+  hd.appendChild(sp('ctit',t('tl-title')));
+  const chips=dv('row gap4');
+  [['today','tl-today'],['week','tl-week'],['month','tl-month'],['all','tl-all']].forEach(([k,lbl])=>{
+    const b=bt(range===k?'btn-ac btn-xs':'btn-ghost btn-xs',t(lbl),()=>{
+      try{localStorage.setItem('st_tlrange',k);}catch(e){}
+      STATE.tlOpen=null;render();
+    });
+    chips.appendChild(b);
+  });
+  hd.appendChild(chips);
+  card.appendChild(hd);
+
+  const all=timeLog();
+  if(!all.length){card.appendChild(dv('xs dimmer',t('tl-empty')));return card;}
+  const days=range==='today'?0:range==='week'?6:range==='month'?29:null;
+  let from='';
+  if(days!==null){const d=new Date(tk+'T12:00:00');d.setDate(d.getDate()-days);from=isoDate(d);}
+  const es=all.filter(e=>!from||e.date>=from);
+  if(!es.length){card.appendChild(dv('xs dimmer',t('tl-none-range')));return card;}
+
+  const groups=new Map();
+  es.forEach(e=>{
+    const k=e.rid?'r:'+e.rid:'t:'+String(e.title||'').toLowerCase();
+    let g=groups.get(k);
+    if(!g){g={key:k,title:e.title,sec:0,flag:false,items:[]};groups.set(k,g);}
+    g.sec+=e.sec;g.flag=g.flag||!!e.flag;g.items.push(e);
+  });
+  const rows=[...groups.values()].sort((a,b)=>b.sec-a.sec);
+  const total=es.reduce((a,e)=>a+e.sec,0);
+  const flagSec=es.filter(e=>e.flag).reduce((a,e)=>a+e.sec,0);
+
+  const tiles=dv('g3 mb10');tiles.style.gap='8px';
+  [[t('tl-total'),fmtSecs(total),'var(--ac)'],[t('tl-flags'),fmtSecs(flagSec),'var(--cg)'],[t('tl-items'),String(rows.length),'var(--t1)']]
+    .forEach(([lbl,val,col])=>{
+      const c=dv('card2 ctr');const n=dv('lg w7 mo',val);n.style.color=col;
+      c.appendChild(n);c.appendChild(dv('xs dimmer mt2',lbl));tiles.appendChild(c);
+    });
+  card.appendChild(tiles);
+
+  const max=rows[0].sec||1;
+  const list=dv('s6');
+  rows.forEach(g=>{
+    const box=dv('');
+    const line=dv('row gap8');line.style.cursor='pointer';
+    line.appendChild(sp('',g.flag?'🏁':'•'));
+    const ti=sp('sm f1',g.title);ti.style.cssText='min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
+    line.appendChild(ti);
+    line.appendChild(sp('sm mo w6',fmtSecs(g.sec)));
+    line.onclick=()=>{STATE.tlOpen=STATE.tlOpen===g.key?null:g.key;render();};
+    box.appendChild(line);
+    const bar=dv('tl-bar');const fill=document.createElement('i');fill.style.width=Math.max(2,Math.round(g.sec/max*100))+'%';
+    bar.appendChild(fill);box.appendChild(bar);
+    if(STATE.tlOpen===g.key){
+      const det=dv('s4 mt6');
+      g.items.slice().sort((a,b)=>b.date.localeCompare(a.date)||b.at-a.at).forEach(e=>{
+        const r=dv('row gap8');
+        r.appendChild(sp('xs dimmer',e.date));
+        r.appendChild(sp('xs mo f1',fmtSecs(e.sec)));
+        const x=bt('btn-icon','✕',()=>{
+          STATE.planner.timeLog=timeLog().filter(y=>y.id!==e.id);
+          savePlanner();render();
+        });
+        x.title=t('tl-del');
+        r.appendChild(x);
+        det.appendChild(r);
+      });
+      box.appendChild(det);
+    }
+    list.appendChild(box);
+  });
+  card.appendChild(list);
   return card;
 }
 
@@ -7545,6 +7877,7 @@ function renderApp(){
   wrap.appendChild(ch);
   if(STATE.dayDetail)wrap.appendChild(renderDayDetailModal(STATE.dayDetail));
   if(STATE.histDay)wrap.appendChild(renderHistModal(STATE.histDay));
+  wrap.appendChild(renderTimeLogCard());
   wrap.appendChild(renderStats(total,sc));
   // Reset All — at the bottom where it's hard to hit accidentally
   const resetWrap=dv('card mt12');resetWrap.style.cssText='border-color:var(--ngb);background:var(--ngd)';
@@ -11048,6 +11381,9 @@ setInterval(()=>{
   syncPomoTitle();
   syncCalNow();
   catchUpPomodoro();
+  // The stopwatch's own clock, patched in place like the timer's.
+  const swc=document.getElementById('sw-clock');
+  if(swc&&p&&p.sw&&p.sw.running)swc.textContent=fmtHMS(swSeconds());
   if(p&&p.running){
     const mini=document.getElementById('pomo-mini');
     if(mini)mini.textContent=(p.phase==='focus'?'🍅 ':'☕ ')+fmtClock(pomoRemaining(p));
