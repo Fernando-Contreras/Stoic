@@ -509,6 +509,7 @@ button{cursor:pointer;font-family:var(--ff);font-size:15px;font-weight:600;borde
   border:1px solid var(--b1);border-radius:9px;background:var(--sur2);color:var(--t1);cursor:pointer;font:inherit;font-size:13px}
 .sw-row:hover{border-color:var(--acb)}
 .sw-row .sw-t{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sw-ms{font-size:.5em;font-weight:600;opacity:.65;letter-spacing:0;display:inline-block;min-width:3.6ch;text-align:left}
 .tl-bar{height:5px;border-radius:99px;background:var(--b1);overflow:hidden;margin-top:4px}
 .tl-bar>i{display:block;height:100%;background:var(--ac);border-radius:99px}
 
@@ -5516,14 +5517,40 @@ function renderPomoCard(){
    It rides in the timer's own state (p.sw), so it travels with it: started on
    the phone, it is the same stopwatch on the desktop. Time is read off the wall
    clock, so a locked phone keeps counting. ═══════════════════════════════ */
-function swState(){const p=STATE.pomo;return p.sw||(p.sw={running:false,startedAt:0,elapsed:0});}
-function swSeconds(){
+function swState(){const p=STATE.pomo;return p.sw||(p.sw={running:false,startedAt:0,elapsed:0,ms:0});}
+/* Milliseconds are the truth; `elapsed` (whole seconds) is kept beside it for
+   anything that only ever knew seconds. Pausing keeps the fraction, so a
+   stopwatch stopped at 12.847 resumes from 12.847 and not from 12.000. */
+function swMs(){
   const s=swState();
-  return s.running?s.elapsed+Math.max(0,Math.floor((CLOCK.now()-s.startedAt)/1000)):s.elapsed;
+  const base=s.ms!=null?s.ms:(s.elapsed||0)*1000;
+  return s.running?base+Math.max(0,CLOCK.now()-s.startedAt):base;
 }
-function swStart(){const s=swState();if(s.running)return;s.running=true;s.startedAt=CLOCK.now();savePomo();}
-function swPause(){const s=swState();if(!s.running)return;s.elapsed=swSeconds();s.running=false;s.startedAt=0;savePomo();}
-function swReset(){const s=swState();s.running=false;s.startedAt=0;s.elapsed=0;savePomo();}
+function swSeconds(){return Math.floor(swMs()/1000);}
+function swStart(){const s=swState();if(s.running)return;if(s.ms==null)s.ms=(s.elapsed||0)*1000;s.running=true;s.startedAt=CLOCK.now();savePomo();}
+function swPause(){const s=swState();if(!s.running)return;s.ms=swMs();s.elapsed=Math.floor(s.ms/1000);s.running=false;s.startedAt=0;savePomo();}
+function swReset(){const s=swState();s.running=false;s.startedAt=0;s.elapsed=0;s.ms=0;savePomo();}
+// The clock is two spans — the time and its thousandths — so a frame only
+// rewrites text and never rebuilds anything.
+function paintSw(){
+  const main=document.getElementById('sw-main');
+  if(!main)return false;
+  const ms=swMs();
+  main.textContent=fmtHMS(Math.floor(ms/1000));
+  const fr=document.getElementById('sw-frac');
+  if(fr)fr.textContent='.'+String(Math.floor(ms%1000)).padStart(3,'0');
+  return true;
+}
+let _swRaf=0;
+function swLoop(){
+  if(_swRaf)return;
+  const step=()=>{
+    _swRaf=0;
+    if(!paintSw())return;                 // the page was left: stop
+    if(swState().running)_swRaf=requestAnimationFrame(step);
+  };
+  _swRaf=requestAnimationFrame(step);
+}
 function fmtHMS(sec){
   sec=Math.max(0,Math.floor(sec));
   const h=Math.floor(sec/3600),m=Math.floor(sec%3600/60),s=sec%60;
@@ -5561,8 +5588,17 @@ function renderStopwatchPage(){
   const sec=swSeconds();
   const clock=dv('ctr xxxl w8 mo mt6');
   clock.id='sw-clock';clock.style.color='var(--ac)';
-  clock.textContent=fmtHMS(sec);
+  const cm=sp('');cm.id='sw-main';cm.textContent=fmtHMS(sec);
+  clock.appendChild(cm);
+  /* The thousandths, smaller and dimmer so they read as the fast part and do
+     not shove the seconds around. Left out under reduced motion: a number that
+     rewrites itself sixty times a second is exactly what that setting is for. */
+  if(!reducedMotion()){
+    const cf=sp('sw-ms','.'+String(Math.floor(swMs()%1000)).padStart(3,'0'));cf.id='sw-frac';
+    clock.appendChild(cf);
+  }
   w.appendChild(clock);
+  if(s.running)swLoop();
   const row=dv('row gap8 mt10');row.style.flexWrap='wrap';
   row.appendChild(bt(s.running?'btn-ghost btn-sm f1-desktop':'btn-ac btn-sm f1-desktop',
     s.running?'⏸ '+t('pomo-pause'):'▶ '+(sec>0?t('sw-resume'):t('pomo-start')),
@@ -11382,8 +11418,9 @@ setInterval(()=>{
   syncCalNow();
   catchUpPomodoro();
   // The stopwatch's own clock, patched in place like the timer's.
-  const swc=document.getElementById('sw-clock');
-  if(swc&&p&&p.sw&&p.sw.running)swc.textContent=fmtHMS(swSeconds());
+  // (the per-frame loop does this while the tab is in front; this beat keeps
+  // it right when frames are not being handed out)
+  if(p&&p.sw&&p.sw.running)paintSw();
   if(p&&p.running){
     const mini=document.getElementById('pomo-mini');
     if(mini)mini.textContent=(p.phase==='focus'?'🍅 ':'☕ ')+fmtClock(pomoRemaining(p));
