@@ -734,13 +734,48 @@ const SB={
   pulledOk:false,
   cloudDays:0,
   blocked:'',
-  async push(history, today, diary, streakOverrides, opts){
+  /* One push at a time. Two in flight at once would each ask "has the cloud
+     moved on since I last looked?", and for the second the answer would depend
+     on whether the first had landed yet — it would mistake our own write for
+     someone else's. In a line, each asks only after the one before is done. */
+  push(history, today, diary, streakOverrides, opts){
+    const run=()=>this._pushNow(history,today,diary,streakOverrides,opts);
+    this._pq=(this._pq||Promise.resolve()).then(run,run);
+    return this._pq;
+  },
+  async _pushNow(history, today, diary, streakOverrides, opts){
     opts=opts||{};
     if(!this.init()) return;
     if(!await this.ensureFresh()) return;
     if(!opts.force){
       if(!this.pulledOk){this.status='error';this.blocked='never-pulled';return;}
       if((history||[]).length<this.cloudDays){this.status='error';this.blocked='would-shrink';return;}
+      /* The write below replaces the whole cloud row, so a device that has not
+         looked at the cloud for a while — a phone in a pocket, a tab left in
+         the background, both of which stop polling — would put its old copy of
+         everything over whatever was done elsewhere in the meantime. A timer
+         catching up after two hours is exactly such a write. So first ask
+         whether the cloud has changed since this device last saw it; if it has,
+         read it and fold it in (the planner, the days and the notes by their own
+         rules, the pomodoro count by mergePomoCounts) and send what is left.
+         If it cannot be read, nothing is sent: the change stays here, marked
+         unsent, and goes the moment the cloud can be read. */
+      const seen=await this.peek();
+      if(seen&&this.lastSavedAt&&seen!==this.lastSavedAt){
+        const remote=await this.pull();
+        if(!remote){this.status='error';this.blocked='cloud-unreadable';return;}
+        try{
+          if(remote.today&&remote.today._date&&STATE.today&&remote.today._date===STATE.today._date){
+            Object.assign(STATE.today,mergePomoCounts(STATE.today,remote.today));
+            S.set(K.TODAY,STATE.today);
+          }
+          if(applyRemote(remote))_redrawOwed=true;
+        }catch(e){console.warn('Folding the cloud copy in failed',e);this.status='error';this.blocked='merge-failed';return;}
+        history=STATE.history;today=STATE.today;diary=STATE.diary;streakOverrides=STATE.streakOverrides;
+        // What was folded in is on this device now but not yet on screen, and
+        // the background poll will not draw it (it sees only our own write).
+        setTimeout(()=>{if(_redrawOwed&&!isEditing()){_redrawOwed=false;render();}},0);
+      }
     }
     this.blocked='';
     const sentAt=CLOCK.now();
@@ -1326,6 +1361,8 @@ en:{
   'tl-total':'Total','tl-flags':'🏁 On flags','tl-items':'Tasks',
   'tl-empty':'Nothing logged yet. Use the stopwatch ⏱ in Plan and add the time to a task.',
   'tl-none-range':'Nothing logged in this period.','tl-del':'Remove this entry',
+  'tl-edit':'Fix the day or the minutes','tl-move':'Move to another task','tl-move-to':'Move this time to…',
+  'tl-save':'Save','tl-cancel':'Cancel','tl-only-flags':'🏁 Flags only',
   'cal-untimed':'No time','cal-tray-empty':'every task has a time',
   'cal-hint':'Drag a task onto the hours to give it a time. Drag the bottom edge to change how long it is drawn — the list only ever shows when it starts.',
   'wkgoal-ask':'New weekly goal for "{t}":','wkgoal-full':'You already have {n} weekly goals this week.',
@@ -1590,6 +1627,8 @@ es:{
   'tl-total':'Total','tl-flags':'🏁 En banderas','tl-items':'Tareas',
   'tl-empty':'Aún no hay tiempo registrado. Usa el cronómetro ⏱ en Plan y añade el tiempo a una tarea.',
   'tl-none-range':'Nada registrado en este periodo.','tl-del':'Quitar este registro',
+  'tl-edit':'Corregir el día o los minutos','tl-move':'Mover a otra tarea','tl-move-to':'Mover este tiempo a…',
+  'tl-save':'Guardar','tl-cancel':'Cancelar','tl-only-flags':'🏁 Solo banderas',
   'cal-untimed':'Sin hora','cal-tray-empty':'todas tienen hora',
   'cal-hint':'Arrastra una tarea a las horas para darle hora. Arrastra el borde de abajo para cambiar cuánto dura en el dibujo — la lista solo muestra a qué hora empieza.',
   'wkgoal-ask':'Nueva meta semanal para "{t}":','wkgoal-full':'Ya tienes {n} metas semanales esta semana.',
@@ -2488,6 +2527,8 @@ function applyRemote(remote){
       } else {
         // Remote today is current date (or no date) — remote wins entirely
         const merged={...STATE.today,...R};
+        // The pomodoro count is folded, not replaced — see mergePomoCounts.
+        if(R._date&&R._date===STATE.today._date)Object.assign(merged,mergePomoCounts(STATE.today,R));
         // Always union penalties by id so no entry is lost
         const penMap=new Map((STATE.today.penalties||[]).map(p=>[p.id,p]));
         (R.penalties||[]).forEach(p=>{penMap.set(p.id,p);});
@@ -2564,7 +2605,10 @@ function applyRemote(remote){
       const remoteNewer=(rp._ts||0)>(STATE.pomo._ts||0);
       const remoteRunningWeIdle=!!rp.running&&!STATE.pomo.running;
       if(remoteNewer||remoteRunningWeIdle){
+        const mins=(STATE.pomo.day&&STATE.pomo.day===rp.day)?Math.max(STATE.pomo.minutesToday||0,rp.minutesToday||0):null;
         STATE.pomo={...STATE.pomo,...rp};
+        // The day's tally of timer minutes only grows within the day.
+        if(mins!==null)STATE.pomo.minutesToday=mins;
         S.set('st_pomo',STATE.pomo);changed=true;
       }
     }
@@ -2602,7 +2646,7 @@ function isEditing(){
      unfinished action held entirely on screen — a redraw underneath it is the
      same interruption an overlay blinking out would be. */
   return ['taskTree','histDay','restoreList','showTZ','showRules','showSyncPanel','showGoals','showFlags',
-          'showAddForm','showRewards','selecting','showWeek','showTagMgr','showCal','swPick']
+          'showAddForm','showRewards','selecting','showWeek','showTagMgr','showCal','swPick','swMove']
     .some(k=>STATE[k]);
 }
 /* The sync itself never waits — only the redraw does. What the cloud brought
@@ -5596,28 +5640,35 @@ function renderStopwatchPage(){
    by name. Or a name that is not a task at all, for anything else you time. */
 function renderSwPick(){
   const tk=todayKey();
-  const sec=swSeconds();
-  const close=()=>{STATE.swPick=false;render();};
+  /* The same window serves two errands: putting the stopwatch's time on a task,
+     and moving a time already logged to a different one (a slip in which task
+     it went to). For the second, the time is the entry's own and is left alone;
+     only where it belongs changes. */
+  const mvE=STATE.swMove?timeLog().find(e=>e.id===STATE.swMove):null;
+  if(STATE.swMove&&!mvE)STATE.swMove=null;
+  const sec=mvE?mvE.sec:swSeconds();
+  const close=()=>{STATE.swPick=false;STATE.swMove=null;render();};
   const ov=dv('fi');ov.classList.add('ovl');
   closeOnBackdrop(ov,close);
   const panel=dv('card');panel.style.cssText='max-width:520px;width:100%;margin:auto';
   const hd=dv('rowb mb6');
-  hd.appendChild(sp('ctit',t('sw-add-to')));
+  hd.appendChild(sp('ctit',mvE?t('tl-move-to'):t('sw-add-to')));
   hd.appendChild(bt('btn-icon','✕',close));
   panel.appendChild(hd);
 
   const defMin=Math.max(1,Math.round(sec/60));
   const tr=dv('row gap8 mb8');
-  tr.appendChild(sp('xl w8 mo ac',fmtHMS(sec)));
+  tr.appendChild(sp('xl w8 mo ac',mvE?fmtSecs(sec):fmtHMS(sec)));
   const mw=dv('row gap4');mw.style.marginLeft='auto';
   mw.appendChild(sp('xs dimmer',t('sw-minutes')));
   const mi=ip('number','',String(defMin));mi.min=1;mi.style.cssText='width:76px';
   mw.appendChild(mi);
-  tr.appendChild(mw);
+  if(!mvE)tr.appendChild(mw);
   panel.appendChild(tr);
   // The stopwatch may have been left running past what you really did; the
   // number can be trimmed here. Untouched, the exact seconds are kept.
   const secs=()=>{
+    if(mvE)return sec;
     const v=parseFloat(mi.value);
     if(!(v>0))return 0;
     return Math.round(v)===defMin?sec:Math.round(v*60);
@@ -5625,6 +5676,12 @@ function renderSwPick(){
   const put=(r,label)=>{
     const s_=secs();
     if(s_<=0){mi.focus();return;}
+    if(mvE){
+      mvE.rid=r?r.id:null;mvE.title=r?r.title:label;mvE.flag=!!(r&&r.flagged);
+      STATE.swMove=null;savePlanner();render();
+      flashToast('✓ → '+(r?r.title:label));
+      return;
+    }
     logTime(s_,r,label);
     swReset();
     STATE.swPick=false;
@@ -5719,15 +5776,24 @@ function renderTimeLogCard(){
     });
     chips.appendChild(b);
   });
+  /* Only what went to the flags: each flag with its own total, and the sum of
+     them all in the tile. */
+  let onlyFlags=false;try{onlyFlags=localStorage.getItem('st_tlflags')==='1';}catch(e){}
+  chips.appendChild(bt(onlyFlags?'btn-ac btn-xs':'btn-ghost btn-xs',t('tl-only-flags'),()=>{
+    try{localStorage.setItem('st_tlflags',onlyFlags?'0':'1');}catch(e){}
+    STATE.tlOpen=null;render();
+  }));
   hd.appendChild(chips);
   card.appendChild(hd);
+  // The window that moves an entry to another task; it can be opened from here.
+  if(STATE.swMove)card.appendChild(renderSwPick());
 
   const all=timeLog();
   if(!all.length){card.appendChild(dv('xs dimmer',t('tl-empty')));return card;}
   const days=range==='today'?0:range==='week'?6:range==='month'?29:null;
   let from='';
   if(days!==null){const d=new Date(tk+'T12:00:00');d.setDate(d.getDate()-days);from=isoDate(d);}
-  const es=all.filter(e=>!from||e.date>=from);
+  const es=all.filter(e=>(!from||e.date>=from)&&(!onlyFlags||e.flag));
   if(!es.length){card.appendChild(dv('xs dimmer',t('tl-none-range')));return card;}
 
   const groups=new Map();
@@ -5765,9 +5831,38 @@ function renderTimeLogCard(){
     if(STATE.tlOpen===g.key){
       const det=dv('s4 mt6');
       g.items.slice().sort((a,b)=>b.date.localeCompare(a.date)||b.at-a.at).forEach(e=>{
+        if(STATE.tlEdit===e.id){
+          /* A slip is fixed where it shows: the day and the minutes. Never a
+             day ahead — time you have not spent yet is not a thing to log. */
+          const r=dv('row gap6');r.style.flexWrap='wrap';
+          const di=ip('date','',e.date);di.max=tk;di.style.cssText='width:auto';
+          const mi=ip('number','',String(Math.round(e.sec/60*10)/10));mi.min=0.1;mi.step='any';mi.style.cssText='width:80px';
+          const save=()=>{
+            const v=parseFloat(mi.value);
+            if(!(v>0)){mi.focus();return;}
+            const d=/^\d{4}-\d{2}-\d{2}$/.test(di.value)&&di.value<=tk?di.value:e.date;
+            // Untouched minutes keep their exact seconds.
+            if(Math.round(v*10)/10!==Math.round(e.sec/60*10)/10)e.sec=Math.round(v*60);
+            e.date=d;
+            STATE.tlEdit=null;savePlanner();render();
+          };
+          mi.onkeydown=ev=>{if(ev.key==='Enter')save();if(ev.key==='Escape'){STATE.tlEdit=null;render();}};
+          r.appendChild(di);r.appendChild(mi);r.appendChild(sp('xs dimmer',t('sw-minutes')));
+          r.appendChild(bt('btn-ac btn-xs',t('tl-save'),save));
+          r.appendChild(bt('btn-ghost btn-xs',t('tl-cancel'),()=>{STATE.tlEdit=null;render();}));
+          det.appendChild(r);
+          setTimeout(()=>mi.focus(),0);
+          return;
+        }
         const r=dv('row gap8');
         r.appendChild(sp('xs dimmer',e.date));
         r.appendChild(sp('xs mo f1',fmtSecs(e.sec)));
+        const ed=bt('btn-icon','✎',()=>{STATE.tlEdit=e.id;render();});
+        ed.title=t('tl-edit');
+        r.appendChild(ed);
+        const mv=bt('btn-icon','↪',()=>{STATE.swMove=e.id;STATE.swQ='';render();});
+        mv.title=t('tl-move');
+        r.appendChild(mv);
         const x=bt('btn-icon','✕',()=>{
           STATE.planner.timeLog=timeLog().filter(y=>y.id!==e.id);
           savePlanner();render();
@@ -7206,6 +7301,26 @@ function renderAddModal(){
    so it is not undone; it is only ever the timer's own unpaid work that gets
    added back. A day from before the ledger existed is read as "owed up to
    what the timer says", so it is raised to it once and never again. */
+/* Two copies of the same day, and what the pomodoro count should be once both
+   are taken into account. The count is two things added together: what the
+   timer has paid in (the ledger, pomoBanked — it only ever grows, so the larger
+   is the truer) and what you typed by hand (the rest). The hand-typed part
+   follows whoever edited it last, by the stamp the −/+ buttons leave; with no
+   stamp to go by, the larger is kept, because losing pomodoros is the
+   mistake worth avoiding. Without this, whichever device pushed last simply
+   replaced the other's count — and a device that had been in a pocket for two
+   hours, catching up on a timer, pushed its stale count over everything done
+   elsewhere meanwhile. */
+function mergePomoCounts(L,R){
+  const tL=L.pomoBanked||0,tR=R.pomoBanked||0;
+  const timer=Math.max(tL,tR);
+  const mL=Math.max(0,(L.pomodoros||0)-tL),mR=Math.max(0,(R.pomodoros||0)-tR);
+  const aL=L._pomoEditAt||0,aR=R._pomoEditAt||0;
+  const man=aL===aR?Math.max(mL,mR):(aR>aL?mR:mL);
+  const out={pomodoros:Math.round((man+timer)*10)/10,_pomoEditAt:Math.max(aL,aR)};
+  if(timer>0||L.pomoBanked!==undefined||R.pomoBanked!==undefined)out.pomoBanked=timer;
+  return out;
+}
 function reconcileTimerPomodoros(){
   const td=STATE.today,p=STATE.pomo;
   if(!td||!p||p.day!==todayKey()||!(p.minutesToday>0))return;
@@ -8082,6 +8197,9 @@ function renderPomCard(sk_,todayStatus){
   card.appendChild(sp('xs dim',ptsLine(val*POM_PTS,pomoStreak,todayStatus)));
   const step=d=>{
     STATE.today.pomodoros=Math.max(0,Math.round(((STATE.today.pomodoros||0)+d)*10)/10);
+    // Stamped, so another device's copy of the day knows this was done by hand
+    // and that it is newer — see mergePomoCounts.
+    STATE.today._pomoEditAt=CLOCK.now();
     markManual('pomodoros');commitAndRefresh();
   };
   const ct=dv('row gap8 mt10');
