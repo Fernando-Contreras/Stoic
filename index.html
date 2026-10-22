@@ -4043,11 +4043,15 @@ function weeklyGoalNote(r){
 function weeklyGoalNoteBase(r){
   const allLinks=goalsServedBy(r).filter(g=>g.kind==='week');
   if(!allLinks.length)return null;
-  /* Same rule goalsOf('week') already uses to decide what still belongs to
-     the live week: open, or closed without the week having rolled over
-     since. */
-  const wkStart=periodBounds('week',todayKey()).start;
-  const links=allLinks.filter(g=>!g.doneOn||g.doneOn>=wkStart);
+  /* Exactly what is on the weekly board, by asking the board. This used to
+     repeat only half of its rule — "closed this week" — and so a goal from
+     LAST week, finished late on Tuesday, was still announced on its flag as
+     this week's finished goal (struck through) while the board, correctly,
+     had already let it go: the flag and the goals window told two different
+     stories. A goal that is not on the board is not this week's, and the flag
+     carries the warning instead. */
+  const live=new Set(goalsOf('week').map(g=>g.id));
+  const links=allLinks.filter(g=>live.has(g.id));
   if(!links.length)return{text:t('wkgoal-none'),done:false,stale:true};
   const open=links.filter(g=>!g.doneOn);
   if(open.length)return{text:open.map(g=>g.title).join(', '),done:false};
