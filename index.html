@@ -1362,7 +1362,7 @@ en:{
   'tl-empty':'Nothing logged yet. Use the stopwatch ⏱ in Plan and add the time to a task.',
   'tl-none-range':'Nothing logged in this period.','tl-del':'Remove this entry',
   'tl-edit':'Fix the day or the minutes','tl-move':'Move to another task','tl-move-to':'Move this time to…',
-  'tl-save':'Save','tl-cancel':'Cancel','tl-only-flags':'🏁 Flags only',
+  'tl-save':'Save','tl-cancel':'Cancel','tl-only-flags':'🏁 Flags only','tl-change':'Change task',
   'cal-untimed':'No time','cal-tray-empty':'every task has a time',
   'cal-hint':'Drag a task onto the hours to give it a time. Drag the bottom edge to change how long it is drawn — the list only ever shows when it starts.',
   'wkgoal-ask':'New weekly goal for "{t}":','wkgoal-full':'You already have {n} weekly goals this week.',
@@ -1628,7 +1628,7 @@ es:{
   'tl-empty':'Aún no hay tiempo registrado. Usa el cronómetro ⏱ en Plan y añade el tiempo a una tarea.',
   'tl-none-range':'Nada registrado en este periodo.','tl-del':'Quitar este registro',
   'tl-edit':'Corregir el día o los minutos','tl-move':'Mover a otra tarea','tl-move-to':'Mover este tiempo a…',
-  'tl-save':'Guardar','tl-cancel':'Cancelar','tl-only-flags':'🏁 Solo banderas',
+  'tl-save':'Guardar','tl-cancel':'Cancelar','tl-only-flags':'🏁 Solo banderas','tl-change':'Cambiar tarea',
   'cal-untimed':'Sin hora','cal-tray-empty':'todas tienen hora',
   'cal-hint':'Arrastra una tarea a las horas para darle hora. Arrastra el borde de abajo para cambiar cuánto dura en el dibujo — la lista solo muestra a qué hora empieza.',
   'wkgoal-ask':'Nueva meta semanal para "{t}":','wkgoal-full':'Ya tienes {n} metas semanales esta semana.',
@@ -5017,7 +5017,7 @@ function renderPlanner(){
   if(STATE.showTagMgr)wrap.appendChild(renderTagManagerModal());
   if(STATE.showWeek)wrap.appendChild(renderWeekReviewModal());
   if(STATE.showCal)wrap.appendChild(renderCalModal());
-  if(STATE.swPick)wrap.appendChild(renderSwPick());
+  if(STATE.swPick||STATE.swMove)wrap.appendChild(renderSwPick());
   return wrap;
 }
 
@@ -5570,19 +5570,27 @@ const TIMELOG_MAX=5000;
 function timeLog(){return STATE.planner.timeLog||(STATE.planner.timeLog=[]);}
 function timeLoggedOn(day){return timeLog().filter(e=>e.date===day).reduce((s,e)=>s+(e.sec||0),0);}
 function logTime(sec,r,label){
+  const id=uid();
   timeLog().unshift({
-    id:uid(),rid:r?r.id:null,title:r?r.title:label,
+    id,rid:r?r.id:null,title:r?r.title:label,
     flag:!!(r&&r.flagged),date:todayKey(),sec:Math.round(sec),at:CLOCK.now()
   });
   STATE.planner.timeLog=timeLog().slice(0,TIMELOG_MAX);
   savePlanner();
+  return id;
 }
-function flashToast(msg){
+// A line at the bottom for a moment; with an action it stays a few seconds
+// longer, long enough to press it.
+function flashToast(msg,actionLabel,action){
   const toast=document.createElement('div');
-  toast.textContent=msg;
-  toast.style.cssText='position:fixed;left:50%;bottom:90px;transform:translateX(-50%);z-index:95;background:var(--sur3);color:var(--t1);border:1px solid var(--acb);border-radius:99px;padding:10px 18px;font-weight:700;box-shadow:0 6px 22px rgba(0,0,0,.4);max-width:90vw';
+  toast.style.cssText='position:fixed;left:50%;bottom:90px;transform:translateX(-50%);z-index:95;background:var(--sur3);color:var(--t1);border:1px solid var(--acb);border-radius:99px;padding:10px 18px;font-weight:700;box-shadow:0 6px 22px rgba(0,0,0,.4);max-width:90vw;display:flex;align-items:center;gap:12px';
+  toast.appendChild(sp('',msg));
+  if(actionLabel&&action){
+    const b=bt('btn-ac btn-xs',actionLabel,()=>{toast.remove();action();});
+    toast.appendChild(b);
+  }
   document.body.appendChild(toast);
-  setTimeout(()=>toast.remove(),2600);
+  setTimeout(()=>toast.remove(),actionLabel?6500:2600);
 }
 
 function renderStopwatchPage(){
@@ -5682,11 +5690,14 @@ function renderSwPick(){
       flashToast('✓ → '+(r?r.title:label));
       return;
     }
-    logTime(s_,r,label);
+    const eid=logTime(s_,r,label);
     swReset();
     STATE.swPick=false;
     render();
-    flashToast('✓ '+fmtSecs(s_)+' → '+(r?r.title:label));
+    // Right after is when a wrong pick shows; one press puts it on the right task.
+    flashToast('✓ '+fmtSecs(s_)+' → '+(r?r.title:label),t('tl-change'),()=>{
+      STATE.swMove=eid;STATE.swQ='';render();
+    });
   };
 
   const qi=ip('text','',STATE.swQ||'',t('sw-search'));
