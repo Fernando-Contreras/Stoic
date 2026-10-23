@@ -1323,7 +1323,7 @@ en:{
   'rem-tag-ph':'New tag (work, home, gym…)','rem-filter':'Filter by tag','rem-filter-clear':'clear',
   'rem-filter-all':'· must have all of them',
   'tagmgr-open':'Rename or delete a tag everywhere','tagmgr-title':'Manage tags',
-  'tagmgr-none':'No tags yet.','tagmgr-one':'reminder','tagmgr-count':'reminders',
+  'tagmgr-none':'No tags yet.','tagmgr-suggest':'💡 Suggested','tagmgr-add':'+ Add','tagmgr-add-all':'Add all','tagmgr-one':'reminder','tagmgr-count':'reminders',
   'tagmgr-rename-ask':'Rename "{tg}" to:',
   'tagmgr-del-warn':'Remove "{tg}" from {n} reminder(s)? This only drops the tag — the reminders themselves stay.',
   'rem-subtask':'subtask','rem-subtask-ask':'Subtask of "{t}":',
@@ -1589,7 +1589,7 @@ es:{
   'rem-tag-ph':'Etiqueta nueva (trabajo, casa, gym…)','rem-filter':'Filtrar por etiqueta','rem-filter-clear':'limpiar',
   'rem-filter-all':'· deben tener todas',
   'tagmgr-open':'Renombrar o borrar una etiqueta en todos lados','tagmgr-title':'Administrar etiquetas',
-  'tagmgr-none':'Todavía no hay etiquetas.','tagmgr-one':'pendiente','tagmgr-count':'pendientes',
+  'tagmgr-none':'Todavía no hay etiquetas.','tagmgr-suggest':'💡 Sugeridas','tagmgr-add':'+ Añadir','tagmgr-add-all':'Añadir todas','tagmgr-one':'pendiente','tagmgr-count':'pendientes',
   'tagmgr-rename-ask':'Renombrar "{tg}" a:',
   'tagmgr-del-warn':'¿Quitar "{tg}" de {n} pendiente(s)? Solo se quita la etiqueta — los pendientes se quedan igual.',
   'rem-subtask':'subtarea','rem-subtask-ask':'Subtarea de "{t}":',
@@ -3043,10 +3043,48 @@ function tagsOf(r){
 function normTags(arr){
   return [...new Set((arr||[]).map(s=>String(s).trim()).filter(Boolean))];
 }
+/* A tag used to exist only for as long as some task carried it, so there was
+   no such thing as a tag waiting to be used. The library is the list of those:
+   names that exist on their own, offered in every picker and filter and kept
+   when the last task that had them is finished or removed. */
+function tagLib(){return STATE.planner.tagLib||(STATE.planner.tagLib=[]);}
 function allTags(){
-  const set=new Set();
+  const set=new Set(normTags(tagLib()));
   reminders().forEach(r=>tagsOf(r).forEach(tg=>set.add(tg)));
   return [...set].sort((a,b)=>a.localeCompare(b));
+}
+/* The suggested set: what a new person starts with, and what the manager offers
+   to anyone who does not have them. Each one says what it is for — the whole
+   point of a suggestion is that you do not have to work that out. Matched by
+   either language's name, so switching language does not make them strangers. */
+const TAG_STARTERS=[
+  {es:'🌞🌻 Mañana',en:'🌞🌻 Morning',
+   hint:{es:'Parte de tu rutina de la mañana: lo primero que haces en el día.',en:'Part of your morning routine: the first things you do in the day.'}},
+  {es:'🩳 Cortas',en:'🩳 Quick',
+   hint:{es:'Tareas que se resuelven en pocos minutos. Ideales para huecos entre cosas.',en:'Tasks that take only a few minutes. Good for the gaps between things.'}},
+  {es:'☝🏼⏳ De una vez',en:'☝🏼⏳ In one go',
+   hint:{es:'Se hacen de una sola sentada, sin partirse en pedazos.',en:'Done in a single sitting, not split up.'}}
+];
+function starterTagName(s){return STATE.lang==='es'?s.es:s.en;}
+function tagHint(tg){
+  const s=TAG_STARTERS.find(x=>x.es===tg||x.en===tg);
+  return s?s.hint[STATE.lang==='es'?'es':'en']:'';
+}
+/* A brand-new account starts with the suggested set already made. Only ever for
+   an account with no past — no tasks, no days, and (signed in) nothing in the
+   cloud — and decided once. It is written WITHOUT stamping the planner: a
+   freshly stamped planner counts as the newest copy there is, and on a device
+   that simply had not yet downloaded someone's real planner it would win and
+   replace it with an empty one. Unstamped, anything real from the cloud wins. */
+function seedStarterTags(){
+  const P=STATE.planner;
+  if(!P||P.tagsSeeded||!STATE.authed)return;
+  const cloud=SB.init();
+  if(cloud&&!SB.pulledOk)return;                       // not yet known whether this account has a past
+  const brandNew=!reminders().length&&!STATE.history.some(d=>!d._gap)&&(!cloud||SB.lastSavedAt===null);
+  P.tagsSeeded=true;
+  if(brandNew&&!tagLib().length)P.tagLib=TAG_STARTERS.map(starterTagName);
+  S.set(K.PLANNER,P);
 }
 /* Two filters mean both of them, not either one. Picking a second tag used to
    WIDEN the list — everything carrying gym or casa — which is the opposite of
@@ -3090,6 +3128,9 @@ function renameTagEverywhere(oldTg,newTg){
   });
   const f=STATE.view.tags;
   if(f){const i=f.indexOf(oldTg);if(i>=0)f[i]=nn;}
+  // The library follows, so a tag with no tasks on it is renamed too.
+  const lib=tagLib(),li=lib.indexOf(oldTg);
+  if(li>=0){lib[li]=nn;STATE.planner.tagLib=normTags(lib);savePlanner();}
   saveView();
   return n;
 }
@@ -3102,6 +3143,8 @@ function deleteTagEverywhere(tg){
   });
   const f=STATE.view.tags;
   if(f){const i=f.indexOf(tg);if(i>=0)f.splice(i,1);}
+  // And out of the library, or it would come straight back as a suggestion.
+  if(tagLib().includes(tg)){STATE.planner.tagLib=tagLib().filter(x=>x!==tg);savePlanner();}
   saveView();
   return n;
 }
@@ -3132,7 +3175,9 @@ function tagPicker(initial){
     pool.innerHTML='';
     allTags().filter(tg=>!sel.includes(tg)).forEach(tg=>{
       const c=bt('tagchip',tg,()=>{sel.push(tg);draw();});
-      c.style.cssText+=';opacity:.5;cursor:pointer';pool.appendChild(c);
+      c.style.cssText+=';opacity:.5;cursor:pointer';
+      const hint=tagHint(tg);if(hint)c.title=hint;
+      pool.appendChild(c);
     });
   }
   draw();
@@ -4586,6 +4631,7 @@ function renderPlanner(){
       const on=(STATE.view.tags||[]).includes(tg);
       const c=bt('tagchip',tg,()=>{toggleTagFilter(tg);render();});
       c.style.cssText+=';cursor:pointer'+(on?';outline:2px solid var(--ac)':';opacity:.55');
+      const hint=tagHint(tg);if(hint)c.title=hint;
       tagBar.appendChild(c);
     });
     /* Said out loud once a second tag is on, because that is the moment the
@@ -5131,15 +5177,14 @@ function renderTagManagerModal(){
     hd.appendChild(bt('btn-icon','✕',close));
     panel.appendChild(hd);
     const tags=allTags();
-    if(!tags.length){
-      panel.appendChild(dv('sm dimmer ctr mt8 mb8',t('tagmgr-none')));
-      return;
-    }
+    if(!tags.length)panel.appendChild(dv('sm dimmer ctr mt8 mb8',t('tagmgr-none')));
     const box=dv('s6');
     tags.forEach(tg=>{
       const n=reminders().filter(r=>hasTag(r,tg)).length;
       const row=dv('row gap8');row.style.alignItems='center';
-      row.appendChild(sp('tagchip',tg));
+      const chip=sp('tagchip',tg);
+      const hint=tagHint(tg);if(hint)chip.title=hint;
+      row.appendChild(chip);
       const cnt=sp('xs dimmer',`${n} ${n===1?t('tagmgr-one'):t('tagmgr-count')}`);
       cnt.style.flex='1';
       row.appendChild(cnt);
@@ -5158,7 +5203,35 @@ function renderTagManagerModal(){
       }));
       box.appendChild(row);
     });
-    panel.appendChild(box);
+    if(tags.length)panel.appendChild(box);
+
+    /* The suggested ones you do not have yet, each with what it is for. Adding
+       one only puts the name in your library — no task is touched. */
+    const have=new Set(tags);
+    const missing=TAG_STARTERS.filter(s=>!have.has(s.es)&&!have.has(s.en));
+    if(missing.length){
+      const sh=dv('rowb mt12 mb6');
+      sh.appendChild(sp('xs dimmer up ls',t('tagmgr-suggest')));
+      if(missing.length>1)sh.appendChild(bt('btn-ghost btn-xs',t('tagmgr-add-all'),()=>{
+        missing.forEach(s=>tagLib().push(starterTagName(s)));
+        STATE.planner.tagLib=normTags(tagLib());savePlanner();draw();
+      }));
+      panel.appendChild(sh);
+      const sb=dv('s6');
+      missing.forEach(s=>{
+        const row=dv('row gap8');row.style.alignItems='flex-start';
+        const nm=starterTagName(s);
+        const left=dv('f1');
+        left.appendChild(sp('tagchip',nm));
+        left.appendChild(dv('xs dimmer mt4',s.hint[STATE.lang==='es'?'es':'en']));
+        row.appendChild(left);
+        row.appendChild(bt('btn-ac btn-xs',t('tagmgr-add'),()=>{
+          tagLib().push(nm);STATE.planner.tagLib=normTags(tagLib());savePlanner();draw();
+        }));
+        sb.appendChild(row);
+      });
+      panel.appendChild(sb);
+    }
   };
   draw();
   return ov;
@@ -7358,6 +7431,7 @@ function enforcePomodoroFloor(){
 }
 function render(){
   enforcePomodoroFloor();
+  seedStarterTags();
   /* A dirty, unsaved note is written before the DOM under it is torn down.
      Its own 600ms debounce would normally catch it, but render() can be
      called for reasons that have nothing to do with the diary at all — a
