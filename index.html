@@ -5610,6 +5610,8 @@ function swSeconds(){return Math.floor(swMs()/1000);}
 function swStart(){const s=swState();if(s.running)return;if(s.ms==null)s.ms=(s.elapsed||0)*1000;s.running=true;s.startedAt=CLOCK.now();savePomo();}
 function swPause(){const s=swState();if(!s.running)return;s.ms=swMs();s.elapsed=Math.floor(s.ms/1000);s.running=false;s.startedAt=0;savePomo();}
 function swReset(){const s=swState();s.running=false;s.startedAt=0;s.elapsed=0;s.ms=0;savePomo();}
+// The Reset button: back to zero and running at once, from any state.
+function swRestart(){const s=swState();s.ms=0;s.elapsed=0;s.running=true;s.startedAt=CLOCK.now();savePomo();}
 // The clock is two spans — the time and its thousandths — so a frame only
 // rewrites text and never rebuilds anything.
 function paintSw(){
@@ -5621,14 +5623,21 @@ function paintSw(){
   if(fr)fr.textContent='.'+String(Math.floor(ms%1000)).padStart(3,'0');
   return true;
 }
-let _swRaf=0;
+let _swRaf=0,_swLast=0;
 function swLoop(){
-  if(_swRaf)return;
+  /* One loop at a time. A frame that was asked for but never came (a hidden
+     tab is not handed any) must not block a new loop for good, so a request
+     that has been waiting more than a moment is dropped and made again. */
+  if(_swRaf){
+    if(performance.now()-_swLast<1500)return;
+    cancelAnimationFrame(_swRaf);_swRaf=0;
+  }
   const step=()=>{
-    _swRaf=0;
+    _swRaf=0;_swLast=performance.now();
     if(!paintSw())return;                 // the page was left: stop
-    if(swState().running)_swRaf=requestAnimationFrame(step);
+    if(swState().running){_swRaf=requestAnimationFrame(step);}
   };
+  _swLast=performance.now();
   _swRaf=requestAnimationFrame(step);
 }
 function fmtHMS(sec){
@@ -5707,10 +5716,9 @@ function renderStopwatchPage(){
   row.appendChild(bt(s.running?'btn-ghost btn-sm f1-desktop':'btn-ac btn-sm f1-desktop',
     s.running?'⏸ '+t('pomo-pause'):'▶ '+(sec>0?t('sw-resume'):t('pomo-start')),
     ()=>{s.running?swPause():swStart();render();}));
-  row.appendChild(bt('btn-ghost btn-sm',t('pomo-reset'),()=>{
-    if(swSeconds()>=60&&!confirm(t('sw-reset-ask')))return;
-    swReset();render();
-  }));
+  // One press and it starts over from zero, already running — no question,
+  // and no second press on Start.
+  row.appendChild(bt('btn-ghost btn-sm',t('pomo-reset'),()=>{swRestart();render();}));
   // Stopped with time on it: the way to put it on a task sits in the same row.
   if(!s.running&&sec>0){
     row.appendChild(bt('btn-ac btn-sm',t('sw-add'),()=>{STATE.swPick=true;STATE.swQ='';render();}));
