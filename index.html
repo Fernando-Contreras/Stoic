@@ -750,6 +750,63 @@ function bootAuthed(){
   if(hasLocalData()){try{localStorage.setItem('st_guest','1');}catch(e){}return true;}
   return false;
 }
+/* ── STAGES ──────────────────────────────────────────────────────────────────
+   The app has become a lot, and a person arriving for the first time cannot be
+   shown all of it at once. The plan is that a new account starts with only the
+   essentials and the rest is unlocked as the tutorial walks them through it.
+
+   Every part of the screen that can be locked is tagged with the feature it
+   belongs to (data-feat), and when the page has been drawn the ones whose
+   feature is not unlocked are taken out. Done afterwards, and by tag, so no part
+   of the app has to know about any of this — and when everything is unlocked
+   (nobody has been given stages yet, or the account is older than they are) the
+   pass does not run at all, and the page is exactly what it always was.
+
+   ONBOARDING_PUBLIC is the switch that decides whether a new account is put at
+   stage 1. It stays off until the tutorial that unlocks things exists; until
+   then every account sees everything, and only the author can try the stages,
+   through the debug panel. */
+const ONBOARDING_PUBLIC=false;
+const DEBUG_EMAILS=['juan.salinas@saei.mx'];
+/* The stage at which each feature appears. 1 is the essentials (tasks, the day's
+   colour); 2 adds the streak and what it is built on; 3 the long goals and the
+   timer; 4 is everything — which is also what a paid plan would unlock. */
+const FEATURE_STAGE={
+  tabScore:2, streaks:2, flags:2, quadrants:2, morning:2, monthCal:2,
+  goals:3, pomodoro:3, tags:3, weekReview:3, viewControls:3, backupNag:3,
+  dayCal:4, stopwatch:4, sleep:4, work:4, rewards:4, diary:4, charts:4, alerts:4, bulk:4
+};
+function jwtEmail(){
+  try{
+    const tk=localStorage.getItem('AUTH_TOKEN')||'';
+    const p=JSON.parse(atob(tk.split('.')[1].replace(/-/g,'+').replace(/_/g,'/')));
+    return String(p.email||'').toLowerCase();
+  }catch(e){return '';}
+}
+// The debug panel is the author's: his account anywhere, anyone on a local test server.
+function debugAllowed(){
+  const h=location.hostname;
+  if(h==='localhost'||h==='127.0.0.1'||h==='[::1]')return true;
+  return DEBUG_EMAILS.includes(jwtEmail());
+}
+function onboardStage(){
+  // A stage picked in the debug panel wins, and lives only on this device.
+  if(debugAllowed()){
+    let d='';try{d=localStorage.getItem('st_dbg_stage')||'';}catch(e){}
+    if(d)return d==='all'?99:(parseInt(d)||99);
+  }
+  if(!ONBOARDING_PUBLIC)return 99;
+  const o=STATE&&STATE.planner&&STATE.planner.onboard;
+  if(!o)return 99;               // an account from before stages existed: everything
+  return o.stage==='all'?99:(parseInt(o.stage)||99);
+}
+function featureOn(id){const need=FEATURE_STAGE[id];return need==null||onboardStage()>=need;}
+function gate(el,feat){if(el)el.dataset.feat=feat;return el;}
+function applyFeatureGates(root){
+  if(onboardStage()>=99)return;     // nothing is locked: leave the page alone
+  root.querySelectorAll('[data-feat]').forEach(e=>{if(!featureOn(e.dataset.feat))e.remove();});
+}
+
 /* What leaving takes with it: this app's own keys and nothing else. The address
    this page lives at is shared with the author's other small apps, whose keys
    (tdg-, rose_, sb-) are not ours to touch. Language and theme stay, since they
@@ -2744,7 +2801,7 @@ function isEditing(){
      unfinished action held entirely on screen — a redraw underneath it is the
      same interruption an overlay blinking out would be. */
   return ['taskTree','histDay','restoreList','showTZ','showRules','showSyncPanel','showGoals','showFlags',
-          'showAddForm','showRewards','selecting','showWeek','showTagMgr','showCal','swPick','swMove','showDelAcct']
+          'showAddForm','showRewards','selecting','showWeek','showTagMgr','showCal','swPick','swMove','showDelAcct','showDebug']
     .some(k=>STATE[k]);
 }
 /* The sync itself never waits — only the redraw does. What the cloud brought
@@ -4436,7 +4493,7 @@ function renderPlanner(){
         render();
       }));
       bn.appendChild(bb);
-      wrap.appendChild(bn);
+      wrap.appendChild(gate(bn,'backupNag'));     // not on someone's first day
     }
   }
 
@@ -4455,7 +4512,7 @@ function renderPlanner(){
   const weekLeft=daysLeftIn('week',tk);
   const closedThisWeek=goalsOf('week').some(g=>g.doneOn);
   const weekQuiet=weekLeft<=3&&!closedThisWeek;
-  if((bare.length||weekQuiet)&&nudgeSeen!==tk){
+  if((bare.length||weekQuiet)&&nudgeSeen!==tk&&featureOn('goals')){
     const markSeen=()=>{try{localStorage.setItem('st_goalNudgeSeen',tk);}catch(e){}};
     const nb=dv('card mb12');nb.style.cssText='border-color:var(--acb);background:var(--acd)';
     if(weekQuiet)nb.appendChild(dv('sm w6',t('goal-week-empty')));
@@ -4485,16 +4542,16 @@ function renderPlanner(){
   // The week against the last one: numbers about the day, so it sits with the day's numbers.
   const wkBtn=bt('btn-ghost btn-sm','📊',()=>{STATE.showWeek=true;render();});
   wkBtn.title=t('wk-title');
-  right.appendChild(wkBtn);
+  right.appendChild(gate(wkBtn,'weekReview'));
   right.appendChild(sbadge(dayStatus));
   const taskCount=sp('md mo ac w7',`${s.done}/${s.total}`);const pctSpan=el('span','xs');pctSpan.style.opacity='.7';pctSpan.textContent=` (${dayPct}%)`;taskCount.appendChild(pctSpan);right.appendChild(taskCount);
   sr.appendChild(right);
   sum.appendChild(sr);
   const bits=[`${s.total} ${t('tasks-lbl')}`];
   if(s.overdue)bits.push(`<span class="cr">${s.overdue} ${s.overdue===1?t('rem-overdue-1'):t('rem-overdue')}</span>`);
-  if(s.flagsTotal)bits.push(`🏁 ${s.flagsDone}/${s.flagsTotal}`);
+  if(s.flagsTotal&&featureOn('flags'))bits.push(`🏁 ${s.flagsDone}/${s.flagsTotal}`);
   sum.appendChild(dv('xs dim mt4',bits.join(' · ')));
-  if(s.annihilated)sum.appendChild(dv('xs ac mt4 w6',t('goals-ann-badge')));
+  if(s.annihilated&&featureOn('flags'))sum.appendChild(dv('xs ac mt4 w6',t('goals-ann-badge')));
   const prog=dv('prog mt10');const pf=dv('prog-f');
   pf.style.cssText=`width:${Math.min(dayPct,100)}%;background:var(--ac)`;
   prog.appendChild(pf);sum.appendChild(prog);
@@ -4518,7 +4575,7 @@ function renderPlanner(){
       `<div class="md mo w7 ${list.length?(all?'cg':'ac'):'dimmer'}">${done}/${list.length}</div>`;
     gstats.appendChild(tile);
   });
-  sum.appendChild(gstats);
+  sum.appendChild(gate(gstats,'goals'));
   const gt=goalsTotal();
   /* A total sitting under the three tiles read as though it counted the day's
      flags as well, which it never did — the long goals are paid apart. It
@@ -4575,9 +4632,9 @@ function renderPlanner(){
     const chars=openGoals.reduce((s,x)=>s+x.g.title.length+3,0);
     track.style.animationDuration=Math.max(12,Math.round(chars*0.45))+'s';
     strip.appendChild(track);
-    sum.appendChild(strip);
+    sum.appendChild(gate(strip,'goals'));
   }else{
-    sum.appendChild(dv('xs ac ctr mt6 w6',t('goal-nudge')+' ↑'));
+    sum.appendChild(gate(dv('xs ac ctr mt6 w6',t('goal-nudge')+' ↑'),'goals'));
   }
 
   /* The day's goals are the flagged reminders, so they live here rather than
@@ -4587,7 +4644,7 @@ function renderPlanner(){
      list of things already dealt with. */
   const flagsAll=reminders().filter(r=>r.flagged&&(r.completedOn===tk||(!r.done&&r.due<=tk)));
   const flagsLeft=flagsAll.filter(r=>r.completedOn!==tk);
-  if(flagsAll.length){
+  if(flagsAll.length&&featureOn('flags')){
     /* The heading and the done-banner both open the full list of the day's
        flags — the one place to reword or reschedule a goal once the section
        has collapsed into either a short list or a fanfare. */
@@ -4643,7 +4700,9 @@ function renderPlanner(){
   }
 
   top.appendChild(sum);
-  top.appendChild(renderPomoCard());
+  top.appendChild(gate(renderPomoCard(),'pomodoro'));
+  // With the timer locked the summary has the row to itself.
+  if(!featureOn('pomodoro'))top.style.gridTemplateColumns='1fr';
   wrap.appendChild(top);
 
   /* ── the list: three columns so the day fits on one screen ── */
@@ -4944,7 +5003,7 @@ function renderPlanner(){
   // moved up to the day's summary, where the numbers are.)
   const dayCalBtn=bt('btn-ghost btn-sm','📅',()=>{STATE.showCal=true;render();});
   dayCalBtn.title=t('cal-open');
-  h.appendChild(dayCalBtn);
+  h.appendChild(gate(dayCalBtn,'dayCal'));
   // Alerts at the time of each task. Filled when this device has them on.
   const bellBtn=bt(pushOn()?'btn-ac btn-sm':'btn-ghost btn-sm',pushOn()?'🔔':'🔕',async()=>{
     bellBtn.disabled=true;
@@ -4956,12 +5015,12 @@ function renderPlanner(){
     render();
   });
   bellBtn.title=pushOn()?t('push-title-on'):t('push-title-off');
-  h.appendChild(bellBtn);
+  h.appendChild(gate(bellBtn,'alerts'));
   const selBtn=bt(STATE.selecting?'btn-ac btn-sm':'btn-ghost btn-sm','☑',()=>{
     STATE.selecting=!STATE.selecting;STATE.selected=[];render();
   });
   selBtn.title=t('sel-mode');
-  h.appendChild(selBtn);
+  h.appendChild(gate(selBtn,'bulk'));
   /* The + stays a +. It used to turn into an ✕ while the form was unfolded,
      one row above a list where every ✕ deletes a task — the same mark meaning
      "close this" and "throw this away" within a thumb's width of each other. */
@@ -4970,7 +5029,7 @@ function renderPlanner(){
   h.appendChild(addBtn);
   card.appendChild(h);
   if(!V.closedOpen){
-    card.appendChild(ctrl);
+    card.appendChild(gate(ctrl,'viewControls'));
     /* Only shown once you have actually swiped ahead — Today with nothing
        peeked still reads as just the two buttons above. ‹ › are the same
        gesture as the swipe, for a mouse that would rather click, and for
@@ -4990,7 +5049,7 @@ function renderPlanner(){
       peekBar.appendChild(lft2);
       card.appendChild(peekBar);
     }
-    if(tagBar)card.appendChild(tagBar);
+    if(tagBar)card.appendChild(gate(tagBar,'tags'));
     // At a glance, only the names on screen can be picked; on the full list,
     // everything drawn can — so "All" means the same thing in both.
     const lay=V.layout||'list';
@@ -5683,7 +5742,7 @@ function renderPomoCard(){
 
   /* The stopwatch sits right under the pomodoro, in the same card: one place
      for both clocks, no button to flip between them. */
-  card.appendChild(renderStopwatchPage());
+  card.appendChild(gate(renderStopwatchPage(),'stopwatch'));
   return card;
 }
 
@@ -6329,7 +6388,7 @@ function renderReminderEditor(r){
      box keeps only what genuinely needs a form. */
   const picker=tagPicker(tagsOf(r));
   picker.el.style.marginTop='6px';
-  box.appendChild(picker.el);
+  box.appendChild(gate(picker.el,'tags'));
 
   /* Date, time and quadrant on one line. The picker was built here and then
      never put on the page — it existed, it held the right value, and it saved
@@ -6341,7 +6400,7 @@ function renderReminderEditor(r){
   const hi=ip('time','',r.time||'','');hi.style.cssText='flex:0 0 104px';hi.title=t('rem-time');
   const pi=sk('',QUAD.map(q=>[String(q),q?`${quadEmoji(q)} ${quadName(q)}`:quadName(0)]),String(quadOf(r)));
   pi.style.cssText='flex:1;min-width:120px';
-  r2.appendChild(di);r2.appendChild(hi);r2.appendChild(pi);box.appendChild(r2);
+  r2.appendChild(di);r2.appendChild(hi);r2.appendChild(gate(pi,'quadrants'));box.appendChild(r2);
 
   /* Choosing a parent by searching. The indent arrow only reaches the row
      directly above, which is no help once sorting has put the two far apart,
@@ -6401,7 +6460,7 @@ function renderReminderEditor(r){
   const mw=dv('f1');mw.innerHTML=`<div class="tt">🌅 ${t('rem-morning')}</div>`;
   ml.appendChild(mcb);ml.appendChild(mw);
   ml.onclick=e=>{if(e.target!==mcb)mcb.checked=!mcb.checked;ml.classList.toggle('on',mcb.checked);};
-  r4.appendChild(ri);r4.appendChild(ni);r4.appendChild(fl);r4.appendChild(ml);box.appendChild(r4);
+  r4.appendChild(ri);r4.appendChild(ni);r4.appendChild(gate(fl,'flags'));r4.appendChild(gate(ml,'morning'));box.appendChild(r4);
 
   /* Which big goals this task is in service of. The weekly and yearly ones
      used to sit in their own window being no part of any day; naming one
@@ -6454,7 +6513,7 @@ function renderReminderEditor(r){
   // The repeat's own options sit right under the repeat row; the goals go
   // last, after everything that describes when the task happens.
   box.appendChild(wd.el);box.appendChild(md.el);box.appendChild(np.el);
-  if(openG.length)box.appendChild(goalRow);
+  if(openG.length)box.appendChild(gate(goalRow,'goals'));
 
   /* Three ways to keep the changes, any of them: the Save button, Ctrl/⌘+Enter,
      or clicking anywhere off the task (that last one wired in renderReminderRow,
@@ -7042,9 +7101,9 @@ function renderReminderRow(r,tk,opts){
     if(wkNote.done)suf.style.textDecoration='line-through';
     suf.title=t('rem-goal-for');
     if(wkNote.stale)staleGoalClick(suf,r);
-    titleLine.appendChild(suf);
+    titleLine.appendChild(gate(suf,'goals'));
   }
-  if(r.flagged)titleLine.appendChild(sp('sm','🏁'));
+  if(r.flagged)titleLine.appendChild(gate(sp('sm','🏁'),'flags'));
   /* What this flag is a step toward. Beside the flag rather than in the meta
      line below it, because it is part of what the task IS — the flag says
      the day is scored on it and this says what it is for. Pressing it opens
@@ -7054,17 +7113,17 @@ function renderReminderRow(r,tk,opts){
       e=>{e.stopPropagation();STATE.showGoals=true;render();});
     chip.style.cssText+=';cursor:pointer;border-color:var(--acb);color:var(--ac)';
     chip.title=g.title;
-    titleLine.appendChild(chip);
+    titleLine.appendChild(gate(chip,'goals'));
   });
-  if(r.morning)titleLine.appendChild(sp('sm','🌅'));
-  if(quadOf(r)){const p=sp('sm',quadEmoji(quadOf(r)));p.title=quadName(quadOf(r));titleLine.appendChild(p);}
+  if(r.morning)titleLine.appendChild(gate(sp('sm','🌅'),'morning'));
+  if(quadOf(r)){const p=sp('sm',quadEmoji(quadOf(r)));p.title=quadName(quadOf(r));titleLine.appendChild(gate(p,'quadrants'));}
   mid.appendChild(titleLine);
 
   tagsOf(r).forEach(tg=>{
     // Clicking a tag filters the board to it — the grouped view, one tap away.
     const c=bt('tagchip',tg,e=>{e.stopPropagation();toggleTagFilter(tg);rd();});
     c.style.cssText+=';margin-left:2px;cursor:pointer';
-    titleLine.appendChild(c);
+    titleLine.appendChild(gate(c,'tags'));
   });
   /* Always here, done or not — a placeholder when there is nothing yet — so
      the click target exists even for a task that has no note. A row you
@@ -7413,13 +7472,15 @@ function renderAddModal(){
   // quadrant already chosen — the click said which box it belongs in, and
   // making you say it again in a dropdown would be asking twice.
   const pi=sk('',QUAD.map(q=>[String(q),q?`${quadEmoji(q)} ${quadName(q)}`:quadName(0)]),String(STATE.addQuad||0));pi.style.cssText='flex:1;min-width:120px';
-  row2.appendChild(di);row2.appendChild(hi);row2.appendChild(pi);panel.appendChild(row2);
+  row2.appendChild(di);row2.appendChild(hi);row2.appendChild(gate(pi,'quadrants'));panel.appendChild(row2);
   const dl=document.createElement('datalist');dl.id='st-tags';
   allTags().forEach(tg=>{const o=document.createElement('option');o.value=tg;dl.appendChild(o);});
   panel.appendChild(dl);
   const picker=tagPicker([]);
   picker.el.style.marginTop='8px';
-  panel.appendChild(picker.el);
+  // (A locked part is taken out of the page after it is drawn but its box still
+  // holds its value, so the form reads exactly as before.)
+  panel.appendChild(gate(picker.el,'tags'));
 
   const row3=dv('row gap8 mt8');row3.style.flexWrap='wrap';
   const ri=sk('',[['','🔁 '+t('rep-none')],['hour',t('rep-hour')],['day',t('rep-day')],['week',t('rep-week')],['month',t('rep-month')],['year',t('rep-year')]],'');
@@ -7437,7 +7498,7 @@ function renderAddModal(){
   const mi_=dv('f1');mi_.innerHTML=`<div class="tt">🌅 ${t('rem-morning')}</div>`;
   ml.appendChild(mcb);ml.appendChild(mi_);
   ml.onclick=e=>{if(e.target!==mcb)mcb.checked=!mcb.checked;ml.classList.toggle('on',mcb.checked);};
-  row3.appendChild(fl);row3.appendChild(ml);panel.appendChild(row3);
+  row3.appendChild(gate(fl,'flags'));row3.appendChild(gate(ml,'morning'));panel.appendChild(row3);
   const wd=weekdayPicker([]);
   const md=monthdayPicker([]);
   wd.el.style.display='none';md.el.style.display='none';
@@ -7564,7 +7625,10 @@ function render(){
   const root=document.getElementById('root');root.innerHTML='';
   if(STATE.recovery){root.appendChild(renderRecovery());return;}
   if(!STATE.authed){root.appendChild(renderLogin());return;}
+  // A locked tab cannot be the one on screen (a stage chosen after it was open).
+  if(STATE.tab==='score'&&!featureOn('tabScore'))STATE.tab='plan';
   root.appendChild(renderApp());
+  applyFeatureGates(root);
   checkMilestone();
   checkDayFlame();
   syncPomoPill();
@@ -8166,6 +8230,71 @@ function renderDelAcctModal(){
   return ov;
 }
 
+/* ── THE DEBUG PANEL ─────────────────────────────────────────────────────────
+   For trying the stages and the animations without having to be a new person.
+   Opened by pressing the logo three times fast, and only for the author (see
+   debugAllowed). What it changes is kept in this browser's storage and never
+   sent anywhere, so it cannot reach the account or another device: "see it as a
+   new person" is a costume put on the page, not a change to the data. */
+function setDebugStage(v){
+  try{if(v)localStorage.setItem('st_dbg_stage',String(v));else localStorage.removeItem('st_dbg_stage');}catch(e){}
+  render();
+}
+function debugSampleGoal(kind){
+  const b=periodBounds(kind,todayKey());
+  return{id:'dbg',kind,title:'Meta de prueba',period:b.id,deadline:b.end,doneOn:todayKey(),points:0,created:Date.now()};
+}
+function renderDebugModal(){
+  const close=()=>{STATE.showDebug=false;render();};
+  const ov=dv('fi');ov.classList.add('ovl');
+  closeOnBackdrop(ov,close);
+  const panel=dv('card');panel.style.cssText='max-width:520px;width:100%;margin:auto;border-color:var(--cy)';
+  const hd=dv('rowb mb8');
+  hd.appendChild(sp('ctit','🛠 Debug'));
+  hd.appendChild(bt('btn-icon','✕',close));
+  panel.appendChild(hd);
+  panel.appendChild(dv('xs dimmer',
+    'Solo tuyo. Lo que cambies aquí vive solo en este aparato: no se sincroniza ni toca tu cuenta.'));
+
+  // Where things stand.
+  let picked='';try{picked=localStorage.getItem('st_dbg_stage')||'';}catch(e){}
+  const stg=onboardStage();
+  const info=dv('card2 sm mt8');
+  info.innerHTML=
+    `<div>Cuenta: <b>${escapeHtml(jwtEmail()||'(invitado / local)')}</b></div>`+
+    `<div>Etapa que se ve: <b>${stg>=99?'todo desbloqueado':stg}</b>${picked?' <span style="color:var(--cy)">(elegida aquí)</span>':''}</div>`+
+    `<div>Interruptor público de etapas (ONBOARDING_PUBLIC): <b>${ONBOARDING_PUBLIC?'prendido':'apagado'}</b></div>`;
+  panel.appendChild(info);
+
+  panel.appendChild(dv('xs dimmer up ls mt12 mb6','Ver la app en la etapa…'));
+  const row=dv('row gap6');row.style.flexWrap='wrap';
+  [['1','1 · Lo esencial'],['2','2 · Racha'],['3','3 · Metas y enfoque'],['4','4 · Completo'],['','Real (quitar disfraz)']].forEach(([v,lbl])=>{
+    const on=(picked||'')===v;
+    row.appendChild(bt(on?'btn-ac btn-sm':'btn-ghost btn-sm',lbl,()=>setDebugStage(v)));
+  });
+  panel.appendChild(row);
+  panel.appendChild(dv('xs dimmer mt6','"Completo" y "Real" ven lo mismo en tu cuenta; la diferencia es solo para probar. En las etapas 1–3 se esconde lo que aún no toca; tus datos no cambian.'));
+
+  // What each stage unlocks, so a locked thing is easy to find.
+  const locked=Object.keys(FEATURE_STAGE).filter(k=>!featureOn(k));
+  if(locked.length)panel.appendChild(dv('xs dimmer mt8','Escondido ahora: '+locked.join(', ')));
+
+  panel.appendChild(dv('xs dimmer up ls mt12 mb6','Animaciones'));
+  const an=dv('row gap6');an.style.flexWrap='wrap';
+  const play=(fn)=>()=>{close();setTimeout(fn,250);};
+  [['🕯️ Vela (racha 7)',()=>showDayFlame({n:7,candle:true})],
+   ['🕯️ Vela (nueva)',()=>showDayFlame({n:1,candle:true})],
+   ['🏁 Banderas (racha 5)',()=>showDayFlame({n:5,flag:true})],
+   ['🏁 Meta semanal',()=>showGoalDone(debugSampleGoal('week'))],
+   ['🏁 Meta trimestral',()=>showGoalDone(debugSampleGoal('quarter'))],
+   ['🏁 Meta anual',()=>showGoalDone(debugSampleGoal('year'))]
+  ].forEach(([lbl,fn])=>an.appendChild(bt('btn-ghost btn-sm',lbl,play(fn))));
+  MILESTONES.forEach(m=>an.appendChild(bt('btn-ghost btn-sm',m.icon+' '+m.n,play(()=>showMilestone({n:m.n,kind:'day'})))));
+  panel.appendChild(an);
+  ov.appendChild(panel);
+  return ov;
+}
+
 /* The screen a password email opens: pick a new one, then carry on signed in. */
 function renderRecovery(){
   const wrap=dv('login-wrap');
@@ -8288,7 +8417,22 @@ function renderApp(){
     <div class="sm dim mt4">${capFirst(now.toLocaleDateString(STATE.lang==='es'?'es-MX':'en-US',{timeZone:tz,weekday:'long',year:'numeric',month:'long',day:'numeric'}))}</div>
     <div class="xs dimmer mt2 mo" id="clk" style="cursor:pointer" title="${t('tz-title')}">${now.toLocaleTimeString(STATE.lang==='es'?'es-MX':'en-US',{timeZone:tz,hour:'2-digit',minute:'2-digit',second:'2-digit'})}${tz!==TZ_HOME?' · '+tz.split('/').pop().replace(/_/g,' '):''}</div>`;
 
-  hdr.querySelector('#stoic-title').onclick=()=>{STATE.showRules=true;render();};
+  /* One press opens the rules, as it always has. Three fast ones, for the author,
+     open the debug panel instead — which means the first press has to wait a
+     moment to see whether more are coming, so that wait applies only to him. */
+  {
+    let presses=0,timer=null;
+    hdr.querySelector('#stoic-title').onclick=()=>{
+      if(!debugAllowed()){STATE.showRules=true;render();return;}
+      presses++;
+      clearTimeout(timer);
+      if(presses>=3){presses=0;STATE.showDebug=true;render();return;}
+      timer=setTimeout(()=>{
+        const n=presses;presses=0;
+        if(n>=1){STATE.showRules=true;render();}
+      },360);
+    };
+  }
   // The clock is where the day's boundary lives, so it is where you move it.
   hdr.querySelector('#clk').onclick=()=>{STATE.showTZ=true;render();};
 
@@ -8340,6 +8484,7 @@ function renderApp(){
      tabs, because the planner returns early below and would never reach them. */
   if(STATE.showRules)wrap.appendChild(renderRulesModal());
   if(STATE.showDelAcct)wrap.appendChild(renderDelAcctModal());
+  if(STATE.showDebug&&debugAllowed())wrap.appendChild(renderDebugModal());
   if(STATE.showTZ)wrap.appendChild(renderTZModal());
   if(STATE.taskTree)wrap.appendChild(renderTaskTreeModal(STATE.taskTree));
   if(STATE.restoreList)wrap.appendChild(renderRestoreModal());
@@ -8372,6 +8517,7 @@ function renderApp(){
     });
     if(!active)b.style.cssText='background:none;border:none;color:var(--t3);flex:1';
     else b.style.flex='1';
+    if(id==='score')gate(b,'tabScore');
     tabs.appendChild(b);
   });
   wrap.appendChild(tabs);
@@ -8387,12 +8533,12 @@ function renderApp(){
   const grid=dv('scol mt4');
   grid.appendChild(renderScoreCard(total,sc,sk_,scoreNav));
   grid.appendChild(renderTasksCard(sc,sk_));
-  grid.appendChild(renderSleepCard(sk_,sc.status));
-  grid.appendChild(renderPomCard(sk_,sc.status));
-  grid.appendChild(renderWorkCard(sk_,sc.status));
-  grid.appendChild(renderPenCard(sk_,sc.status));
+  grid.appendChild(gate(renderSleepCard(sk_,sc.status),'sleep'));
+  grid.appendChild(gate(renderPomCard(sk_,sc.status),'pomodoro'));
+  grid.appendChild(gate(renderWorkCard(sk_,sc.status),'work'));
+  grid.appendChild(gate(renderPenCard(sk_,sc.status),'rewards'));
   wrap.appendChild(grid);
-  wrap.appendChild(renderStreaks(sk_));
+  wrap.appendChild(gate(renderStreaks(sk_),'streaks'));
   /* Calendar on the left, the picked day on the right — its score, its note,
      and the ✏ that opens its numbers over the page. */
   const ch=dv('g2 mt12');
@@ -8413,11 +8559,12 @@ function renderApp(){
     if(STATE.diaryOpen&&STATE.diaryOpen!==STATE.calSel)STATE.diaryOpen=null;
     panel.innerHTML='';panel.appendChild(renderDayPanel());
   };
-  ch.appendChild(renderCalendar(drawPanel));ch.appendChild(panel);drawPanel();
-  wrap.appendChild(ch);
+  ch.appendChild(renderCalendar(drawPanel));ch.appendChild(gate(panel,'diary'));drawPanel();
+  if(!featureOn('diary'))ch.style.gridTemplateColumns='1fr';     // the calendar alone, until the diary is unlocked
+  wrap.appendChild(gate(ch,'monthCal'));
   if(STATE.dayDetail)wrap.appendChild(renderDayDetailModal(STATE.dayDetail));
   if(STATE.histDay)wrap.appendChild(renderHistModal(STATE.histDay));
-  wrap.appendChild(renderTimeLogCard());
+  wrap.appendChild(gate(renderTimeLogCard(),'stopwatch'));
   wrap.appendChild(renderStats(total,sc));
   // Reset All — at the bottom where it's hard to hit accidentally
   const resetWrap=dv('card mt12');resetWrap.style.cssText='border-color:var(--ngb);background:var(--ngd)';
@@ -10315,12 +10462,12 @@ function renderStats(total,sc){
   // These two open at the top, always — a streak tile is the one that asks
   // for a specific block, so it is the one that sets _statsScrollKey; these
   // clear it, in case the last thing to open the popup was one of those.
-  atBox.onclick=()=>{_statsScrollKey=null;STATE.showStatsDetail=true;render();};
+  atBox.onclick=()=>{if(!featureOn('charts'))return;_statsScrollKey=null;STATE.showStatsDetail=true;render();};
   topRow.appendChild(atBox);
   const inBox=dv('card2 s-ac fi');
   inBox.style.cssText='display:flex;align-items:center;cursor:pointer';
   inBox.title=isEs?'Ver el detalle':'See the breakdown';
-  inBox.onclick=()=>{_statsScrollKey=null;STATE.showStatsDetail=true;render();};
+  inBox.onclick=()=>{if(!featureOn('charts'))return;_statsScrollKey=null;STATE.showStatsDetail=true;render();};
   inBox.appendChild(sp('sm dim',insight));
   topRow.appendChild(inBox);
   body.appendChild(topRow);
@@ -10368,7 +10515,7 @@ function renderStats(total,sc){
   /* The charts come after the shelf now — the lifetime number, then what it
      was earned for, then the shape of it over time. */
   const charts=renderCharts(sc,isEs);
-  if(charts)body.appendChild(charts);
+  if(charts)body.appendChild(gate(charts,'charts'));     // the numbers stay; the charts and the detail are the full plan's
 
   // ── 1. Score highlights ──────────────────────────────────────────────────
   const gA=dv('g4 tiles mb10');gA.style.gap='8px';
@@ -11784,7 +11931,7 @@ document.addEventListener('keydown',e=>{
   // Its own line, because closing it can throw a half-written task away and so
   // it goes through the same question the ✕ and the backdrop ask.
   if(STATE.showAddForm){closeAddForm();return;}
-  const open=['showReset','showRewards','restoreList','taskTree','dayDetail','histDay','showTZ','showRules','showSyncPanel','showGoals','showFlags','showStatsDetail'].find(k=>STATE[k]);
+  const open=['showReset','showRewards','restoreList','taskTree','dayDetail','histDay','showTZ','showRules','showSyncPanel','showGoals','showFlags','showStatsDetail','showDebug','showDelAcct'].find(k=>STATE[k]);
   if(!open){
     /* A chart's own expand popup lives outside STATE (see openChartExpand) so
        a render() elsewhere cannot tear it down — which also means it is not
@@ -11801,7 +11948,7 @@ document.addEventListener('keydown',e=>{
     }
     return;
   }
-  STATE[open]=(open==='showTZ'||open==='showRules'||open==='showSyncPanel'||open==='showGoals'||open==='showFlags'||open==='showRewards'||open==='showStatsDetail')?false:(open==='showReset'?0:null);
+  STATE[open]=(open==='showTZ'||open==='showRules'||open==='showSyncPanel'||open==='showGoals'||open==='showFlags'||open==='showRewards'||open==='showStatsDetail'||open==='showDebug'||open==='showDelAcct')?false:(open==='showReset'?0:null);
   // An editor opened inside the one-task overlay leaves with it, rather than
   // being left open on the list underneath.
   if(open==='taskTree')STATE.editingRem=null;
