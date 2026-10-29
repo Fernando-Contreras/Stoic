@@ -504,6 +504,31 @@ button{cursor:pointer;font-family:var(--ff);font-size:15px;font-weight:600;borde
 @supports(height:1dvh){.cal-big .cal-scroll{height:min(68dvh,720px)}}
 .cal-big .cal-block{font-size:12px}
 
+/* ── THE DAY'S FLAGS ──
+   On a wide screen the goal a flag serves sits on the right of its title. On a
+   phone that left the title — often nothing but a few emoji with no spaces in
+   them — whatever width the goal's name had not taken, a sliver, so every
+   emoji fell onto a line of its own and one flag stood a screen tall. There the
+   row becomes two lines: the checkbox and the whole title, and the goal under
+   it. */
+.flag-ttl{min-width:0;overflow-wrap:anywhere}
+/* It is the width of the card that decides, not of the screen: a desktop window
+   narrow enough to make this card half-width broke the same way a phone did. */
+.flag-box{container-type:inline-size}
+@container (max-width:520px){
+  .flag-row{flex-wrap:wrap;align-items:flex-start;row-gap:2px}
+  .flag-row .flag-ttl{flex:1 1 0}
+  .flag-row .flag-note{flex:1 1 100%;padding-left:30px;font-size:12px}
+}
+/* Where container queries are not understood, the screen width stands in. */
+@supports not (container-type:inline-size){
+  @media(max-width:700px){
+    .flag-row{flex-wrap:wrap;align-items:flex-start;row-gap:2px}
+    .flag-row .flag-ttl{flex:1 1 0}
+    .flag-row .flag-note{flex:1 1 100%;padding-left:30px;font-size:12px}
+  }
+}
+
 /* ── THE STOPWATCH ── */
 .sw-row{display:flex;align-items:center;gap:8px;width:100%;text-align:left;padding:8px 10px;
   border:1px solid var(--b1);border-radius:9px;background:var(--sur2);color:var(--t1);cursor:pointer;font:inherit;font-size:13px}
@@ -4514,9 +4539,9 @@ function renderPlanner(){
       win.appendChild(conf);
       sum.appendChild(win);
     }else{
-      const box=dv('s4');
+      const box=dv('s4 flag-box');
       flagsLeft.forEach(r=>{
-        const row=dv('row gap8');
+        const row=dv('row gap8 flag-row');
         row.style.cssText='background:var(--sur2);border:1px solid var(--b1);border-radius:8px;padding:6px 9px';
         const cb=ip('checkbox','');cb.checked=false;
         // The last flags of the day leave the same way, and the one that empties
@@ -4527,12 +4552,12 @@ function renderPlanner(){
            one list in the app showing a task as a plain label — the name you
            most want to sharpen sat in the only place that would not let you.
            Same words, same press, same result as everywhere else. */
-        const ttl=sp('sm f1',r.title);
+        const ttl=sp('sm f1 flag-ttl',r.title);
         editableTitle(ttl,r,render);
         row.appendChild(ttl);
         const wkNote=weeklyGoalNote(r);
         if(wkNote!==null){
-          const suf=sp('sm dimmer',(wkNote.icon||(wkNote.stale?'⚠️':'🏁'))+' '+wkNote.text);
+          const suf=sp('sm dimmer flag-note',(wkNote.icon||(wkNote.stale?'⚠️':'🏁'))+' '+wkNote.text);
           if(wkNote.done)suf.style.textDecoration='line-through';
           suf.title=t('rem-goal-for');
           if(wkNote.stale)staleGoalClick(suf,r);
