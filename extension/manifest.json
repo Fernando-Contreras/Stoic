@@ -1,0 +1,19 @@
+{
+  "manifest_version": 3,
+  "name": "Stoic Block",
+  "version": "0.1.0",
+  "description": "Bloquea tus sitios de distracción cuando tu tiempo de procrastinación de Stoic llega a lo que te dan tus pomodoros.",
+  "permissions": ["storage", "alarms", "declarativeNetRequest", "tabs"],
+  "host_permissions": ["https://qupukwwpebnawbtdbibs.supabase.co/*"],
+  "background": { "service_worker": "background.js", "type": "module" },
+  "action": {
+    "default_title": "Stoic Block",
+    "default_popup": "popup.html",
+    "default_icon": { "16": "icons/icon-16.png", "48": "icons/icon-48.png", "128": "icons/icon-128.png" }
+  },
+  "options_page": "options.html",
+  "icons": { "16": "icons/icon-16.png", "48": "icons/icon-48.png", "128": "icons/icon-128.png" },
+  "web_accessible_resources": [
+    { "resources": ["blocked.html"], "matches": ["<all_urls>"] }
+  ]
+}
