@@ -23,6 +23,8 @@ async function paint(){
   fill.style.width=Math.min(100,Math.round(st.used/Math.max(1,st.allowed)*100))+'%';
   bar.append(fill);m.append(bar);
   m.append(el('p','sm dim',fmtMin(st.used)+' gastados de '+fmtMin(st.allowed)+' · '+st.poms+' pomodoros hoy'));
+  if(st.measured)m.append(el('p','sm dimmer','🧩 '+fmtMin(st.measured)+' medidos en tus sitios'+(st.manual?' + '+fmtMin(st.manual)+' que registraste':'')));
+  if(st.table==='missing')m.append(el('p','sm warn','Falta crear la tabla en Supabase: el tiempo medido solo cuenta en este navegador.'));
   if(st.ok===false)m.append(el('p','sm warn','Sin conexión: este dato puede no estar al día.'));
 }
 

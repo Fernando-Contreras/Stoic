@@ -18,6 +18,20 @@ async function paintState(){
   const verdict=st.blocked?'BLOQUEADO.':'Te quedan '+fmtMin(st.left)+'.';
   const off=st.ok===false?' (sin conexión: dato posiblemente viejo)':'';
   e.textContent=base+verdict+off;
+  // What was measured, site by site, and what was logged by hand.
+  const per=Object.entries(st.perSite||{}).filter(([,s])=>s>=60).sort((a,b)=>b[1]-a[1]);
+  if(st.measured||st.manual){
+    const d=document.createElement('p');d.className='sm dimmer';
+    d.textContent='🧩 Medido: '+fmtMin(st.measured||0)
+      +(per.length?' ('+per.map(([site,s])=>site+' '+fmtMin(Math.floor(s/60))).join(', ')+')':'')
+      +' · Registrado a mano: '+fmtMin(st.manual||0);
+    e.append(d);
+  }
+  if(st.table==='missing'){
+    const w=document.createElement('p');w.className='sm warn';
+    w.textContent='Falta crear la tabla procrastination_time en Supabase (archivo extension/supabase/procrastination_time.sql). Mientras, el tiempo medido solo cuenta en este navegador y no llega a Stoic.';
+    e.append(w);
+  }
 }
 async function paintSites(){
   const {sites}=await store.get('sites');

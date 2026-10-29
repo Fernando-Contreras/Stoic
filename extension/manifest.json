@@ -3,7 +3,7 @@
   "name": "Stoic Block",
   "version": "0.1.0",
   "description": "Bloquea tus sitios de distracción cuando tu tiempo de procrastinación de Stoic llega a lo que te dan tus pomodoros.",
-  "permissions": ["storage", "alarms", "declarativeNetRequest", "tabs"],
+  "permissions": ["storage", "alarms", "declarativeNetRequest", "tabs", "idle"],
   "host_permissions": ["https://qupukwwpebnawbtdbibs.supabase.co/*"],
   "background": { "service_worker": "background.js", "type": "module" },
   "action": {

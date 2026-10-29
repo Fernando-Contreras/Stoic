@@ -1,6 +1,6 @@
 // Run:  node extension/test/logic.test.mjs
 import assert from 'node:assert/strict';
-import {freeMinsFor,penMinutes,computeBudget,normaliseSite,normaliseSites,hostBlocked,buildRules,DEFAULT_SITES,fmtMin} from '../logic.js';
+import {freeMinsFor,penMinutes,computeBudget,measuredMinutes,siteOf,pickSite,advance,sumMeasured,MAX_GAP_SEC,normaliseSite,normaliseSites,hostBlocked,buildRules,DEFAULT_SITES,fmtMin} from '../logic.js';
 
 let n=0;
 const t=(name,fn)=>{fn();n++;console.log('  ok  '+name);};
@@ -112,4 +112,108 @@ t('fmtMin',()=>{
   assert.equal(fmtMin(0),'0 min');assert.equal(fmtMin(12),'12 min');assert.equal(fmtMin(60),'1 h');assert.equal(fmtMin(65),'1 h 5 min');
 });
 
+
+// ---- measured time counts too
+t('measured: whole minutes, rounded down per site',()=>{
+  assert.equal(measuredMinutes({'netflix.com':119,'x.com':61}),1+1);
+  assert.equal(measuredMinutes({'netflix.com':59}),0);
+  assert.equal(measuredMinutes({}),0);assert.equal(measuredMinutes(null),0);
+});
+t('measured: what was dismissed in the app (_extAck) is not counted again',()=>{
+  assert.equal(measuredMinutes({'netflix.com':600},{'netflix.com':300}),5);
+  assert.equal(measuredMinutes({'netflix.com':600},{'netflix.com':900}),0);
+});
+t('budget: measured time adds to what was logged by hand, so it blocks without the app being opened',()=>{
+  const b=computeBudget(today({penalties:mins(10)}),at,{'netflix.com':20*60});
+  assert.equal(b.used,30);assert.equal(b.blocked,true);assert.equal(b.manual,10);assert.equal(b.measured,20);
+});
+t('budget: 29 min measured + 0 by hand is not yet blocked, 30 is',()=>{
+  assert.equal(computeBudget(today(),at,{'netflix.com':29*60+59}).blocked,false);
+  assert.equal(computeBudget(today(),at,{'netflix.com':30*60}).blocked,true);
+});
+t("budget: the entries the app made FROM the measurements are not counted twice",()=>{
+  const imported=[{type:'internet',count:20,details:{minutes:20,ext:true,site:'netflix.com'}},{type:'internet',details:{minutes:5}}];
+  const b=computeBudget(today({penalties:imported}),at,{'netflix.com':20*60});
+  assert.equal(b.manual,5);assert.equal(b.measured,20);assert.equal(b.used,25);
+});
+t('budget: dismissing a measured entry in the app lowers it (the ack travels on today)',()=>{
+  const b=computeBudget(today({_extAck:{'netflix.com':20*60}}),at,{'netflix.com':25*60});
+  assert.equal(b.measured,5);
+});
+t("budget: measurements from another day are not today's (ack and all ignored for a stale record)",()=>{
+  const b=computeBudget(today({_date:'2000-01-01',_extAck:{'netflix.com':99999}}),at,{'netflix.com':10*60});
+  assert.equal(b.measured,10);
+});
+t('penMinutes: excludeExt leaves out only the imported entries',()=>{
+  const d={penalties:[{type:'internet',count:7,details:{minutes:7,ext:true}},{type:'internet',count:3,details:{minutes:3}}]};
+  assert.equal(penMinutes(d,'internet'),10);assert.equal(penMinutes(d,'internet',true),3);
+});
+
+// ---- which site is in use
+const S=['netflix.com','web.whatsapp.com','x.com'];
+t('siteOf: subdomain, www, look-alike, junk',()=>{
+  assert.equal(siteOf('https://www.netflix.com/browse',S),'netflix.com');
+  assert.equal(siteOf('https://web.whatsapp.com/',S),'web.whatsapp.com');
+  assert.equal(siteOf('https://notnetflix.com/',S),null);
+  assert.equal(siteOf('chrome://extensions',S),null);
+  assert.equal(siteOf('',S),null);assert.equal(siteOf(undefined,S),null);
+});
+t('in use: the front tab of the front window, with the person at the computer',()=>{
+  assert.equal(pickSite({windowFocused:true,idleState:'active',activeUrl:'https://netflix.com/x',audibleUrls:[]},S),'netflix.com');
+});
+t('not in use: another application in front (window not focused), silent',()=>{
+  assert.equal(pickSite({windowFocused:false,idleState:'active',activeUrl:'https://netflix.com/x',audibleUrls:[]},S),null);
+});
+t('not in use: idle at the computer and silent (left the tab open and walked away)',()=>{
+  assert.equal(pickSite({windowFocused:true,idleState:'idle',activeUrl:'https://netflix.com/x',audibleUrls:[]},S),null);
+  assert.equal(pickSite({windowFocused:true,idleState:'locked',activeUrl:'https://netflix.com/x',audibleUrls:[]},S),null);
+});
+t('in use: a film playing counts even when idle, locked or in another window',()=>{
+  assert.equal(pickSite({windowFocused:false,idleState:'idle',activeUrl:'https://example.com',audibleUrls:['https://www.netflix.com/watch/1']},S),'netflix.com');
+});
+t('not in use: a sound from a site that is not on the list',()=>{
+  assert.equal(pickSite({windowFocused:true,idleState:'active',activeUrl:'https://example.com',audibleUrls:['https://open.spotify.com']},S),null);
+});
+t('in use: the front tab wins over an audible one',()=>{
+  assert.equal(pickSite({windowFocused:true,idleState:'active',activeUrl:'https://x.com',audibleUrls:['https://netflix.com']},S),'x.com');
+});
+
+// ---- crediting the time
+const D='2026-10-29';
+t('advance: credits the time since the last look to what was in use at that look',()=>{
+  let m=advance(null,1000,'netflix.com',D);              // first look: nothing to credit yet
+  assert.deepEqual(m.sites,{});
+  m=advance(m,1000+30000,'netflix.com',D);               // 30 s later, still there
+  assert.equal(m.sites['netflix.com'],30);
+  m=advance(m,1000+60000,null,D);                        // another 30 s, now left
+  assert.equal(m.sites['netflix.com'],60);
+  m=advance(m,1000+90000,null,D);                        // nothing in use: nothing credited
+  assert.equal(m.sites['netflix.com'],60);
+});
+t('advance: a switch is credited to what you were on, not what you went to',()=>{
+  let m=advance(null,0,'netflix.com',D);
+  m=advance(m,10000,'x.com',D);                          // 10 s on netflix, then x
+  m=advance(m,25000,null,D);                             // 15 s on x
+  assert.equal(m.sites['netflix.com'],10);assert.equal(m.sites['x.com'],15);
+});
+t('advance: a long gap (the computer slept) credits at most MAX_GAP_SEC',()=>{
+  let m=advance(null,0,'netflix.com',D);
+  m=advance(m,3*3600*1000,'netflix.com',D);
+  assert.equal(m.sites['netflix.com'],MAX_GAP_SEC);
+});
+t('advance: a new day starts from zero',()=>{
+  let m=advance(null,0,'netflix.com',D);m=advance(m,30000,'netflix.com',D);
+  m=advance(m,60000,'netflix.com','2026-10-30');
+  assert.deepEqual(m.sites,{});assert.equal(m.day,'2026-10-30');
+});
+t('advance: does not mutate what it was given',()=>{
+  const a=advance(null,0,'netflix.com',D);const snap=JSON.stringify(a);
+  advance(a,30000,'netflix.com',D);
+  assert.equal(JSON.stringify(a),snap);
+});
+t('sumMeasured: browsers add up, and this one uses its fresher local copy',()=>{
+  const rows=[{site:'netflix.com',seconds:100,device:'chrome'},{site:'netflix.com',seconds:50,device:'edge'},{site:'x.com',seconds:10,device:'edge'}];
+  const out=sumMeasured(rows,'chrome',{'netflix.com':130.7});
+  assert.equal(out['netflix.com'],50+130);assert.equal(out['x.com'],10);
+});
 console.log('\n'+n+' passed');

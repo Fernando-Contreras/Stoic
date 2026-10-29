@@ -33,7 +33,8 @@ async function paint(){
     return;
   }
   $('nums').textContent=fmtMin(st.used)+' de '+fmtMin(st.allowed);
-  $('detail').textContent='Tu tiempo de procrastinación de hoy ya llegó a lo que te dan tus pomodoros ('+st.poms+' hoy).';
+  $('detail').textContent='Tu tiempo de procrastinación de hoy ya llegó a lo que te dan tus pomodoros ('+st.poms+' hoy)'
+    +(st.measured?'. Medimos '+fmtMin(st.measured)+' en estos sitios.':'.');
   // How many more pomodoros it takes for the allowance to pass what is logged.
   let need=0;
   for(let p=st.poms;p<=st.poms+400;p=Math.round((p+0.1)*10)/10){

@@ -1,32 +1,38 @@
 /* Stoic Block — the part that runs all the time.
 
-   Every half minute it asks Stoic's cloud for today's record, works out whether
-   the procrastination time logged has reached what today's pomodoros allow
+   Every half minute (and at every switch of tab or window) it looks at which of
+   the listed sites is being used and credits the time to it. Then it asks
+   Stoic's cloud for today's record and for the time measured by every browser
+   signed in to this account, works out whether the procrastination time —
+   logged by hand plus measured — has reached what today's pomodoros allow
    (logic.js), and if it has, turns on a redirect for each listed site and sends
    any tab already open on one of them to the blocked page. When the allowance
    grows again — a pomodoro finishes — the redirects come off by themselves.
 
-   It only ever READS. It writes nothing to Stoic, so it cannot disturb the data
-   the app and its other devices keep in sync.
+   What it writes: only its own measurements, to its own small table
+   (procrastination_time), one row per day, site and browser. It NEVER writes to
+   Stoic's own record of the day: that record is edited by the app on every
+   device, and a second writer in it is how counts get overwritten. The app
+   reads the measurements and turns them into entries itself.
 
    If the cloud cannot be read it does not guess: a block already in force stands
    for ten minutes and then lifts, and the badge says something is wrong. A
    blocker that locks you out of everything because the wifi dropped would be
    uninstalled the same day. */
 import {SUPABASE_URL,SUPABASE_KEY,CHECK_EVERY_MIN,OFFLINE_GRACE_MS} from './config.js';
-import {computeBudget,buildRules,hostBlocked,normaliseSites,DEFAULT_SITES} from './logic.js';
+import {computeBudget,stoicDay,buildRules,hostBlocked,normaliseSites,pickSite,advance,sumMeasured,DEFAULT_SITES} from './logic.js';
 
 const store=chrome.storage.local;
 const get=async k=>(await store.get(k))[k];
 const set=o=>store.set(o);
 
 /* ── session ───────────────────────────────────────────────────────────── */
-function tokenExp(access){
-  try{
-    const p=JSON.parse(atob(access.split('.')[1].replace(/-/g,'+').replace(/_/g,'/')));
-    return p.exp?p.exp*1000:0;
-  }catch(e){return 0;}
+function tokenPayload(access){
+  try{return JSON.parse(atob(access.split('.')[1].replace(/-/g,'+').replace(/_/g,'/')));}
+  catch(e){return {};}
 }
+const tokenExp=access=>{const p=tokenPayload(access);return p.exp?p.exp*1000:0;};
+
 async function authCall(grant,body){
   const r=await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=${grant}`,{
     method:'POST',
@@ -69,14 +75,15 @@ async function validToken(){
   return s.access;
 }
 
-/* ── the cloud ─────────────────────────────────────────────────────────── */
-// Only today's record, not the whole row (history, diary, planner...): a few
-// hundred bytes twice a minute instead of the whole app.
-async function fetchToday(){
-  let tok=await validToken();
+/* One call to the data API, renewing the session once if the cloud refuses it.
+   Returns {res} or {err:'login'|'net'}. */
+async function api(path,opts){
+  const tok=await validToken();
   if(!tok)return{err:'login'};
-  const go=t=>fetch(`${SUPABASE_URL}/rest/v1/stoic_data?select=today&limit=1`,
-    {headers:{'apikey':SUPABASE_KEY,'Authorization':'Bearer '+t}});
+  const go=t=>fetch(`${SUPABASE_URL}/rest/v1/${path}`,{
+    ...opts,
+    headers:{'apikey':SUPABASE_KEY,'Authorization':'Bearer '+t,...((opts&&opts.headers)||{})}
+  });
   try{
     let r=await go(tok);
     if(r.status===401){
@@ -84,17 +91,96 @@ async function fetchToday(){
       if(!n)return{err:(await get('session'))?'net':'login'};
       r=await go(n.access);
     }
-    if(!r.ok)return{err:'net'};
-    const rows=await r.json();
+    return{res:r};
+  }catch(e){return{err:'net'};}
+}
+
+/* ── the cloud ─────────────────────────────────────────────────────────── */
+// Only today's record, not the whole row (history, diary, planner...): a few
+// hundred bytes twice a minute instead of the whole app.
+async function fetchToday(){
+  const a=await api('stoic_data?select=today&limit=1');
+  if(a.err)return{err:a.err};
+  if(!a.res.ok)return{err:'net'};
+  try{
+    const rows=await a.res.json();
     return{today:rows&&rows.length?rows[0].today:null};
   }catch(e){return{err:'net'};}
 }
 
-/* ── blocking ──────────────────────────────────────────────────────────── */
+// What every browser on this account has measured on `day`: [{site,seconds,device}].
+async function fetchMeasuredRows(day){
+  const a=await api(`procrastination_time?select=site,seconds,device&day=eq.${day}`);
+  if(a.err||!a.res)return{err:a.err||'net'};
+  if(a.res.status===404)return{missing:true};   // the table has not been created yet (PostgREST: "could not find the table")
+  if(!a.res.ok)return{err:'net'};
+  try{return{rows:await a.res.json()};}catch(e){return{err:'net'};}
+}
+
+async function deviceId(){
+  let d=await get('device');
+  if(!d){d='b'+Math.random().toString(36).slice(2,9)+Date.now().toString(36);await set({device:d});}
+  return d;
+}
+
+// Sends this browser's seconds, one row per site, only when they changed.
+async function pushMeasure(m,tableOk){
+  if(tableOk===false)return;
+  const sites=Object.keys((m&&m.sites)||{});
+  if(!sites.length)return;
+  const pushed=(await get('pushed'))||{};
+  const same=pushed.day===m.day&&sites.every(s=>Math.floor(m.sites[s])===pushed.sites[s]);
+  if(same)return;
+  const s=await get('session');
+  const uid=s?tokenPayload(s.access).sub:null;
+  if(!uid)return;
+  const device=await deviceId();
+  const nowIso=new Date().toISOString();
+  const rows=sites.map(site=>({user_id:uid,day:m.day,site,device,seconds:Math.floor(m.sites[site]),updated_at:nowIso}));
+  const a=await api('procrastination_time?on_conflict=user_id,day,site,device',{
+    method:'POST',
+    headers:{'Content-Type':'application/json','Prefer':'resolution=merge-duplicates,return=minimal'},
+    body:JSON.stringify(rows)
+  });
+  if(a.res&&a.res.ok){
+    const rec={};sites.forEach(x=>{rec[x]=Math.floor(m.sites[x]);});
+    await set({pushed:{day:m.day,sites:rec}});
+  }
+}
+
+/* ── measuring ─────────────────────────────────────────────────────────── */
 async function getSites(){
   const s=await get('sites');
   return normaliseSites(Array.isArray(s)?s:DEFAULT_SITES);
 }
+async function readContext(){
+  const ctx={windowFocused:false,activeUrl:'',audibleUrls:[],idleState:'active'};
+  try{
+    const w=await chrome.windows.getLastFocused({populate:true});
+    ctx.windowFocused=!!w.focused;
+    const a=(w.tabs||[]).find(t=>t.active);
+    ctx.activeUrl=(a&&a.url)||'';
+  }catch(e){}
+  try{ctx.audibleUrls=(await chrome.tabs.query({audible:true})).map(t=>t.url).filter(Boolean);}catch(e){}
+  try{ctx.idleState=await chrome.idle.queryState(60);}catch(e){}
+  return ctx;
+}
+let sampling=null;
+async function sample(){
+  if(sampling)return sampling;
+  sampling=(async()=>{
+    const sites=await getSites();
+    const tz=await get('tz');
+    const day=stoicDay({_tz:tz});
+    const cur=pickSite(await readContext(),sites);
+    const next=advance(await get('measure'),Date.now(),cur,day);
+    await set({measure:next});
+    return next;
+  })().finally(()=>{sampling=null;});
+  return sampling;
+}
+
+/* ── blocking ──────────────────────────────────────────────────────────── */
 async function redirectOpenTabs(sites){
   let tabs=[];
   try{tabs=await chrome.tabs.query({});}catch(e){return;}
@@ -133,6 +219,7 @@ async function check(){
   if(busy)return busy;
   busy=(async()=>{
     const sites=await getSites();
+    const own=await sample();                     // look first, so the time is up to date
     const r=await fetchToday();
     const prev=(await get('status'))||{};
     const now=Date.now();
@@ -143,7 +230,16 @@ async function check(){
       const holds=prev.blocked&&prev.okAt&&now-prev.okAt<OFFLINE_GRACE_MS;
       st={...prev,ok:false,reason:'net',blocked:!!holds,checkedAt:now};
     }else{
-      st={ok:true,...computeBudget(r.today),okAt:now,checkedAt:now};
+      if(r.today&&r.today._tz)await set({tz:r.today._tz});
+      const day=stoicDay(r.today);
+      const ownSites=own.day===day?own.sites:{};
+      const rows=await fetchMeasuredRows(day);
+      const device=await deviceId();
+      // If the other browsers' rows cannot be read, this browser's own count still stands.
+      const measured=sumMeasured(rows.rows||[],device,ownSites);
+      const b=computeBudget(r.today,new Date(),measured);
+      st={ok:true,...b,perSite:measured,table:rows.missing?'missing':'ok',okAt:now,checkedAt:now};
+      await pushMeasure(own,!rows.missing);
     }
     await set({status:st});
     try{await applyBlocking(st.blocked,sites);}catch(e){console.warn('Stoic Block: could not apply rules',e);}
@@ -164,6 +260,14 @@ chrome.alarms.onAlarm.addListener(a=>{if(a.name==='stoic-check')check();});
 // Changing the list takes effect at once, not at the next half minute.
 chrome.storage.onChanged.addListener((ch,area)=>{if(area==='local'&&ch.sites)check();});
 
+// A switch of tab or window closes the stretch at the moment it happens, so the
+// time is credited to what you were on and not to where you went.
+chrome.tabs.onActivated.addListener(()=>{sample();});
+chrome.tabs.onUpdated.addListener((_id,info)=>{if(info.url||info.audible!==undefined||info.status==='complete')sample();});
+chrome.windows.onFocusChanged.addListener(()=>{sample();});
+chrome.idle.onStateChanged.addListener(()=>{sample();});
+chrome.idle.setDetectionInterval(60);
+
 chrome.runtime.onMessage.addListener((msg,_sender,reply)=>{
   (async()=>{
     if(msg&&msg.type==='check')reply(await check());
@@ -172,7 +276,7 @@ chrome.runtime.onMessage.addListener((msg,_sender,reply)=>{
       if(r.ok)await check();
       reply(r);
     }else if(msg&&msg.type==='logout'){
-      await store.remove(['session','status']);
+      await store.remove(['session','status','pushed']);
       await check();
       reply({ok:true});
     }else reply(null);

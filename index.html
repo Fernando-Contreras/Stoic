@@ -1348,6 +1348,7 @@ en:{
   'rem-tag-ph':'New tag (work, home, gym…)','rem-filter':'Filter by tag','rem-filter-clear':'clear',
   'rem-filter-all':'· must have all of them',
   'tagmgr-open':'Rename or delete a tag everywhere','tagmgr-title':'Manage tags',
+  'ext-measured':'Measured by the Stoic Block extension. Delete it to dismiss what it measured so far.',
   'tagmgr-none':'No tags yet.','tagmgr-suggest':'💡 Suggested','tagmgr-add':'+ Add','tagmgr-add-all':'Add all','tagmgr-one':'reminder','tagmgr-count':'reminders',
   'tagmgr-rename-ask':'Rename "{tg}" to:',
   'tagmgr-del-warn':'Remove "{tg}" from {n} reminder(s)? This only drops the tag — the reminders themselves stay.',
@@ -1614,6 +1615,7 @@ es:{
   'rem-tag-ph':'Etiqueta nueva (trabajo, casa, gym…)','rem-filter':'Filtrar por etiqueta','rem-filter-clear':'limpiar',
   'rem-filter-all':'· deben tener todas',
   'tagmgr-open':'Renombrar o borrar una etiqueta en todos lados','tagmgr-title':'Administrar etiquetas',
+  'ext-measured':'Medido por la extensión Stoic Block. Bórralo para descartar lo que midió hasta ahora.',
   'tagmgr-none':'Todavía no hay etiquetas.','tagmgr-suggest':'💡 Sugeridas','tagmgr-add':'+ Añadir','tagmgr-add-all':'Añadir todas','tagmgr-one':'pendiente','tagmgr-count':'pendientes',
   'tagmgr-rename-ask':'Renombrar "{tg}" a:',
   'tagmgr-del-warn':'¿Quitar "{tg}" de {n} pendiente(s)? Solo se quita la etiqueta — los pendientes se quedan igual.',
@@ -8447,8 +8449,24 @@ function renderPenCard(sk_,todayStatus){
           const list=dv('s4 mt4');
           entries.forEach(p=>{
             const it=dv('rowb');it.style.alignItems='center';
-            it.appendChild(sp('xs dim',fmtDur(p.details?.minutes||p.count||0)));
-            const rm=bt('btn-icon xs','🗑',()=>{STATE.today.penalties=STATE.today.penalties.filter(x=>x.id!==p.id);commitAndRefresh();});
+            const lbl=sp('xs dim',fmtDur(p.details?.minutes||p.count||0));
+            // Measured by the browser extension, not typed: say so, and which site.
+            if(p.details&&p.details.ext){
+              lbl.textContent+=' · 🧩 '+(p.details.site||'');
+              lbl.title=t('ext-measured');
+            }
+            it.appendChild(lbl);
+            const rm=bt('btn-icon xs','🗑',()=>{
+              /* Deleting what the extension measured dismisses it: the minutes it
+                 showed go into _extAck so the next import does not bring them
+                 straight back; time measured after this counts as new. */
+              if(p.details&&p.details.ext&&p.details.site){
+                const ack=STATE.today._extAck||(STATE.today._extAck={});
+                ack[p.details.site]=(Number(ack[p.details.site])||0)+(p.details.minutes||0)*60;
+              }
+              STATE.today.penalties=STATE.today.penalties.filter(x=>x.id!==p.id);
+              commitAndRefresh();
+            });
             rm.title=t('sel-del');
             it.appendChild(rm);
             list.appendChild(it);
@@ -11722,7 +11740,69 @@ document.addEventListener('visibilitychange',()=>{
   bgSync();
   catchUpPomodoro();
   checkDayRollover();
+  importExtTime();
 });
+
+/* ═══ TIME MEASURED BY THE BROWSER EXTENSION ═════════════════════════════════
+   Stoic Block (the Chrome/Edge extension in /extension) measures the time spent
+   on the sites it blocks and writes it to its own small table,
+   procrastination_time: one row per day, site and browser. It does not touch
+   this record of the day, which every device edits and where a second writer
+   would be overwritten.
+
+   Here the rows are read and turned into ordinary Procrastination entries —
+   one per site, marked 🧩 — through the same path as anything logged by hand,
+   so the score, the allowance and the sync all treat them like any other.
+
+   Idempotent: an entry has the fixed id ext:<day>:<site> and is rewritten to
+   the current total, never added to. Deleting one dismisses what it showed (the
+   seconds go into today._extAck); time measured after that starts a new count.
+   Without the table (it has to be created once; see extension/supabase) this
+   quietly does nothing. */
+let _extTimeMissing=false,_extTimeBusy=false;
+async function importExtTime(){
+  if(_extTimeBusy||_extTimeMissing||!STATE.authed||document.hidden)return;
+  if(!SB.init()||!SB.pulledOk)return;
+  const day=todayKey();
+  if(STATE.today._date&&STATE.today._date!==day)return;     // the day is rolling over: not yet
+  _extTimeBusy=true;
+  try{
+    if(!await SB.ensureFresh())return;
+    const r=await fetch(`${SB.url}/rest/v1/procrastination_time?select=site,seconds&day=eq.${day}`,{headers:SB.headers()});
+    if(r.status===404){_extTimeMissing=true;return;}         // the table is not there; do not keep asking
+    if(!r.ok)return;
+    const rows=await r.json();
+    if(!Array.isArray(rows))return;
+    const totals={};
+    rows.forEach(x=>{totals[x.site]=(totals[x.site]||0)+(Number(x.seconds)||0);});
+    if(STATE.today._date!==day)return;                       // changed while we were asking
+    const ack=STATE.today._extAck||{};
+    const pens=STATE.today.penalties||(STATE.today.penalties=[]);
+    let changed=false;
+    Object.entries(totals).forEach(([site,sec])=>{
+      const m=Math.floor(Math.max(0,sec-(Number(ack[site])||0))/60);
+      const id='ext:'+day+':'+site;
+      const i=pens.findIndex(p=>p.id===id);
+      if(m>0){
+        if(i<0){
+          pens.push({id,type:'internet',count:m,details:{minutes:m,site,ext:true},timestamp:new Date().toISOString()});
+          changed=true;
+        }else if((pens[i].details&&pens[i].details.minutes)!==m){
+          pens[i].count=m;
+          pens[i].details={...(pens[i].details||{}),minutes:m,site,ext:true};
+          changed=true;
+        }
+      }else if(i>=0){pens.splice(i,1);changed=true;}         // all of it has been dismissed
+    });
+    if(changed){
+      commit();                                              // the normal way: stamped, saved, pushed
+      if(!isEditing()&&!document.querySelector('.ovl'))render();else _redrawOwed=true;
+    }
+  }catch(e){/* offline or signed out: try again in a minute */}
+  finally{_extTimeBusy=false;}
+}
+setInterval(importExtTime,60000);
+setTimeout(importExtTime,6000);
 </script>
 </body>
 </html>
