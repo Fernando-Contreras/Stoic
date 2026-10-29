@@ -345,6 +345,7 @@ button{cursor:pointer;font-family:var(--ff);font-size:15px;font-weight:600;borde
 .celebrate{animation:pop .45s cubic-bezier(.2,1.3,.4,1),shine 2.4s ease-in-out .45s infinite}
 @keyframes confetti{0%{transform:translateY(0) rotate(0);opacity:1}100%{transform:translateY(46px) rotate(220deg);opacity:0}}
 .confetti span{position:absolute;top:0;font-size:13px;animation:confetti 1.5s ease-in forwards}
+.login-wrap .ng:empty,.login-wrap .cg:empty{display:none}
 .login-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
 ::-webkit-scrollbar{width:5px;height:5px}
 ::-webkit-scrollbar-track{background:var(--bg)}
@@ -724,6 +725,43 @@ const S={
   set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch{}}
 };
 const K={TODAY:'st_today',HIST:'st_hist',AUTH:'st_auth',DIARY:'st_diary',THEME:'st_theme',STREAK_OVR:'st_streak_ovr',PLANNER:'st_planner'};
+
+/* ── WHO HAS ALREADY COME IN ─────────────────────────────────────────────────
+   The app used to start already "in" for everyone: a new visitor landed straight
+   on the app in a local-only mode, with the sign-in tucked into a panel, and
+   everything they did lived in that one browser — gone the moment its history was
+   cleared. Now the first thing a person without a past here sees is the sign-in
+   screen. They are "in" when they have a session (a cloud account), have chosen
+   to go on as a guest, or already have data on this device (someone using it
+   before accounts mattered keeps their place; they are marked a guest). */
+function hasSession(){try{return !!localStorage.getItem('AUTH_TOKEN');}catch(e){return false;}}
+function guestChosen(){try{return localStorage.getItem('st_guest')==='1';}catch(e){return false;}}
+function hasLocalData(){
+  try{
+    const h=JSON.parse(localStorage.getItem('st_hist')||'[]');
+    if(Array.isArray(h)&&h.some(d=>d&&!d._gap))return true;
+    const p=JSON.parse(localStorage.getItem('st_planner')||'null');
+    if(p&&Array.isArray(p.reminders)&&p.reminders.length)return true;
+  }catch(e){}
+  return false;
+}
+function bootAuthed(){
+  if(hasSession()||guestChosen())return true;
+  if(hasLocalData()){try{localStorage.setItem('st_guest','1');}catch(e){}return true;}
+  return false;
+}
+/* What leaving takes with it: this app's own keys and nothing else. The address
+   this page lives at is shared with the author's other small apps, whose keys
+   (tdg-, rose_, sb-) are not ours to touch. Language and theme stay, since they
+   are about the device and not the person. */
+function wipeLocalAccountData(){
+  const keep=new Set(['st_lang','st_theme']);
+  try{
+    Object.keys(localStorage).forEach(k=>{
+      if((/^st_/.test(k)&&!keep.has(k))||k==='AUTH_TOKEN'||k==='REFRESH_TOKEN')localStorage.removeItem(k);
+    });
+  }catch(e){}
+}
 /* History cap. This used to be 200 days (~6.5 months) and it did not just hide
    older days — it deleted them from localStorage AND pushed the truncated list
    back to Supabase, destroying them in both places. This app is meant to be kept
@@ -1296,8 +1334,24 @@ en:{
   'sync-title':'☁ Cloud Sync — Supabase','logged-in':'✅ Logged in — sync is active.',
   'pull-cloud':'Pull from cloud','push-cloud':'Push to cloud','log-out':'Log out',
   'email-lbl':'Email','pass-lbl':'Password','log-in':'Log In','sign-up':'Sign Up',
-  'create-acct':'Create Account','guest-btn':'Continue as Guest (offline)',
+  'create-acct':'Create Account','guest-btn':'Continue as guest',
   'guest-note':'Guest mode: data stored locally in this browser only',
+  'google-btn':'Continue with Google','or-email':'or with your email',
+  'forgot-pass':'Forgot your password?','rec-need-email':'Type your email above, then tap again.',
+  'rec-sent':'If that email has an account, we sent a link to change the password. Check spam too.',
+  'rec-wait':'Too many emails requested. Wait a few minutes.','rec-fail':'That did not work. Try again.',
+  'rec-title':'New password','rec-sub':'Choose a new password for your account.',
+  'rec-new':'New password','rec-again':'Repeat it','rec-save':'Save and sign in','rec-mismatch':'The passwords do not match.',
+  'guest-warn-h':'Without an account, everything can be lost',
+  'guest-warn':'As a guest, what you do is kept only in this browser: if you clear its history, switch device or reinstall, it is gone. We recommend creating an account.',
+  'guest-bar':'Guest: your data lives only in this browser.','guest-bar-btn':'Create account',
+  'so-confirm':'Sign out? The data kept on this device is erased (it stays safe in your account).',
+  'so-unsent':'There are changes not yet uploaded to your account. If you leave now they are lost. Leave anyway?',
+  'del-acct':'Delete my account','del-h':'Delete your account for good',
+  'del-body':'Your account and ALL your data are erased: tasks, history, diary, goals, backups and alerts. This cannot be undone.',
+  'del-tip':'Before you go on, you can download a backup with the backup button.',
+  'del-type':'To confirm, type {w}:','del-word':'DELETE','del-go':'Delete my account for good',
+  'del-done':'Your account and data were deleted.','del-fail':'It could not be deleted. Try again.',
   'rules-title':'Rules & Scoring',
   'day-not-logged':'⚠ Day not logged (−1000)','goals-ann-badge':'🏅 Goals Annihilated',
   'signing-in':'Signing in...','creating-acct':'Creating account...','syncing':'Syncing...',
@@ -1563,8 +1617,24 @@ es:{
   'sync-title':'☁ Sincronización — Supabase','logged-in':'✅ Sesión activa — sincronizando.',
   'pull-cloud':'Traer de la nube','push-cloud':'Subir a la nube','log-out':'Cerrar sesión',
   'email-lbl':'Correo','pass-lbl':'Contraseña','log-in':'Iniciar sesión','sign-up':'Registrarse',
-  'create-acct':'Crear cuenta','guest-btn':'Continuar como invitado (sin conexión)',
+  'create-acct':'Crear cuenta','guest-btn':'Continuar como invitado',
   'guest-note':'Modo invitado: datos solo en este navegador',
+  'google-btn':'Continuar con Google','or-email':'o con tu correo',
+  'forgot-pass':'¿Olvidaste tu contraseña?','rec-need-email':'Escribe tu correo arriba y vuelve a tocar.',
+  'rec-sent':'Si ese correo tiene cuenta, te mandamos un enlace para cambiar la contraseña. Revisa también el spam.',
+  'rec-wait':'Pediste muchos correos seguidos. Espera unos minutos.','rec-fail':'No se pudo. Intenta otra vez.',
+  'rec-title':'Nueva contraseña','rec-sub':'Elige una contraseña nueva para tu cuenta.',
+  'rec-new':'Contraseña nueva','rec-again':'Repítela','rec-save':'Guardar y entrar','rec-mismatch':'Las contraseñas no coinciden.',
+  'guest-warn-h':'Sin cuenta, todo se puede perder',
+  'guest-warn':'Como invitado, lo que hagas se guarda solo en este navegador: si borras el historial, cambias de aparato o reinstalas, se pierde. Te recomendamos crear una cuenta.',
+  'guest-bar':'Invitado: tus datos solo viven en este navegador.','guest-bar-btn':'Crear cuenta',
+  'so-confirm':'¿Cerrar sesión? Se borran los datos guardados en este aparato (siguen a salvo en tu cuenta).',
+  'so-unsent':'Hay cambios que todavía no se han subido a tu cuenta. Si sales ahora se pierden. ¿Salir de todos modos?',
+  'del-acct':'Borrar mi cuenta','del-h':'Borrar tu cuenta para siempre',
+  'del-body':'Se borran tu cuenta y TODOS tus datos: tareas, historial, diario, metas, respaldos y avisos. No se puede deshacer.',
+  'del-tip':'Antes de seguir, puedes bajar un respaldo con el botón de respaldo.',
+  'del-type':'Para confirmar, escribe {w}:','del-word':'BORRAR','del-go':'Borrar mi cuenta para siempre',
+  'del-done':'Tu cuenta y tus datos fueron borrados.','del-fail':'No se pudo borrar. Intenta otra vez.',
   'rules-title':'Reglas y Puntuación',
   'day-not-logged':'⚠ Día sin registrar (−1000)','goals-ann-badge':'🏅 Metas Exterminadas',
   'signing-in':'Iniciando sesión...','creating-acct':'Creando cuenta...','syncing':'Sincronizando...',
@@ -2258,7 +2328,7 @@ let STATE={
   diary:S.get(K.DIARY,{}),
   theme:S.get(K.THEME,'dark'),
   streakOverrides:S.get(K.STREAK_OVR,{}),
-  authed:true,
+  authed:bootAuthed(),
   history:S.get(K.HIST,[]),
   today:{completed:0,target:0,morningCompleted:false,flagCompleted:false,
     pomodoros:0,penalties:[],
@@ -2276,7 +2346,8 @@ let STATE={
   penType:'drugs', // #3: persist penalty type selection
   // Browses the score card independently of the calendar's own month.
   scoreYM:null,
-  lang: localStorage.getItem('st_lang')||'en',
+  // A new person gets the language their browser speaks; the choice is kept once made.
+  lang: localStorage.getItem('st_lang')||((navigator.language||'').toLowerCase().startsWith('es')?'es':'en'),
   // Tab 1 (planner) feeds tab 2 (score). Never the other way around.
   tab: localStorage.getItem('st_tab')||'score',
   // Which page of the pomodoro card is showing, and which day its calendar
@@ -2673,7 +2744,7 @@ function isEditing(){
      unfinished action held entirely on screen — a redraw underneath it is the
      same interruption an overlay blinking out would be. */
   return ['taskTree','histDay','restoreList','showTZ','showRules','showSyncPanel','showGoals','showFlags',
-          'showAddForm','showRewards','selecting','showWeek','showTagMgr','showCal','swPick','swMove']
+          'showAddForm','showRewards','selecting','showWeek','showTagMgr','showCal','swPick','swMove','showDelAcct']
     .some(k=>STATE[k]);
 }
 /* The sync itself never waits — only the redraw does. What the cloud brought
@@ -7491,6 +7562,7 @@ function render(){
     }
   }
   const root=document.getElementById('root');root.innerHTML='';
+  if(STATE.recovery){root.appendChild(renderRecovery());return;}
   if(!STATE.authed){root.appendChild(renderLogin());return;}
   root.appendChild(renderApp());
   checkMilestone();
@@ -7780,12 +7852,105 @@ function refresh(){save();render();}  // save() without bumping _ts
 function commitAndRefresh(){commit();render();}  // user action: bump _ts then render
 
 /* ═══ LOGIN / SIGNUP ═══ */
+const _authUrl=()=>(window._SUPABASE_URL||'').replace(/\/rest\/v1\/?$/,'').replace(/\/+$/,'');
+
+/* What this project offers — above all, whether signing in with Google is
+   switched on — asked once and remembered. The Google button only appears when
+   it is, so there is never a button that answers with an error. */
+let _authSettings=null,_authSettingsAsked=false;
+async function loadAuthSettings(){
+  if(_authSettingsAsked||!window._SUPABASE_URL)return;
+  _authSettingsAsked=true;
+  try{
+    const r=await fetch(`${_authUrl()}/auth/v1/settings`,{headers:{apikey:window._SUPABASE_KEY||''}});
+    if(r.ok){_authSettings=await r.json();if(!STATE.authed||STATE.recovery)render();}
+  }catch(e){/* offline: no Google button, the rest still works */}
+}
+function googleEnabled(){return !!(_authSettings&&_authSettings.external&&_authSettings.external.google);}
+// Where the sign-in and the password email send you back to: this very page.
+function appReturnUrl(){return location.origin+location.pathname;}
+function startGoogleLogin(){
+  location.href=`${_authUrl()}/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent(appReturnUrl())}`;
+}
+// Always answers "sent": the server does not say whether an address has an account.
+async function requestPasswordReset(email){
+  try{
+    const r=await fetch(`${_authUrl()}/auth/v1/recover?redirect_to=${encodeURIComponent(appReturnUrl())}`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json','apikey':window._SUPABASE_KEY||''},
+      body:JSON.stringify({email})
+    });
+    if(r.ok)return{ok:true};
+    if(r.status===429)return{error:t('rec-wait')};
+    const d=await r.json().catch(()=>({}));
+    return{error:d.msg||d.error_description||t('rec-fail')};
+  }catch(e){return{error:t('net-error')+e.message};}
+}
+
+/* What happens once someone is signed in, however they got there: bring the
+   cloud's copy in and MERGE it with whatever is here — never replace it. A guest
+   who creates an account keeps everything they did as a guest. */
+async function finishLogin(){
+  SB.init();
+  const remote=await SB.pull();
+  if(remote){
+    // Logging in MERGES cloud into local — it must never replace it.
+    // This used to overwrite STATE.history/diary wholesale with whatever the
+    // cloud had. When cloud sync had been silently dead for weeks, logging in
+    // destroyed months of local days and diary entries in one shot.
+    // applyRemote() merges history per-day (newest _ts wins, nothing deleted)
+    // and unions the diary, so no entry can be lost from either side.
+    applyRemote(remote);
+    // Push the merged result straight back up, so anything the cloud was
+    // missing lands there immediately instead of waiting for the next change.
+    SB.push(STATE.history,STATE.today,STATE.diary,STATE.streakOverrides).catch(()=>{});
+    // Save daily backup on login (once per day) — only mark done if it truly succeeded
+    const _bkKey='st_last_backup';
+    if(localStorage.getItem(_bkKey)!==todayKey()){
+      SB.saveBackup(STATE.history,STATE.today,STATE.diary,STATE.streakOverrides).then(ok=>{
+        if(ok) localStorage.setItem(_bkKey,todayKey());
+      }).catch(()=>{});
+    }
+  }
+  try{localStorage.removeItem('st_guest');}catch(e){}      // it is an account now
+  S.set(K.AUTH,true);STATE.authed=true;STATE.recovery=false;STATE.authNotice='';
+  render();
+}
+
+/* The page was opened from a link the sign-in service sent: Google bringing you
+   back, or the password email. The session arrives in the address after #; it is
+   taken, and the address is cleaned at once so a refresh or a copied link does
+   not carry it. A password link opens the "new password" screen first. */
+function handleAuthRedirect(){
+  try{
+    const h=location.hash.replace(/^#/,'');
+    if(!h||!/(access_token|error|error_description)=/.test(h))return;
+    const q=new URLSearchParams(h);
+    const at=q.get('access_token'),rt=q.get('refresh_token'),type=q.get('type');
+    const err=q.get('error_description')||q.get('error');
+    history.replaceState(null,'',location.pathname+location.search);
+    if(err){STATE.authNotice=String(err).replace(/\+/g,' ');return;}
+    if(!at)return;
+    localStorage.setItem('AUTH_TOKEN',at);
+    if(rt)localStorage.setItem('REFRESH_TOKEN',rt);
+    if(type==='recovery')STATE.recovery=true;
+    else{STATE.authed=true;try{localStorage.removeItem('st_guest');}catch(e){}}
+  }catch(e){}
+}
+
 function renderLogin(){
+  loadAuthSettings();
   const wrap=dv('login-wrap');
   const card=dv('card fi s12');card.style.cssText='max-width:400px;width:100%';
   card.innerHTML=`<div class="xxxl w8 ac ctr" style="letter-spacing:-.02em">🏛️ Stoic</div><div class="sm dim ctr mt4">${t('daily-tracker')}</div>`;
 
   const sbConfigured=!!(window._SUPABASE_URL&&window._SUPABASE_KEY);
+  if(STATE.authNotice){
+    const n=dv('card2 mt12 sm');
+    n.style.cssText='background:var(--ngd);border:1px solid var(--ngb);padding:10px 12px';
+    n.textContent=STATE.authNotice;
+    card.appendChild(n);
+  }
   const info=dv('card2 mt12 sm');
   if(sbConfigured){
     info.style.cssText='background:var(--acd);border:1px solid var(--acb);padding:10px 12px';
@@ -7797,30 +7962,59 @@ function renderLogin(){
   card.appendChild(info);
 
   // tabs
-  let mode='login';
+  let mode=STATE.loginMode==='signup'?'signup':'login';
   const modeRow=dv('row gap6');modeRow.style.marginTop='16px';
   const loginTab=bt('btn-ac btn-sm f1',t('log-in'),()=>{mode='login';syncTabs();});
   const signupTab=bt('btn-ghost btn-sm f1',t('sign-up'),()=>{mode='signup';syncTabs();});
   modeRow.appendChild(loginTab);modeRow.appendChild(signupTab);
   card.appendChild(modeRow);
 
+  // Google, only when this project has it switched on.
+  if(sbConfigured&&googleEnabled()){
+    const gbtn=bt('btn-ghost',t('google-btn'),startGoogleLogin);
+    gbtn.style.cssText='width:100%;margin-top:12px';
+    card.appendChild(gbtn);
+    card.appendChild(dv('xs dimmer ctr mt8',t('or-email')));
+  }
+
   // fields
   const ew=dv('s4');ew.style.marginTop='12px';ew.innerHTML=`<div class="xs dimmer up ls">${t('email-lbl')}</div>`;
-  const ei=ip('email','','','you@email.com');ew.appendChild(ei);card.appendChild(ew);
+  const ei=ip('email','','','you@email.com');ei.autocomplete='username';ew.appendChild(ei);card.appendChild(ew);
   const pw=dv('s4');pw.style.marginTop='8px';pw.innerHTML=`<div class="xs dimmer up ls">${t('pass-lbl')}</div>`;
   const pi=ip('password','','',t('pass-min'));pw.appendChild(pi);card.appendChild(pw);
+  pi.autocomplete=mode==='login'?'current-password':'new-password';
 
   // feedback
   const err=dv('xs ng');err.style.marginTop='8px';card.appendChild(err);
   const succ=dv('xs cg');succ.style.marginTop='8px';card.appendChild(succ);
 
   // main button — declared before doAction so hoisting isn't an issue
-  const actionBtn=bt('btn-ac',t('log-in'),()=>doAction());
+  const actionBtn=bt('btn-ac',mode==='login'?t('log-in'):t('create-acct'),()=>doAction());
   actionBtn.style.cssText='width:100%;margin-top:12px';
   card.appendChild(actionBtn);
 
-  function syncTabs(){
+  // Forgotten password: only where it makes sense.
+  const forgot=bt('btn-ghost btn-sm',t('forgot-pass'),async()=>{
     err.textContent='';succ.textContent='';
+    const email=ei.value.trim();
+    if(!email){err.textContent=t('rec-need-email');ei.focus();return;}
+    if(!sbConfigured){err.textContent=t('not-configured');return;}
+    forgot.disabled=true;
+    const r=await requestPasswordReset(email);
+    forgot.disabled=false;
+    if(r.ok)succ.textContent=t('rec-sent');else err.textContent=r.error;
+  });
+  forgot.style.cssText='width:100%;margin-top:8px;border:0;background:none;color:var(--t3)';
+  card.appendChild(forgot);
+
+  // Clearing the messages belongs to PRESSING a tab, not to redrawing the labels:
+  // it used to run again at the end of doAction and wipe the error (or the
+  // "account created") the moment it had been written, so a wrong password
+  // flashed and vanished.
+  function syncTabs(keepMessages){
+    if(!keepMessages){err.textContent='';succ.textContent='';}
+    pi.autocomplete=mode==='login'?'current-password':'new-password';
+    forgot.style.display=mode==='login'?'':'none';
     if(mode==='login'){
       loginTab.className='btn-ac btn-sm f1';
       signupTab.className='btn-ghost btn-sm f1';
@@ -7831,6 +8025,7 @@ function renderLogin(){
       actionBtn.textContent=t('create-acct');
     }
   }
+  syncTabs();
 
   async function doAction(){
     err.textContent='';succ.textContent='';
@@ -7845,7 +8040,7 @@ function renderLogin(){
 
     try{
       if(mode==='signup'){
-        const sbUrl=(window._SUPABASE_URL||'').replace(/\/rest\/v1\/?$/,'').replace(/\/+$/,'');
+        const sbUrl=_authUrl();
         const sbKey=window._SUPABASE_KEY||'';
         const r=await fetch(`${sbUrl}/auth/v1/signup`,{
           method:'POST',
@@ -7859,10 +8054,11 @@ function renderLogin(){
             // email confirm disabled — logged in immediately
             SB.token=d.access_token;
             localStorage.setItem('AUTH_TOKEN',d.access_token);
-            await afterLogin();
+            if(d.refresh_token)localStorage.setItem('REFRESH_TOKEN',d.refresh_token);
+            await finishLogin();
           } else {
             succ.textContent=t('acct-created');
-            mode='login';syncTabs();
+            mode='login';syncTabs(true);
           }
         } else {
           err.textContent=d.msg||d.error_description||d.message||JSON.stringify(d);
@@ -7870,7 +8066,7 @@ function renderLogin(){
       } else {
         const res=await SB.login(email,pass);
         if(res.ok){
-          await afterLogin();
+          await finishLogin();
         } else {
           err.textContent=res.error||t('login-failed');
         }
@@ -7879,39 +8075,127 @@ function renderLogin(){
       err.textContent=t('net-error')+e.message;
     }
     actionBtn.disabled=false;
-    syncTabs();
-  }
-
-  async function afterLogin(){
-    actionBtn.textContent=t('syncing');
-    const remote=await SB.pull();
-    if(remote){
-      // Logging in MERGES cloud into local — it must never replace it.
-      // This used to overwrite STATE.history/diary wholesale with whatever the
-      // cloud had. When cloud sync had been silently dead for weeks, logging in
-      // destroyed months of local days and diary entries in one shot.
-      // applyRemote() merges history per-day (newest _ts wins, nothing deleted)
-      // and unions the diary, so no entry can be lost from either side.
-      applyRemote(remote);
-      // Push the merged result straight back up, so anything the cloud was
-      // missing lands there immediately instead of waiting for the next change.
-      SB.push(STATE.history,STATE.today,STATE.diary,STATE.streakOverrides).catch(()=>{});
-      // Save daily backup on login (once per day) — only mark done if it truly succeeded
-      const _bkKey='st_last_backup';
-      if(localStorage.getItem(_bkKey)!==todayKey()){
-        SB.saveBackup(STATE.history,STATE.today,STATE.diary,STATE.streakOverrides).then(ok=>{
-          if(ok) localStorage.setItem(_bkKey,todayKey());
-        }).catch(()=>{});
-      }
-    }
-    S.set(K.AUTH,true);STATE.authed=true;render();
+    syncTabs(true);
   }
 
   pi.onkeydown=e=>{if(e.key==='Enter')doAction();};
+
+  /* Going on without an account is allowed, and said plainly first: nothing is
+     kept anywhere but this browser, so clearing its history, changing device or
+     reinstalling loses all of it. An account is the thing to recommend. */
   card.appendChild(hr());
-  const gb=bt('btn-ghost',t('guest-btn'),()=>{S.set(K.AUTH,true);STATE.authed=true;render();});
-  gb.style.width='100%';card.appendChild(gb);
+  const warn=dv('sm');
+  warn.style.cssText='background:var(--sur2);border:1px solid var(--cy);border-radius:10px;padding:10px 12px';
+  warn.innerHTML=`<div class="w7" style="color:var(--cy)">⚠️ ${t('guest-warn-h')}</div><div class="dim mt4">${t('guest-warn')}</div>`;
+  card.appendChild(warn);
+  const gb=bt('btn-ghost',t('guest-btn'),()=>{
+    try{localStorage.setItem('st_guest','1');}catch(e){}
+    S.set(K.AUTH,true);STATE.authed=true;STATE.authNotice='';render();
+  });
+  gb.style.cssText='width:100%;margin-top:10px';card.appendChild(gb);
   card.appendChild(dv('xs dimmer ctr mt8',t('guest-note')));
+
+  // The language, because the first screen a new person sees has to be readable.
+  const lg=bt('btn-ghost btn-sm',t('lang-btn'),()=>{
+    STATE.lang=STATE.lang==='en'?'es':'en';
+    localStorage.setItem('st_lang',STATE.lang);
+    render();           // a redraw only: nothing is saved before there is an account or a choice
+  });
+  lg.style.cssText='width:100%;margin-top:6px;border:0;background:none';card.appendChild(lg);
+  wrap.appendChild(card);return wrap;
+}
+
+/* Leaving: ends the session and takes this app's data off THIS device — it is
+   all in the account, and the next person to sit at this browser must not be
+   able to open it by choosing "guest". If something was never uploaded the
+   person is told first, because that is the one thing leaving would lose. */
+async function signOut(){
+  if(STATE._unsent&&!confirm(t('so-unsent')))return;
+  if(!confirm(t('so-confirm')))return;
+  try{
+    SB.init();
+    if(SB.token)await fetch(`${_authUrl()}/auth/v1/logout`,{method:'POST',headers:{'apikey':window._SUPABASE_KEY||'','Authorization':'Bearer '+SB.token}});
+  }catch(e){/* offline: the session simply lapses on its own */}
+  wipeLocalAccountData();
+  location.reload();
+}
+
+/* Erasing an account from inside the app, which stores require. Not done by the
+   page itself — a page cannot delete a user — but by a small server function
+   (supabase/functions/delete-account) that checks who is asking and removes
+   that person's rows and that person's account, nobody else's. */
+async function deleteAccount(){
+  try{
+    SB.init();
+    if(!await SB.ensureFresh())return{error:t('del-fail')};
+    const r=await fetch(`${_authUrl()}/functions/v1/delete-account`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json','apikey':window._SUPABASE_KEY||'','Authorization':'Bearer '+SB.token},
+      body:'{}'
+    });
+    if(r.ok){wipeLocalAccountData();return{ok:true};}
+    const d=await r.json().catch(()=>({}));
+    return{error:d.error||t('del-fail')};
+  }catch(e){return{error:t('net-error')+e.message};}
+}
+function renderDelAcctModal(){
+  const close=()=>{STATE.showDelAcct=false;render();};
+  const ov=dv('fi');ov.classList.add('ovl');
+  closeOnBackdrop(ov,close);
+  const panel=dv('card');panel.style.cssText='max-width:440px;width:100%;margin:auto;border-color:var(--ngb)';
+  const hd=dv('rowb mb8');
+  hd.appendChild(sp('ctit',t('del-h')));
+  hd.appendChild(bt('btn-icon','✕',close));
+  panel.appendChild(hd);
+  panel.appendChild(dv('sm',t('del-body')));
+  panel.appendChild(dv('sm dim mt8',t('del-tip')));
+  const word=t('del-word');
+  panel.appendChild(dv('sm mt12',t('del-type').replace('{w}','<b>'+word+'</b>')));
+  const inp=ip('text','','','');inp.style.marginTop='6px';inp.autocomplete='off';panel.appendChild(inp);
+  const err=dv('xs ng mt8');panel.appendChild(err);
+  const go=bt('btn-ng',t('del-go'),async()=>{
+    go.disabled=true;err.textContent='';
+    const r=await deleteAccount();
+    if(r.ok){alert(t('del-done'));location.reload();return;}
+    err.textContent=r.error;go.disabled=false;
+  });
+  go.style.cssText='width:100%;margin-top:12px';go.disabled=true;
+  inp.oninput=()=>{go.disabled=inp.value.trim().toUpperCase()!==word;};
+  panel.appendChild(go);
+  ov.appendChild(panel);
+  return ov;
+}
+
+/* The screen a password email opens: pick a new one, then carry on signed in. */
+function renderRecovery(){
+  const wrap=dv('login-wrap');
+  const card=dv('card fi s12');card.style.cssText='max-width:400px;width:100%';
+  card.innerHTML=`<div class="xxxl w8 ac ctr" style="letter-spacing:-.02em">🏛️ Stoic</div><div class="md w7 ctr mt8">${t('rec-title')}</div><div class="sm dim ctr mt4">${t('rec-sub')}</div>`;
+  const mk=(lbl)=>{const w=dv('s4');w.style.marginTop='12px';w.innerHTML=`<div class="xs dimmer up ls">${lbl}</div>`;const i=ip('password','','',t('pass-min'));i.autocomplete='new-password';w.appendChild(i);card.appendChild(w);return i;};
+  const p1=mk(t('rec-new'));
+  const p2=mk(t('rec-again'));
+  const err=dv('xs ng');err.style.marginTop='8px';card.appendChild(err);
+  const go=bt('btn-ac',t('rec-save'),()=>save());
+  go.style.cssText='width:100%;margin-top:12px';card.appendChild(go);
+  async function save(){
+    err.textContent='';
+    if(p1.value.length<6){err.textContent=t('pass-short');return;}
+    if(p1.value!==p2.value){err.textContent=t('rec-mismatch');return;}
+    go.disabled=true;
+    try{
+      SB.init();
+      const r=await fetch(`${_authUrl()}/auth/v1/user`,{
+        method:'PUT',
+        headers:{'Content-Type':'application/json','apikey':window._SUPABASE_KEY||'','Authorization':'Bearer '+(localStorage.getItem('AUTH_TOKEN')||'')},
+        body:JSON.stringify({password:p1.value})
+      });
+      if(r.ok){await finishLogin();return;}
+      const d=await r.json().catch(()=>({}));
+      err.textContent=d.msg||d.error_description||t('rec-fail');
+    }catch(e){err.textContent=t('net-error')+e.message;}
+    go.disabled=false;
+  }
+  p2.onkeydown=e=>{if(e.key==='Enter')save();};
   wrap.appendChild(card);return wrap;
 }
 
@@ -8037,6 +8321,16 @@ function renderApp(){
   // three modes it switched between — see the note above CURVE_K.
   acts.appendChild(bt('btn-ghost btn-sm',t('lang-btn'),toggleLang));
   hdr.appendChild(acts);wrap.appendChild(hdr);
+  /* Someone going on as a guest was told once, on the way in, that nothing is
+     kept but in this browser. It is said again here, quietly, with the way out —
+     because the day it matters is the day the history gets cleared. */
+  if(guestChosen()&&!hasSession()){
+    const gbn=dv('card2 sm');
+    gbn.style.cssText='display:flex;align-items:center;gap:10px;flex-wrap:wrap;border:1px solid var(--cy);padding:8px 12px;margin:6px 0 4px';
+    gbn.appendChild(sp('f1 dim','⚠️ '+t('guest-bar')));
+    gbn.appendChild(bt('btn-ac btn-sm',t('guest-bar-btn'),()=>{STATE.loginMode='signup';STATE.authed=false;render();}));
+    wrap.appendChild(gbn);
+  }
 
 
 
@@ -8045,6 +8339,7 @@ function renderApp(){
   /* The rules open over whichever tab you are on. They sit here, above the
      tabs, because the planner returns early below and would never reach them. */
   if(STATE.showRules)wrap.appendChild(renderRulesModal());
+  if(STATE.showDelAcct)wrap.appendChild(renderDelAcctModal());
   if(STATE.showTZ)wrap.appendChild(renderTZModal());
   if(STATE.taskTree)wrap.appendChild(renderTaskTreeModal(STATE.taskTree));
   if(STATE.restoreList)wrap.appendChild(renderRestoreModal());
@@ -8204,7 +8499,15 @@ function renderApp(){
 
   bottomWrap.appendChild(dv('xs dimmer ctr',t('backup-note')));
 
-  bottomWrap.appendChild(bt('btn-ghost btn-sm',t('logout'),()=>{S.set(K.AUTH,false);STATE.authed=false;render();}));
+  if(hasSession()){
+    bottomWrap.appendChild(bt('btn-ghost btn-sm',t('logout'),signOut));
+    // Required for an app that holds accounts: a way to erase yours, from inside the app.
+    const del=bt('btn-ghost btn-sm',t('del-acct'),()=>{STATE.showDelAcct=true;render();});
+    del.style.color='var(--ng)';
+    bottomWrap.appendChild(del);
+  }else{
+    bottomWrap.appendChild(bt('btn-ac btn-sm',t('guest-bar-btn'),()=>{STATE.loginMode='signup';STATE.authed=false;render();}));
+  }
   wrap.appendChild(bottomWrap);
   return wrap;
 }
@@ -11415,6 +11718,7 @@ function renderDiaryFor(dateKey,onSave){
 if('serviceWorker' in navigator){
   window.addEventListener('load',()=>{navigator.serviceWorker.register('./sw.js').catch(()=>{});});
 }
+handleAuthRedirect();   // opened from Google or from the password email? take the session first
 loadToday();healRepeatsStuckOnDoneDay();applyTheme();
 
 // On boot: PULL from Supabase first (before pushing ANYTHING).
@@ -11597,6 +11901,10 @@ let _lastDay=todayKey();
    screen" — reading as "still broken" well after the fix that was meant to
    catch exactly this had already shipped. */
 function checkDayRollover(){
+  // Before anyone has come in there is no day to close: this would write a first
+  // history entry, and a page left open on the sign-in screen at midnight would
+  // then make the next visit look like someone with data of their own.
+  if(!STATE.authed)return;
   const nd=todayKey();
   if(nd===_lastDay)return;
   const oldDay=_lastDay;
