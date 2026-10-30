@@ -8,8 +8,10 @@ tus pomodoros.
 
 Es la misma cuenta que hace Stoic:
 
-- **Lo que te dan:** `máx(30, 30 × pomodoros ÷ 8)` minutos. (0–8 pomodoros: 30 min;
-  12: 45 min; 16: 60 min…)
+- **Lo que te dan:** `máx(30, el descanso que ganaron tus pomodoros)` minutos. Cada
+  pomodoro terminado paga su descanso, y cada 4.º paga el largo. Con 25-5-25-5-25-5-25-15:
+  4 pomodoros: 30 min; 8: 60; 12: 90; 20: 150. Si cambias los descansos en el cronómetro
+  de Stoic, esto se ajusta solo (la app los guarda en el día, y la extensión los lee de ahí).
 - **Lo que llevas:** los minutos que registraste hoy en Procrastinación.
 - **Se bloquea** cuando llevas **igual o más** de lo que te dan. En cuanto terminas
   un pomodoro y el número sube, **se abre solo**.

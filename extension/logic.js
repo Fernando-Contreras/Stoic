@@ -4,15 +4,34 @@
    The one decision this extension makes is: "is the time you have spent on
    procrastination today at or past what today's pomodoros have bought?" The
    arithmetic is Stoic's own and is copied from it on purpose — see
-   FREE_MINS_BASE / freeMinsFor in index.html. If one changes, change both. */
+   FREE_MINS_BASE / pomoRestMins / freeMinsFor in index.html. If one changes,
+   change both. */
 
 export const FREE_MINS_BASE=30;   // the flat daily allowance
-export const FREE_MINS_POMS=8;    // 8 pomodoros buy another 30 minutes on top
+export const POMO_CFG_DEFAULT={brk:5,longBrk:15,cycle:4};   // 25-5-25-5-25-5-25-15
 
-/* What today's pomodoros allow: never less than the flat 30, and 30 more per 8
-   pomodoros (12 → 45, 16 → 60). */
-export function freeMinsFor(pomodoros){
-  return Math.max(FREE_MINS_BASE,Math.round(FREE_MINS_BASE*(pomodoros||0)/FREE_MINS_POMS));
+// The break lengths a day was lived with (today._pomoCfg), made safe to use.
+export function pomoCfgFrom(p){
+  const n=(v,d,lo,hi)=>{v=Math.round(Number(v));return isFinite(v)&&v>=lo?Math.min(hi,v):d;};
+  const o=p||{};
+  return{brk:n(o.brk,POMO_CFG_DEFAULT.brk,1,180),longBrk:n(o.longBrk,POMO_CFG_DEFAULT.longBrk,1,180),cycle:n(o.cycle,POMO_CFG_DEFAULT.cycle,1,50)};
+}
+
+/* Break minutes that n pomodoros have paid: each finished one pays its own
+   break, and every cycle-th pays the long one (20 pomodoros of 25-5-…-15 = 15
+   short + 5 long = 150). A part of a pomodoro pays that part of its break. */
+export function pomoRestMins(n,cfg){
+  n=Math.max(0,Number(n)||0);
+  const full=Math.floor(n),frac=n-full;
+  const longs=Math.floor(full/cfg.cycle),shorts=full-longs;
+  const next=((full+1)%cfg.cycle===0)?cfg.longBrk:cfg.brk;
+  return shorts*cfg.brk+longs*cfg.longBrk+frac*next;
+}
+
+/* What today's pomodoros allow: never less than the flat 30, otherwise the rest
+   those pomodoros earned in the lengths set on the timer. */
+export function freeMinsFor(pomodoros,cfgRaw){
+  return Math.max(FREE_MINS_BASE,Math.round(pomoRestMins(pomodoros,pomoCfgFrom(cfgRaw))));
 }
 
 // Minutes logged against one reward in a day, however many entries it took.
@@ -27,14 +46,14 @@ export function penMinutes(day,type,excludeExt){
 
 /* How many MORE pomodoros it takes to get back under the allowance, given the
    minutes already spent. Whole pomodoros, rounded up: finishing that many always
-   does it. Zero when nothing is blocking. The allowance is
-   round(30 * poms / 8) and the block lifts once it is strictly above `used`,
-   so the total needed is the smallest poms with 3.75 * poms >= used + 0.5. */
-export function pomsToUnblock(used,poms){
+   does it. Zero when nothing is blocking. The block lifts once the allowance is
+   strictly above `used`; the allowance climbs with every pomodoro, so this just
+   counts them one at a time rather than solving for it. */
+export function pomsToUnblock(used,poms,cfg){
   const u=Number(used)||0,have=Number(poms)||0;
-  if(freeMinsFor(have)>u)return 0;
-  const total=(u+0.5)*FREE_MINS_POMS/FREE_MINS_BASE;
-  return Math.max(1,Math.ceil(total-have-1e-9));
+  if(freeMinsFor(have,cfg)>u)return 0;
+  for(let m=1;m<=2000;m++)if(freeMinsFor(have+m,cfg)>u)return m;
+  return 2000;
 }
 
 /* Whole minutes measured on the blocked sites, per site, less whatever the
@@ -76,7 +95,8 @@ export function computeBudget(today,now,measured){
   const manual=current?Math.round(penMinutes(today,'internet',true)):0;
   const meas=measuredMinutes(measured,current?today._extAck:null);
   const used=manual+meas;
-  const allowed=freeMinsFor(poms);
+  const cfg=today&&today._pomoCfg;
+  const allowed=freeMinsFor(poms,cfg);
   return{
     day:dayNow,
     current,
@@ -87,7 +107,7 @@ export function computeBudget(today,now,measured){
     allowed,
     left:Math.max(0,allowed-used),
     blocked:used>=allowed,     // "equal or more", as it was asked
-    needPoms:pomsToUnblock(used,poms)
+    needPoms:pomsToUnblock(used,poms,cfg)
   };
 }
 

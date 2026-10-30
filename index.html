@@ -2196,8 +2196,40 @@ function capPenStreak(n){return Math.min(PEN_CAP,Math.max(1,n||1));}
    however cheap today turned out to be. */
 const FREE_MINS_BASE=30;
 const FREE_MINS_POMS=8;
-function freeMinsFor(pomodoros){
-  return Math.max(FREE_MINS_BASE,Math.round(FREE_MINS_BASE*(pomodoros||0)/FREE_MINS_POMS));
+/* From FREE_RULE_FROM on, the wider allowance is the REST the day's pomodoros
+   earned, in the lengths the person has set: each finished pomodoro pays its own
+   break, and every cycle-th one pays the long break instead (25-5-25-5-25-5-25-15:
+   20 pomodoros = 15 short + 5 long = 150 min). So changing the timer's breaks
+   changes it. Days before that keep the old 30-per-8 rule, since past days are
+   re-scored from their pomodoro counts and must not move. The lengths a day was
+   lived with travel with it (today._pomoCfg, entry.pomoCfg). */
+const FREE_RULE_FROM='2026-10-29';
+const POMO_CFG_DEFAULT={brk:5,longBrk:15,cycle:4};
+function pomoCfgFrom(p){
+  const n=(v,d,lo,hi)=>{v=Math.round(Number(v));return isFinite(v)&&v>=lo?Math.min(hi,v):d;};
+  const o=p||{};
+  return{brk:n(o.brk,POMO_CFG_DEFAULT.brk,1,180),longBrk:n(o.longBrk,POMO_CFG_DEFAULT.longBrk,1,180),cycle:n(o.cycle,POMO_CFG_DEFAULT.cycle,1,50)};
+}
+// The breaks that apply to a day, or null when the day predates the rule (or none was given).
+function pomoCfgOf(day){
+  if(!day)return null;
+  const d=day.date||day._date||'';
+  if(d&&d<FREE_RULE_FROM)return null;
+  if(day._pomoCfg||day.pomoCfg)return pomoCfgFrom(day._pomoCfg||day.pomoCfg);
+  return pomoCfgFrom(day===STATE.today&&STATE.pomo?STATE.pomo:null);   // today, before it was stamped: what the timer says now
+}
+// Break minutes that n pomodoros have paid; a part of one pays that part of its break.
+function pomoRestMins(n,cfg){
+  n=Math.max(0,Number(n)||0);
+  const full=Math.floor(n),frac=n-full;
+  const longs=Math.floor(full/cfg.cycle),shorts=full-longs;
+  const next=((full+1)%cfg.cycle===0)?cfg.longBrk:cfg.brk;
+  return shorts*cfg.brk+longs*cfg.longBrk+frac*next;
+}
+function freeMinsFor(pomodoros,day){
+  const cfg=pomoCfgOf(day);
+  if(!cfg)return Math.max(FREE_MINS_BASE,Math.round(FREE_MINS_BASE*(pomodoros||0)/FREE_MINS_POMS));
+  return Math.max(FREE_MINS_BASE,Math.round(pomoRestMins(pomodoros,cfg)));
 }
 // Minutes logged against one reward on one day, however many entries it took.
 function penMinutesOn(day,type){
@@ -2277,11 +2309,11 @@ const CALC={
      used to be named for procrastination and applied only to it; any reward
      you set to count minutes gets the same deal, because the reason is about
      time and not about which reward it is. */
-  minsMult(mins,streak,pomodoros){
-    return mins>freeMinsFor(pomodoros)?capPenStreak(streak):1;
+  minsMult(mins,streak,pomodoros,day){
+    return mins>freeMinsFor(pomodoros,day)?capPenStreak(streak):1;
   },
   // Kept under its old name: called from renderPenCard and from score().
-  procMult(procMins,streak,pomodoros){return this.minsMult(procMins,streak,pomodoros);},
+  procMult(procMins,streak,pomodoros,day){return this.minsMult(procMins,streak,pomodoros,day);},
   streaks(history,today){
     const tk=todayKey();
     // #1 FIX: exclude today from history scan entirely
@@ -2381,14 +2413,14 @@ const CALC={
     const pen=penalties.reduce((sum,p)=>{
       const b=this.penBase(p);let mult=1;
       if(p.type==='drugs')mult=freeToday('drugs')?1:capPenStreak(s.substancesPenaltyStreak);
-      else if(p.type==='internet')mult=freeToday('internet')?1:this.procMult(procMins,s.procrastinationPenaltyStreak,pomodoros);
+      else if(p.type==='internet')mult=freeToday('internet')?1:this.procMult(procMins,s.procrastinationPenaltyStreak,pomodoros,day);
       else if(p.type==='macanazo')mult=freeToday('macanazo')?1:capPenStreak(s.macanazoPenaltyStreak);
       // Yours multiply by their own run, and are discounted by their own weight
       // — and if you set one to count minutes, by the same allowance.
       else if(typeof penKey==='function'){
         const r=(typeof rewardById==='function')?rewardById(p.type):null;
         mult=(r&&rewardForgives(r).includes(status))?1
-          :(r&&r.byMinutes)?this.minsMult(penMinutesOn({penalties},p.type),s[penKey(p.type)],pomodoros)
+          :(r&&r.byMinutes)?this.minsMult(penMinutesOn({penalties},p.type),s[penKey(p.type)],pomodoros,day)
           :capPenStreak(s[penKey(p.type)]);
       }
       const v=b*mult;
@@ -2570,7 +2602,7 @@ const CALC={
          the same twenty-minute evening cost base while it was today and
          base × its run the moment it became history — the one number the
          calendar shows disagreeing with the one the card showed. */
-      else if(p.type==='internet') mult=procFree?1:this.minsMult(penMinutesOn(e,'internet'),procStreak,e.pomodoros);
+      else if(p.type==='internet') mult=procFree?1:this.minsMult(penMinutesOn(e,'internet'),procStreak,e.pomodoros,e);
       else if(p.type==='macanazo') mult=macFree?1:capPenStreak(macStreak);
       /* One you added. Its run through history is counted here the same way
          the three above are, and its own weight says which colour discounts a
@@ -2583,7 +2615,7 @@ const CALC={
           const idx=sorted.findIndex(h=>h.date===e.date);
           if(idx>=0){
             const run=this.streakAtDay(sorted,idx,d=>dayHasReward(d,r));
-            mult=r.byMinutes?this.minsMult(penMinutesOn(e,p.type),run,e.pomodoros):capPenStreak(run);
+            mult=r.byMinutes?this.minsMult(penMinutesOn(e,p.type),run,e.pomodoros,e):capPenStreak(run);
           }
         }
       }
@@ -2603,6 +2635,7 @@ const CALC={
     const sc=this.score(today,streaks);
     return{date,_ts:CLOCK.now(),todayPoints:sc.total,status:sc.status,
       completedTasks:today.completed,totalTasks:today.target,pomodoros:today.pomodoros,
+      pomoCfg:today._pomoCfg||pomoCfgFrom(STATE.pomo),
       penalties:today.penalties.map(p=>({type:p.type,count:p.count,points:this.penBase(p),streak:1})),
       streaks:[{type:'morning',count:today.morningCompleted?1:0,active:today.morningCompleted},{type:'flags',count:today.flagCompleted?1:0,active:today.flagCompleted}],
       sleepDuration:today.sleep?.sleepDuration||0,napDuration:today.sleep?.napDuration||0,
@@ -3842,6 +3875,9 @@ const POMO_UNIT=25; // minutes that make up one pomodoro, whatever your session 
 function savePomo(){
   STATE.pomo._ts=CLOCK.now();
   S.set('st_pomo',STATE.pomo);
+  // The breaks the day is lived with set what it may spend (see freeMinsFor), and
+  // the Chrome/Edge extension reads them from here.
+  STATE.today._pomoCfg=pomoCfgFrom(STATE.pomo);
   commit();
 }
 function pomoPhaseLen(p){
@@ -9045,8 +9081,8 @@ function renderPomCard(sk_,todayStatus){
   const rwProc=rewardById('internet');
   const nmProc=rwProc?rewardName(rwProc):(STATE.lang==='es'?'Procrastinación':'Procrastination');
   const allowLine=STATE.lang==='es'
-    ?`🌐 hasta ${fmtDur(freeMinsFor(val))} de ${nmProc.toLowerCase()} a precio base hoy`
-    :`🌐 up to ${fmtDur(freeMinsFor(val))} of ${nmProc.toLowerCase()} at base price today`;
+    ?`🌐 hasta ${fmtDur(freeMinsFor(val,STATE.today))} de ${nmProc.toLowerCase()} a precio base hoy`
+    :`🌐 up to ${fmtDur(freeMinsFor(val,STATE.today))} of ${nmProc.toLowerCase()} at base price today`;
   if(STATE.pomo&&STATE.pomo.minutesToday>0){
     card.appendChild(dv('xs dimmer mt6',`⏱ ${STATE.pomo.minutesToday} min ${t('pomo-from-timer')} · ${allowLine}`));
   }else{
@@ -9068,12 +9104,12 @@ function renderPenCard(sk_,todayStatus){
   const freeToday=kind=>builtinForgives(kind).includes(todayStatus);
   const penMultFor=(p,procMins)=>{
     if(p.type==='drugs')return freeToday('drugs')?1:capPenStreak(sk_.substancesPenaltyStreak);
-    if(p.type==='internet')return freeToday('internet')?1:CALC.procMult(procMins,sk_.procrastinationPenaltyStreak,STATE.today.pomodoros);
+    if(p.type==='internet')return freeToday('internet')?1:CALC.procMult(procMins,sk_.procrastinationPenaltyStreak,STATE.today.pomodoros,STATE.today);
     if(p.type==='macanazo')return freeToday('macanazo')?1:capPenStreak(sk_.macanazoPenaltyStreak);
     const r=rewardById(p.type);
     if(r&&rewardForgives(r).includes(todayStatus))return 1;
     // Yours, measured in minutes, get the same allowance the built-in one has.
-    if(r&&r.byMinutes)return CALC.minsMult(penMinutesOn(STATE.today,p.type),sk_[penKey(p.type)],STATE.today.pomodoros);
+    if(r&&r.byMinutes)return CALC.minsMult(penMinutesOn(STATE.today,p.type),sk_[penKey(p.type)],STATE.today.pomodoros,STATE.today);
     return capPenStreak(sk_[penKey(p.type)]);
   };
   const procMinsTotal=()=>penMinutesOn(STATE.today,'internet');
@@ -11366,7 +11402,7 @@ function renderRules(onClose){
       <div><span class="cr w6">🔴 Rojo</span> — ese día paga a <strong>precio base</strong> y la racha sigue mañana donde iba. Lo único que rompe es la racha de <span class="cp">días sin rojo</span>.</div>
       <div><span class="ac w6">Un día bueno</span> te cobra la recompensa a base <strong>sin romperle la racha</strong>: <span class="cy">🟡</span> una ligera · <span class="cg">🟢</span> una media · <span class="cp">🟣</span> una grande.</div>
       <div>Lo único que rompe una racha es <strong>dejar de hacer la cosa</strong>, o saltarte un día.</div>
-      <div><span class="ac w6">Las que se miden en minutos traen ${FREE_MINS_BASE} min diarios de gracia como piso</span>: por debajo de eso se cobra igual (−${PEN_RATE} por minuto) pero <strong>no cuenta como recaída</strong> — no arrastra la racha ni te la sube. Ese piso es fijo, no lo mueven los pomodoros. Pasándote de los ${FREE_MINS_BASE} min, el día ya cuenta entero y la racha corre — pero si ese día metiste pomodoros, lo que <strong>te cobra</strong> baja: cada ${FREE_MINS_POMS} pomodoros amplían tu precio base otros ${FREE_MINS_BASE} minutos (4 pomodoros = 15 min, 12 = 45, 16 = 1 hora). Los pomodoros abaratan el día; <strong>nunca le salvan la racha</strong>.</div>
+      <div><span class="ac w6">Las que se miden en minutos traen ${FREE_MINS_BASE} min diarios de gracia como piso</span>: por debajo de eso se cobra igual (−${PEN_RATE} por minuto) pero <strong>no cuenta como recaída</strong> — no arrastra la racha ni te la sube. Ese piso es fijo, no lo mueven los pomodoros. Pasándote de los ${FREE_MINS_BASE} min, el día ya cuenta entero y la racha corre — pero si ese día metiste pomodoros, lo que <strong>te cobra</strong> baja: cada pomodoro que terminas te gana su descanso como precio base (con 25-5-25-5-25-5-25-15: 4 pomodoros = 30 min, 8 = 60, 20 = 2 h 30; si cambias tus descansos en el cronómetro, esto se ajusta). Los pomodoros abaratan el día; <strong>nunca le salvan la racha</strong>.</div>
       <div><span class="ac w6">🎖️ Medallas</span> a los 10, 20, 50, 100, 200, 500 y 1000 días de cualquier racha positiva. Las recompensas nunca dan.</div>
       <div class="xs dimmer">Un día sin registrar cuenta como −1,000 y día rojo. ¡Registra diario!</div>
     </div>
@@ -11438,7 +11474,7 @@ function renderRules(onClose){
       <div><span class="cr w6">🔴 Red</span> — that day pays <strong>base</strong> and tomorrow the run carries on where it was. The only run it breaks is the <span class="cp">non-red</span> one.</div>
       <div><span class="ac w6">A good day</span> charges a reward at base <strong>without ending its run</strong>: <span class="cy">🟡</span> a light one · <span class="cg">🟢</span> a medium one · <span class="cp">🟣</span> a large one.</div>
       <div>The only things that end a run are <strong>not doing the thing</strong> and skipping a day.</div>
-      <div><span class="ac w6">The ones measured in minutes carry a ${FREE_MINS_BASE}-minute daily floor</span>: under that it is still charged (−${PEN_RATE} a minute) but <strong>does not count as a slip</strong> — it neither carries the run forward nor starts one. That floor is fixed; pomodoros never move it. Past ${FREE_MINS_BASE} minutes the day counts in full and the run advances — but if you logged pomodoros that day, what it <strong>costs</strong> drops: every ${FREE_MINS_POMS} pomodoros buy another ${FREE_MINS_BASE} minutes at base price (4 pomodoros = 15 min, 12 = 45, 16 = an hour). Pomodoros make the day cheaper; they <strong>never save the run</strong>.</div>
+      <div><span class="ac w6">The ones measured in minutes carry a ${FREE_MINS_BASE}-minute daily floor</span>: under that it is still charged (−${PEN_RATE} a minute) but <strong>does not count as a slip</strong> — it neither carries the run forward nor starts one. That floor is fixed; pomodoros never move it. Past ${FREE_MINS_BASE} minutes the day counts in full and the run advances — but if you logged pomodoros that day, what it <strong>costs</strong> drops: every pomodoro you finish earns its break at base price (with 25-5-25-5-25-5-25-15: 4 pomodoros = 30 min, 8 = 60, 20 = 2 h 30; change your breaks on the timer and this follows). Pomodoros make the day cheaper; they <strong>never save the run</strong>.</div>
       <div><span class="ac w6">🎖️ Medals</span> at 10, 20, 50, 100, 200, 500 and 1000 days of any positive run. Rewards never earn one.</div>
       <div class="xs dimmer">A day you forget to log counts as −1,000 and a red day. Log every day!</div>
     </div>
@@ -12335,7 +12371,8 @@ function checkDayRollover(){
     completed:0,target:0,morningCompleted:false,flagCompleted:false,
     pomodoros:0,penalties:[],
     sleep:{sleepDuration:0,napDuration:0,sleptEarly:false,earlyBedStreak:STATE.today.sleep?.earlyBedStreak||0},
-    work:{workDuration:0},_date:nd,_ts:CLOCK.now()
+    work:{workDuration:0},_date:nd,_ts:CLOCK.now(),
+    _pomoCfg:STATE.today._pomoCfg||pomoCfgFrom(STATE.pomo)
   };
   S.set(K.TODAY,STATE.today);
   S.set(K.HIST,STATE.history);

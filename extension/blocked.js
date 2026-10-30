@@ -1,5 +1,5 @@
 import {STOIC_URL} from './config.js';
-import {fmtMin,freeMinsFor,FREE_MINS_BASE,FREE_MINS_POMS} from './logic.js';
+import {fmtMin} from './logic.js';
 
 const q=new URLSearchParams(location.search);
 const site=q.get('site')||'';
@@ -35,14 +35,11 @@ async function paint(){
   $('nums').textContent=fmtMin(st.used)+' de '+fmtMin(st.allowed);
   $('detail').textContent='Tu tiempo de procrastinación de hoy ya llegó a lo que te dan tus pomodoros ('+st.poms+' hoy)'
     +(st.measured?'. Medimos '+fmtMin(st.measured)+' en estos sitios.':'.');
-  // How many more pomodoros it takes for the allowance to pass what is logged.
-  let need=0;
-  for(let p=st.poms;p<=st.poms+400;p=Math.round((p+0.1)*10)/10){
-    if(freeMinsFor(p)>st.used){need=Math.round((p-st.poms)*10)/10;break;}
-  }
+  // How many more pomodoros it takes for the allowance to pass what is logged
+  // (worked out once, in logic.js, so this page and the badge always agree).
+  const need=st.needPoms||0;
   $('how').textContent=need>0
-    ?'Te faltan '+(Number.isInteger(need)?need:need.toFixed(1))+' pomodoro(s) más para que se abra. Pasados los '
-      +FREE_MINS_POMS+', cada uno suma '+(FREE_MINS_BASE/FREE_MINS_POMS)+' minutos.'
+    ?'Te faltan '+need+(need===1?' pomodoro':' pomodoros')+' para que se abra: cada uno que terminas te gana su descanso como tiempo permitido.'
     :'';
 }
 

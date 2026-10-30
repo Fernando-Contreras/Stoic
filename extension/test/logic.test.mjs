@@ -5,13 +5,24 @@ import {freeMinsFor,pomsToUnblock,penMinutes,computeBudget,measuredMinutes,siteO
 let n=0;
 const t=(name,fn)=>{fn();n++;console.log('  ok  '+name);};
 
-// ---- the allowance, exactly as Stoic computes it
+// ---- the allowance: the rest the day's pomodoros earned (default 25-5-25-5-25-5-25-15)
+const CUSTOM={brk:10,longBrk:30,cycle:2};
 t('allowance: 0 pomodoros is the flat 30',()=>assert.equal(freeMinsFor(0),30));
-t('allowance: 8 pomodoros is still 30 (it is the floor)',()=>assert.equal(freeMinsFor(8),30));
-t('allowance: 12 buys 45',()=>assert.equal(freeMinsFor(12),45));
-t('allowance: 16 buys 60',()=>assert.equal(freeMinsFor(16),60));
-t('allowance: half pomodoros round (10 -> 38)',()=>assert.equal(freeMinsFor(10),38));
+t('allowance: 1..3 pomodoros earn 5/10/15 but the floor holds',()=>{for(const p of [1,2,3])assert.equal(freeMinsFor(p),30);});
+t('allowance: 4 pomodoros = 3 short + 1 long = 30',()=>assert.equal(freeMinsFor(4),30));
+t('allowance: 5 -> 35, 8 -> 60, 12 -> 90, 20 -> 150 (15 short + 5 long)',()=>{
+  assert.equal(freeMinsFor(5),35);assert.equal(freeMinsFor(8),60);assert.equal(freeMinsFor(12),90);assert.equal(freeMinsFor(20),150);
+});
+t('allowance: part of a pomodoro pays part of its break (4.5 -> 32.5 -> 33)',()=>assert.equal(freeMinsFor(4.5),33));
 t('allowance: undefined is safe',()=>assert.equal(freeMinsFor(undefined),30));
+t('allowance: follows the breaks set on the timer (10 short / 30 long / every 2nd)',()=>{
+  assert.equal(freeMinsFor(4,CUSTOM),80);      // 2 short + 2 long
+  assert.equal(freeMinsFor(3,CUSTOM),50);      // short 10, long 30, short 10
+});
+t('allowance: nonsense settings fall back to the defaults instead of breaking',()=>{
+  assert.equal(freeMinsFor(20,{brk:'x',longBrk:null,cycle:0}),150);
+  assert.equal(freeMinsFor(20,{brk:-5,longBrk:NaN,cycle:'4'}),150);
+});
 
 // ---- minutes logged
 t('minutes: details.minutes wins, count is the fallback, other rewards ignored',()=>{
@@ -40,38 +51,45 @@ t('budget: 45 of 30 -> blocked, 0 left',()=>{
   const b=computeBudget(today({penalties:mins(45)}),at);
   assert.equal(b.blocked,true);assert.equal(b.left,0);
 });
-t('budget: pomodoros unblock it (45 min used, 16 pomodoros = 60 allowed)',()=>{
+t('budget: pomodoros unblock it (45 min used, 16 pomodoros = 120 allowed)',()=>{
   const b=computeBudget(today({penalties:mins(45),pomodoros:16}),at);
-  assert.equal(b.blocked,false);assert.equal(b.allowed,60);assert.equal(b.left,15);
+  assert.equal(b.blocked,false);assert.equal(b.allowed,120);assert.equal(b.left,75);
 });
-t('budget: a pomodoro lands and the block lifts (30 used, 12 pomodoros -> 45)',()=>{
+t('budget: a pomodoro lands and the block lifts (30 used, 12 pomodoros -> 90)',()=>{
   assert.equal(computeBudget(today({penalties:mins(30),pomodoros:0}),at).blocked,true);
   assert.equal(computeBudget(today({penalties:mins(30),pomodoros:12}),at).blocked,false);
+});
+t("budget: the day's own break lengths (today._pomoCfg) are the ones used",()=>{
+  const b=computeBudget(today({penalties:mins(30),pomodoros:4,_pomoCfg:CUSTOM}),at);
+  assert.equal(b.allowed,80);assert.equal(b.blocked,false);
 });
 t('needPoms: 0 whenever nothing is blocking',()=>{
   assert.equal(computeBudget(today(),at).needPoms,0);
   assert.equal(computeBudget(today({penalties:mins(29)}),at).needPoms,0);
   assert.equal(pomsToUnblock(10,0),0);
 });
-t('needPoms: 30 of 30 with none done -> 9 (8 only reach 30, 9 reach 34)',()=>{
-  assert.equal(computeBudget(today({penalties:mins(30)}),at).needPoms,9);
+t('needPoms: 30 of 30 with none done -> 5 (4 only reach 30, 5 reach 35)',()=>{
+  assert.equal(computeBudget(today({penalties:mins(30)}),at).needPoms,5);
 });
-t('needPoms: counts what is MISSING, not the total (45 used, 4 done)',()=>{
-  // 45 used needs allowance 46+ => 3.75*p >= 45.5 => p >= 12.13 => 13 total; 4 done => 9 more
-  assert.equal(computeBudget(today({penalties:mins(45),pomodoros:4}),at).needPoms,9);
+t('needPoms: counts what is MISSING, not the total (45 used, 4 done -> 8 total -> 4 more)',()=>{
+  assert.equal(computeBudget(today({penalties:mins(45),pomodoros:4}),at).needPoms,4);
+});
+t('needPoms: follows the break settings (30 used, 0 done, custom: 2 reach 40)',()=>{
+  assert.equal(computeBudget(today({penalties:mins(30),_pomoCfg:CUSTOM}),at).needPoms,2);
 });
 t('needPoms: finishing exactly that many always lifts the block, and one fewer never does',()=>{
-  for(let used=30;used<=200;used++){
-    for(const have of [0,1,3,7,8,12]){
-      if(freeMinsFor(have)>used)continue;
-      const n=pomsToUnblock(used,have);
-      assert.ok(n>=1,'blocked => at least 1');
-      assert.ok(freeMinsFor(have+n)>used,'used '+used+' have '+have+' +'+n+' must lift');
-      assert.ok(freeMinsFor(have+n-1)<=used,'used '+used+' have '+have+' +'+(n-1)+' must not lift');
+  for(const cfg of [undefined,CUSTOM,{brk:3,longBrk:20,cycle:3}]){
+    for(let used=30;used<=300;used++){
+      for(const have of [0,1,3,7,8,12,20]){
+        if(freeMinsFor(have,cfg)>used)continue;
+        const n=pomsToUnblock(used,have,cfg);
+        assert.ok(n>=1,'blocked => at least 1');
+        assert.ok(freeMinsFor(have+n,cfg)>used,'used '+used+' have '+have+' +'+n+' must lift');
+        assert.ok(freeMinsFor(have+n-1,cfg)<=used,'used '+used+' have '+have+' +'+(n-1)+' must not lift');
+      }
     }
   }
-});
-t("budget: yesterday's record is a day with nothing on it",()=>{
+});t("budget: yesterday's record is a day with nothing on it",()=>{
   const b=computeBudget(today({_date:'2026-10-28',penalties:mins(99),pomodoros:20}),at);
   assert.equal(b.current,false);assert.equal(b.blocked,false);assert.equal(b.used,0);assert.equal(b.allowed,30);
 });

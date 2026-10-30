@@ -137,9 +137,9 @@ await t('reaching the allowance (30 of 30) blocks every listed site',async()=>{
   const st=await send({type:'check'});
   assert.equal(st.blocked,true);
   assert.ok(ids().includes('netflix.com')&&ids().includes('web.whatsapp.com'));
-  assert.equal(badge.text,'9');               // 30 min used, 0 pomodoros: 9 more lift it (34 min allowed)
+  assert.equal(badge.text,'5');               // 30 min used, 0 pomodoros: 5 more lift it (35 min of rest earned)
   assert.equal(badge.color,'#e5484d');
-  assert.match(badge.title,/faltan 9 pomodoros/);
+  assert.match(badge.title,/faltan 5 pomodoros/);
 });
 
 await t('tabs already open on a blocked site are sent to the blocked page, others left alone',async()=>{
@@ -152,14 +152,14 @@ await t('tabs already open on a blocked site are sent to the blocked page, other
   assert.equal(tabs.find(x=>x.id===5).url,'https://notnetflix.com/');
 });
 
-await t('a pomodoro-driven allowance lifts the block (12 pomodoros buy 45; 30 used -> 15 left)',async()=>{
+await t('a pomodoro-driven allowance lifts the block (12 pomodoros earn 90 min of rest; 30 used -> 60 left)',async()=>{
   cloud.today=mkToday({pomodoros:12,penalties:mins(30)});
   const st=await send({type:'check'});
-  assert.equal(st.blocked,false);assert.equal(rules.length,0);assert.equal(badge.text,'15');
+  assert.equal(st.blocked,false);assert.equal(rules.length,0);assert.equal(badge.text,'60');
 });
 
 await t('blocking again re-adds the rules (no duplicates of ids)',async()=>{
-  cloud.today=mkToday({pomodoros:12,penalties:mins(50)});
+  cloud.today=mkToday({pomodoros:12,penalties:mins(95)});
   await send({type:'check'});await send({type:'check'});
   assert.equal(new Set(rules.map(r=>r.id)).size,rules.length);
   assert.ok(rules.length>=9);
@@ -327,7 +327,7 @@ await t('measuring: it reaches the allowance and blocks, with nothing logged by 
 });
 
 await t('measuring: a pomodoro lifts it even though the measured time stays',async()=>{
-  cloud.today=mkToday({pomodoros:16,penalties:[]});        // 60 minutes allowed
+  cloud.today=mkToday({pomodoros:16,penalties:[]});        // 120 minutes allowed
   focus={focused:false,activeUrl:'',idle:'active'};
   const st=await send({type:'check'});
   assert.equal(st.blocked,false);assert.equal(rules.length,0);assert.ok(st.measured>=30);
