@@ -18,6 +18,9 @@ async function paint(){
     return;
   }
   m.append(el('div','big '+(st.blocked?'no':'ok'),st.blocked?'Bloqueado':fmtMin(st.left)+' libres'));
+  if(st.blocked&&st.needPoms)m.append(el('p','',st.needPoms===1
+    ?'🍅 Te falta 1 pomodoro para desbloquear.'
+    :'🍅 Te faltan '+st.needPoms+' pomodoros para desbloquear.'));
   const bar=el('div','bar'+(st.blocked?' over':''));
   const fill=document.createElement('i');
   fill.style.width=Math.min(100,Math.round(st.used/Math.max(1,st.allowed)*100))+'%';

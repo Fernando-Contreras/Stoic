@@ -207,10 +207,15 @@ function paintBadge(st){
   let text='',color='#555';
   if(st.reason==='login'){text='!';color='#d4a017';}
   else if(st.ok===false&&st.reason==='net'){text='?';color='#d4a017';}
-  else if(st.blocked){text='X';color='#e5484d';}
+  else if(st.blocked){text=st.needPoms?String(st.needPoms):'X';color='#e5484d';}   // pomodoros still needed
   else{text=String(st.left);color=st.left<=5?'#d4a017':'#2f9e44';}
   chrome.action.setBadgeText({text});
   chrome.action.setBadgeBackgroundColor({color});
+  let title='Stoic Block';
+  if(st.blocked&&st.needPoms)title+=' · te '+(st.needPoms===1?'falta 1 pomodoro':'faltan '+st.needPoms+' pomodoros')+' para desbloquear';
+  else if(st.blocked)title+=' · bloqueado';
+  else if(text&&!st.reason&&st.ok!==false)title+=' · '+st.left+' min libres';
+  try{chrome.action.setTitle({title});}catch(e){}
 }
 
 let busy=null;

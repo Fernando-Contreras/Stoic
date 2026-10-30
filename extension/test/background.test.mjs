@@ -32,7 +32,7 @@ globalThis.chrome={
     async query(q){return clone(q&&q.audible?tabs.filter(t=>t.audible):tabs);},
     async update(id,p){updates.push({id,...p});const t=tabs.find(x=>x.id===id);if(t&&p.url)t.url=p.url;}
   },
-  action:{setBadgeText:o=>{badge.text=o.text;},setBadgeBackgroundColor:o=>{badge.color=o.color;}},
+  action:{setBadgeText:o=>{badge.text=o.text;},setBadgeBackgroundColor:o=>{badge.color=o.color;},setTitle:o=>{badge.title=o.title;}},
   windows:{async getLastFocused(){return{focused:focus.focused,tabs:[{active:true,url:focus.activeUrl}]};},onFocusChanged:{addListener(){}}},
   idle:{async queryState(){return focus.idle;},setDetectionInterval(){},onStateChanged:{addListener(){}}}
 };
@@ -137,7 +137,9 @@ await t('reaching the allowance (30 of 30) blocks every listed site',async()=>{
   const st=await send({type:'check'});
   assert.equal(st.blocked,true);
   assert.ok(ids().includes('netflix.com')&&ids().includes('web.whatsapp.com'));
-  assert.equal(badge.text,'X');
+  assert.equal(badge.text,'9');               // 30 min used, 0 pomodoros: 9 more lift it (34 min allowed)
+  assert.equal(badge.color,'#e5484d');
+  assert.match(badge.title,/faltan 9 pomodoros/);
 });
 
 await t('tabs already open on a blocked site are sent to the blocked page, others left alone',async()=>{

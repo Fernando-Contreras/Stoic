@@ -1,6 +1,6 @@
 // Run:  node extension/test/logic.test.mjs
 import assert from 'node:assert/strict';
-import {freeMinsFor,penMinutes,computeBudget,measuredMinutes,siteOf,pickSite,advance,sumMeasured,MAX_GAP_SEC,normaliseSite,normaliseSites,hostBlocked,buildRules,DEFAULT_SITES,fmtMin} from '../logic.js';
+import {freeMinsFor,pomsToUnblock,penMinutes,computeBudget,measuredMinutes,siteOf,pickSite,advance,sumMeasured,MAX_GAP_SEC,normaliseSite,normaliseSites,hostBlocked,buildRules,DEFAULT_SITES,fmtMin} from '../logic.js';
 
 let n=0;
 const t=(name,fn)=>{fn();n++;console.log('  ok  '+name);};
@@ -47,6 +47,29 @@ t('budget: pomodoros unblock it (45 min used, 16 pomodoros = 60 allowed)',()=>{
 t('budget: a pomodoro lands and the block lifts (30 used, 12 pomodoros -> 45)',()=>{
   assert.equal(computeBudget(today({penalties:mins(30),pomodoros:0}),at).blocked,true);
   assert.equal(computeBudget(today({penalties:mins(30),pomodoros:12}),at).blocked,false);
+});
+t('needPoms: 0 whenever nothing is blocking',()=>{
+  assert.equal(computeBudget(today(),at).needPoms,0);
+  assert.equal(computeBudget(today({penalties:mins(29)}),at).needPoms,0);
+  assert.equal(pomsToUnblock(10,0),0);
+});
+t('needPoms: 30 of 30 with none done -> 9 (8 only reach 30, 9 reach 34)',()=>{
+  assert.equal(computeBudget(today({penalties:mins(30)}),at).needPoms,9);
+});
+t('needPoms: counts what is MISSING, not the total (45 used, 4 done)',()=>{
+  // 45 used needs allowance 46+ => 3.75*p >= 45.5 => p >= 12.13 => 13 total; 4 done => 9 more
+  assert.equal(computeBudget(today({penalties:mins(45),pomodoros:4}),at).needPoms,9);
+});
+t('needPoms: finishing exactly that many always lifts the block, and one fewer never does',()=>{
+  for(let used=30;used<=200;used++){
+    for(const have of [0,1,3,7,8,12]){
+      if(freeMinsFor(have)>used)continue;
+      const n=pomsToUnblock(used,have);
+      assert.ok(n>=1,'blocked => at least 1');
+      assert.ok(freeMinsFor(have+n)>used,'used '+used+' have '+have+' +'+n+' must lift');
+      assert.ok(freeMinsFor(have+n-1)<=used,'used '+used+' have '+have+' +'+(n-1)+' must not lift');
+    }
+  }
 });
 t("budget: yesterday's record is a day with nothing on it",()=>{
   const b=computeBudget(today({_date:'2026-10-28',penalties:mins(99),pomodoros:20}),at);

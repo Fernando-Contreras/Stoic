@@ -25,6 +25,18 @@ export function penMinutes(day,type,excludeExt){
     .reduce((s,p)=>s+((p.details&&p.details.minutes)||p.count||0),0);
 }
 
+/* How many MORE pomodoros it takes to get back under the allowance, given the
+   minutes already spent. Whole pomodoros, rounded up: finishing that many always
+   does it. Zero when nothing is blocking. The allowance is
+   round(30 * poms / 8) and the block lifts once it is strictly above `used`,
+   so the total needed is the smallest poms with 3.75 * poms >= used + 0.5. */
+export function pomsToUnblock(used,poms){
+  const u=Number(used)||0,have=Number(poms)||0;
+  if(freeMinsFor(have)>u)return 0;
+  const total=(u+0.5)*FREE_MINS_POMS/FREE_MINS_BASE;
+  return Math.max(1,Math.ceil(total-have-1e-9));
+}
+
 /* Whole minutes measured on the blocked sites, per site, less whatever the
    person has dismissed in the app (today._extAck: seconds already thrown away).
    Rounded DOWN per site, exactly as the app turns it into entries, so the two
@@ -74,7 +86,8 @@ export function computeBudget(today,now,measured){
     measured:meas,
     allowed,
     left:Math.max(0,allowed-used),
-    blocked:used>=allowed      // "equal or more", as it was asked
+    blocked:used>=allowed,     // "equal or more", as it was asked
+    needPoms:pomsToUnblock(used,poms)
   };
 }
 
