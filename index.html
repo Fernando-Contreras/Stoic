@@ -235,6 +235,21 @@ button{cursor:pointer;font-family:var(--ff);font-size:15px;font-weight:600;borde
 .ms-flag{font-size:88px;animation:msFlag 1.3s ease-in-out infinite;transform-origin:20% 90%}
 @keyframes msFlag{0%,100%{transform:rotate(-7deg)}50%{transform:rotate(7deg) translateY(-4px)}}
 @media(prefers-reduced-motion:reduce){.ms-card,.ms-ico,.ms-spark{animation:none}.ms-spark{display:none}}
+/* The tutorial: four dim panels around one lit hole, a ring on it, a hand, a bubble. The layer
+   itself ignores the pointer; only the panels and the bubble take it, so the lit part stays live. */
+.tut{position:fixed;inset:0;z-index:85;pointer-events:none}
+.tut-d{position:fixed;background:rgba(0,0,0,.66);pointer-events:auto}
+.tut-ring{position:fixed;border:2px solid var(--ac);border-radius:14px;pointer-events:none;box-shadow:0 0 0 4px var(--acd),0 0 22px var(--ac);animation:tutPulse 1.4s ease-in-out infinite}
+.tut-hand{position:fixed;font-size:30px;line-height:1;pointer-events:none;filter:drop-shadow(0 2px 4px rgba(0,0,0,.5))}
+.tut-hand.up{animation:tutUp 1s ease-in-out infinite}
+.tut-hand.dn{animation:tutDn 1s ease-in-out infinite}
+.tut-bub{position:fixed;pointer-events:auto;background:var(--sur3);color:var(--t1);border:1px solid var(--acb);border-radius:14px;padding:14px 16px;box-shadow:0 10px 30px rgba(0,0,0,.5)}
+.tut-tx{font-size:14px;line-height:1.45;white-space:pre-line}
+.tut-bt{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;margin-top:12px}
+@keyframes tutPulse{50%{box-shadow:0 0 0 8px transparent,0 0 30px var(--ac)}}
+@keyframes tutUp{50%{transform:translateY(-8px)}}
+@keyframes tutDn{50%{transform:translateY(8px)}}
+@media(prefers-reduced-motion:reduce){.tut-ring,.tut-hand{animation:none}}
 
 /* ── PENALTY ITEM ── */
 .pen-it{background:var(--sur2);border:1px solid var(--ngb);border-radius:8px;padding:9px 12px;display:flex;align-items:center;justify-content:space-between;gap:8px}
@@ -806,6 +821,234 @@ function applyFeatureGates(root){
   if(onboardStage()>=99)return;     // nothing is locked: leave the page alone
   root.querySelectorAll('[data-feat]').forEach(e=>{if(!featureOn(e.dataset.feat))e.remove();});
 }
+
+/* ── THE TUTORIAL ────────────────────────────────────────────────────────────
+   A light on the one thing to press, a hand pointing at it, and a short bubble
+   that moves on by itself once the person has really done it. Nothing here
+   reaches into the app: it only LOOKS at the page (a target is found by a
+   data-tut tag) and at the data (did a task appear, is it done), so a step is
+   finished by what happened, not by a button that says it did. That also makes
+   it forgiving: close the form halfway and the step before comes back, since
+   the first step not yet true is always the one shown.
+
+   Two kinds of run. A real one belongs to a new account: it walks the stage the
+   account is at, and remembers that it finished (planner.onboard.done) so the
+   next stage can arrive the day after. A replay — from the bottom of the page
+   or the debug panel — walks the same steps for anyone, saves nothing, and
+   locks and unlocks nothing. Only ever the first kind while ONBOARDING_PUBLIC
+   is off, and only by hand. */
+const TUT_STAGES={
+  1:[
+    {id:'hi',     manual:true, btn:'tut-start', text:'tut1-hi',     done:c=>!!c.mine()},
+    {id:'plus',   target:'[data-tut="add"]',       text:'tut1-plus',   done:c=>STATE.showAddForm||!!c.mine()},
+    {id:'type',   target:'[data-tut="add-panel"]', text:'tut1-type',   done:c=>!!c.mine()},
+    {id:'colour', target:'[data-tut="day-card"]',  text:'tut1-colour', manual:true, done:c=>c.mineDone()},
+    {id:'tick',   target:c=>{const m=c.mine();return m&&document.querySelector('[data-tut-rem="'+m.id+'"]');},
+                                                    text:'tut1-tick',   done:c=>c.mineDone()},
+    {id:'end',    target:'[data-tut="day-card"]',  text:'tut1-end',    manual:true, btn:'tut-finish'}
+  ]
+};
+const TUT={run:null,timer:null,L:null};
+
+// The tasks the person has made since the run began (a replay ignores the ones that were already there).
+function tutCtx(run){
+  const mine=()=>reminders().find(r=>!r.parent&&!run.known.has(r.id));
+  return{mine,mineDone:()=>{const m=mine();return !!m&&(!!m.done||m.completedOn===todayKey());}};
+}
+function tutDone(run,s){return !!(run.ack[s.id]||(s.done&&s.done(run.ctx)));}
+function tutToast(msg){
+  const toast=document.createElement('div');
+  toast.textContent=msg;
+  toast.style.cssText='position:fixed;left:50%;bottom:90px;transform:translateX(-50%);z-index:95;background:var(--sur3);color:var(--t1);border:1px solid var(--acb);border-radius:99px;padding:10px 18px;font-weight:700;box-shadow:0 6px 22px rgba(0,0,0,.4);max-width:90vw;text-align:center';
+  document.body.appendChild(toast);
+  setTimeout(()=>toast.remove(),3200);
+}
+function tutBuild(){
+  const L=document.createElement('div');L.className='tut';
+  const mk=(cls,txt)=>{const e=document.createElement('div');e.className=cls;if(txt)e.textContent=txt;L.appendChild(e);return e;};
+  L.dim=[mk('tut-d'),mk('tut-d'),mk('tut-d'),mk('tut-d')];
+  L.ring=mk('tut-ring');
+  L.hand=mk('tut-hand');
+  L.bub=mk('tut-bub');
+  document.body.appendChild(L);
+  TUT.L=L;
+}
+function tutStart(stages,opts){
+  opts=opts||{};
+  tutStop();
+  const steps=[];
+  stages.forEach(n=>(TUT_STAGES[n]||[]).forEach(s=>steps.push({...s,stage:n})));
+  if(!steps.length)return false;
+  const run=TUT.run={stages,steps,replay:!!opts.replay,ack:{},skipping:false,shown:'',scrolledFor:'',
+    known:new Set(opts.replay?reminders().map(r=>r.id):[])};
+  run.ctx=tutCtx(run);
+  tutBuild();
+  TUT.timer=setInterval(tutTick,250);
+  window.addEventListener('resize',tutTick);
+  window.addEventListener('scroll',tutTick,true);
+  tutTick();
+  return true;
+}
+function tutStop(){
+  if(TUT.timer)clearInterval(TUT.timer);
+  TUT.timer=null;TUT.run=null;
+  window.removeEventListener('resize',tutTick);
+  window.removeEventListener('scroll',tutTick,true);
+  if(TUT.L){TUT.L.remove();TUT.L=null;}
+}
+function tutSaveOnboard(){try{S.set(K.PLANNER,STATE.planner);}catch(e){}}   // not stamped: see seedStarterTags
+function tutMarkDone(stages){
+  const o=STATE.planner&&STATE.planner.onboard;if(!o)return;
+  o.done=o.done||{};
+  stages.forEach(n=>{o.done[n]=todayKey();});
+  tutSaveOnboard();
+}
+function tutFinish(){
+  const run=TUT.run;if(!run)return;
+  const replay=run.replay;
+  if(!replay)tutMarkDone(run.stages);
+  tutStop();
+  tutToast(t(replay?'tut-done-replay':'tut-done-real'));
+  render();
+}
+// "Skip" on a real run asks what was meant: skip just this, or turn the whole thing off.
+function tutSkipPart(){
+  const run=TUT.run;if(!run)return;
+  const upto=(tutActive(run)||{}).stage||run.stages[run.stages.length-1];
+  tutMarkDone(run.stages.filter(n=>n<=upto));
+  tutStop();render();
+}
+function tutSkipAll(){
+  const o=STATE.planner&&STATE.planner.onboard;
+  if(o){o.stage='all';o.on=false;tutSaveOnboard();}
+  tutStop();render();
+}
+function tutActive(run){return run.steps.find(s=>!tutDone(run,s));}
+
+function tutPaint(step){
+  const run=TUT.run,b=TUT.L.bub;
+  b.replaceChildren();
+  const tx=document.createElement('div');tx.className='tut-tx';
+  const row=document.createElement('div');row.className='tut-bt';
+  const btn=(cls,label,fn)=>{const x=document.createElement('button');x.className=cls;x.textContent=label;x.onclick=fn;row.appendChild(x);};
+  if(run.skipping){
+    tx.textContent=t('tut-skip-q');
+    btn('btn-ac btn-sm',t('tut-skip-part'),tutSkipPart);
+    btn('btn-ghost btn-sm',t('tut-skip-all'),tutSkipAll);
+    btn('btn-ghost btn-sm',t('tut-back'),()=>{run.skipping=false;run.shown='';tutTick();});
+  }else{
+    tx.textContent=t(step.text)+(run.replay&&step.id==='hi'?'\n\n'+t('tut-replay-note'):'');
+    btn('btn-ghost btn-sm',t('tut-skip'),()=>{
+      if(run.replay){tutStop();return;}
+      run.skipping=true;run.shown='';tutTick();
+    });
+    if(step.manual)btn('btn-ac btn-sm',t(step.btn||'tut-next'),()=>{
+      run.ack[step.id]=true;
+      if(!tutActive(run))tutFinish();else tutTick();
+    });
+  }
+  b.appendChild(tx);b.appendChild(row);
+}
+
+function tutTick(){
+  const run=TUT.run,L=TUT.L;if(!run||!L)return;
+  // Out of the way of whatever else has the screen: a medal, the login, a recovery.
+  if(!STATE.authed||STATE.recovery||document.querySelector('.ms-ov')){L.style.display='none';return;}
+  const step=tutActive(run);
+  if(!step){tutFinish();return;}
+  L.style.display='';
+  const key=step.id+'|'+STATE.lang+'|'+run.skipping;
+  if(run.shown!==key){run.shown=key;tutPaint(step);}
+
+  const vw=window.innerWidth,vh=window.innerHeight;
+  const el=step.target?(typeof step.target==='function'?step.target(run.ctx):document.querySelector(step.target)):null;
+  const [dT,dL,dR,dB]=L.dim;
+  const box=(e,l,t_,w,h)=>{
+    e.style.display=(w<=0||h<=0)?'none':'';
+    e.style.left=l+'px';e.style.top=t_+'px';e.style.width=Math.max(0,w)+'px';e.style.height=Math.max(0,h)+'px';
+  };
+  const bub=L.bub;
+  const bw=Math.min(320,vw-24);bub.style.width=bw+'px';
+  const bh=bub.offsetHeight;
+  const place=(left,top)=>{bub.style.left=Math.round(Math.max(12,Math.min(left,vw-bw-12)))+'px';bub.style.top=Math.round(Math.max(8,Math.min(top,vh-bh-8)))+'px';};
+
+  if(!el){
+    L.ring.style.display='none';L.hand.style.display='none';
+    if(step.target){
+      // The thing to point at is not on screen (yet). Say so softly, without blocking anything.
+      [dT,dL,dR,dB].forEach(d=>{d.style.display='none';});
+      place((vw-bw)/2,vh-bh-16);
+    }else{
+      box(dT,0,0,vw,vh);[dL,dR,dB].forEach(d=>{d.style.display='none';});
+      place((vw-bw)/2,(vh-bh)/2);
+    }
+    return;
+  }
+  let r=el.getBoundingClientRect();
+  if((r.top<0||r.bottom>vh)&&run.scrolledFor!==step.id){
+    run.scrolledFor=step.id;
+    el.scrollIntoView({block:(r.height>vh*.6?'start':'center'),behavior:'smooth'});
+    r=el.getBoundingClientRect();
+  }
+  const h={l:Math.max(4,r.left-8),t:Math.max(4,r.top-8),r:Math.min(vw-4,r.right+8),b:Math.min(vh-4,r.bottom+8)};
+  box(dT,0,0,vw,h.t);
+  box(dB,0,h.b,vw,vh-h.b);
+  box(dL,0,h.t,h.l,h.b-h.t);
+  box(dR,h.r,h.t,vw-h.r,h.b-h.t);
+  const ring=L.ring;ring.style.display='';
+  ring.style.left=h.l+'px';ring.style.top=h.t+'px';ring.style.width=(h.r-h.l)+'px';ring.style.height=(h.b-h.t)+'px';
+  const cx=(h.l+h.r)/2;
+  const need=bh+54;
+  const hand=L.hand;
+  if(vh-h.b>=need){                       // below: the hand points up at it
+    hand.style.display='';hand.textContent='👆';hand.className='tut-hand up';
+    hand.style.left=Math.round(Math.max(8,Math.min(cx-15,vw-40)))+'px';hand.style.top=(h.b+4)+'px';
+    place(cx-bw/2,h.b+46);
+  }else if(h.t>=need){                    // above: pointing down
+    hand.style.display='';hand.textContent='👇';hand.className='tut-hand dn';
+    hand.style.left=Math.round(Math.max(8,Math.min(cx-15,vw-40)))+'px';hand.style.top=(h.t-40)+'px';
+    place(cx-bw/2,h.t-46-bh);
+  }else{                                  // no room either way: the bubble takes the emptier end of the screen
+    hand.style.display='none';
+    place((vw-bw)/2,(h.t+h.b)/2>vh/2?12:vh-bh-12);
+  }
+}
+
+/* A brand-new account, signed in or not, starts at stage 1 — decided once, and
+   written without stamping the planner for the reason given at seedStarterTags.
+   The author's own account is never put there. */
+function seedOnboarding(){
+  const P=STATE.planner;
+  if(!ONBOARDING_PUBLIC||!P||P.onboardSeeded||!STATE.authed)return;
+  const cloud=SB.init();
+  if(cloud&&!SB.pulledOk)return;
+  const brandNew=!reminders().length&&!STATE.history.some(d=>!d._gap)&&(!cloud||SB.lastSavedAt===null);
+  P.onboardSeeded=true;
+  if(brandNew&&!P.onboard&&!DEBUG_EMAILS.includes(jwtEmail()))P.onboard={stage:1,on:true,done:{}};
+  S.set(K.PLANNER,P);
+}
+// Run every few seconds: begins the stage an account is at, and moves it on the day after one is finished.
+function tutMaybeStart(){
+  if(TUT.run||!STATE.authed||!STATE.planner)return;
+  seedOnboarding();
+  const o=STATE.planner.onboard;
+  if(!ONBOARDING_PUBLIC||!o||o.on===false||o.stage==='all')return;
+  const tk=todayKey();
+  let st=parseInt(o.stage)||1;
+  o.done=o.done||{};
+  if(o.done[st]){
+    if(o.done[st]<tk&&TUT_STAGES[st+1]){o.stage=st+1;st=st+1;tutSaveOnboard();render();}
+    else return;
+  }
+  if(TUT_STAGES[st])tutStart([st],{});
+}
+// The same steps again, for anyone: up to the stage they are at, saving nothing.
+function tutReplay(){
+  const top=onboardStage();
+  const stages=Object.keys(TUT_STAGES).map(Number).filter(n=>n<=top).sort((a,b)=>a-b);
+  tutStart(stages.length?stages:[1],{replay:true});
+}
+setInterval(tutMaybeStart,3000);
 
 /* What leaving takes with it: this app's own keys and nothing else. The address
    this page lives at is shared with the author's other small apps, whose keys
@@ -1421,6 +1664,7 @@ en:{
   'daily-tracker':'daily habit tracker · by JuanFer',
   'tab-plan':'Plan','tab-score':'Score','made-by':'Stoic · Made by JuanFer',
   'rem-title':'Reminders','rem-new':'New reminder','rem-what':'What needs doing?',
+  'tut-start':'Start','tut-next':'Next','tut-finish':'Done!','tut-skip':'Skip','tut-skip-q':'What would you like?','tut-skip-part':'Skip this; carry on tomorrow','tut-skip-all':'I already know Stoic: show everything','tut-back':'Back to the tutorial','tut-replay':'Watch the tutorial','tut-replay-note':'This is a replay: nothing gets locked or unlocked.','tut-done-real':'Nice. Tomorrow I will show you what comes next.','tut-done-replay':'Done. Watch it again whenever you like.','tut1-hi':'Welcome to Stoic 🏛️\nYour day is measured by a short list of tasks and a colour. In one minute you will see it for yourself.','tut1-plus':'Tap the ＋ to create your first task.','tut1-type':'Write something you want to do today, for example "Make the bed", and tap "Add".','tut1-colour':'This is your day. It is red because you have not done anything yet. Your goal each day is to get it out of the red.','tut1-tick':'When you finish your task, tick it here.','tut1-end':'See that? Getting out of the red lights a candle 🕯️. Every day that does not end in red counts.',
   'rem-add':'+ Add reminder','rem-need-title':'Give it a name first',
   'rem-discard':'Close without adding this one? What you typed will be lost.',
   'rem-prio':'Quadrant','rem-flag':'Goal of the day','rem-every':'Every',
@@ -1704,6 +1948,7 @@ es:{
   'daily-tracker':'rastreador diario · por JuanFer',
   'tab-plan':'Plan','tab-score':'Puntaje','made-by':'Stoic · Hecho por JuanFer',
   'rem-title':'Recordatorios','rem-new':'Nuevo recordatorio','rem-what':'¿Qué hay que hacer?',
+  'tut-start':'Empezar','tut-next':'Siguiente','tut-finish':'¡Listo!','tut-skip':'Saltar','tut-skip-q':'¿Qué prefieres?','tut-skip-part':'Saltar esto; mañana sigo con lo que toca','tut-skip-all':'Ya sé usar Stoic: mostrar todo','tut-back':'Volver al tutorial','tut-replay':'Ver el tutorial','tut-replay-note':'Esto es un repaso: no se bloquea ni se desbloquea nada.','tut-done-real':'Muy bien. Mañana te enseño lo que sigue.','tut-done-replay':'Listo. Cuando quieras lo ves otra vez.','tut1-hi':'Bienvenido a Stoic 🏛️\nTu día se mide con una lista corta de tareas y un color. En un minuto lo ves tú mismo.','tut1-plus':'Toca el ＋ para crear tu primera tarea.','tut1-type':'Escribe algo que quieras hacer hoy, por ejemplo «Tender la cama», y toca «Agregar».','tut1-colour':'Este es tu día. Está en rojo porque aún no has hecho nada. Tu meta de cada día es sacarlo del rojo.','tut1-tick':'Cuando termines tu tarea, márcala aquí.','tut1-end':'¿Viste? Al salir del rojo se prende una vela 🕯️. Cada día que no termina en rojo cuenta.',
   'rem-add':'+ Agregar recordatorio','rem-need-title':'Ponle nombre primero',
   'rem-discard':'¿Cerrar sin agregarlo? Se pierde lo que escribiste.',
   'rem-prio':'Cuadrante','rem-flag':'Meta del día','rem-every':'Cada',
@@ -4532,7 +4777,7 @@ function renderPlanner(){
   const dayStatus=CALC.status(dayPct,STATE.today.flagCompleted||false);
 
   const top=dv('g2 mb12');
-  const sum=dv('card');
+  const sum=dv('card');sum.dataset.tut='day-card';
   const sr=dv('rowb');
   sr.appendChild(sp('ctit',t('rem-title')));
   // The badge carries the day's colour on its own. Tinting the count and the
@@ -5024,7 +5269,7 @@ function renderPlanner(){
   /* The + stays a +. It used to turn into an ✕ while the form was unfolded,
      one row above a list where every ✕ deletes a task — the same mark meaning
      "close this" and "throw this away" within a thumb's width of each other. */
-  const addBtn=bt('btn-ac btn-sm','＋',()=>openAddForm());
+  const addBtn=bt('btn-ac btn-sm','＋',()=>openAddForm());addBtn.dataset.tut='add';
   addBtn.title=t('rem-new');
   h.appendChild(addBtn);
   card.appendChild(h);
@@ -6597,7 +6842,7 @@ function remChip(r,tk,redraw,peeking){
     }else{
       /* Ticking a task off is the thing you do most, so it is here too. The
          box takes the press; anywhere else on the name opens it in full. */
-      const cb=ip('checkbox','');cb.checked=doneToday;
+      const cb=ip('checkbox','');cb.checked=doneToday;cb.dataset.tutRem=r.id;
       cb.style.cssText='margin:0;flex:0 0 auto';
       cb.onclick=e=>e.stopPropagation();
       // Same rule as the list: only when the chip is actually leaving the grid.
@@ -7063,7 +7308,7 @@ function renderReminderRow(r,tk,opts){
     row.appendChild(sel);
     if(isSelected(r.id)){row.style.borderColor='var(--ac)';row.style.background='var(--acd)';}
   }else{
-    const cb=ip('checkbox','');cb.checked=doneToday;cb.style.marginTop='3px';
+    const cb=ip('checkbox','');cb.checked=doneToday;cb.style.marginTop='3px';cb.dataset.tutRem=r.id;
     /* Animated only when the row is genuinely about to go. A repeating task
        under All keeps its place with the date of its next turn, the one-task
        window deliberately keeps what is already done, and putting one back is
@@ -7431,7 +7676,7 @@ function renderAddModal(){
   const ov=dv('fi');
   ov.classList.add('ovl');
   closeOnBackdrop(ov,closeAddForm);
-  const panel=dv('card');
+  const panel=dv('card');panel.dataset.tut='add-panel';
   panel.style.cssText='max-width:560px;width:100%;margin:auto';
   ov.appendChild(panel);
   const hd=dv('rowb mb10');
@@ -7629,6 +7874,7 @@ function render(){
   if(STATE.tab==='score'&&!featureOn('tabScore'))STATE.tab='plan';
   root.appendChild(renderApp());
   applyFeatureGates(root);
+  tutTick();
   checkMilestone();
   checkDayFlame();
   syncPomoPill();
@@ -8279,6 +8525,14 @@ function renderDebugModal(){
   const locked=Object.keys(FEATURE_STAGE).filter(k=>!featureOn(k));
   if(locked.length)panel.appendChild(dv('xs dimmer mt8','Escondido ahora: '+locked.join(', ')));
 
+  // The tutorial, as a replay: nothing is saved, nothing locks or unlocks.
+  panel.appendChild(dv('xs dimmer up ls mt12 mb6','Tutorial (repaso, no guarda nada)'));
+  const tu=dv('row gap6');tu.style.flexWrap='wrap';
+  const stagesWithSteps=Object.keys(TUT_STAGES).map(Number).sort((a,b)=>a-b);
+  stagesWithSteps.forEach(n=>tu.appendChild(bt('btn-ghost btn-sm','▶ Etapa '+n,()=>{close();setTimeout(()=>tutStart([n],{replay:true}),250);})));
+  if(stagesWithSteps.length>1)tu.appendChild(bt('btn-ghost btn-sm','▶ Todo seguido',()=>{close();setTimeout(()=>tutStart(stagesWithSteps,{replay:true}),250);}));
+  panel.appendChild(tu);
+
   panel.appendChild(dv('xs dimmer up ls mt12 mb6','Animaciones'));
   const an=dv('row gap6');an.style.flexWrap='wrap';
   const play=(fn)=>()=>{close();setTimeout(fn,250);};
@@ -8645,6 +8899,8 @@ function renderApp(){
   }));
 
   bottomWrap.appendChild(dv('xs dimmer ctr',t('backup-note')));
+  // Until the tutorial is public, only the author sees the way into it.
+  if(ONBOARDING_PUBLIC||debugAllowed())bottomWrap.appendChild(bt('btn-ghost btn-sm','🎓 '+t('tut-replay'),tutReplay));
 
   if(hasSession()){
     bottomWrap.appendChild(bt('btn-ghost btn-sm',t('logout'),signOut));
