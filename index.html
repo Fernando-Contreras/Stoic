@@ -840,13 +840,16 @@ function applyFeatureGates(root){
 
    Two kinds of run. A real one belongs to a new account: it walks the stage the
    account is at, and remembers that it finished (planner.onboard.done) so the
-   next stage can arrive the day after. A replay — from the bottom of the page
+   next one can follow straight on. A replay — from the bottom of the page
    or the debug panel — walks the same steps for anyone, saves nothing, and
    locks and unlocks nothing. Only ever the first kind while ONBOARDING_PUBLIC
-   is off, and only by hand. */
+   is off, and only by hand.
+
+   The stages run one after the other, in one sitting: each ends by unlocking the
+   next and walking it. Leaving halfway is fine, the next visit picks up there. */
 const TUT_STAGES={
   1:[
-    {id:'hi',     manual:true, btn:'tut-start', text:'tut1-hi',     done:c=>!!c.mine()},
+    {id:'hi',     manual:true, btn:'tut-start', lang:true, text:'tut1-hi', done:c=>!!c.mine()},
     {id:'plus',   target:'[data-tut="add"]',       text:'tut1-plus',   done:c=>STATE.showAddForm||!!c.mine()},
     // The whole form, or just its title box when the form is taller than what is
     // visible (a phone with the keyboard up). Soft: nothing in the form is blocked,
@@ -861,12 +864,12 @@ const TUT_STAGES={
     {id:'colour', target:'[data-tut="day-card"]',  text:'tut1-colour', manual:true, done:c=>c.mineDone()},
     {id:'tick',   target:c=>{const m=c.mine();return m&&document.querySelector('[data-tut-rem="'+m.id+'"]');},
                                                     text:'tut1-tick',   done:c=>c.mineDone()},
-    {id:'end',    target:'[data-tut="day-card"]',  text:'tut1-end',    manual:true, btn:'tut-finish'}
+    {id:'end',    target:'[data-tut="day-card"]',  text:'tut1-end',    manual:true}
   ],
-  // Day 2: the points and the streak in Score, then the colours and the timer back in
+  // The points and the streak in Score, then the colours and the timer back in
   // the plan. Score first, since that is the tab the app opens on once it is unlocked.
   2:[
-    {id:'hi2',     manual:true, btn:'tut-start',        text:'tut2-hi'},
+    {id:'hi2',     manual:true,                         text:'tut2-hi'},
     {id:'toScore', target:'[data-tut="tab-score"]',     text:'tut2-tab',     latch:true, done:()=>STATE.tab==='score'},
     {id:'points',  target:'[data-tut="score-card"]',    text:'tut2-points',  manual:true},
     {id:'streak',  target:'[data-tut="streaks"]',       text:'tut2-streak',  manual:true},
@@ -874,11 +877,11 @@ const TUT_STAGES={
     {id:'colours', target:'[data-tut="day-card"]',      text:'tut2-colours', manual:true},
     // Pressing ▶ moves it on; so does "Next", for someone who does not want one right now.
     {id:'pomo',    target:'[data-tut="pomo-start"]',    text:'tut2-pomo',    manual:true, latch:true, done:()=>!!(STATE.pomo&&STATE.pomo.running)},
-    {id:'end2',    target:'[data-tut="pomo-card"]',     text:'tut2-end',     manual:true, btn:'tut-finish'}
+    {id:'end2',    target:'[data-tut="pomo-card"]',     text:'tut2-end',     manual:true}
   ],
-  // Day 3: the day's flags, and the long goals.
+  // The day's flags, and the long goals.
   3:[
-    {id:'hi3',     manual:true, btn:'tut-start',        text:'tut3-hi'},
+    {id:'hi3',     manual:true,                         text:'tut3-hi'},
     {id:'plus3',   target:'[data-tut="add"]',           text:'tut3-plus',    done:c=>STATE.showAddForm||!!c.mineFlag()},
     // Soft, like the first day's: the title and "Add" have to stay usable around the light.
     {id:'flag',    target:'[data-tut="add-flag"]',      soft:true,
@@ -887,9 +890,9 @@ const TUT_STAGES={
     {id:'goals',   target:'[data-tut="goal-tiles"]',    text:'tut3-goals',   done:c=>STATE.showGoals||!!c.mineGoal()},
     {id:'goalAdd', target:'[data-tut="goals-panel"]',   soft:true,
                                                         text:'tut3-goaladd', manual:true, done:c=>!!c.mineGoal()},
-    {id:'end3',    manual:true, btn:'tut-finish',       text:'tut3-end'}
+    {id:'end3',    manual:true,                         text:'tut3-end'}
   ],
-  // Day 4: nothing more to teach by hand — just what has appeared.
+  // Nothing more to teach by hand — just what has appeared.
   4:[
     {id:'hi4',     manual:true, btn:'tut-finish',       text:'tut4-hi'}
   ]
@@ -972,8 +975,10 @@ function tutFinish(){
   if(!replay)tutMarkDone(run.stages);
   tutStop();
   const last=!TUT_STAGES[Math.max(...run.stages)+1];
-  tutToast(t(replay?'tut-done-replay':(last?'tut-done-last':'tut-done-real')));
+  if(replay||last)tutToast(t(replay?'tut-done-replay':'tut-done-last'));
+  STATE.showGoals=false;      // the last stage's panel, so what comes next is not behind it
   render();
+  if(!replay)tutMaybeStart();
 }
 // "Skip" on a real run asks what was meant: skip just this, or turn the whole thing off.
 function tutSkipPart(){
@@ -981,6 +986,7 @@ function tutSkipPart(){
   const upto=(tutActive(run)||{}).stage||run.stages[run.stages.length-1];
   tutMarkDone(run.stages.filter(n=>n<=upto));
   tutStop();render();
+  tutMaybeStart();
 }
 function tutSkipAll(){
   const o=STATE.planner&&STATE.planner.onboard;
@@ -1006,6 +1012,9 @@ function tutPaint(step){
       if(run.replay){tutStop();return;}
       run.skipping=true;run.shown='';tutTick();
     });
+    // The first thing a new person reads has to be able to change language: the header's
+    // button is behind the layer. tutTick repaints this bubble when the language changes.
+    if(step.lang)btn('btn-ghost btn-sm',t('lang-btn'),toggleLang);
     if(step.manual)btn('btn-ac btn-sm',t(step.btn||'tut-next'),()=>{
       run.ack[step.id]=true;
       if(!tutActive(run))tutFinish();else tutTick();
@@ -1104,17 +1113,18 @@ function seedOnboarding(){
   if(brandNew&&!P.onboard&&!DEBUG_EMAILS.includes(jwtEmail()))P.onboard={stage:1,on:true,done:{}};
   S.set(K.PLANNER,P);
 }
-// Run every few seconds: begins the stage an account is at, and moves it on the day after one is finished.
+// Run every few seconds, and when a stage ends: begins the stage an account is at, or the next one once it is finished.
 function tutMaybeStart(){
   if(TUT.run||!STATE.authed||!STATE.planner)return;
+  const had=!!STATE.planner.onboard;
   seedOnboarding();
   const o=STATE.planner.onboard;
+  if(o&&!had)render();      // what was drawn before this has everything unlocked
   if(!ONBOARDING_PUBLIC||!o||o.on===false||o.stage==='all')return;
-  const tk=todayKey();
   let st=parseInt(o.stage)||1;
   o.done=o.done||{};
   if(o.done[st]){
-    if(o.done[st]<tk&&TUT_STAGES[st+1]){o.stage=st+1;st=st+1;tutSaveOnboard();render();}
+    if(TUT_STAGES[st+1]){o.stage=st+1;st=st+1;tutSaveOnboard();render();}
     else return;
   }
   if(TUT_STAGES[st])tutStart([st],{});
@@ -1125,7 +1135,7 @@ function tutReplay(){
   const stages=Object.keys(TUT_STAGES).map(Number).filter(n=>n<=top).sort((a,b)=>a-b);
   tutStart(stages.length?stages:[1],{replay:true});
 }
-setInterval(tutMaybeStart,3000);
+setInterval(tutMaybeStart,1000);
 
 /* What leaving takes with it: this app's own keys and nothing else. The address
    this page lives at is shared with the author's other small apps, whose keys
@@ -1741,9 +1751,8 @@ en:{
   'daily-tracker':'daily habit tracker · by JuanFer',
   'tab-plan':'Plan','tab-score':'Score','made-by':'Stoic · Made by JuanFer',
   'rem-title':'Reminders','rem-new':'New reminder','rem-what':'What needs doing?',
-  'tut-start':'Start','tut-next':'Next','tut-finish':'Done!','tut-skip':'Skip','tut-skip-q':'What would you like?','tut-skip-part':'Skip this; carry on tomorrow','tut-skip-all':'I already know Stoic: show everything','tut-back':'Back to the tutorial','tut-replay':'Watch the tutorial','tut-replay-note':'This is a replay: nothing gets locked or unlocked.','tut-done-real':'Nice. Tomorrow I will show you what comes next.',
-  'tut-done-last':'That is all of Stoic. Now it is yours 🏛️',
-  'tut2-hi':'You came back 🕯️\nToday, two things: your streak and the timer.',
+  'tut-start':'Start','tut-next':'Next','tut-finish':'Done!','tut-skip':'Skip','tut-skip-q':'What would you like?','tut-skip-part':'Skip this part','tut-skip-all':'I already know Stoic: show everything','tut-back':'Back to the tutorial','tut-replay':'Watch the tutorial','tut-replay-note':'This is a replay: nothing gets locked or unlocked.','tut-done-last':'That is all of Stoic. Now it is yours 🏛️',
+  'tut2-hi':'Let us go on 🕯️\nTwo more things: your streak and the timer.',
   'tut2-colours':'Your day has four colours: 🔴 less than half your tasks, 🟡 half, 🟢 85%, 🟣 all of them. The higher the colour, the more points.',
   'tut2-tab':'Open Score to see your points.',
   'tut2-points':'These are your points. Every task, the day\'s colour and every pomodoro add up here.',
@@ -1752,13 +1761,13 @@ en:{
   'tut2-back':'Now go back to your tasks.',
   'tut2-pomo':'This is the pomodoro: 25 minutes of focus, then a break. Tap ▶ to start one.',
   'tut2-end':'Every pomodoro you finish adds points. Work while it runs, and rest when it rings.',
-  'tut3-hi':'Day 3: what matters most 🏁\nGoals of the day for your key tasks, and long goals for the weeks ahead.',
+  'tut3-hi':'Now, what matters most 🏁\nGoals of the day for your key tasks, and long goals for the weeks ahead.',
   'tut3-plus':'Tap the ＋ to create a task that really matters today.',
   'tut3-flag':'Write it, turn on 🏁 Goal of the day here, and tap "Add".',
   'tut3-flagday':'Your goals of the day show up here. Finish all of them and your colour goes up one step (red becomes yellow, yellow becomes green…).',
   'tut3-goals':'These are your long goals: for the week 📅, the quarter 📈 and the year 🏆. Tap one.',
   'tut3-goaladd':'Write a goal for this week and add it. The sooner you reach it, the more points it is worth.',
-  'tut3-end':'Done: goals for the day and goals for the long run. Tomorrow you get everything else.',
+  'tut3-end':'Done: goals for the day and goals for the long run. One last thing.',
   'tut4-hi':'You have all of Stoic now 🎉\nThe day calendar, the stopwatch, sleep, work, rewards, the diary and the charts. Explore them at your pace: most of it is in Score.','tut-done-replay':'Done. Watch it again whenever you like.','tut1-hi':'Welcome to Stoic 🏛️\nYour day is measured by a short list of tasks and a colour. In one minute you will see it for yourself.','tut1-plus':'Tap the ＋ to create your first task.','tut1-type':'Write something you want to do today, for example "Make the bed", and tap "Add" (or Enter on the keyboard).','tut1-colour':'This is your day. It is red because you have not done anything yet. Your goal each day is to get it out of the red.','tut1-tick':'When you finish your task, tick it here.','tut1-end':'See that? Getting out of the red lights a candle 🕯️. Every day that does not end in red counts.',
   'rem-add':'+ Add reminder','rem-need-title':'Give it a name first',
   'rem-discard':'Close without adding this one? What you typed will be lost.',
@@ -2043,9 +2052,8 @@ es:{
   'daily-tracker':'rastreador diario · por JuanFer',
   'tab-plan':'Plan','tab-score':'Puntaje','made-by':'Stoic · Hecho por JuanFer',
   'rem-title':'Recordatorios','rem-new':'Nuevo recordatorio','rem-what':'¿Qué hay que hacer?',
-  'tut-start':'Empezar','tut-next':'Siguiente','tut-finish':'¡Listo!','tut-skip':'Saltar','tut-skip-q':'¿Qué prefieres?','tut-skip-part':'Saltar esto; mañana sigo con lo que toca','tut-skip-all':'Ya sé usar Stoic: mostrar todo','tut-back':'Volver al tutorial','tut-replay':'Ver el tutorial','tut-replay-note':'Esto es un repaso: no se bloquea ni se desbloquea nada.','tut-done-real':'Muy bien. Mañana te enseño lo que sigue.',
-  'tut-done-last':'Eso es todo Stoic. Ahora es tuyo 🏛️',
-  'tut2-hi':'Volviste 🕯️\nHoy, dos cosas: tu racha y el cronómetro.',
+  'tut-start':'Empezar','tut-next':'Siguiente','tut-finish':'¡Listo!','tut-skip':'Saltar','tut-skip-q':'¿Qué prefieres?','tut-skip-part':'Saltar esta parte','tut-skip-all':'Ya sé usar Stoic: mostrar todo','tut-back':'Volver al tutorial','tut-replay':'Ver el tutorial','tut-replay-note':'Esto es un repaso: no se bloquea ni se desbloquea nada.','tut-done-last':'Eso es todo Stoic. Ahora es tuyo 🏛️',
+  'tut2-hi':'Sigamos 🕯️\nDos cosas más: tu racha y el cronómetro.',
   'tut2-colours':'Tu día tiene cuatro colores: 🔴 menos de la mitad de tus tareas, 🟡 la mitad, 🟢 85%, 🟣 todas. Mientras más alto el color, más puntos.',
   'tut2-tab':'Abre Score para ver tus puntos.',
   'tut2-points':'Estos son tus puntos. Cada tarea, el color del día y cada pomodoro suman aquí.',
@@ -2054,13 +2062,13 @@ es:{
   'tut2-back':'Ahora regresa a tus tareas.',
   'tut2-pomo':'Este es el pomodoro: 25 minutos de enfoque y luego un descanso. Dale ▶ para empezar uno.',
   'tut2-end':'Cada pomodoro que terminas suma puntos. Trabaja mientras corre y descansa cuando suene.',
-  'tut3-hi':'Día 3: lo que más importa 🏁\nMetas del día para tus tareas clave, y metas largas para las semanas que vienen.',
+  'tut3-hi':'Ahora, lo que más importa 🏁\nMetas del día para tus tareas clave, y metas largas para las semanas que vienen.',
   'tut3-plus':'Dale al ＋ para crear una tarea que de verdad importe hoy.',
   'tut3-flag':'Escríbela, prende 🏁 Meta del día aquí y dale "Agregar".',
   'tut3-flagday':'Tus metas del día salen aquí. Si las terminas todas, tu color sube un nivel (el rojo pasa a amarillo, el amarillo a verde…).',
   'tut3-goals':'Estas son tus metas largas: de la semana 📅, del trimestre 📈 y del año 🏆. Toca una.',
   'tut3-goaladd':'Escribe una meta para esta semana y agrégala. Mientras antes la cumplas, más puntos vale.',
-  'tut3-end':'Listo: metas para hoy y metas para lo largo. Mañana te toca todo lo demás.',
+  'tut3-end':'Listo: metas para hoy y metas para lo largo. Una última cosa.',
   'tut4-hi':'Ya tienes todo Stoic 🎉\nEl calendario del día, el cronómetro, el sueño, el trabajo, las recompensas, el diario y las gráficas. Explóralos a tu ritmo: casi todo está en Score.','tut-done-replay':'Listo. Cuando quieras lo ves otra vez.','tut1-hi':'Bienvenido a Stoic 🏛️\nTu día se mide con una lista corta de tareas y un color. En un minuto lo ves tú mismo.','tut1-plus':'Toca el ＋ para crear tu primera tarea.','tut1-type':'Escribe algo que quieras hacer hoy, por ejemplo «Tender la cama», y toca «Agregar» (o intro en el teclado).','tut1-colour':'Este es tu día. Está en rojo porque aún no has hecho nada. Tu meta de cada día es sacarlo del rojo.','tut1-tick':'Cuando termines tu tarea, márcala aquí.','tut1-end':'¿Viste? Al salir del rojo se prende una vela 🕯️. Cada día que no termina en rojo cuenta.',
   'rem-add':'+ Agregar recordatorio','rem-need-title':'Ponle nombre primero',
   'rem-discard':'¿Cerrar sin agregarlo? Se pierde lo que escribiste.',
@@ -8556,6 +8564,7 @@ function renderLogin(){
   const gb=bt('btn-ghost',t('guest-btn'),()=>{
     try{localStorage.setItem('st_guest','1');}catch(e){}
     S.set(K.AUTH,true);STATE.authed=true;STATE.authNotice='';render();
+    tutMaybeStart();
   });
   gb.style.cssText='width:100%;margin-top:10px';card.appendChild(gb);
   card.appendChild(dv('xs dimmer ctr mt8',t('guest-note')));
