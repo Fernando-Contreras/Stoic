@@ -800,7 +800,7 @@ const DEBUG_FOR_GUESTS=true;
    at the top of the plan), and "show everything" is always offered. */
 const FEATURE_STAGE={
   tabScore:2, streaks:2, pomodoro:2, stopwatch:2, goals:2,
-  quadrants:3, morning:3, tags:3, weekReview:3, backupNag:3,
+  quadrants:3, morning:3, tags:3, weekReview:3,
   monthCal:3, dayCal:3, sleep:3, work:3, rewards:3, diary:3, stats:3, charts:3, alerts:3, bulk:3
 };
 function jwtEmail(){
@@ -875,11 +875,16 @@ function applyFeatureGates(root){
    Back only rereads: run.peek points at an earlier explanation, nothing is undone,
    and Next walks forward again to the step that was waiting. */
 // The box has something in it, and the typing has stopped: the light can go on.
-const tutFilled=sel=>{const i=document.querySelector(sel);return !!(i&&i.value.trim())&&Date.now()-TUT.typed>800;};
-const tutTitled=()=>tutFilled('[data-tut="add-title"]');
+const tutFilled=tag=>{const i=document.querySelector('[data-tut="'+tag+'"]');return !!(i&&i.value.trim())&&Date.now()-(TUT.typed[tag]||0)>800;};
+const tutTitled=()=>tutFilled('add-title');
 const tutFocus=sel=>()=>{const i=document.querySelector(sel);if(i)i.focus();};
 const tutFocusTitle=tutFocus('[data-tut="add-title"]');
 const tutClose=k=>()=>{STATE[k]=false;render();};
+const tutTomorrow=()=>{const d=new Date(todayKey()+'T12:00:00');d.setDate(d.getDate()+1);return isoDate(d);};
+// The note is saved and put away, if it was not already.
+const tutDiaryClose=()=>{const w=document.querySelector('.diary-wrap');if(w)toggleDiaryEditor(w.parentElement,STATE.calSel,null);};
+// While the first part teaches a time on a task, a late hour must not hide the task it needs ticked.
+const tutHolds=r=>{const run=TUT.run;return !!(run&&run.ctx&&!run.replay&&run.stages[0]===1&&!run.known.has(r.id));};
 const tutLayout=()=>STATE.view.layout||'list';
 const tutListBack=()=>{STATE.view.layout='list';saveView();render();};
 // A day has to be open for its note to be there.
@@ -892,14 +897,16 @@ const TUT_STAGES={
   // Two tasks, one of them the day's goal: the first gets the day out of the red, the second to the top.
   1:[
     {id:'hi',      manual:true, btn:'tut-start', lang:true, text:'tut1-hi',    done:c=>c.count()>0},
-    {id:'howto',   manual:true,                             text:'tut1-howto', done:c=>c.count()>0},
+    {id:'howto',   manual:true, lang:true,                  text:'tut1-howto', done:c=>c.count()>0},
     {id:'plus',    tab:'plan', target:'[data-tut="add"]',   text:'tut1-plus',  done:c=>STATE.showAddForm||c.count()>=1},
     {id:'type',    target:'[data-tut="add-title"]', soft:true, text:'tut1-type', done:c=>c.count()>=1||tutTitled()},
+    {id:'time',    target:'[data-tut="add-time"]',  soft:true, manual:true, latch:true, text:'tut1-time', done:c=>c.count()>=1||tutFilled('add-time')},
     {id:'addIt',   target:'[data-tut="add-go"]',    soft:true, text:'tut1-add',  done:c=>c.count()>=1},
     {id:'plus2',   tab:'plan', target:'[data-tut="add"]',   text:'tut1-plus2', done:c=>STATE.showAddForm||c.count()>=2},
     {id:'flag',    target:'[data-tut="add-flag"]',  soft:true, text:'tut1-flag',
                    done:c=>c.count()>=2||!!(document.querySelector('[data-tut="add-flag"] input')||{}).checked},
     {id:'type2',   target:'[data-tut="add-title"]', soft:true, enter:tutFocusTitle, text:'tut1-type2', done:c=>c.count()>=2||tutTitled()},
+    {id:'time2',   target:'[data-tut="add-time"]',  soft:true, manual:true, latch:true, text:'tut1-time2', done:c=>c.count()>=2||tutFilled('add-time')},
     {id:'addIt2',  target:'[data-tut="add-go"]',    soft:true, text:'tut1-add',  done:c=>c.count()>=2},
     // How the list can be shown, one control at a time, while it has something on it.
     {id:'vScope',  tab:'plan', target:'[data-tut="v-scope"]',  press:true, text:'tut1-vscope'},
@@ -930,11 +937,20 @@ const TUT_STAGES={
     {id:'swPick',  target:'[data-tut="sw-pick"]', soft:true, text:'tut2-swpick', latch:true, done:()=>!STATE.swPick},
     {id:'goals',   tab:'plan', target:'[data-tut="goal-tiles"]', text:'tut2-goals', temp:true, latch:true, done:()=>STATE.showGoals},
     {id:'goalAdd', target:'[data-tut="goal-in"]', soft:true, win:'showGoals', enter:tutFocus('[data-tut="goal-in"]'), text:'tut2-goaladd',
-                   done:c=>c.newGoals()>0||tutFilled('[data-tut="goal-in"]')},
+                   done:c=>c.newGoals()>0||tutFilled('goal-in')},
     {id:'goalGo',  target:'[data-tut="goal-go"]', soft:true, win:'showGoals', text:'tut2-goalgo', done:c=>c.newGoals()>0},
-    // Its + is only there once a goal is; a replay may have none, and shows where one goes.
+    // Nothing is open by now, so the + would find nothing: first a step to link. It goes
+    // on tomorrow so that it does not take the colour the first part earned.
+    {id:'stepPlus',tab:'plan', target:'[data-tut="add"]', text:'tut2-stepplus', keep:()=>{STATE.addPrefill={due:tutTomorrow()};},
+                   done:c=>STATE.showAddForm||c.count()>=1},
+    {id:'stepType',target:'[data-tut="add-title"]', soft:true, enter:tutFocusTitle, text:'tut2-steptype', done:c=>c.count()>=1||tutTitled()},
+    {id:'stepGo',  target:'[data-tut="add-go"]',    soft:true, text:'tut1-add',  done:c=>c.count()>=1},
+    {id:'goalBack',tab:'plan', target:'[data-tut="goal-tiles"]', text:'tut2-goalback', temp:true, latch:true, done:()=>STATE.showGoals},
+    // A replay may have no goal, so no +: it shows where one goes.
     {id:'goalLink',target:()=>document.querySelector('[data-tut="goal-link"]')||document.querySelector('[data-tut="goal-in"]'),
-                   win:'showGoals', text:'tut2-link', manual:true, look:true, after:tutClose('showGoals')},
+                   win:'showGoals', press:true, temp:true, text:'tut2-link'},
+    {id:'goalPick',target:'[data-tut="goal-pick"]', win:'showGoals', soft:true, latch:true, text:'tut2-pick', done:c=>c.linked()>0},
+    {id:'goalDone',target:'[data-tut="goal-chips"]', win:'showGoals', text:'tut2-linked', manual:true, look:true, after:tutClose('showGoals')},
     {id:'next2',   manual:true, choice:true,                text:'tut2-next'}
   ],
   3:[
@@ -948,10 +964,10 @@ const TUT_STAGES={
     {id:'diary',   tab:'score', target:'[data-tut="note-add"]', text:'tut3-diary', latch:true, enter:tutCalDay, show:tutCalDay,
                    done:()=>!!document.querySelector('.diary-wrap')},
     {id:'dTitle',  target:'[data-tut="diary-title"]', soft:true, manual:true, latch:true, text:'tut3-dtitle', keep:tutDiaryOpen,
-                   enter:tutFocus('[data-tut="diary-title"]'), done:()=>tutFilled('[data-tut="diary-title"]')},
+                   enter:tutFocus('[data-tut="diary-title"]'), done:()=>tutFilled('diary-title')},
     {id:'dTpl',    target:'.diary-area', soft:true, manual:true, text:'tut3-dtpl', keep:tutDiaryOpen,
-                   after:()=>{const w=document.querySelector('.diary-wrap');if(w)toggleDiaryEditor(w.parentElement,STATE.calSel,null);}},
-    {id:'dSaved',  tab:'score', target:'[data-tut="note-add"]', manual:true, look:true, text:'tut3-dsaved', show:tutCalDay},
+                   after:tutDiaryClose},
+    {id:'dSaved',  tab:'score', target:'[data-tut="note-add"]', manual:true, free:true, text:'tut3-dsaved', show:tutCalDay, after:tutDiaryClose},
     {id:'stats',   tab:'score', target:'[data-tut="stats-all"]',  text:'tut3-stats', temp:true, latch:true, done:()=>STATE.showStatsDetail},
     {id:'statsIn', target:'[data-tut="stats-panel"]', win:'showStatsDetail', text:'tut3-statsin', manual:true, free:true, after:tutClose('showStatsDetail')},
     {id:'week',    tab:'plan',  target:'[data-tut="week-btn"]',   text:'tut3-wk',    temp:true, latch:true, done:()=>STATE.showWeek},
@@ -966,7 +982,7 @@ const TUT_STAGES={
     {id:'fRep',    target:'[data-tut="add-rep"]',     win:'showAddForm', soft:true, manual:true, text:'tut3-frep'},
     {id:'fMorn',   target:'[data-tut="add-morning"]', win:'showAddForm', soft:true, manual:true, text:'tut3-fmorn'},
     {id:'fNlp',    target:'[data-tut="add-title"]',   win:'showAddForm', soft:true, manual:true, latch:true, enter:tutFocusTitle, text:'tut3-fnlp',
-                   done:()=>tutChip()&&Date.now()-TUT.typed>800},
+                   done:()=>tutChip()&&Date.now()-(TUT.typed['add-title']||0)>800},
     {id:'fNlpGo',  target:'[data-tut="add-nlp"]',     win:'showAddForm', soft:true, latch:true, text:'tut3-fnlpgo', done:c=>!tutChip()||c.count()>=1},
     {id:'fAdd',    target:'[data-tut="add-go"]',      win:'showAddForm', soft:true, text:'tut1-add', done:c=>c.count()>=1},
     {id:'vQuad',   tab:'plan', target:'[data-tut="v-layout"]', latch:true, text:'tut3-vquad', done:()=>tutLayout()==='quad',
@@ -983,14 +999,14 @@ const TUT_STAGES={
     {id:'bye',     manual:true, btn:'tut-finish',               text:'tut3-end'}
   ]
 };
-const TUT={run:null,timer:null,L:null,pill:null,typed:0};
+const TUT={run:null,timer:null,L:null,pill:null,typed:{}};
 // When something it watches was last typed in, so the light waits for the typing to stop.
-document.addEventListener('input',e=>{if(e.target&&e.target.dataset&&e.target.dataset.tut)TUT.typed=Date.now();},true);
+document.addEventListener('input',e=>{if(e.target&&e.target.dataset&&e.target.dataset.tut)TUT.typed[e.target.dataset.tut]=Date.now();},true);
 // A 'press' step: the lit thing was pressed.
 document.addEventListener('click',e=>{
   const run=TUT.run;if(!run||run.hintOnly||run.hint||run.peek!=null)return;
   const s=tutActive(run);
-  if(s&&s.press){const el=document.querySelector(s.target);if(el&&el.contains(e.target))run.pressed=s.id;}
+  if(s&&s.press){const el=tutEl(run,s);if(el&&el.contains(e.target))run.pressed=s.id;}
 },true);
 
 // The tasks and goals the person has made since the run began (the ones already there are ignored).
@@ -1001,6 +1017,7 @@ function tutCtx(run){
   const isDone=m=>{const tk=todayKey();return !!m.done||m.completedOn===tk||doneCount(m,tk)>0;};
   return{mineAll,count:()=>mineAll().length,
     newGoals:()=>goals().filter(g=>!run.known.has(g.id)).length,
+    linked:()=>reminders().filter(r=>goalIdsOf(r).some(id=>!run.known.has(id))).length,
     doneN:()=>mineAll().filter(isDone).length,
     // The plain task before the day's goal, so the colour climbs in the order the bubbles say.
     nextOpen:()=>{
@@ -1101,7 +1118,7 @@ function tutMarkDone(stages){
 const TUT_WINDOWS=['showGoals','showWeek','showCal','showStatsDetail'];
 function tutCloseAll(){
   _addFormDirty=null;
-  STATE.showAddForm=false;STATE.editingRem=null;STATE.selecting=false;
+  STATE.showAddForm=false;STATE.editingRem=null;STATE.selecting=false;STATE.addPrefill=null;
   TUT_WINDOWS.forEach(k=>{STATE[k]=false;});
 }
 /* Whenever it stops, for whatever reason, the person has to know where to find it
@@ -1157,6 +1174,7 @@ function tutFinish(){
 function tutPause(on){
   const run=TUT.run;if(!run)return;
   run.paused=on;run.skipping=false;run.shown='';
+  if(on)STATE.addPrefill=null;       // the app is the person's again
   const o=STATE.planner.onboard;
   if(o&&!run.replay){if(on)o.paused=true;else delete o.paused;tutSaveOnboard();}
   tutTick();
@@ -1201,6 +1219,7 @@ function tutSkipAll(){
   tutSay(t('tut-skipped'));
 }
 function tutActive(run){return run.steps.find(s=>!tutDone(run,s));}
+function tutEl(run,s){return s.target?(typeof s.target==='function'?s.target(run.ctx):document.querySelector(s.target)):null;}
 
 function tutPaint(step){
   const run=TUT.run,b=TUT.L.bub;
@@ -1221,6 +1240,7 @@ function tutPaint(step){
   const backBtn=()=>{if(prev>=0)btn('btn-ghost btn-sm',t('tut-prev'),()=>tutGo(run,prev));};
   if(run.peek!=null){
     tx.textContent=t(step.text);
+    if(step.lang)btn('btn-ghost btn-sm',t('lang-btn'),toggleLang);
     backBtn();
     btn('btn-ac btn-sm',t('tut-next'),tutForward);
   }else if(run.skipping){
@@ -1301,7 +1321,8 @@ function tutTick(){
   const vw=vv?vv.width:window.innerWidth,vh=vv?vv.height:window.innerHeight;
   L.style.transform='translate('+ox+'px,'+oy+'px)';
   L.style.width=vw+'px';L.style.height=vh+'px';
-  const el=step.target?(typeof step.target==='function'?step.target(run.ctx):document.querySelector(step.target)):null;
+  let el=tutEl(run,step);
+  if(el&&!el.getClientRects().length)el=null;     // there, but folded away
   const [dT,dL,dR,dB]=L.dim;
   // A soft step only dims; the person can still press anything (see the 'type' step).
   L.dim.forEach(d=>{d.style.pointerEvents=step.soft&&!peek?'none':'';});
@@ -2025,6 +2046,8 @@ en:{
   'tut1-howto':'In a hurry? No problem.\n⏸ Pause lets you use the app, and the 🎓 Resume tutorial button brings you back to this exact spot, even if you close the app.\nSkip jumps ahead, or shows you everything at once.\n← Back rereads what came before.\n\nThey are on the bubbles as you go.',
   'tut1-plus':'Let us make your list. Tap the ＋.',
   'tut1-type':'Write something you want to do today, for example "Make the bed".',
+  'tut1-time':'Give it a time: when do you want to do it? The date already says today, and that one changes here too.',
+  'tut1-time2':'Give it a time as well, a different one, so you can see how the list arranges them.',
   'tut1-add':'Now tap "Add".',
   'tut1-plus2':'Now the most important thing today. Tap the ＋.',
   'tut1-flag':'Turn on 🏁 Goal of the day: it marks what matters most. I will tell you more in a moment.',
@@ -2032,14 +2055,14 @@ en:{
   'tut1-vscope':'Now, how to arrange your list. "All" shows everything pending; "Today", only today\'s and what is overdue. Tap one.',
   'tut1-vlayout':'Its shape: ☰ in rows, ▦ in small squares. Tap ▦.',
   'tut1-vlayout2':'This is the squares view: more fits at a glance. Go back to ☰ to continue.',
-  'tut1-vsort':'Its order: 📅↑ soonest first, 📅↓ latest first, A→Z alphabetical. Tap one.',
+  'tut1-vsort':'Its order: 📅↑ soonest first, 📅↓ latest first, A→Z alphabetical. Tap 📅↓.',
   'tut1-vsort2':'Your list just rearranged itself. Try the others if you like. It stays however you leave it, and none of this changes your points.',
   'tut1-vhide':'Today\'s tasks with a time stay hidden until this many hours before, so they do not get in the way too early. Pick how many here. "Off" keeps them always in view.',
   'tut1-colour':'This is your day. It is red because you have not done anything yet. Your goal each day is to get it out of the red.',
   'tut1-tick':'When you finish a task, tick it here. Tick this one.',
   'tut1-half':'Half your list: yellow 🟡, and a candle lights up 🕯️. Every day that does not end in red counts.',
   'tut1-tick2':'This one is your 🏁 goal of the day. Tick it.',
-  'tut1-end':'Purple 🟣, the top colour. 🔴 less than half, 🟡 half, 🟢 85%, 🟣 everything. The higher the colour, the more points.\n\nFinish your goals of the day and your colour goes up one step.',
+  'tut1-end':'🔴 less than 50% of tasks finished. Likewise: 🟡 50%, 🟢 85%, 🟣 100%. The higher the colour, the more points.\n\nFinish your goals of the day and your colour goes up one step.',
   'tut1-next':'That is the essentials ✅\nNext: your points, your streak, the timers and your long goals. Now or tomorrow?',
   'tut2-hi':'Let us go on 🕯️\nThe app just grew: now it has your points, your streaks, the timers and your long goals.',
   'tut2-tab':'Open Score to see what today is worth.',
@@ -2054,7 +2077,12 @@ en:{
   'tut2-goals':'These are your long goals: for the week 📅, the quarter 📈 and the year 🏆. Tap one.',
   'tut2-goaladd':'Write a goal for this week. The sooner you reach it, the more points it is worth.',
   'tut2-goalgo':'Now tap "+ Add goal".',
-  'tut2-link':'This ＋ links tasks to your goal, so each task says what it gets you closer to. You can also do it from ✏️ on any task.',
+  'tut2-stepplus':'A goal is reached in steps. Make a task that gets you closer to it: tap the ＋.',
+  'tut2-steptype':'Write that step. I left it for tomorrow so it does not touch your day today.',
+  'tut2-goalback':'Go back to your goals.',
+  'tut2-link':'This ＋ links tasks to your goal, so each task says what it gets you closer to. Tap it.',
+  'tut2-pick':'Pick the task you just made.',
+  'tut2-linked':'Done: that task now says which goal it serves. You can also do it from ✏️ on any task.',
   'tut2-next':'Done ✅\nWhat is left: sleep, work, rewards, your diary, your stats and more. Now or tomorrow?',
   'tut3-hi':'Last part 🏛️\nNow you have all of Stoic. We will go through it piece by piece.',
   'tut3-sleep':'Write how long you slept last night, like 7h30m: your last night, whatever time it ended. Sleep adds points; going to bed early adds more, and a late night takes them away.',
@@ -2148,8 +2176,6 @@ en:{
   'wk-work':'Work','wk-sleep':'Sleep per day','wk-reds':'Red days','wk-best':'Best day',
   'wk-late':'Overdue now','wk-opengoals':'Open goals',
   'wk-note':'This week counts Monday to today, against the whole of last week, so a week in progress will usually trail. Tasks come from the completion log (the last 200).',
-  'bk-never':'💾 You have never saved a backup file. A copy you hold is the one that survives anything happening to the account.',
-  'bk-old':'💾 It has been {n} days since your last backup file.','bk-now':'Download backup','bk-later':'In a week',
   'cal-to-cal':'Day calendar','cal-to-timer':'Back to the timer','cal-today':'Today',
   'cal-open':'Open the day calendar','cal-title':'Day calendar',
   'sw-title':'Stopwatch','sw-today':'today','sw-jump-title':'See the logged time, in Score',
@@ -2187,10 +2213,7 @@ en:{
   'src-pom':'Pomodoros','src-work':'Work','src-sleep':'Sleep','src-color':'Day colour',
   'src-rewards':'Rewards','src-late':'Late nights','src-gaps':'Days not logged','src-none':'Log a few days first.',
   'goal-nudge':'Your biggest goals are your compass',
-  'goal-nudge-daily-1':'{n} open goal has no step pointed at it yet.','goal-nudge-daily':'{n} open goals have no step pointed at them yet.',
   'goal-week-none':'No weekly goal right now',
-  
-  'goal-nudge-add':'+ Add a step','goal-nudge-later':'Not now',
   'goal-day-done':'Goals annihilated!','goal-day-done-sub':'Every flag of the day is down.',
   'goal-worth':'worth','goal-tomorrow':'tomorrow','goal-past-due':'⚠ was due',
   'goal-full':'Limit reached.','goal-carried':'⚠ carried over from last period',
@@ -2378,6 +2401,8 @@ es:{
   'tut1-howto':'¿Con prisa? No hay problema.\n⏸ Pausar te deja usar la app, y el botón 🎓 Seguir tutorial te regresa justo aquí, aunque cierres la app.\nSaltar brinca a lo que sigue, o te muestra todo de una vez.\n← Atrás vuelve a leer lo anterior.\n\nLos vas a ver en las burbujas.',
   'tut1-plus':'Vamos a hacer tu lista. Toca el ＋.',
   'tut1-type':'Escribe algo que quieras hacer hoy, por ejemplo «Tender la cama».',
+  'tut1-time':'Ponle hora: ¿a qué hora la quieres hacer? La fecha ya dice hoy, y también se cambia aquí.',
+  'tut1-time2':'Ponle hora también, una distinta, para que veas cómo se acomoda tu lista.',
   'tut1-add':'Ahora toca «Agregar».',
   'tut1-plus2':'Ahora lo más importante de hoy. Toca el ＋.',
   'tut1-flag':'Prende 🏁 Meta del día: marca lo que más importa. En un momento te cuento más.',
@@ -2385,14 +2410,14 @@ es:{
   'tut1-vscope':'Ahora, cómo acomodar tu lista. «Todos» enseña todo lo pendiente; «Hoy», solo lo de hoy y lo atrasado. Toca uno.',
   'tut1-vlayout':'La forma: ☰ en renglones, ▦ en cuadritos. Toca ▦.',
   'tut1-vlayout2':'Así se ve en cuadritos: cabe más de un vistazo. Regresa a ☰ para seguir.',
-  'tut1-vsort':'El orden: 📅↑ lo más pronto primero, 📅↓ lo más lejano primero, A→Z por abecedario. Toca uno.',
+  'tut1-vsort':'El orden: 📅↑ lo más pronto primero, 📅↓ lo más lejano primero, A→Z por abecedario. Toca 📅↓.',
   'tut1-vsort2':'Tu lista se acaba de reacomodar. Prueba los otros si quieres. Se queda como la dejes, y nada de esto cambia tus puntos.',
   'tut1-vhide':'Las tareas de hoy con hora se esconden hasta estas horas antes, para que no te estorben desde temprano. Aquí eliges cuántas. «Sin ocultar» las deja siempre a la vista.',
   'tut1-colour':'Este es tu día. Está en rojo porque aún no has hecho nada. Tu meta de cada día es sacarlo del rojo.',
   'tut1-tick':'Cuando termines una tarea, márcala aquí. Marca esta.',
   'tut1-half':'La mitad de tu lista: amarillo 🟡, y se prende una vela 🕯️. Cada día que no termina en rojo cuenta.',
   'tut1-tick2':'Esta es tu 🏁 meta del día. Márcala.',
-  'tut1-end':'Morado 🟣, el mejor color. 🔴 menos de la mitad, 🟡 la mitad, 🟢 85%, 🟣 todas. Mientras más alto el color, más puntos.\n\nSi cumples tus metas del día, tu color sube un nivel.',
+  'tut1-end':'🔴 menos de 50% de tareas terminadas. Así mismo: 🟡 50%, 🟢 85%, 🟣 100%. Mientras más alto el color, más puntos.\n\nSi cumples tus metas del día, tu color sube un nivel.',
   'tut1-next':'Eso es lo esencial ✅\nLo que sigue: tus puntos, tu racha, los cronómetros y tus metas largas. ¿Ahora o mañana?',
   'tut2-hi':'Sigamos 🕯️\nLa app acaba de crecer: ya tiene tus puntos, tus rachas, los cronómetros y tus metas largas.',
   'tut2-tab':'Abre Puntaje para ver cuánto vale tu día.',
@@ -2407,7 +2432,12 @@ es:{
   'tut2-goals':'Estas son tus metas largas: de la semana 📅, del trimestre 📈 y del año 🏆. Toca una.',
   'tut2-goaladd':'Escribe una meta para esta semana. Mientras antes la cumplas, más puntos vale.',
   'tut2-goalgo':'Ahora toca «+ Agregar meta».',
-  'tut2-link':'Este ＋ liga tareas a tu meta, para que cada tarea diga a qué te acerca. También se puede desde ✏️ en cualquier tarea.',
+  'tut2-stepplus':'Una meta se cumple con pasos. Crea una tarea que te acerque a ella: toca el ＋.',
+  'tut2-steptype':'Escribe ese paso. Lo dejé para mañana, para que no le mueva a tu día de hoy.',
+  'tut2-goalback':'Regresa a tus metas.',
+  'tut2-link':'Este ＋ liga tareas a tu meta, para que cada tarea diga a qué te acerca. Tócalo.',
+  'tut2-pick':'Elige la tarea que acabas de crear.',
+  'tut2-linked':'Listo: esa tarea ya dice a qué meta te acerca. También se puede desde ✏️ en cualquier tarea.',
   'tut2-next':'Listo ✅\nLo que falta: sueño, trabajo, recompensas, tu diario, tus estadísticas y más. ¿Ahora o mañana?',
   'tut3-hi':'Última parte 🏛️\nYa tienes todo Stoic. Lo vemos parte por parte.',
   'tut3-sleep':'Apunta cuánto dormiste anoche, como 7h30m: tu última noche, sin importar a qué hora acabó. Dormir suma puntos; dormirte temprano suma más y desvelarte te los quita.',
@@ -2501,8 +2531,6 @@ es:{
   'wk-work':'Trabajo','wk-sleep':'Sueño por día','wk-reds':'Días rojos','wk-best':'Mejor día',
   'wk-late':'Atrasadas ahora','wk-opengoals':'Metas abiertas',
   'wk-note':'Esta semana cuenta de lunes a hoy, contra toda la pasada, así que una semana en curso casi siempre va por debajo. Las tareas salen del registro de completadas (las últimas 200).',
-  'bk-never':'💾 Nunca has guardado un archivo de respaldo. Una copia que tú tienes es la que sobrevive a cualquier cosa que le pase a la cuenta.',
-  'bk-old':'💾 Hace {n} días que no guardas un archivo de respaldo.','bk-now':'Descargar respaldo','bk-later':'En una semana',
   'cal-to-cal':'Calendario del día','cal-to-timer':'Volver al temporizador','cal-today':'Hoy',
   'cal-open':'Abrir el calendario del día','cal-title':'Calendario del día',
   'sw-title':'Cronómetro','sw-today':'hoy','sw-jump-title':'Ver el tiempo registrado, en Puntos',
@@ -2540,10 +2568,7 @@ es:{
   'src-pom':'Pomodoros','src-work':'Trabajo','src-sleep':'Sueño','src-color':'Color del día',
   'src-rewards':'Recompensas','src-late':'Trasnoches','src-gaps':'Días sin registrar','src-none':'Registra unos días primero.',
   'goal-nudge':'Tus metas más grandes son tu brújula',
-  'goal-nudge-daily-1':'{n} meta abierta no tiene ningún paso ligado todavía.','goal-nudge-daily':'{n} metas abiertas no tienen ningún paso ligado todavía.',
   'goal-week-none':'Sin meta semanal',
-  
-  'goal-nudge-add':'+ Agregar paso','goal-nudge-later':'Ahora no',
   'goal-day-done':'¡Metas exterminadas!','goal-day-done-sub':'Cayeron todas las banderas de hoy.',
   'goal-worth':'vale','goal-tomorrow':'mañana','goal-past-due':'⚠ era para',
   'goal-full':'Límite alcanzado.','goal-carried':'⚠ arrastrada del periodo anterior',
@@ -3174,7 +3199,7 @@ let STATE={
   // Browses the score card independently of the calendar's own month.
   scoreYM:null,
   // A new person gets the language their browser speaks; the choice is kept once made.
-  lang: localStorage.getItem('st_lang')||((navigator.language||'').toLowerCase().startsWith('es')?'es':'en'),
+  lang: localStorage.getItem('st_lang')||((navigator.languages&&navigator.languages.length?navigator.languages:[navigator.language||'']).some(l=>/^es/i.test(l))?'es':'en'),
   // Tab 1 (planner) feeds tab 2 (score). Never the other way around.
   tab: localStorage.getItem('st_tab')||'score',
   // Which page of the pomodoro card is showing, and which day its calendar
@@ -3384,11 +3409,9 @@ function toggleTheme(){
 /* ═══ SYNC — Supabase is the single source of truth ═══
    Philosophy: like Facebook — the server has the data,
    devices just read and write to it. No complex merging.
-   
    WRITE: every save() pushes full state to Supabase immediately.
    READ:  every 8s, pull from Supabase. If it differs from local,
           take the remote version. Period. No merge logic.
-   
    Conflict resolution: last writer wins (highest _ts on today,
    highest _ts per day in history). Simple and predictable.
    ══════════════════════════════════════════════════════════ */
@@ -5260,48 +5283,6 @@ function renderPlanner(){
     wrap.appendChild(wc);
   }
 
-  /* Once a month, ask for the file backup. The cloud copy lives in the same
-     account as the data it protects, so a copy you hold is the only one that
-     survives that account having a bad day. Snoozes for a week; a download
-     from anywhere clears it. */
-  {
-    const ds=daysSinceBackup();
-    let snoozed='';try{snoozed=localStorage.getItem('st_jsonsnooze')||'';}catch(e){}
-    // Not on someone's first day: there is nothing to back up yet.
-    if((ds===null||ds>=30)&&snoozed<tk&&STATE.history.some(d=>!d._gap)){
-      const bn=dv('card mb12');bn.style.cssText='border-color:var(--b2);background:var(--sur2)';
-      bn.appendChild(dv('sm w6',ds===null?t('bk-never'):t('bk-old').replace('{n}',ds)));
-      const bb=dv('row gap8 mt8');
-      bb.appendChild(bt('btn-ac btn-sm',t('bk-now'),()=>{downloadBackupJson();render();}));
-      bb.appendChild(bt('btn-ghost btn-sm',t('bk-later'),()=>{
-        const d=new Date(tk+'T12:00:00');d.setDate(d.getDate()+7);
-        try{localStorage.setItem('st_jsonsnooze',isoDate(d));}catch(e){}
-        render();
-      }));
-      bn.appendChild(bb);
-      wrap.appendChild(gate(bn,'backupNag'));
-    }
-  }
-
-  /* Once a day, a card that has to be dismissed rather than glanced past —
-     for any open period goal with no live step pointed at it. The scrolling
-     strip further down says the same thing without ever asking for a
-     decision, which is exactly why it goes unread: nothing that never
-     interrupts you ever earns a second look. This does, once, and then
-     leaves you alone until tomorrow either way you answer it. */
-  let nudgeSeen='';try{nudgeSeen=localStorage.getItem('st_goalNudgeSeen')||'';}catch(e){}
-  const bare=goals().filter(g=>!g.doneOn&&!tasksServing(g.id).some(x=>!x.done));
-  if(bare.length&&nudgeSeen!==tk&&featureOn('goals')&&!TUT.run){     // the tutorial is already talking
-    const markSeen=()=>{try{localStorage.setItem('st_goalNudgeSeen',tk);}catch(e){}};
-    const nb=dv('card mb12');nb.style.cssText='border-color:var(--acb);background:var(--acd)';
-    nb.appendChild(dv('sm w6',bare.length===1?t('goal-nudge-daily-1').replace('{n}',bare.length):t('goal-nudge-daily').replace('{n}',bare.length)));
-    const btns=dv('row gap8 mt8');
-    btns.appendChild(bt('btn-ac btn-sm',t('goal-nudge-add'),()=>{markSeen();STATE.showGoals=true;render();}));
-    btns.appendChild(bt('btn-ghost btn-sm',t('goal-nudge-later'),()=>{markSeen();render();}));
-    nb.appendChild(btns);
-    wrap.appendChild(nb);
-  }
-
   /* The day's colour, shown where the day's work is. It comes from CALC, the
      same call the score tab makes, so the two can never disagree — and it
      reflects any manual override, since those are already folded into
@@ -5655,8 +5636,8 @@ function renderPlanner(){
      meaning louder. Sorting by the raw field would have put quadrant 4 —
      the one you are meant to drop — at the top of every list. */
   const order={
-    'date-asc':(a,b)=>a.due===b.due?(quadRank(a)-quadRank(b)):a.due.localeCompare(b.due),
-    'date-desc':(a,b)=>a.due===b.due?(quadRank(a)-quadRank(b)):b.due.localeCompare(a.due),
+    'date-asc':(a,b)=>a.due===b.due?(quadRank(a)-quadRank(b)||(a.time||'99').localeCompare(b.time||'99')):a.due.localeCompare(b.due),
+    'date-desc':(a,b)=>a.due===b.due?(quadRank(a)-quadRank(b)||(b.time||'').localeCompare(a.time||'')):b.due.localeCompare(a.due),
     'prio':(a,b)=>quadRank(a)-quadRank(b)||a.due.localeCompare(b.due),
     // numeric:true so hand-numbered titles read 1, 2, 10 rather than 1, 10, 2,
     // and sensitivity:'base' so accents and case do not split the order.
@@ -5668,7 +5649,7 @@ function renderPlanner(){
      schedule — and only while it has not come due yet, so an overdue timed
      task never goes missing behind this. 0 turns it off. */
   const timeGateHrs=V.hideTimedHours??4;
-  const isTimeGated=r=>timeGateHrs>0&&!!r.time&&r.due===tk
+  const isTimeGated=r=>timeGateHrs>0&&!!r.time&&r.due===tk&&!tutHolds(r)
     &&(new Date(r.due+'T'+r.time+':00')-appNow())/3600000>timeGateHrs;
   const scopeDatePasses=r=>(V.scope==='all'?true:peek?r.due===viewDate:r.due<=tk);
   const passes=r=>scopeDatePasses(r)&&passesTags(tagsOf(r))&&!isTimeGated(r);
@@ -6310,7 +6291,7 @@ function buildGoals(redraw){
          are struck through, because a goal with all its steps down and itself
          still open is the thing most worth noticing here. */
       const served=tasksServing(g.id);
-      const sb=dv('row gap4 mt4');sb.style.flexWrap='wrap';sb.style.alignItems='center';
+      const sb=dv('row gap4 mt4');sb.style.flexWrap='wrap';sb.style.alignItems='center';sb.dataset.tut='goal-chips';
       served.slice(0,8).forEach(x=>{
         const done=x.completedOn===tk||x.done;
         const c=bt('tagchip',(done?'✓ ':'🏁 ')+x.title.slice(0,26)+' ✕',()=>{
@@ -6335,7 +6316,7 @@ function buildGoals(redraw){
       sb.appendChild(addBtn);
       mid.appendChild(sb);
 
-      const pick=dv('mt4');pick.style.display='none';
+      const pick=dv('mt4');pick.style.display='none';pick.dataset.tut='goal-pick';
       const psi=ip('text','','',t('goal-link-search'));psi.style.width='100%';
       const pres=dv('row gap6 mt4');pres.style.flexWrap='wrap';
       const runSearch=()=>{
@@ -8120,12 +8101,6 @@ async function disablePush(){
   }catch(e){console.warn('disablePush',e);}
   try{localStorage.removeItem('st_push');}catch(e){}
 }
-// Days since the file backup was last made; null if it never was.
-function daysSinceBackup(){
-  let d=null;try{d=localStorage.getItem('st_lastjson');}catch(e){}
-  if(!d)return null;
-  return Math.round((new Date(todayKey()+'T12:00:00')-new Date(d+'T12:00:00'))/86400000);
-}
 /* ── Dates written the way they are said ────────────────────────────────────
    "pagar renta mañana 4pm", "dentista el viernes a las 10", "llamar 20 de
    octubre". Pulls a date and/or a time out of the text and hands back what is
@@ -8237,7 +8212,7 @@ function renderAddModal(){
   panel.appendChild(ti);panel.appendChild(nlp);panel.appendChild(noi);
   const row2=dv('row gap8 mt8');row2.style.flexWrap='wrap';row2.dataset.tut='add-when';
   const di=ip('date','',pf.due||todayKey(),'');di.style.cssText='flex:0 0 148px;min-width:130px';
-  const hi=ip('time','',pf.time||'','');hi.style.cssText='flex:0 0 104px';hi.title=t('rem-time');
+  const hi=ip('time','',pf.time||'','');hi.style.cssText='flex:0 0 104px';hi.title=t('rem-time');hi.dataset.tut='add-time';
   const showNlp=()=>{
     const p=parseWhen(ti.value);
     if(!p){nlp.style.display='none';return;}
