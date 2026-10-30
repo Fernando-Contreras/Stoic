@@ -237,7 +237,7 @@ button{cursor:pointer;font-family:var(--ff);font-size:15px;font-weight:600;borde
 @media(prefers-reduced-motion:reduce){.ms-card,.ms-ico,.ms-spark{animation:none}.ms-spark{display:none}}
 /* The tutorial: four dim panels around one lit hole, a ring on it, a hand, a bubble. The layer
    itself ignores the pointer; only the panels and the bubble take it, so the lit part stays live. */
-.tut{position:fixed;inset:0;z-index:85;pointer-events:none}
+.tut{position:fixed;left:0;top:0;width:100%;height:100%;transform-origin:0 0;z-index:85;pointer-events:none}
 .tut-d{position:fixed;background:rgba(0,0,0,.66);pointer-events:auto}
 .tut-ring{position:fixed;border:2px solid var(--ac);border-radius:14px;pointer-events:none;box-shadow:0 0 0 4px var(--acd),0 0 22px var(--ac);animation:tutPulse 1.4s ease-in-out infinite}
 .tut-hand{position:fixed;font-size:30px;line-height:1;pointer-events:none;filter:drop-shadow(0 2px 4px rgba(0,0,0,.5))}
@@ -841,7 +841,16 @@ const TUT_STAGES={
   1:[
     {id:'hi',     manual:true, btn:'tut-start', text:'tut1-hi',     done:c=>!!c.mine()},
     {id:'plus',   target:'[data-tut="add"]',       text:'tut1-plus',   done:c=>STATE.showAddForm||!!c.mine()},
-    {id:'type',   target:'[data-tut="add-panel"]', text:'tut1-type',   done:c=>!!c.mine()},
+    // The whole form, or just its title box when the form is taller than what is
+    // visible (a phone with the keyboard up). Soft: nothing in the form is blocked,
+    // so the "Add" button still works even where the light does not reach it.
+    {id:'type',   target:()=>{
+                    const p=document.querySelector('[data-tut="add-panel"]');
+                    if(!p)return null;
+                    const vv=window.visualViewport,vh=vv?vv.height:window.innerHeight;
+                    return p.getBoundingClientRect().height>vh*.6?(p.querySelector('[data-tut="add-title"]')||p):p;
+                  },                                soft:true,
+                                                    text:'tut1-type',   done:c=>!!c.mine()},
     {id:'colour', target:'[data-tut="day-card"]',  text:'tut1-colour', manual:true, done:c=>c.mineDone()},
     {id:'tick',   target:c=>{const m=c.mine();return m&&document.querySelector('[data-tut-rem="'+m.id+'"]');},
                                                     text:'tut1-tick',   done:c=>c.mineDone()},
@@ -853,7 +862,9 @@ const TUT={run:null,timer:null,L:null};
 // The tasks the person has made since the run began (a replay ignores the ones that were already there).
 function tutCtx(run){
   const mine=()=>reminders().find(r=>!r.parent&&!run.known.has(r.id));
-  return{mine,mineDone:()=>{const m=mine();return !!m&&(!!m.done||m.completedOn===todayKey());}};
+  // Done today in any of the ways a task can be: an hourly one goes straight back to
+  // waiting for its next turn (no completedOn), so its tally for today is what says so.
+  return{mine,mineDone:()=>{const m=mine(),tk=todayKey();return !!m&&(!!m.done||m.completedOn===tk||doneCount(m,tk)>0);}};
 }
 function tutDone(run,s){return !!(run.ack[s.id]||(s.done&&s.done(run.ctx)));}
 function tutToast(msg){
@@ -885,6 +896,7 @@ function tutStart(stages,opts){
   tutBuild();
   TUT.timer=setInterval(tutTick,250);
   window.addEventListener('resize',tutTick);
+  if(window.visualViewport){visualViewport.addEventListener('resize',tutTick);visualViewport.addEventListener('scroll',tutTick);}
   window.addEventListener('scroll',tutTick,true);
   tutTick();
   return true;
@@ -893,6 +905,7 @@ function tutStop(){
   if(TUT.timer)clearInterval(TUT.timer);
   TUT.timer=null;TUT.run=null;
   window.removeEventListener('resize',tutTick);
+  if(window.visualViewport){visualViewport.removeEventListener('resize',tutTick);visualViewport.removeEventListener('scroll',tutTick);}
   window.removeEventListener('scroll',tutTick,true);
   if(TUT.L){TUT.L.remove();TUT.L=null;}
 }
@@ -960,9 +973,22 @@ function tutTick(){
   const key=step.id+'|'+STATE.lang+'|'+run.skipping;
   if(run.shown!==key){run.shown=key;tutPaint(step);}
 
-  const vw=window.innerWidth,vh=window.innerHeight;
+  /* Everything is laid out over the part of the page that can actually be SEEN
+     (the visual viewport), not the whole window. On a phone with the keyboard
+     up, or scrolled while a box has focus, the two are not the same: the window
+     keeps its full height under the keyboard and slides, and a layer drawn
+     against it ends up lighting the wrong place. The layer is moved onto what
+     is visible and everything inside it is measured from there. */
+  const vv=window.visualViewport;
+  const ox=vv?vv.offsetLeft:0,oy=vv?vv.offsetTop:0;
+  const vw=vv?vv.width:window.innerWidth,vh=vv?vv.height:window.innerHeight;
+  L.style.transform='translate('+ox+'px,'+oy+'px)';
+  L.style.width=vw+'px';L.style.height=vh+'px';
   const el=step.target?(typeof step.target==='function'?step.target(run.ctx):document.querySelector(step.target)):null;
   const [dT,dL,dR,dB]=L.dim;
+  // A soft step only dims; the person can still press anything (see the 'type' step).
+  L.dim.forEach(d=>{d.style.pointerEvents=step.soft?'none':'';});
+  const rectOf=e=>{const b=e.getBoundingClientRect();return{left:b.left-ox,top:b.top-oy,right:b.right-ox,bottom:b.bottom-oy,height:b.height};};
   const box=(e,l,t_,w,h)=>{
     e.style.display=(w<=0||h<=0)?'none':'';
     e.style.left=l+'px';e.style.top=t_+'px';e.style.width=Math.max(0,w)+'px';e.style.height=Math.max(0,h)+'px';
@@ -984,11 +1010,11 @@ function tutTick(){
     }
     return;
   }
-  let r=el.getBoundingClientRect();
+  let r=rectOf(el);
   if((r.top<0||r.bottom>vh)&&run.scrolledFor!==step.id){
     run.scrolledFor=step.id;
     el.scrollIntoView({block:(r.height>vh*.6?'start':'center'),behavior:'smooth'});
-    r=el.getBoundingClientRect();
+    r=rectOf(el);
   }
   const h={l:Math.max(4,r.left-8),t:Math.max(4,r.top-8),r:Math.min(vw-4,r.right+8),b:Math.min(vh-4,r.bottom+8)};
   box(dT,0,0,vw,h.t);
@@ -1664,7 +1690,7 @@ en:{
   'daily-tracker':'daily habit tracker · by JuanFer',
   'tab-plan':'Plan','tab-score':'Score','made-by':'Stoic · Made by JuanFer',
   'rem-title':'Reminders','rem-new':'New reminder','rem-what':'What needs doing?',
-  'tut-start':'Start','tut-next':'Next','tut-finish':'Done!','tut-skip':'Skip','tut-skip-q':'What would you like?','tut-skip-part':'Skip this; carry on tomorrow','tut-skip-all':'I already know Stoic: show everything','tut-back':'Back to the tutorial','tut-replay':'Watch the tutorial','tut-replay-note':'This is a replay: nothing gets locked or unlocked.','tut-done-real':'Nice. Tomorrow I will show you what comes next.','tut-done-replay':'Done. Watch it again whenever you like.','tut1-hi':'Welcome to Stoic 🏛️\nYour day is measured by a short list of tasks and a colour. In one minute you will see it for yourself.','tut1-plus':'Tap the ＋ to create your first task.','tut1-type':'Write something you want to do today, for example "Make the bed", and tap "Add".','tut1-colour':'This is your day. It is red because you have not done anything yet. Your goal each day is to get it out of the red.','tut1-tick':'When you finish your task, tick it here.','tut1-end':'See that? Getting out of the red lights a candle 🕯️. Every day that does not end in red counts.',
+  'tut-start':'Start','tut-next':'Next','tut-finish':'Done!','tut-skip':'Skip','tut-skip-q':'What would you like?','tut-skip-part':'Skip this; carry on tomorrow','tut-skip-all':'I already know Stoic: show everything','tut-back':'Back to the tutorial','tut-replay':'Watch the tutorial','tut-replay-note':'This is a replay: nothing gets locked or unlocked.','tut-done-real':'Nice. Tomorrow I will show you what comes next.','tut-done-replay':'Done. Watch it again whenever you like.','tut1-hi':'Welcome to Stoic 🏛️\nYour day is measured by a short list of tasks and a colour. In one minute you will see it for yourself.','tut1-plus':'Tap the ＋ to create your first task.','tut1-type':'Write something you want to do today, for example "Make the bed", and tap "Add" (or Enter on the keyboard).','tut1-colour':'This is your day. It is red because you have not done anything yet. Your goal each day is to get it out of the red.','tut1-tick':'When you finish your task, tick it here.','tut1-end':'See that? Getting out of the red lights a candle 🕯️. Every day that does not end in red counts.',
   'rem-add':'+ Add reminder','rem-need-title':'Give it a name first',
   'rem-discard':'Close without adding this one? What you typed will be lost.',
   'rem-prio':'Quadrant','rem-flag':'Goal of the day','rem-every':'Every',
@@ -1948,7 +1974,7 @@ es:{
   'daily-tracker':'rastreador diario · por JuanFer',
   'tab-plan':'Plan','tab-score':'Puntaje','made-by':'Stoic · Hecho por JuanFer',
   'rem-title':'Recordatorios','rem-new':'Nuevo recordatorio','rem-what':'¿Qué hay que hacer?',
-  'tut-start':'Empezar','tut-next':'Siguiente','tut-finish':'¡Listo!','tut-skip':'Saltar','tut-skip-q':'¿Qué prefieres?','tut-skip-part':'Saltar esto; mañana sigo con lo que toca','tut-skip-all':'Ya sé usar Stoic: mostrar todo','tut-back':'Volver al tutorial','tut-replay':'Ver el tutorial','tut-replay-note':'Esto es un repaso: no se bloquea ni se desbloquea nada.','tut-done-real':'Muy bien. Mañana te enseño lo que sigue.','tut-done-replay':'Listo. Cuando quieras lo ves otra vez.','tut1-hi':'Bienvenido a Stoic 🏛️\nTu día se mide con una lista corta de tareas y un color. En un minuto lo ves tú mismo.','tut1-plus':'Toca el ＋ para crear tu primera tarea.','tut1-type':'Escribe algo que quieras hacer hoy, por ejemplo «Tender la cama», y toca «Agregar».','tut1-colour':'Este es tu día. Está en rojo porque aún no has hecho nada. Tu meta de cada día es sacarlo del rojo.','tut1-tick':'Cuando termines tu tarea, márcala aquí.','tut1-end':'¿Viste? Al salir del rojo se prende una vela 🕯️. Cada día que no termina en rojo cuenta.',
+  'tut-start':'Empezar','tut-next':'Siguiente','tut-finish':'¡Listo!','tut-skip':'Saltar','tut-skip-q':'¿Qué prefieres?','tut-skip-part':'Saltar esto; mañana sigo con lo que toca','tut-skip-all':'Ya sé usar Stoic: mostrar todo','tut-back':'Volver al tutorial','tut-replay':'Ver el tutorial','tut-replay-note':'Esto es un repaso: no se bloquea ni se desbloquea nada.','tut-done-real':'Muy bien. Mañana te enseño lo que sigue.','tut-done-replay':'Listo. Cuando quieras lo ves otra vez.','tut1-hi':'Bienvenido a Stoic 🏛️\nTu día se mide con una lista corta de tareas y un color. En un minuto lo ves tú mismo.','tut1-plus':'Toca el ＋ para crear tu primera tarea.','tut1-type':'Escribe algo que quieras hacer hoy, por ejemplo «Tender la cama», y toca «Agregar» (o intro en el teclado).','tut1-colour':'Este es tu día. Está en rojo porque aún no has hecho nada. Tu meta de cada día es sacarlo del rojo.','tut1-tick':'Cuando termines tu tarea, márcala aquí.','tut1-end':'¿Viste? Al salir del rojo se prende una vela 🕯️. Cada día que no termina en rojo cuenta.',
   'rem-add':'+ Agregar recordatorio','rem-need-title':'Ponle nombre primero',
   'rem-discard':'¿Cerrar sin agregarlo? Se pierde lo que escribiste.',
   'rem-prio':'Cuadrante','rem-flag':'Meta del día','rem-every':'Cada',
@@ -7721,7 +7747,7 @@ function renderAddModal(){
   panel.appendChild(hd);
 
   const pf=STATE.addPrefill||{};
-  const ti=ip('text','',pf.title||'',t('rem-what'));
+  const ti=ip('text','',pf.title||'',t('rem-what'));ti.dataset.tut='add-title';
   /* What was understood from the words, offered rather than applied — see
      parseWhen. Pressing it fills the date and time boxes and takes those
      words out of the title. */
