@@ -533,20 +533,21 @@ button{cursor:pointer;font-family:var(--ff);font-size:15px;font-weight:600;borde
    row becomes two lines: the checkbox and the whole title, and the goal under
    it. */
 .flag-ttl,.flag-note{min-width:0;overflow-wrap:anywhere}
+.flag-note{max-width:50%;text-align:right}   /* or a long step squeezes the goal to one word a line */
 /* It is the width of the card that decides, not of the screen: a desktop window
    narrow enough to make this card half-width broke the same way a phone did. */
 .flag-box{container-type:inline-size}
 @container (max-width:520px){
   .flag-row{flex-wrap:wrap;align-items:flex-start;row-gap:2px}
   .flag-row .flag-ttl{flex:1 1 0}
-  .flag-row .flag-note{flex:1 1 100%;padding-left:30px;font-size:12px}
+  .flag-row .flag-note{flex:1 1 100%;max-width:none;text-align:left;padding-left:30px;font-size:12px}
 }
 /* Where container queries are not understood, the screen width stands in. */
 @supports not (container-type:inline-size){
   @media(max-width:700px){
     .flag-row{flex-wrap:wrap;align-items:flex-start;row-gap:2px}
     .flag-row .flag-ttl{flex:1 1 0}
-    .flag-row .flag-note{flex:1 1 100%;padding-left:30px;font-size:12px}
+    .flag-row .flag-note{flex:1 1 100%;max-width:none;text-align:left;padding-left:30px;font-size:12px}
   }
 }
 
@@ -969,6 +970,7 @@ const TUT_STAGES={
                    win:'showGoals', press:true, temp:true, text:'tut2-link'},
     {id:'goalPick',target:'[data-tut="goal-pick"]', win:'showGoals', soft:true, latch:true, text:'tut2-pick', done:c=>c.linked()>0},
     {id:'goalDone',target:'[data-tut="goal-chips"]', win:'showGoals', text:'tut2-linked', manual:true, look:true, after:tutClose('showGoals')},
+    {id:'goalHow', tab:'plan', manual:true,                 text:'tut2-goalhow'},
     {id:'next2',   manual:true, choice:true,                text:'tut2-next'}
   ],
   3:[
@@ -2088,7 +2090,7 @@ en:{
   'tut1-vsort2':'Your list changed order. It stays how you leave it, and your points do not change.',
   'tut1-vhide':'Tasks with a time stay hidden until this many hours before, so they do not get in your way.',
   'tut1-prefs':'Up here: light or dark mode, language, and 🎓 to repeat this tutorial.',
-  'tut1-flagged':'Your 🏁 goal of the day also shows up here, in your goals section.',
+  'tut1-flagged':'Here you see the bigger goals your 🏁 tasks point to.\nYou have none yet, so you get a ⚠️. You will make them later.',
   'tut1-colour':'This is your day. It is red because nothing is done yet. Your goal: get it out of the red.',
   'tut1-tick':'Mark this task as done.',
   'tut1-half':'Half done: yellow 🟡, and the candle lights up 🕯️. Every day without red adds to your streak.',
@@ -2111,6 +2113,7 @@ en:{
   'tut2-stepplus':'Goals are reached in steps. Make one: tap the ＋.',
   'tut2-steptype':'Write the step. I left it for tomorrow so your day today stays the same.',
   'tut2-goalback':'Go back to your goals.',
+  'tut2-goalhow':'When a 🏁 task points to a goal, that goal shows up in Goals to annihilate.\nCheck it there when you reach the goal. The task gets checked in your list.',
   'tut2-link':'This ＋ links tasks to your goal. Tap it.',
   'tut2-pick':'Pick the task you made.',
   'tut2-linked':'Done: that task now points to your goal.\nThe idea: your daily goals are steps toward your weekly, quarterly and yearly ones. That way you move forward every day.\nYou can also link from ✏️ on any task.',
@@ -2186,6 +2189,9 @@ en:{
   'rem-del-warn':'Delete "{t}"?','rem-del-warn-kids':'Delete "{t}" and its {n} subtask(s)?',
   'rem-tag-ph':'New tag (work, home, gym…)','rem-filter':'Filter by tag','rem-filter-clear':'clear',
   'rem-filter-all':'· must have all of them',
+  'cal-tag-sum':'{d} day(s) · {n} task(s) with {tags}',
+  'cal-tag-norec':'No tags were recorded for this day',
+  'cal-tag-nodata':'The faintest days did not record their tags — only days since this existed do, plus the most recent ones still in the archive.',
   'tagmgr-open':'Rename or delete a tag everywhere','tagmgr-title':'Manage tags',
   'ext-measured':'Measured by the Stoic Block extension. Delete it to dismiss what it measured so far.',
   'tagmgr-none':'No tags yet.','tagmgr-suggest':'💡 Suggested','tagmgr-add':'+ Add','tagmgr-add-all':'Add all','tagmgr-one':'reminder','tagmgr-count':'reminders',
@@ -2240,7 +2246,7 @@ en:{
   'rem-parent-is':'Subtask of','rem-parent-search':'Nest under… (type to search)','rem-parent-none':'Nothing matches',
   'goals-title':'Goals','goal-week':'📅 Weekly','goal-quarter':'📈 Quarterly','goal-year':'🏆 Yearly',
   'goal-new':'A goal that excites you','goal-add':'+ Add goal','goal-day':'day left','goal-days':'days left',
-  'goal-earned':'earned from goals','goal-daily':'Goals to annihilate','goal-daily-none':'No goals flagged for today.',
+  'goal-earned':'earned from goals','goal-daily':'Goals to annihilate','flags-today':'Goals of the day','goal-none-for':'No goal scheduled for:','goal-daily-none':'No goals flagged for today.',
   'cap-note':'Your positive runs pay by square root — 100 days is ×{n} — so they never stop growing. Reward runs reach ×{p}.',
   'src-title':'Where your points come from','src-tasks':'Tasks','src-morning':'Morning','src-flags':'Goals',
   'src-pom':'Pomodoros','src-work':'Work','src-sleep':'Sleep','src-color':'Day colour',
@@ -2446,7 +2452,7 @@ es:{
   'tut1-vsort2':'Tu lista cambió de orden. Se queda como la dejes y tus puntos no cambian.',
   'tut1-vhide':'Las tareas con hora se esconden hasta estas horas antes, para que no te estorben.',
   'tut1-prefs':'Aquí arriba: modo claro u oscuro, idioma y 🎓 para repetir este tutorial.',
-  'tut1-flagged':'Tu 🏁 meta del día también sale aquí, en tu sección de metas.',
+  'tut1-flagged':'Aquí ves las metas grandes a las que apuntan tus tareas con 🏁.\nAún no tienes, por eso sale ⚠️. Las haces más adelante.',
   'tut1-colour':'Este es tu día. Está en rojo porque aún no haces nada. Tu meta: sacarlo del rojo.',
   'tut1-tick':'Marca esta tarea como hecha.',
   'tut1-half':'Mitad hecha: amarillo 🟡, y se prende la vela 🕯️. Cada día sin rojo suma a tu racha.',
@@ -2469,6 +2475,7 @@ es:{
   'tut2-stepplus':'Las metas se cumplen con pasos. Crea uno: toca el ＋.',
   'tut2-steptype':'Escribe el paso. Lo dejé para mañana, así tu día de hoy no cambia.',
   'tut2-goalback':'Regresa a tus metas.',
+  'tut2-goalhow':'Cuando una tarea con 🏁 apunta a una meta, esa meta sale en Metas por exterminar.\nAhí le das check cuando cumplas la meta. La tarea se marca en Pendientes.',
   'tut2-link':'Este ＋ liga tareas a tu meta. Tócalo.',
   'tut2-pick':'Elige la tarea que creaste.',
   'tut2-linked':'Listo: esa tarea ya apunta a tu meta.\nEl chiste: que tus metas del día sean pasos hacia las de la semana, el trimestre y el año. Así avanzas diario.\nTambién se liga desde ✏️ en cualquier tarea.',
@@ -2544,6 +2551,9 @@ es:{
   'rem-del-warn':'¿Borrar "{t}"?','rem-del-warn-kids':'¿Borrar "{t}" y sus {n} subtarea(s)?',
   'rem-tag-ph':'Etiqueta nueva (trabajo, casa, gym…)','rem-filter':'Filtrar por etiqueta','rem-filter-clear':'limpiar',
   'rem-filter-all':'· deben tener todas',
+  'cal-tag-sum':'{d} día(s) · {n} tarea(s) con {tags}',
+  'cal-tag-norec':'No se guardaron etiquetas de este día',
+  'cal-tag-nodata':'Los días más tenues no guardaron sus etiquetas: solo lo hacen los días desde que esto existe, más los más recientes que aún están en el archivo.',
   'tagmgr-open':'Renombrar o borrar una etiqueta en todos lados','tagmgr-title':'Administrar etiquetas',
   'ext-measured':'Medido por la extensión Stoic Block. Bórralo para descartar lo que midió hasta ahora.',
   'tagmgr-none':'Todavía no hay etiquetas.','tagmgr-suggest':'💡 Sugeridas','tagmgr-add':'+ Añadir','tagmgr-add-all':'Añadir todas','tagmgr-one':'pendiente','tagmgr-count':'pendientes',
@@ -2598,7 +2608,7 @@ es:{
   'rem-parent-is':'Subtarea de','rem-parent-search':'Meterla bajo… (escribe para buscar)','rem-parent-none':'Nada coincide',
   'goals-title':'Metas','goal-week':'📅 Semanales','goal-quarter':'📈 Trimestrales','goal-year':'🏆 Anuales',
   'goal-new':'Una meta que te emocione','goal-add':'+ Agregar meta','goal-day':'día restante','goal-days':'días restantes',
-  'goal-earned':'ganados en metas','goal-daily':'Metas por exterminar','goal-daily-none':'No hay metas del día marcadas.',
+  'goal-earned':'ganados en metas','goal-daily':'Metas por exterminar','flags-today':'Metas del día','goal-none-for':'Sin meta programada para:','goal-daily-none':'No hay metas del día marcadas.',
   'cap-note':'Tus rachas positivas pagan por raíz cuadrada — 100 días valen ×{n} — así que nunca dejan de crecer. Las de recompensa llegan hasta ×{p}.',
   'src-title':'De dónde salen tus puntos','src-tasks':'Tareas','src-morning':'Mañanas','src-flags':'Metas',
   'src-pom':'Pomodoros','src-work':'Trabajo','src-sleep':'Sueño','src-color':'Color del día',
@@ -3186,7 +3196,12 @@ const CALC={
   },
   buildEntry(today,streaks,date){
     const sc=this.score(today,streaks);
-    return{date,_ts:CLOCK.now(),todayPoints:sc.total,status:sc.status,
+    // What the day finished, by tag — see dayTagTally. Left off the entry when
+    // there is nothing new to say, so upsertHist's merge keeps what was there.
+    const prevDay=STATE.history.find(h=>h.date===date);
+    const tg=dayTagTally(date,prevDay&&prevDay.tg);
+    const tagPart=tg!==undefined?{tg}:{};
+    return{...tagPart,date,_ts:CLOCK.now(),todayPoints:sc.total,status:sc.status,
       completedTasks:today.completed,totalTasks:today.target,pomodoros:today.pomodoros,
       pomoCfg:today._pomoCfg||pomoCfgFrom(STATE.pomo),
       penalties:today.penalties.map(p=>({type:p.type,count:p.count,points:this.penBase(p),streak:1})),
@@ -4200,6 +4215,89 @@ function unlogCompletion(r,tk){
   const i=completionLog().findIndex(x=>x.srcId===r.id&&x.date===tk);
   if(i>=0)completionLog().splice(i,1);
 }
+
+/* ── What each day finished, by tag ──
+   The calendar filters by tag, and a tag belongs to a task, not to a day. The
+   only place that remembers which tasks were finished on which day is the
+   completion log — and that keeps the last 200, which at a busy day's pace is
+   under a week. A filter built on it alone would be empty past that point and
+   would say "you did nothing" when the truth was "there is no record", which
+   is the one thing a filter must never confuse.
+
+   So each day carries its own small tally, written into the day's history
+   entry and therefore kept for as long as the day is. It is a list of
+   [tags, count] pairs rather than one number per tag, because the filter is
+   "has ALL of these" — and a day with gym ×2 and work ×3 does not say whether
+   a single task was both. Sets are sorted so the same set always groups. */
+function tallyFromLog(date){
+  const m=new Map();
+  completionLog().forEach(x=>{
+    if(x.date!==date)return;
+    const tg=normTags(x.tags).sort();
+    const k=JSON.stringify(tg);
+    const cur=m.get(k);
+    if(cur)cur[1]++;else m.set(k,[tg,1]);
+  });
+  return m.size?[...m.values()]:null;
+}
+function tallySum(tg){return Array.isArray(tg)?tg.reduce((s,p)=>s+p[1],0):0;}
+// How many of a day's tasks carried every tag in F.
+function tallyCount(tg,F){
+  if(!Array.isArray(tg))return 0;
+  return tg.reduce((s,[tags,n])=>F.every(x=>tags.includes(x))?s+n:s,0);
+}
+/* What to write on a day's entry, or undefined for "leave what is there".
+   Today is read straight from the log, including when it is empty — unticking
+   the last task must clear it. Any earlier day is only ever replaced by
+   something at least as complete: the log is trimmed from its old end, so a
+   day that is partly gone from it would otherwise be overwritten by an
+   undercount of itself. */
+function dayTagTally(date,prev){
+  const fresh=tallyFromLog(date);
+  if(date===todayKey())return fresh||[];
+  if(!fresh)return undefined;
+  return tallySum(fresh)>=tallySum(prev)?fresh:undefined;
+}
+/* Days that are still inside the log but were closed before this existed: write
+   their tally down now, while the log still has them. The oldest day in a full
+   log is skipped — it may already be missing some of its entries — and today is
+   left to save(). Local only; boot never pushes, and the next real change
+   carries it up. */
+function backfillTagTallies(){
+  const log=completionLog();
+  if(!log.length)return;
+  const dates=new Set(log.map(x=>x.date));
+  if(log.length>=LOG_MAX)dates.delete([...dates].sort()[0]);
+  let changed=false;
+  dates.forEach(d=>{
+    if(d===todayKey())return;
+    const e=STATE.history.find(h=>h.date===d&&!h._gap);
+    if(!e||Array.isArray(e.tg))return;
+    const f=tallyFromLog(d);
+    if(f){e.tg=f;changed=true;}
+  });
+  if(changed)S.set(K.HIST,STATE.history);
+}
+/* One day, as the calendar needs it: the tally and whether it is a real zero
+   or simply a day nobody recorded. */
+function dayTagData(date,entry){
+  if(date===todayKey())return{tg:tallyFromLog(date)||[],known:true};
+  if(entry&&Array.isArray(entry.tg))return{tg:entry.tg,known:true};
+  const f=tallyFromLog(date);
+  return f?{tg:f,known:true}:{tg:[],known:false};
+}
+// The calendar's own tag filter. Its own, not the list's: the list's lives on
+// the Plan tab and follows you across devices, and a calendar that dimmed
+// itself because of a filter you set days ago on another screen would be a
+// mystery with no cause on the page it is on.
+function calTagFilter(){
+  if(!Array.isArray(STATE.calTags)){
+    const v=S.get('st_caltags',[]);
+    STATE.calTags=Array.isArray(v)?v:[];
+  }
+  const known=new Set(allTags());
+  return STATE.calTags.filter(x=>known.has(x));
+}
 function setDone(r,tk,on){
   if(on){
     r.completedOn=tk;
@@ -5059,6 +5157,16 @@ function goalFallbackNote(r){
   }
   return null;
 }
+/* The goals section asks one thing of a flag: which goal is it a step toward now?
+   The open one it serves that ends soonest. The closed ones still on the board
+   are told apart from having none, so finishing a goal does not turn its task
+   into a "no goal" warning the same second. */
+function flagGoals(r){
+  const served=new Set(goalIdsOf(r));
+  const board=GOAL_KINDS.flatMap(k=>goalsOf(k)).filter(g=>served.has(g.id));
+  const open=board.filter(g=>!g.doneOn).sort((a,b)=>goalDeadline(a).localeCompare(goalDeadline(b)));
+  return{goal:open[0]||null,closed:board.filter(g=>g.doneOn)};
+}
 function weeklyGoalNote(r){
   const base=weeklyGoalNoteBase(r);
   if(!r||!r.flagged)return base;
@@ -5433,27 +5541,51 @@ function renderPlanner(){
     sum.appendChild(gate(dv('xs ac ctr mt6 w6',t('goal-nudge')+' ↑'),'goals'));
   }
 
-  /* The day's goals are the flagged reminders, so they live here rather than
-     with the long goals — foldable, since on a busy day the list is long. */
-  /* Only what is still outstanding. A finished flag has served its purpose —
-     leaving it struck through kept the day's remaining work buried under a
-     list of things already dealt with. */
+  /* What today's flags are aiming at. A row here is a goal and its check closes
+     that goal: with the flag's own name on the row, ticking it to say "I reached
+     the goal" finished the task instead. The flags sit beside it as the steps, and
+     are ticked in the list. A flag finished today keeps its goal here, because the
+     last step is exactly when the goal gets closed. */
   const flagsAll=reminders().filter(r=>r.flagged&&(r.completedOn===tk||(!r.done&&r.due<=tk)));
   const flagsLeft=flagsAll.filter(r=>r.completedOn!==tk);
   if(flagsAll.length&&featureOn('flags')){
+    const aims=new Map(),closedToday=new Set(),orphans=[];
+    flagsAll.forEach(r=>{
+      const{goal,closed}=flagGoals(r);
+      closed.filter(g=>g.doneOn===tk).forEach(g=>closedToday.add(g.id));
+      if(goal){
+        if(!aims.has(goal.id))aims.set(goal.id,{goal,steps:[]});
+        aims.get(goal.id).steps.push(r);
+      }else if(!closed.length&&r.completedOn!==tk)orphans.push(r);
+    });
+    const rows=[...aims.values()].sort((a,b)=>goalDeadline(a.goal).localeCompare(goalDeadline(b.goal)));
+    const steps=list=>{
+      const note=sp('sm dimmer flag-note','');
+      list.forEach((r,i)=>{
+        if(i)note.appendChild(document.createTextNode(' · '));
+        const ttl=sp('',r.title);
+        if(r.completedOn===tk)ttl.style.textDecoration='line-through';
+        editableTitle(ttl,r,render);
+        note.appendChild(ttl);
+      });
+      return note;
+    };
     /* The heading and the done-banner both open the full list of the day's
-       flags — the one place to reword or reschedule a goal once the section
-       has collapsed into either a short list or a fanfare. */
+       flags — the one place to reword or reschedule a flag once it has left
+       this section. */
     const openFlags=()=>{STATE.showFlags=true;render();};
-    const gh=dv('xs dimmer up ls mt10 mb6',`🏁 ${t('goal-daily')} (${s.flagsDone}/${s.flagsTotal})`);
-    gh.style.cursor='pointer';gh.title=t('goal-daily');gh.onclick=openFlags;
+    const count=rows.length+closedToday.size;
+    const gh=dv('xs dimmer up ls mt10 mb6',`🏁 ${t('goal-daily')}`+(count?` (${closedToday.size}/${count})`:''));
+    gh.style.cursor='pointer';gh.title=t('flags-today');gh.onclick=openFlags;
     sum.appendChild(gh);
+    const more=rows.length+orphans.length>0;
     if(!flagsLeft.length){
       const win=dv('ctr celebrate');
       win.style.cssText='position:relative;overflow:hidden;background:var(--acd);border:1px solid var(--acb);border-radius:10px;padding:14px 10px;cursor:pointer';
-      win.title=t('goal-daily');win.onclick=openFlags;
-      win.innerHTML=`<div class="lg w8 ac">🏅 ${t('goal-day-done')}</div>`+
-        `<div class="xs dim mt2">${t('goal-day-done-sub')}</div>`;
+      win.title=t('flags-today');win.onclick=openFlags;
+      // With goals still open under it, this can only claim the flags.
+      win.innerHTML=`<div class="lg w8 ac">🏅 ${t(more?'goal-day-done-sub':'goal-day-done')}</div>`+
+        (more?'':`<div class="xs dim mt2">${t('goal-day-done-sub')}</div>`);
       const conf=dv('confetti');
       conf.style.cssText='position:absolute;inset:0;pointer-events:none';
       ['🎉','✨','🎊','⭐','✨','🎉'].forEach((c,i)=>{
@@ -5464,36 +5596,32 @@ function renderPlanner(){
       });
       win.appendChild(conf);
       sum.appendChild(win);
-    }else{
+    }
+    if(more){
       const box=dv('s4 flag-box');box.dataset.tut='flag-box';
-      flagsLeft.forEach(r=>{
+      if(!flagsLeft.length)box.style.marginTop='8px';
+      const rowOf=()=>{
         const row=dv('row gap8 flag-row');
         row.style.cssText='background:var(--sur2);border:1px solid var(--b1);border-radius:8px;padding:6px 9px';
-        const cb=ip('checkbox','');cb.checked=false;
-        // The last flags of the day leave the same way, and the one that empties
-        // this list hands straight over to the celebration that replaces it.
-        cb.onchange=()=>{leaveThen(row,()=>{toggleReminder(r.id);render();});};
-        row.appendChild(cb);
-        /* The day's flags are your three most important tasks, and this was the
-           one list in the app showing a task as a plain label — the name you
-           most want to sharpen sat in the only place that would not let you.
-           Same words, same press, same result as everywhere else. */
-        const wkNote=weeklyGoalNote(r);
-        // This is the goals section: what the task serves leads, and the task is the
-        // step toward it. A link gone stale has no goal to lead with.
-        const leads=wkNote!==null&&!wkNote.stale;
-        const ttl=sp(leads?'sm dimmer flag-note':'sm f1 flag-ttl',r.title);
-        editableTitle(ttl,r,render);
-        if(!leads)row.appendChild(ttl);
-        if(wkNote!==null){
-          const suf=sp(leads?'sm f1 flag-ttl':'sm dimmer flag-note',(wkNote.icon||(wkNote.stale?'⚠️':'🏁'))+' '+wkNote.text);
-          if(wkNote.done)suf.style.textDecoration='line-through';
-          suf.title=t('rem-goal-for');
-          if(wkNote.stale)staleGoalClick(suf,r);
-          row.appendChild(suf);
-        }
-        if(leads)row.appendChild(ttl);
         box.appendChild(row);
+        return row;
+      };
+      rows.forEach(({goal,steps:list})=>{
+        const row=rowOf();
+        const cb=ip('checkbox','');cb.checked=false;
+        cb.onchange=()=>{leaveThen(row,()=>{toggleGoal(goal.id);render();if(goal.doneOn)showGoalDone(goal);});};
+        row.appendChild(cb);
+        row.appendChild(sp('sm f1 flag-ttl',GOAL_ICON[goal.kind]+' '+goal.title));
+        row.appendChild(steps(list));
+      });
+      /* Nothing to close on these, so no check: pressing the words names the goal. */
+      orphans.forEach(r=>{
+        const row=rowOf();
+        row.appendChild(sp('sm','⚠️'));
+        const say=sp('sm dim f1 flag-ttl',t('goal-none-for'));
+        staleGoalClick(say,r);
+        row.appendChild(say);
+        row.appendChild(steps([r]));
       });
       sum.appendChild(box);
     }
@@ -10089,6 +10217,30 @@ function renderCalendar(onPick){
     const nx=bt('btn-icon','›',()=>shiftMonth(1));nx.style.fontSize='20px';
     hd.appendChild(pv);hd.appendChild(sp('lg w7',capFirst(new Date(cY,cM).toLocaleDateString(STATE.lang==='es'?'es-MX':'en-US',{month:'long',year:'numeric'}))));hd.appendChild(nx);wrap.appendChild(hd);
 
+    /* Filter by tag. The calendar paints a whole day's verdict and a tag is
+       one slice of a day, so filtering never recolours anything: a red day that
+       did include your gym stays red and says so. What changes is which days
+       are lit — the ones with a task carrying every chosen tag show how many,
+       and the rest step back. */
+    const allT=allTags();
+    const F=calTagFilter();
+    const setTags=next=>{STATE.calTags=next;S.set('st_caltags',next);build();};
+    if(allT.length){
+      const bar=dv('row gap6 mb10');bar.style.cssText='flex-wrap:wrap;align-items:center';
+      bar.appendChild(sp('xs dimmer up ls',t('rem-filter')));
+      allT.forEach(tg=>{
+        const on=F.includes(tg);
+        const c=bt('tagchip',tg,e=>{e.stopPropagation();setTags(on?F.filter(x=>x!==tg):[...F,tg]);});
+        c.type='button';
+        c.setAttribute('aria-pressed',on?'true':'false');
+        c.style.cssText+=';cursor:pointer'+(on?';outline:2px solid var(--ac)':';opacity:.55');
+        bar.appendChild(c);
+      });
+      if(F.length>1)bar.appendChild(sp('xs dimmer',t('rem-filter-all')));
+      if(F.length)bar.appendChild(bt('btn-ghost btn-xs',t('rem-filter-clear'),()=>setTags([])));
+      wrap.appendChild(bar);
+    }
+
     // #6: use history with gaps filled for calendar display
     const hMap=histMap();
     const medals=medalsByDate();
@@ -10107,6 +10259,7 @@ function renderCalendar(onPick){
     const cg=dv('cal-g mb10');
     (STATE.lang==='es'?['Lu','Ma','Mi','Ju','Vi','Sa','Do']:['Mo','Tu','We','Th','Fr','Sa','Su']).forEach(d=>cg.appendChild(dv('cal-hd',d)));
     for(let i=0;i<fd;i++)cg.appendChild(dv(''));
+    let tagDays=0,tagTasks=0,tagUnknown=0;      // the month under the filter
     for(let d=1;d<=dim;d++){
       const key=(()=>{const _d=new Date(cY,cM,d);return _d.getFullYear()+'-'+String(_d.getMonth()+1).padStart(2,'0')+'-'+String(_d.getDate()).padStart(2,'0');})();
       const entry=hMap.get(key);
@@ -10133,15 +10286,42 @@ function renderCalendar(onPick){
         cell.appendChild(mk);
       }
       const num=sp('cal-num',String(d));num.style.color=bg.txt;cell.appendChild(num);
+      // What this day did under the filter. A day in the future has nothing to
+      // say either way, so it is left exactly as it was.
+      let tagHit=0,tagKnown=true;
+      if(F.length&&key<=tk){
+        const td=dayTagData(key,entry);
+        tagKnown=td.known;
+        tagHit=tallyCount(td.tg,F);
+        if(tagHit>0){tagDays++;tagTasks+=tagHit;}
+        else if(!td.known&&(isToday||entry))tagUnknown++;
+        // Dimmed rather than hidden, and a day with no record dimmer still:
+        // "none that day" and "not recorded" must not look the same.
+        if(!tagHit)cell.style.opacity=td.known?'.38':'.2';
+        cell.title=tagHit?`${F.join(' + ')} ×${tagHit}`:(td.known?'':t('cal-tag-norec'));
+      }
       // #5: always show pts if entry exists
       if(isToday||entry){
         const val=isToday?liveToday.total:CALC.liveScore(entry,STATE.history);
-        const pts=sp('cal-pts',String(val));pts.style.color=bg.txt;cell.appendChild(pts);
+        /* Under the filter a lit day shows its count where the points were —
+           the question has changed from "what did the day pay" to "how much of
+           this tag was in it" — and the points move to the hover. The count is
+           text, so the lit day is not told by brightness alone. */
+        const pts=sp('cal-pts',tagHit?'×'+tagHit:String(val));
+        if(tagHit){pts.style.fontWeight='700';cell.title+=` · ${val} ${t('pts-s')}`;}
+        pts.style.color=bg.txt;cell.appendChild(pts);
       }
       cell.onclick=()=>{STATE.calSel=key===STATE.calSel?null:key;build();if(onPick)onPick();};
       cg.appendChild(cell);
     }
     wrap.appendChild(cg);
+    // The month in one line, under the grid it summarises.
+    if(F.length){
+      const sum=dv('xs dim ctr');
+      sum.textContent=t('cal-tag-sum').replace('{d}',tagDays).replace('{n}',tagTasks).replace('{tags}',F.join(' + '));
+      wrap.appendChild(sum);
+      if(tagUnknown)wrap.appendChild(dv('xs dimmer ctr mt4',t('cal-tag-nodata')));
+    }
   }
   build();return wrap;
 }
@@ -12428,7 +12608,7 @@ function renderFlagsModal(){
     const done=flags.filter(r=>r.completedOn===tk).length;
     const hd=dv('rowb mb12');
     const lft=dv('row gap6');
-    lft.appendChild(sp('ctit','🏁 '+t('goal-daily')));
+    lft.appendChild(sp('ctit','🏁 '+t('flags-today')));
     if(flags.length)lft.appendChild(sp('sm mo dim',`${done}/${flags.length}`));
     hd.appendChild(lft);
     hd.appendChild(bt('btn-icon','✕',close));
@@ -12757,7 +12937,7 @@ if('serviceWorker' in navigator){
   window.addEventListener('load',()=>{navigator.serviceWorker.register('./sw.js').catch(()=>{});});
 }
 handleAuthRedirect();   // opened from Google or from the password email? take the session first
-loadToday();healRepeatsStuckOnDoneDay();applyTheme();
+loadToday();healRepeatsStuckOnDoneDay();backfillTagTallies();applyTheme();
 
 // On boot: PULL from Supabase first (before pushing ANYTHING).
 // Supabase is the single source of truth.
