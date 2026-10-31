@@ -881,6 +881,13 @@ const tutTitled=()=>tutFilled('add-title');
 const tutFocus=sel=>()=>{const i=document.querySelector(sel);if(i)i.focus();};
 const tutFocusTitle=tutFocus('[data-tut="add-title"]');
 const tutClose=k=>()=>{STATE[k]=false;render();};
+// The steps of one add form, which Back can walk among while it stays open.
+const tutForm=n=>({win:'showAddForm',form:n});
+// A time some hours from now, so it can be left alone and still show something later.
+const tutSuggest=n=>()=>{
+  const i=document.querySelector('[data-tut="add-time"]');
+  if(i)i.value=String(Math.min(23,appNow().getHours()+n)).padStart(2,'0')+':00';
+};
 const tutTomorrow=()=>{const d=new Date(todayKey()+'T12:00:00');d.setDate(d.getDate()+1);return isoDate(d);};
 // The note is saved and put away, if it was not already.
 // The calendar on the day of the task just made, at its hour.
@@ -908,15 +915,15 @@ const TUT_STAGES={
     {id:'hi',      manual:true, btn:'tut-start', lang:true, text:'tut1-hi',    done:c=>c.count()>0},
     {id:'howto',   manual:true, lang:true,                  text:'tut1-howto', done:c=>c.count()>0},
     {id:'plus',    tab:'plan', target:'[data-tut="add"]',   text:'tut1-plus',  done:c=>STATE.showAddForm||c.count()>=1},
-    {id:'type',    target:'[data-tut="add-title"]', soft:true, text:'tut1-type', done:c=>c.count()>=1||tutTitled()},
-    {id:'time',    target:'[data-tut="add-time"]',  soft:true, manual:true, latch:true, text:'tut1-time', done:c=>c.count()>=1||tutFilled('add-time')},
-    {id:'addIt',   target:'[data-tut="add-go"]',    soft:true, text:'tut1-add',  done:c=>c.count()>=1},
+    {id:'type',    ...tutForm(1), target:'[data-tut="add-title"]', soft:true, text:'tut1-type', done:c=>c.count()>=1||tutTitled()},
+    {id:'time',    ...tutForm(1), target:'[data-tut="add-time"]',  soft:true, manual:true, enter:tutSuggest(1), text:'tut1-time', done:c=>c.count()>=1},
+    {id:'addIt',   ...tutForm(1), target:'[data-tut="add-go"]',    soft:true, text:'tut1-add',  done:c=>c.count()>=1},
     {id:'plus2',   tab:'plan', target:'[data-tut="add"]',   text:'tut1-plus2', done:c=>STATE.showAddForm||c.count()>=2},
-    {id:'flag',    target:'[data-tut="add-flag"]',  soft:true, text:'tut1-flag',
+    {id:'flag',    ...tutForm(2), target:'[data-tut="add-flag"]',  soft:true, text:'tut1-flag',
                    done:c=>c.count()>=2||!!(document.querySelector('[data-tut="add-flag"] input')||{}).checked},
-    {id:'type2',   target:'[data-tut="add-title"]', soft:true, enter:tutFocusTitle, text:'tut1-type2', done:c=>c.count()>=2||tutTitled()},
-    {id:'time2',   target:'[data-tut="add-time"]',  soft:true, manual:true, latch:true, text:'tut1-time2', done:c=>c.count()>=2||tutFilled('add-time')},
-    {id:'addIt2',  target:'[data-tut="add-go"]',    soft:true, text:'tut1-add',  done:c=>c.count()>=2},
+    {id:'type2',   ...tutForm(2), target:'[data-tut="add-title"]', soft:true, enter:tutFocusTitle, text:'tut1-type2', done:c=>c.count()>=2||tutTitled()},
+    {id:'time2',   ...tutForm(2), target:'[data-tut="add-time"]',  soft:true, manual:true, enter:tutSuggest(2), text:'tut1-time', done:c=>c.count()>=2},
+    {id:'addIt2',  ...tutForm(2), target:'[data-tut="add-go"]',    soft:true, text:'tut1-add',  done:c=>c.count()>=2},
     // How the list can be shown, one control at a time, while it has something on it.
     {id:'vScope',  tab:'plan', target:'[data-tut="v-scope"]',  press:true, text:'tut1-vscope'},
     {id:'vLayout', tab:'plan', target:'[data-tut="v-layout"]', latch:true, text:'tut1-vlayout',  done:()=>tutLayout()==='grid'},
@@ -929,6 +936,7 @@ const TUT_STAGES={
     {id:'half',    tab:'plan', target:'[data-tut="day-card"]', text:'tut1-half', manual:true, look:true, done:c=>c.doneN()>=2},
     {id:'tick2',   target:c=>c.nextOpen(),                  text:'tut1-tick2', done:c=>c.doneN()>=2},
     {id:'end',     tab:'plan', target:'[data-tut="day-card"]', text:'tut1-end', manual:true},
+    {id:'prefs',   tab:'plan', target:'[data-tut="hdr-acts"]', text:'tut1-prefs', manual:true, free:true, enter:()=>tutHintSeen()},
     {id:'next1',   manual:true, choice:true,                text:'tut1-next'}
   ],
   2:[
@@ -943,7 +951,7 @@ const TUT_STAGES={
     {id:'swGo',    tab:'plan', target:'[data-tut="sw-go"]',  text:'tut2-sw',     latch:true, done:()=>swState().running||swSeconds()>0},
     {id:'swStop',  tab:'plan', target:'[data-tut="sw-go"]',  text:'tut2-swstop', latch:true, done:()=>!swState().running},
     {id:'swAdd',   tab:'plan', target:'[data-tut="sw-add"]', text:'tut2-swadd',  temp:true, latch:true, done:()=>STATE.swPick||swSeconds()===0},
-    {id:'swPick',  target:'[data-tut="sw-pick"]', soft:true, text:'tut2-swpick', latch:true, done:()=>!STATE.swPick},
+    {id:'swPick',  target:'[data-tut="sw-pick"]', win:'swPick', soft:true, text:'tut2-swpick', latch:true, done:()=>!STATE.swPick&&TUT.run.peek==null},
     {id:'goals',   tab:'plan', target:'[data-tut="goal-tiles"]', text:'tut2-goals', temp:true, latch:true, done:()=>STATE.showGoals},
     {id:'goalAdd', target:'[data-tut="goal-in"]', soft:true, win:'showGoals', enter:tutFocus('[data-tut="goal-in"]'), text:'tut2-goaladd',
                    done:c=>c.newGoals()>0||tutFilled('goal-in')},
@@ -952,8 +960,8 @@ const TUT_STAGES={
     // on tomorrow so that it does not take the colour the first part earned.
     {id:'stepPlus',tab:'plan', target:'[data-tut="add"]', text:'tut2-stepplus', keep:()=>{STATE.addPrefill={due:tutTomorrow()};},
                    done:c=>STATE.showAddForm||c.count()>=1},
-    {id:'stepType',target:'[data-tut="add-title"]', soft:true, enter:tutFocusTitle, text:'tut2-steptype', done:c=>c.count()>=1||tutTitled()},
-    {id:'stepGo',  target:'[data-tut="add-go"]',    soft:true, text:'tut1-add',  done:c=>c.count()>=1},
+    {id:'stepType',...tutForm(3), target:'[data-tut="add-title"]', soft:true, enter:tutFocusTitle, text:'tut2-steptype', done:c=>c.count()>=1||tutTitled()},
+    {id:'stepGo',  ...tutForm(3), target:'[data-tut="add-go"]',    soft:true, text:'tut1-add',  done:c=>c.count()>=1},
     {id:'goalBack',tab:'plan', target:'[data-tut="goal-tiles"]', text:'tut2-goalback', temp:true, latch:true, done:()=>STATE.showGoals},
     // A replay may have no goal, so no +: it shows where one goes.
     {id:'goalLink',target:()=>document.querySelector('[data-tut="goal-link"]')||document.querySelector('[data-tut="goal-in"]'),
@@ -983,15 +991,15 @@ const TUT_STAGES={
     {id:'weekIn',  target:'[data-tut="week-panel"]',  win:'showWeek', text:'tut3-wkin',  manual:true, free:true, after:tutClose('showWeek')},
     // The whole form, a part at a time, ending in a real task: the steps after it need one.
     {id:'more',    tab:'plan', target:'[data-tut="add"]', text:'tut3-more', temp:true, latch:true, done:()=>STATE.showAddForm},
-    {id:'fWhen',   target:'[data-tut="add-when"]',    win:'showAddForm', soft:true, manual:true, text:'tut3-fwhen'},
-    {id:'fQuad',   target:'[data-tut="add-quad"]',    win:'showAddForm', soft:true, manual:true, text:'tut3-fquad'},
-    {id:'fTags',   target:'[data-tut="add-tags"]',    win:'showAddForm', soft:true, manual:true, text:'tut3-ftags'},
-    {id:'fRep',    target:'[data-tut="add-rep"]',     win:'showAddForm', soft:true, manual:true, text:'tut3-frep'},
-    {id:'fMorn',   target:'[data-tut="add-morning"]', win:'showAddForm', soft:true, manual:true, text:'tut3-fmorn'},
-    {id:'fNlp',    target:'[data-tut="add-title"]',   win:'showAddForm', soft:true, manual:true, latch:true, enter:tutFocusTitle, text:'tut3-fnlp',
+    {id:'fWhen',   target:'[data-tut="add-when"]',    ...tutForm(4), soft:true, manual:true, text:'tut3-fwhen'},
+    {id:'fQuad',   target:'[data-tut="add-quad"]',    ...tutForm(4), soft:true, manual:true, text:'tut3-fquad'},
+    {id:'fTags',   target:'[data-tut="add-tags"]',    ...tutForm(4), soft:true, manual:true, text:'tut3-ftags'},
+    {id:'fRep',    target:'[data-tut="add-rep"]',     ...tutForm(4), soft:true, manual:true, text:'tut3-frep'},
+    {id:'fMorn',   target:'[data-tut="add-morning"]', ...tutForm(4), soft:true, manual:true, text:'tut3-fmorn'},
+    {id:'fNlp',    target:'[data-tut="add-title"]',   ...tutForm(4), soft:true, manual:true, latch:true, enter:tutFocusTitle, text:'tut3-fnlp',
                    done:()=>tutChip()&&Date.now()-(TUT.typed['add-title']||0)>800},
-    {id:'fNlpGo',  target:'[data-tut="add-nlp"]',     win:'showAddForm', soft:true, latch:true, text:'tut3-fnlpgo', done:c=>!tutChip()||c.count()>=1},
-    {id:'fAdd',    target:'[data-tut="add-go"]',      win:'showAddForm', soft:true, text:'tut1-add', done:c=>c.count()>=1},
+    {id:'fNlpGo',  target:'[data-tut="add-nlp"]',     ...tutForm(4), soft:true, latch:true, text:'tut3-fnlpgo', done:c=>!tutChip()||c.count()>=1},
+    {id:'fAdd',    target:'[data-tut="add-go"]',      ...tutForm(4), soft:true, text:'tut1-add', done:c=>c.count()>=1},
     // Looking ahead only exists on "Today".
     {id:'vSwipe',  tab:'plan', target:'[data-tut="list-card"]', latch:true, text:'tut3-swipe', done:()=>(STATE.view.peek||0)>0,
                    enter:()=>{if(STATE.view.scope!=='today'){STATE.view.scope='today';saveView();render();}}},
@@ -1012,7 +1020,6 @@ const TUT_STAGES={
     {id:'select',  tab:'plan', target:'[data-tut="sel-btn"]',  latch:true, text:'tut3-sel', done:()=>STATE.selecting},
     {id:'selIn',   tab:'plan', target:'[data-tut="list-card"]', manual:true, free:true, text:'tut3-selin',
                    after:()=>{STATE.selecting=false;STATE.selected=[];render();}},
-    {id:'again',   target:'[data-tut="tut-btn"]',               text:'tut3-again', manual:true, enter:()=>tutHintSeen()},
     {id:'bye',     manual:true, btn:'tut-finish',               text:'tut3-end'}
   ]
 };
@@ -1135,7 +1142,7 @@ function tutMarkDone(stages){
 const TUT_WINDOWS=['showGoals','showWeek','showCal','showStatsDetail'];
 function tutCloseAll(){
   _addFormDirty=null;
-  STATE.showAddForm=false;STATE.editingRem=null;STATE.selecting=false;STATE.addPrefill=null;STATE.calDay=null;
+  STATE.showAddForm=false;STATE.editingRem=null;STATE.selecting=false;STATE.addPrefill=null;STATE.calDay=null;STATE.swPick=false;
   TUT_WINDOWS.forEach(k=>{STATE[k]=false;});
 }
 /* Whenever it stops, for whatever reason, the person has to know where to find it
@@ -1156,23 +1163,23 @@ function tutHintClose(){
   run.hint=null;run.shown='';
   if(run.hintOnly)tutStop();else tutTick();
 }
-// Back rereads what was explained; the steps that ask for something have nothing to reread.
-const tutReadable=s=>s.manual&&!s.choice;
+/* Back rereads what was explained; a step that only says "press this" has nothing to
+   reread. Inside an open form it walks that form's own steps, typed text and all; from
+   its first step it leaves the form (see the tick). */
+const tutReadable=(s,from)=>s.form?s.form===from.form:(s.manual&&!s.choice);
 function tutPrev(run){
-  // Halfway through a form or a pick, only what lives in that same form.
-  if(STATE.swPick)return -1;
   const cur=run.peek!=null?run.peek:run.steps.indexOf(tutActive(run));
-  for(let i=cur-1;i>=0;i--){
-    if(!tutReadable(run.steps[i]))continue;
-    return STATE.showAddForm&&run.steps[i].win!=='showAddForm'?-1:i;
-  }
+  for(let i=cur-1;i>=0;i--)if(tutReadable(run.steps[i],run.steps[cur]))return i;
   return -1;
 }
 function tutGo(run,i){run.peek=i;run.shown='';run.scrollTries=0;run.scrollNext=0;tutTick();}
 function tutForward(){
   const run=TUT.run;if(!run)return;
   const a=tutActive(run),end=a?run.steps.indexOf(a):run.steps.length;
-  for(let i=run.peek+1;i<end;i++)if(tutReadable(run.steps[i]))return tutGo(run,i);
+  for(let i=run.peek+1;i<end;i++)if(tutReadable(run.steps[i],run.steps[run.peek]))return tutGo(run,i);
+  run.peek=null;
+  // Open again before it is judged: a closed pick reads as a pick made.
+  if(a&&a.win&&!STATE[a.win]){STATE[a.win]=true;render();}
   tutGo(run,null);
 }
 function tutFinish(){
@@ -1308,6 +1315,11 @@ function tutTick(){
   // And the window it lives in, if that closed.
   if(step.win&&!STATE[step.win]){STATE[step.win]=true;render();}
   if(peek){
+    // What is open in front of the step being reread gets out of its way; the step
+    // that was waiting opens it again.
+    ['showAddForm','swPick'].forEach(k=>{
+      if(STATE[k]&&step.win!==k){if(k==='showAddForm')_addFormDirty=null;STATE[k]=false;render();}
+    });
     if(run.peekIn!==run.peek){run.peekIn=run.peek;if(step.show)step.show();}
   }else if(run.hint){
     run.peekIn=null;
@@ -2056,85 +2068,84 @@ en:{
   'daily-tracker':'daily habit tracker · by JuanFer',
   'tab-plan':'Plan','tab-score':'Score','made-by':'Stoic · Made by JuanFer',
   'rem-title':'Reminders','rem-new':'New reminder','rem-what':'What needs doing?',
-  'tut-start':'Start','tut-next':'Next','tut-finish':'Done!','tut-skip':'Skip','tut-pause':'⏸ Pause','tut-resume':'Resume tutorial','tut-part':'Part {n} of {of}','tut-skip-q':'What would you like?','tut-skip-part':'Skip this part','tut-skip-all':'I already know Stoic: show everything','tut-back':'Back to the tutorial','tut-skipped':'It is all yours. The 🎓 up top shows you the rest whenever you like.','tut-replay':'Tutorial','tut-replay-note':'This is a replay: Next moves on without creating anything.','tut-done-replay':'Done. The 🎓 up top shows it again whenever you like.','tut-done-real':'That is the tutorial. The 🎓 up top shows it again whenever you like.','tut-paused':'Paused. Use the app in peace: the 🎓 up top brings you back to this exact spot.','tut-prev':'← Back','tut-got-it':'Got it',
-  'tut-later':'Tomorrow','tut-go-on':'Go on','tut-later-toast':'Until tomorrow. If you can\'t wait, tap the 🎓 up top.','tut-wait':'There is more in Stoic. It comes tomorrow, or right now if you like.','tut-wait-all':'Show everything',
+  'tut-start':'Start','tut-next':'Next','tut-finish':'Done!','tut-skip':'Skip','tut-pause':'⏸ Pause','tut-resume':'Resume tutorial','tut-part':'Part {n} of {of}','tut-skip-q':'What would you like?','tut-skip-part':'Skip this part','tut-skip-all':'I already know Stoic: show everything','tut-back':'Back to the tutorial','tut-skipped':'Everything is open. The 🎓 up top repeats the tutorial.','tut-replay':'Tutorial','tut-replay-note':'This is a replay: Next moves on without creating anything.','tut-done-replay':'Done. The 🎓 up top repeats it.','tut-done-real':'Done. The 🎓 up top repeats it.','tut-paused':'Paused. The 🎓 up top brings you back here.','tut-prev':'← Back','tut-got-it':'Got it',
+  'tut-later':'Tomorrow','tut-go-on':'Go on','tut-later-toast':'Until tomorrow. Can\'t wait? Tap the 🎓 up top.','tut-wait':'There is more in Stoic: tomorrow, or now.','tut-wait-all':'Show everything',
   'tut-p1':'The essentials','tut-p2':'Points and focus','tut-p3':'Your day and your history',
-  'tut1-hi':'Welcome to Stoic 🏛️\nYour day is measured by a short list of tasks and a colour. I will show you the app in 3 short parts, and it grows with each one.',
-  'tut1-howto':'In a hurry? No problem.\n⏸ Pause lets you use the app, and the 🎓 Resume tutorial button brings you back to this exact spot, even if you close the app.\nSkip jumps ahead, or shows you everything at once.\n← Back rereads what came before.\n\nThey are on the bubbles as you go.',
+  'tut1-hi':'Welcome to Stoic 🏛️\nYour day is measured by a list of tasks and a colour. I will show you in 3 parts.',
+  'tut1-howto':'In a hurry?\n⏸ Pause: use the app and continue later.\nSkip: jump this part, or all of it.\n← Back: read again.',
   'tut1-plus':'Let us make your list. Tap the ＋.',
-  'tut1-type':'Write something you want to do today, for example "Make the bed".',
-  'tut1-time':'Give it a time: when do you want to do it? The date already says today, and that one changes here too.',
-  'tut1-time2':'Give it a time as well, a different one, so you can see how the list arranges them.',
-  'tut1-add':'Now tap "Add".',
+  'tut1-type':'Write something for today, like "Make the bed".',
+  'tut1-time':'I suggested this time. Change it if you like, or press Next.',
+  'tut1-add':'Tap "Add".',
   'tut1-plus2':'Now the most important thing today. Tap the ＋.',
-  'tut1-flag':'Turn on 🏁 Goal of the day: it marks what matters most. I will tell you more in a moment.',
+  'tut1-flag':'Turn on 🏁 Goal of the day: it is what matters most today.',
   'tut1-type2':'Write it.',
-  'tut1-vscope':'Now, how to arrange your list. "All" shows everything pending; "Today", only today\'s and what is overdue. Tap one.',
-  'tut1-vlayout':'Its shape: ☰ in rows, ▦ in small squares. Tap ▦.',
-  'tut1-vlayout2':'This is the squares view: more fits at a glance. Go back to ☰ to continue.',
-  'tut1-vsort':'Its order: 📅↑ soonest first, 📅↓ latest first, A→Z alphabetical. Tap 📅↓.',
-  'tut1-vsort2':'Your list just rearranged itself. Try the others if you like. It stays however you leave it, and none of this changes your points.',
-  'tut1-vhide':'Today\'s tasks with a time stay hidden until this many hours before, so they do not get in the way too early. Pick how many here. "Off" keeps them always in view.',
-  'tut1-colour':'This is your day. It is red because you have not done anything yet. Your goal each day is to get it out of the red.',
-  'tut1-tick':'When you finish a task, tick it here. Tick this one.',
-  'tut1-half':'Half your list: yellow 🟡, and a candle lights up 🕯️. Every day that does not end in red counts.',
-  'tut1-tick2':'This one is your 🏁 goal of the day. Tick it.',
-  'tut1-end':'🔴 less than 50% of tasks finished. Likewise: 🟡 50%, 🟢 85%, 🟣 100%. The higher the colour, the more points.\n\nFinish your goals of the day and your colour goes up one step.',
-  'tut1-next':'That is the essentials ✅\nNext: your points, your streak, the timers and your long goals. Now or tomorrow?',
-  'tut2-hi':'Let us go on 🕯️\nThe app just grew: now it has your points, your streaks, the timers and your long goals.',
-  'tut2-tab':'Open Score to see what today is worth.',
-  'tut2-points':'These are your points. Every task, the day\'s colour, the pomodoros and everything you log add up here.',
-  'tut2-streak':'Your streaks. The first one, 🕯️ Days without red, is the candle: days in a row that did not end in red. A red day takes it back to zero. The others count days in a row doing one thing, like pomodoros.',
+  'tut1-vscope':'"All" shows everything pending. "Today", only today and what is overdue. Tap one.',
+  'tut1-vlayout':'Tap ▦ to see your list in squares.',
+  'tut1-vlayout2':'More fits at a glance. Go back to ☰.',
+  'tut1-vsort':'Here you change the order. Tap 📅↓: latest first.',
+  'tut1-vsort2':'Your list changed order. It stays how you leave it, and your points do not change.',
+  'tut1-vhide':'Tasks with a time stay hidden until this many hours before, so they do not get in your way.',
+  'tut1-prefs':'Up here: light or dark mode, language, and 🎓 to repeat this tutorial.',
+  'tut1-colour':'This is your day. It is red because nothing is done yet. Your goal: get it out of the red.',
+  'tut1-tick':'Mark this task as done.',
+  'tut1-half':'Half done: yellow 🟡, and the candle lights up 🕯️. Every day without red adds to your streak.',
+  'tut1-tick2':'Now mark your 🏁 goal of the day.',
+  'tut1-end':'Your colour depends on how much you finish:\n🔴 less than 50%\n🟡 50%\n🟢 85%\n🟣 100%\n\nMore colour, more points. Finish your goals of the day and you go up one colour.',
+  'tut1-next':'That is the essentials ✅\nNext: points, streaks, timers and long goals. Now or tomorrow?',
+  'tut2-hi':'Let us go on 🕯️\nThe app grew: points, streaks, timers and long goals.',
+  'tut2-tab':'Open Score.',
+  'tut2-points':'Your points. Everything you do adds up here.',
+  'tut2-streak':'Your streaks: days in a row doing something. 🕯️ counts days without red; a red day takes it back to zero.',
   'tut2-back':'Go back to Plan.',
-  'tut2-pomo':'This is the pomodoro: 25 minutes of focus, then a break. Every one you finish adds points. Tap ▶ to start one, or Next if not right now.',
-  'tut2-sw':'And this is the stopwatch, to time anything. Tap ▶.',
-  'tut2-swstop':'When you are done, stop it.',
-  'tut2-swadd':'Now add that time to a task.',
-  'tut2-swpick':'Pick which one. Score will show you where your day went.',
-  'tut2-goals':'These are your long goals: for the week 📅, the quarter 📈 and the year 🏆. Tap one.',
-  'tut2-goaladd':'Write a goal for this week. The sooner you reach it, the more points it is worth.',
-  'tut2-goalgo':'Now tap "+ Add goal".',
-  'tut2-stepplus':'A goal is reached in steps. Make a task that gets you closer to it: tap the ＋.',
-  'tut2-steptype':'Write that step. I left it for tomorrow so it does not touch your day today.',
+  'tut2-pomo':'Pomodoro: 25 minutes of focus, then a break. Each one adds points. Tap ▶, or Next if not now.',
+  'tut2-sw':'Stopwatch: it times what you do. Tap ▶.',
+  'tut2-swstop':'Now stop it.',
+  'tut2-swadd':'Add that time to a task.',
+  'tut2-swpick':'Pick one. Score will show where your day went.',
+  'tut2-goals':'Your long goals: for the week, the quarter and the year. Tap one.',
+  'tut2-goaladd':'Write a goal for this week. Tip: make it specific and measurable, like "Run 5 km on Saturday". The sooner you reach it, the more it is worth.',
+  'tut2-goalgo':'Tap "+ Add goal".',
+  'tut2-stepplus':'Goals are reached in steps. Make one: tap the ＋.',
+  'tut2-steptype':'Write the step. I left it for tomorrow so your day today stays the same.',
   'tut2-goalback':'Go back to your goals.',
-  'tut2-link':'This ＋ links tasks to your goal, so each task says what it gets you closer to. Tap it.',
-  'tut2-pick':'Pick the task you just made.',
-  'tut2-linked':'Done: that task now says which goal it serves. You can also do it from ✏️ on any task.',
-  'tut2-next':'Done ✅\nWhat is left: sleep, work, rewards, your diary, your stats and more. Now or tomorrow?',
-  'tut3-hi':'Last part 🏛️\nNow you have all of Stoic. We will go through it piece by piece.',
-  'tut3-sleep':'Write how long you slept last night, like 7h30m: your last night, whatever time it ended. Sleep adds points; going to bed early adds more, and a late night takes them away.',
-  'tut3-work':'And your hours of work today, like 2h30m. Every 25 minutes also counts as a pomodoro.',
-  'tut3-rew':'Three rewards to keep at bay: 💊 stimulants, 🌐 procrastination (social media, say) and 💦 orgasms. They are not bad, they just cost points. You can edit them later.',
-  'tut3-cal':'Every day stays painted in its colour. Tap one to see what happened.',
-  'tut3-diary':'Here is your diary: each day has its own note. Tap here to write this one.',
-  'tut3-dtitle':'A day can have a title, like "The day I ran 5 km". Write one, or press Next if you would rather not.',
-  'tut3-dtpl':'This is a template: questions to go over your day. It is optional: answer the ones you like, delete what does not help, or clear it all and write whatever you want.',
-  'tut3-dsaved':'Tapping outside saves it, and here is your day. Tap it to edit whenever you like. Forgot to log a day? "Edit History" fixes it.',
-  'tut3-stats':'Your stats. This number is everything you have ever earned. Tap it to open the detail.',
-  'tut3-statsin':'Medals, records and every streak. This, and the charts on the page, fill up as your days go by.',
-  'tut3-wk':'This 📊 button compares your weeks. Tap it.',
-  'tut3-wkin':'This week against last week: points, tasks, goals, pomodoros, work, sleep and red days. The arrows say which way each one went.',
-  'tut3-day':'And this 📅 is the day calendar. Tap it.',
-  'tut3-dayin':'Your tasks laid out across the hours of the day, so you can see whether the day actually fits.',
-  'tut3-more':'The ＋ now does more. Tap it and we will go through it piece by piece.',
-  'tut3-fwhen':'Date and time: when it is for. With no time, it is for any moment of that day.',
-  'tut3-fquad':'Quadrant: how urgent and important it is. Leave it as it is if you do not care.',
-  'tut3-ftags':'Tags: they group your tasks so you can filter them later. You can create your own.',
-  'tut3-frep':'Repeat: for what comes back, like daily or weekly. When you finish it, the task returns on its next date.',
-  'tut3-fmorn':'🌅 Morning routine: marks what you do in the morning. Those tasks have their own streak.',
-  'tut3-fnlp':'It also understands dates. Write something like "Call mom tomorrow 5pm".',
-  'tut3-fnlpgo':'It understood the date. Tap here and it fills it in.',
-  'tut3-swipe':'Slide this list to the left to peek at the next day. With a mouse, drag it.',
-  'tut3-swipe2':'That is how you see what is coming, day by day. Slide it to the right to come back.',
-  'tut3-daymove':'To move a task to another hour, hold it a moment until it lights up, then drag it. With a mouse, just drag it. That way a finger scrolling past never moves anything.',
-  'tut3-vquad':'Now that the list has a task: ✜ lays it out in quadrants. Tap it.',
-  'tut3-vquadin':'Four boxes: do it now, schedule it, delegate it, postpone it. Tap the empty space in a box to create a task right there. The 1️⃣ button sorts the list by quadrant. Go back to ☰ to continue.',
-  'tut3-vtags':'These are your tags. Tap one to see only those tasks, and again to remove it. 🏷️✏️ renames or deletes them.',
-  'tut3-bell':'🔔 Alerts at the time of each task, on this device. Tap it if you want them: it will ask for permission, and it needs an account. If not, Next.',
+  'tut2-link':'This ＋ links tasks to your goal. Tap it.',
+  'tut2-pick':'Pick the task you made.',
+  'tut2-linked':'Done: that task now points to your goal. You can also do it from ✏️ on any task.',
+  'tut2-next':'Done ✅\nStill to come: sleep, work, rewards, diary, stats and more. Now or tomorrow?',
+  'tut3-hi':'Last part 🏛️\nNow you have all of Stoic.',
+  'tut3-sleep':'Write how long you slept last night, like 7h30m. Sleep adds points; a late night takes them away.',
+  'tut3-work':'Write your hours of work today, like 2h30m. Every 25 minutes counts as a pomodoro.',
+  'tut3-rew':'Rewards to keep at bay: 💊 stimulants, 🌐 procrastination and 💦 orgasms. They are not bad, they just cost points. You can edit them later.',
+  'tut3-cal':'Every day stays painted in its colour. Tap one.',
+  'tut3-diary':'Each day has its own note. Tap here to write it.',
+  'tut3-dtitle':'Give the day a title, or press Next.',
+  'tut3-dtpl':'This template is optional: answer what you like, or delete it.',
+  'tut3-dsaved':'It saves when you tap outside. Tap it to edit. Forgot to log a day? Use "Edit History".',
+  'tut3-stats':'All you have earned. Tap it for the detail.',
+  'tut3-statsin':'Medals, records and streaks. They fill up as your days go by.',
+  'tut3-wk':'📊 compares your weeks. Tap it.',
+  'tut3-wkin':'This week against last week. The arrows show what went up or down.',
+  'tut3-day':'📅 is the day calendar. Tap it.',
+  'tut3-dayin':'Your tasks across the hours, to see if your day fits.',
+  'tut3-more':'The ＋ now does more. Tap it.',
+  'tut3-fwhen':'Date and time: when it is for.',
+  'tut3-fquad':'Quadrant: how urgent and important it is.',
+  'tut3-ftags':'Tags: they group tasks so you can filter them.',
+  'tut3-frep':'Repeat: when you finish it, the task returns on its next date.',
+  'tut3-fmorn':'🌅 Morning routine: what you do in the morning. It has its own streak.',
+  'tut3-fnlp':'It also understands dates. Write "Call mom tomorrow 5pm".',
+  'tut3-fnlpgo':'Tap here and it fills in the date.',
+  'tut3-swipe':'Slide this list to the left to see the next day. With a mouse, drag it.',
+  'tut3-swipe2':'Slide it to the right to come back.',
+  'tut3-daymove':'To change its time, hold the task a moment and drag it. With a mouse, just drag it.',
+  'tut3-vquad':'✜ arranges your list in quadrants. Tap it.',
+  'tut3-vquadin':'Four boxes: do it now, schedule it, delegate it, postpone it. 1️⃣ sorts the list this way. Go back to ☰.',
+  'tut3-vtags':'Tap a tag to see only those tasks. Tap it again to remove it.',
+  'tut3-bell':'🔔 Alerts at the time of each task, on this device. They need an account. Tap it if you want them, or press Next.',
   'tut3-sel':'☑ changes several tasks at once. Tap it.',
-  'tut3-selin':'Tap tasks to pick them, or "All". Then date, quadrant, repeat and more appear up here, and they apply to all of them at once.',
-  'tut3-again':'And this 🎓 stays up here, for whenever you want to see the tutorial again.',
-  'tut3-end':'That is all of Stoic 🏛️\nNow it is yours. Make your list every day and get it out of the red.',
+  'tut3-selin':'Pick tasks: date, quadrant, repeat and more appear up here, for all of them at once.',
+  'tut3-end':'That is all of Stoic 🏛️\nMake your list every day and get it out of the red.',
   'sk-candle':'Days without red',
   'rem-add':'+ Add reminder','rem-need-title':'Give it a name first',
   'rem-discard':'Close without adding this one? What you typed will be lost.',
@@ -2414,85 +2425,84 @@ es:{
   'daily-tracker':'rastreador diario · por JuanFer',
   'tab-plan':'Plan','tab-score':'Puntaje','made-by':'Stoic · Hecho por JuanFer',
   'rem-title':'Recordatorios','rem-new':'Nuevo recordatorio','rem-what':'¿Qué hay que hacer?',
-  'tut-start':'Empezar','tut-next':'Siguiente','tut-finish':'¡Listo!','tut-skip':'Saltar','tut-pause':'⏸ Pausar','tut-resume':'Seguir tutorial','tut-part':'Parte {n} de {of}','tut-skip-q':'¿Qué prefieres?','tut-skip-part':'Saltar esta parte','tut-skip-all':'Ya sé usar Stoic: mostrar todo','tut-back':'Volver al tutorial','tut-skipped':'Ya está todo. El 🎓 de arriba te enseña lo demás cuando quieras.','tut-replay':'Tutorial','tut-replay-note':'Esto es un repaso: Siguiente avanza sin crear nada.','tut-done-replay':'Listo. El 🎓 de arriba te lo enseña otra vez cuando quieras.','tut-done-real':'Ese fue el tutorial. El 🎓 de arriba te lo enseña otra vez cuando quieras.','tut-paused':'En pausa. Usa la app con calma: el 🎓 de arriba te regresa justo aquí.','tut-prev':'← Atrás','tut-got-it':'Entendido',
-  'tut-later':'Mañana','tut-go-on':'Seguir','tut-later-toast':'Hasta mañana. Si no aguantas, toca el 🎓 de arriba.','tut-wait':'Hay más en Stoic. Llega mañana, o ahorita si quieres.','tut-wait-all':'Mostrar todo',
+  'tut-start':'Empezar','tut-next':'Siguiente','tut-finish':'¡Listo!','tut-skip':'Saltar','tut-pause':'⏸ Pausar','tut-resume':'Seguir tutorial','tut-part':'Parte {n} de {of}','tut-skip-q':'¿Qué prefieres?','tut-skip-part':'Saltar esta parte','tut-skip-all':'Ya sé usar Stoic: mostrar todo','tut-back':'Volver al tutorial','tut-skipped':'Ya está todo abierto. El 🎓 de arriba repite el tutorial.','tut-replay':'Tutorial','tut-replay-note':'Es un repaso: Siguiente avanza sin crear nada.','tut-done-replay':'Listo. El 🎓 de arriba lo repite.','tut-done-real':'Listo. El 🎓 de arriba lo repite.','tut-paused':'En pausa. El 🎓 de arriba te regresa aquí.','tut-prev':'← Atrás','tut-got-it':'Entendido',
+  'tut-later':'Mañana','tut-go-on':'Seguir','tut-later-toast':'Hasta mañana. ¿No aguantas? Toca el 🎓 de arriba.','tut-wait':'Hay más en Stoic: mañana, o ahorita.','tut-wait-all':'Mostrar todo',
   'tut-p1':'Lo esencial','tut-p2':'Puntos y enfoque','tut-p3':'Tu día y tu historia',
-  'tut1-hi':'Te damos la bienvenida a Stoic 🏛️\nTu día se mide con una lista corta de tareas y un color. Te enseño la app en 3 partes cortas, y con cada una va creciendo.',
-  'tut1-howto':'¿Con prisa? No hay problema.\n⏸ Pausar te deja usar la app, y el botón 🎓 Seguir tutorial te regresa justo aquí, aunque cierres la app.\nSaltar brinca a lo que sigue, o te muestra todo de una vez.\n← Atrás vuelve a leer lo anterior.\n\nLos vas a ver en las burbujas.',
+  'tut1-hi':'Te damos la bienvenida a Stoic 🏛️\nTu día se mide con una lista de tareas y un color. Te lo enseño en 3 partes.',
+  'tut1-howto':'¿Con prisa?\n⏸ Pausar: usa la app y sigue después.\nSaltar: brinca esta parte, o todo.\n← Atrás: vuelve a leer.',
   'tut1-plus':'Vamos a hacer tu lista. Toca el ＋.',
-  'tut1-type':'Escribe algo que quieras hacer hoy, por ejemplo «Tender la cama».',
-  'tut1-time':'Ponle hora: ¿a qué hora la quieres hacer? La fecha ya dice hoy, y también se cambia aquí.',
-  'tut1-time2':'Ponle hora también, una distinta, para que veas cómo se acomoda tu lista.',
-  'tut1-add':'Ahora toca «Agregar».',
+  'tut1-type':'Escribe algo para hoy, como «Tender la cama».',
+  'tut1-time':'Te sugerí esta hora. Cámbiala si quieres, o dale Siguiente.',
+  'tut1-add':'Toca «Agregar».',
   'tut1-plus2':'Ahora lo más importante de hoy. Toca el ＋.',
-  'tut1-flag':'Prende 🏁 Meta del día: marca lo que más importa. En un momento te cuento más.',
+  'tut1-flag':'Prende 🏁 Meta del día: es lo que más importa hoy.',
   'tut1-type2':'Escríbela.',
-  'tut1-vscope':'Ahora, cómo acomodar tu lista. «Todos» enseña todo lo pendiente; «Hoy», solo lo de hoy y lo atrasado. Toca uno.',
-  'tut1-vlayout':'La forma: ☰ en renglones, ▦ en cuadritos. Toca ▦.',
-  'tut1-vlayout2':'Así se ve en cuadritos: cabe más de un vistazo. Regresa a ☰ para seguir.',
-  'tut1-vsort':'El orden: 📅↑ lo más pronto primero, 📅↓ lo más lejano primero, A→Z por abecedario. Toca 📅↓.',
-  'tut1-vsort2':'Tu lista se acaba de reacomodar. Prueba los otros si quieres. Se queda como la dejes, y nada de esto cambia tus puntos.',
-  'tut1-vhide':'Las tareas de hoy con hora se esconden hasta estas horas antes, para que no te estorben desde temprano. Aquí eliges cuántas. «Sin ocultar» las deja siempre a la vista.',
-  'tut1-colour':'Este es tu día. Está en rojo porque aún no has hecho nada. Tu meta de cada día es sacarlo del rojo.',
-  'tut1-tick':'Cuando termines una tarea, márcala aquí. Marca esta.',
-  'tut1-half':'La mitad de tu lista: amarillo 🟡, y se prende una vela 🕯️. Cada día que no termina en rojo cuenta.',
-  'tut1-tick2':'Esta es tu 🏁 meta del día. Márcala.',
-  'tut1-end':'🔴 menos de 50% de tareas terminadas. Así mismo: 🟡 50%, 🟢 85%, 🟣 100%. Mientras más alto el color, más puntos.\n\nSi cumples tus metas del día, tu color sube un nivel.',
-  'tut1-next':'Eso es lo esencial ✅\nLo que sigue: tus puntos, tu racha, los cronómetros y tus metas largas. ¿Ahora o mañana?',
-  'tut2-hi':'Sigamos 🕯️\nLa app acaba de crecer: ya tiene tus puntos, tus rachas, los cronómetros y tus metas largas.',
-  'tut2-tab':'Abre Puntaje para ver cuánto vale tu día.',
-  'tut2-points':'Estos son tus puntos. Cada tarea, el color del día, los pomodoros y todo lo que registres suman aquí.',
-  'tut2-streak':'Tus rachas. La primera, 🕯️ Días sin rojo, es la de la vela: días seguidos que no terminaron en rojo. Un día rojo la regresa a cero. Las demás cuentan días seguidos haciendo una cosa, como los pomodoros.',
+  'tut1-vscope':'«Todos» enseña todo lo pendiente. «Hoy», solo lo de hoy y lo atrasado. Toca uno.',
+  'tut1-vlayout':'Toca ▦ para ver tu lista en cuadritos.',
+  'tut1-vlayout2':'Así cabe más de un vistazo. Regresa a ☰.',
+  'tut1-vsort':'Aquí cambias el orden. Toca 📅↓: lo más tarde primero.',
+  'tut1-vsort2':'Tu lista cambió de orden. Se queda como la dejes y tus puntos no cambian.',
+  'tut1-vhide':'Las tareas con hora se esconden hasta estas horas antes, para que no te estorben.',
+  'tut1-prefs':'Aquí arriba: modo claro u oscuro, idioma y 🎓 para repetir este tutorial.',
+  'tut1-colour':'Este es tu día. Está en rojo porque aún no haces nada. Tu meta: sacarlo del rojo.',
+  'tut1-tick':'Marca esta tarea como hecha.',
+  'tut1-half':'Mitad hecha: amarillo 🟡, y se prende la vela 🕯️. Cada día sin rojo suma a tu racha.',
+  'tut1-tick2':'Ahora marca tu 🏁 meta del día.',
+  'tut1-end':'Tu color depende de cuánto termines:\n🔴 menos de 50%\n🟡 50%\n🟢 85%\n🟣 100%\n\nMejor color, más puntos. Si cumples tus metas del día, subes un color.',
+  'tut1-next':'Eso es lo esencial ✅\nSigue: puntos, rachas, cronómetros y metas largas. ¿Ahora o mañana?',
+  'tut2-hi':'Sigamos 🕯️\nLa app creció: puntos, rachas, cronómetros y metas largas.',
+  'tut2-tab':'Abre Puntaje.',
+  'tut2-points':'Tus puntos. Todo lo que haces suma aquí.',
+  'tut2-streak':'Tus rachas: días seguidos haciendo algo. 🕯️ cuenta días sin rojo; un día rojo la regresa a cero.',
   'tut2-back':'Regresa a Plan.',
-  'tut2-pomo':'Este es el pomodoro: 25 minutos de enfoque y luego un descanso. Cada uno que terminas suma puntos. Dale ▶ para empezar uno, o Siguiente si no es momento.',
-  'tut2-sw':'Y este es el cronómetro, para medir lo que sea. Dale ▶.',
-  'tut2-swstop':'Cuando acabes, detenlo.',
-  'tut2-swadd':'Ahora súmale ese tiempo a una tarea.',
-  'tut2-swpick':'Elige cuál. En Puntaje verás en qué se te fue el día.',
-  'tut2-goals':'Estas son tus metas largas: de la semana 📅, del trimestre 📈 y del año 🏆. Toca una.',
-  'tut2-goaladd':'Escribe una meta para esta semana. Mientras antes la cumplas, más puntos vale.',
-  'tut2-goalgo':'Ahora toca «+ Agregar meta».',
-  'tut2-stepplus':'Una meta se cumple con pasos. Crea una tarea que te acerque a ella: toca el ＋.',
-  'tut2-steptype':'Escribe ese paso. Lo dejé para mañana, para que no le mueva a tu día de hoy.',
+  'tut2-pomo':'Pomodoro: 25 minutos de enfoque y un descanso. Cada uno suma puntos. Dale ▶, o Siguiente si no es momento.',
+  'tut2-sw':'Cronómetro: mide cuánto te toma algo. Dale ▶.',
+  'tut2-swstop':'Ahora detenlo.',
+  'tut2-swadd':'Súmale ese tiempo a una tarea.',
+  'tut2-swpick':'Elige una. En Puntaje verás en qué se te fue el día.',
+  'tut2-goals':'Tus metas largas: de la semana, del trimestre y del año. Toca una.',
+  'tut2-goaladd':'Escribe una meta de esta semana. Tip: que sea específica y medible, como «Correr 5 km el sábado». Mientras antes la cumplas, más vale.',
+  'tut2-goalgo':'Toca «+ Agregar meta».',
+  'tut2-stepplus':'Las metas se cumplen con pasos. Crea uno: toca el ＋.',
+  'tut2-steptype':'Escribe el paso. Lo dejé para mañana, así tu día de hoy no cambia.',
   'tut2-goalback':'Regresa a tus metas.',
-  'tut2-link':'Este ＋ liga tareas a tu meta, para que cada tarea diga a qué te acerca. Tócalo.',
-  'tut2-pick':'Elige la tarea que acabas de crear.',
-  'tut2-linked':'Listo: esa tarea ya dice a qué meta te acerca. También se puede desde ✏️ en cualquier tarea.',
-  'tut2-next':'Listo ✅\nLo que falta: sueño, trabajo, recompensas, tu diario, tus estadísticas y más. ¿Ahora o mañana?',
-  'tut3-hi':'Última parte 🏛️\nYa tienes todo Stoic. Lo vemos parte por parte.',
-  'tut3-sleep':'Apunta cuánto dormiste anoche, como 7h30m: tu última noche, sin importar a qué hora acabó. Dormir suma puntos; dormirte temprano suma más y desvelarte te los quita.',
-  'tut3-work':'Y tus horas de trabajo de hoy, como 2h30m. Cada 25 minutos también cuentan como un pomodoro.',
-  'tut3-rew':'Tres recompensas que quieres mantener a raya: 💊 estimulantes, 🌐 procrastinación (redes sociales, por ejemplo) y 💦 orgasmos. No son malas, solo cuestan puntos. Después podrás editarlas.',
-  'tut3-cal':'Cada día se queda pintado de su color. Toca uno para ver qué pasó.',
-  'tut3-diary':'Aquí está tu diario: cada día tiene su propia nota. Toca aquí para escribir la de este.',
-  'tut3-dtitle':'Un día puede llevar título, como «El día que corrí 5 km». Escribe uno, o Siguiente si prefieres que no.',
-  'tut3-dtpl':'Esta es una plantilla: preguntas para repasar tu día. Es opcional: contesta las que quieras, borra lo que no te sirva, o bórrala toda y escribe lo que se te antoje.',
-  'tut3-dsaved':'Al tocar afuera se guarda sola, y aquí queda tu día. Tócalo para editarlo cuando quieras. ¿Se te olvidó registrar un día? «Editar Historial» lo arregla.',
-  'tut3-stats':'Tus estadísticas. Este número es todo lo que has ganado. Tócalo para abrir el detalle.',
-  'tut3-statsin':'Medallas, récords y todas tus rachas. Esto, y las gráficas de la página, se llenan conforme pasan tus días.',
-  'tut3-wk':'Este botón 📊 compara tus semanas. Tócalo.',
-  'tut3-wkin':'Esta semana contra la pasada: puntos, tareas, metas, pomodoros, trabajo, sueño y días en rojo. Las flechas dicen hacia dónde fue cada uno.',
-  'tut3-day':'Y este 📅 es el calendario del día. Tócalo.',
-  'tut3-dayin':'Tus tareas acomodadas en las horas del día, para ver si de verdad te cabe todo.',
-  'tut3-more':'El ＋ ahora trae más. Tócalo y lo vemos parte por parte.',
-  'tut3-fwhen':'Fecha y hora: para cuándo es. Sin hora, es para cualquier momento de ese día.',
-  'tut3-fquad':'Cuadrante: qué tan urgente e importante es. Si no te importa, déjalo así.',
-  'tut3-ftags':'Etiquetas: agrupan tus tareas para luego filtrarlas. Puedes crear las tuyas.',
-  'tut3-frep':'Repetir: para lo que vuelve, como diario o semanal. Al terminarla, la tarea regresa en su siguiente fecha.',
-  'tut3-fmorn':'🌅 Rutina matutina: marca lo que haces en la mañana. Esas tareas tienen su propia racha.',
-  'tut3-fnlp':'Y entiende fechas. Escribe algo como «Llamar a mamá mañana 5pm».',
-  'tut3-fnlpgo':'Entendió la fecha. Toca aquí y la llena sola.',
-  'tut3-swipe':'Desliza esta lista hacia la izquierda y te asomas al día siguiente. Con mouse, arrástrala.',
-  'tut3-swipe2':'Así ves lo que viene, día por día. Deslízala a la derecha para regresar.',
-  'tut3-daymove':'Para moverla de hora, déjala apretada un momento hasta que se ilumine y arrástrala. Con mouse, arrástrala directo. Así, al bajar con el dedo no mueves nada por accidente.',
-  'tut3-vquad':'Ya que tu lista tiene una tarea: ✜ la acomoda en cuadrantes. Tócalo.',
-  'tut3-vquadin':'Cuatro cajas: hazla ya, agéndala, delégala o postérgala. Toca el espacio vacío de una caja para crear ahí una tarea. El botón 1️⃣ ordena la lista por cuadrante. Regresa a ☰ para seguir.',
-  'tut3-vtags':'Estas son tus etiquetas. Toca una para ver solo esas tareas, y otra vez para quitarla. 🏷️✏️ las renombra o las borra.',
-  'tut3-bell':'🔔 Avisos a la hora de cada tarea, en este aparato. Tócala si los quieres: te pedirá permiso y necesita una cuenta. Si no, Siguiente.',
+  'tut2-link':'Este ＋ liga tareas a tu meta. Tócalo.',
+  'tut2-pick':'Elige la tarea que creaste.',
+  'tut2-linked':'Listo: esa tarea ya apunta a tu meta. También se puede desde ✏️ en cualquier tarea.',
+  'tut2-next':'Listo ✅\nFalta: sueño, trabajo, recompensas, diario, estadísticas y más. ¿Ahora o mañana?',
+  'tut3-hi':'Última parte 🏛️\nYa tienes todo Stoic.',
+  'tut3-sleep':'Apunta cuánto dormiste anoche, como 7h30m. Dormir suma puntos; desvelarte los quita.',
+  'tut3-work':'Apunta tus horas de trabajo de hoy, como 2h30m. Cada 25 minutos cuentan como un pomodoro.',
+  'tut3-rew':'Recompensas que quieres mantener a raya: 💊 estimulantes, 🌐 procrastinación y 💦 orgasmos. No son malas, solo cuestan puntos. Después podrás editarlas.',
+  'tut3-cal':'Cada día se queda pintado de su color. Toca uno.',
+  'tut3-diary':'Cada día tiene su nota. Toca aquí para escribirla.',
+  'tut3-dtitle':'Ponle título al día, o dale Siguiente.',
+  'tut3-dtpl':'Esta plantilla es opcional: contesta lo que quieras, o bórrala.',
+  'tut3-dsaved':'Se guarda al tocar afuera. Tócala para editarla. ¿Olvidaste registrar un día? Usa «Editar Historial».',
+  'tut3-stats':'Todo lo que has ganado. Tócalo para ver el detalle.',
+  'tut3-statsin':'Medallas, récords y rachas. Se llenan con los días.',
+  'tut3-wk':'📊 compara tus semanas. Tócalo.',
+  'tut3-wkin':'Esta semana contra la pasada. Las flechas dicen qué subió o bajó.',
+  'tut3-day':'📅 es el calendario del día. Tócalo.',
+  'tut3-dayin':'Tus tareas en las horas del día, para ver si te cabe todo.',
+  'tut3-more':'El ＋ ahora trae más. Tócalo.',
+  'tut3-fwhen':'Fecha y hora: para cuándo es.',
+  'tut3-fquad':'Cuadrante: qué tan urgente e importante es.',
+  'tut3-ftags':'Etiquetas: agrupan tareas para filtrarlas.',
+  'tut3-frep':'Repetir: al terminarla, la tarea regresa en su siguiente fecha.',
+  'tut3-fmorn':'🌅 Rutina matutina: lo que haces en la mañana. Tiene su propia racha.',
+  'tut3-fnlp':'También entiende fechas. Escribe «Llamar a mamá mañana 5pm».',
+  'tut3-fnlpgo':'Toca aquí y llena la fecha sola.',
+  'tut3-swipe':'Desliza esta lista a la izquierda para ver el día siguiente. Con mouse, arrástrala.',
+  'tut3-swipe2':'Deslízala a la derecha para regresar.',
+  'tut3-daymove':'Para cambiarle la hora, deja apretada la tarea un momento y arrástrala. Con mouse, arrástrala directo.',
+  'tut3-vquad':'✜ acomoda tu lista en cuadrantes. Tócalo.',
+  'tut3-vquadin':'Cuatro cajas: hazla ya, agéndala, delégala o postérgala. 1️⃣ ordena la lista así. Regresa a ☰.',
+  'tut3-vtags':'Toca una etiqueta para ver solo esas tareas. Tócala otra vez para quitarla.',
+  'tut3-bell':'🔔 Avisos a la hora de cada tarea, en este aparato. Necesitan cuenta. Tócala si los quieres, o dale Siguiente.',
   'tut3-sel':'☑ cambia varias tareas a la vez. Tócalo.',
-  'tut3-selin':'Toca tareas para elegirlas, o «Todas». Aquí arriba aparecen fecha, cuadrante, repetir y más, y se aplican a todas de una vez.',
-  'tut3-again':'Y este 🎓 se queda aquí arriba, para cuando quieras ver el tutorial otra vez.',
-  'tut3-end':'Eso es todo Stoic 🏛️\nAhora es tuyo. Haz tu lista cada día y sácala del rojo.',
+  'tut3-selin':'Elige tareas: aquí arriba aparecen fecha, cuadrante, repetir y más, para todas a la vez.',
+  'tut3-end':'Eso es todo Stoic 🏛️\nHaz tu lista cada día y sácala del rojo.',
   'sk-candle':'Días sin rojo',
   'rem-add':'+ Agregar recordatorio','rem-need-title':'Ponle nombre primero',
   'rem-discard':'¿Cerrar sin agregarlo? Se pierde lo que escribiste.',
@@ -3694,7 +3704,8 @@ function closeOnBackdrop(ov,close){
   ov.addEventListener('touchstart',mark,{passive:true});
   ov.onclick=e=>{
     const started=downOn;downOn=null;
-    if(e.target===ov&&started===ov)close();
+    // During the tutorial a stray press out here is nothing: the form it is walking stays.
+    if(e.target===ov&&started===ov&&!(TUT.run&&!TUT.run.paused))close();
   };
   return ov;
 }
@@ -9298,7 +9309,7 @@ function renderApp(){
     sind.querySelector('.sdot').style.background=held?'var(--cy)':'var(--cr)';
   }
   hdr.appendChild(sind);
-  const acts=dv('row gap8 mt10');acts.style.justifyContent='center';
+  const acts=dv('row gap8 mt10');acts.style.cssText='justify-content:center;width:fit-content;margin-left:auto;margin-right:auto';acts.dataset.tut='hdr-acts';
   const themeBtn=bt('btn-ghost btn-sm',STATE.theme==='light'?t('dark'):t('light'),toggleTheme);
   acts.appendChild(themeBtn);
   // The difficulty switch that used to live here is gone along with the
