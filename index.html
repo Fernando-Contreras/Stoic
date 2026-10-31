@@ -7023,6 +7023,23 @@ function renderPomoCalendar(){
   if(day!==tk)nav.appendChild(bt('btn-ghost btn-xs',t('cal-today'),()=>{STATE.calDay=null;render();}));
   wrap.appendChild(nav);
 
+  /* Filter by tag, the way the list does it: a view, never a fact. Tasks that
+     do not carry every chosen tag step out of the tray and off the hours, and
+     the blocks that remain share the width again — nothing about any task
+     changes, and the count of what is hidden says so out loud.
+     Its own filter and not the list's: the list's follows you across devices,
+     and a day you open to look at the gym should not quietly rewrite what the
+     list behind it is showing. */
+  const allT=allTags();
+  if(!Array.isArray(STATE.calDayTags)){
+    const v=S.get('st_caldaytags',[]);
+    STATE.calDayTags=Array.isArray(v)?v:[];
+  }
+  // A tag that no longer exists drops out rather than hiding everything.
+  const F=STATE.calDayTags.filter(x=>allT.includes(x));
+  const passes=r=>F.every(x=>tagsOf(r).includes(x));
+  const setTags=next=>{STATE.calDayTags=next;S.set('st_caldaytags',next);render();};
+
   /* What belongs to this day: what is due on it, plus whatever was due before
      it and is still not done, up to and including today. So a task that was
      meant for the 10th shows on the 10th, the 11th and the 12th until it is
@@ -7033,9 +7050,29 @@ function renderPomoCalendar(){
      a task's date. */
   const open=reminders().filter(r=>!r.done&&r.completedOn!==tk&&r.due);
   const timed=[],untimed=[];
+  let hidden=0;
   open.forEach(r=>{
-    if(r.due===day||(day<=tk&&r.due<day)){(calMin(r.time)!==null?timed:untimed).push(r);}
+    if(!(r.due===day||(day<=tk&&r.due<day)))return;
+    if(!passes(r)){hidden++;return;}
+    (calMin(r.time)!==null?timed:untimed).push(r);
   });
+
+  if(allT.length){
+    const bar=dv('row gap6 mb8');bar.style.cssText='flex-wrap:wrap;align-items:center';
+    bar.appendChild(sp('xs dimmer up ls',t('rem-filter')));
+    allT.forEach(tg=>{
+      const on=F.includes(tg);
+      const c=bt('tagchip',tg,()=>setTags(on?F.filter(x=>x!==tg):[...F,tg]));
+      c.type='button';
+      c.setAttribute('aria-pressed',on?'true':'false');
+      c.style.cssText+=';cursor:pointer'+(on?';outline:2px solid var(--ac)':';opacity:.55');
+      bar.appendChild(c);
+    });
+    if(F.length>1)bar.appendChild(sp('xs dimmer',t('rem-filter-all')));
+    if(F.length)bar.appendChild(bt('btn-ghost btn-xs',t('rem-filter-clear'),()=>setTags([])));
+    if(F.length&&hidden)bar.appendChild(sp('xs dimmer',`${hidden} ${t(hidden===1?'view-hidden-f-1':'view-hidden-f')}`));
+    wrap.appendChild(bar);
+  }
 
   const tray=dv('cal-tray');
   tray.appendChild(sp('xs dimmer',t('cal-untimed')));
@@ -7045,7 +7082,8 @@ function renderPomoCalendar(){
     attachCalDrag(c,r,'chip',day,()=>scroll,()=>grid,tray);
     tray.appendChild(c);
   });
-  if(!untimed.length)tray.appendChild(sp('xs dimmer',t('cal-tray-empty')));
+  // "Every task has a time" would be untrue while a filter is hiding some.
+  if(!untimed.length)tray.appendChild(sp('xs dimmer',F.length?'—':t('cal-tray-empty')));
   wrap.appendChild(tray);
 
   const scroll=dv('cal-scroll');
