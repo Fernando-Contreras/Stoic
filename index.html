@@ -499,6 +499,12 @@ button{cursor:pointer;font-family:var(--ff);font-size:15px;font-weight:600;borde
 .cal-tray{display:flex;flex-wrap:wrap;align-items:center;gap:6px;min-height:36px;padding:6px;
   border:1px dashed var(--b2);border-radius:10px;margin-bottom:8px}
 .cal-tray.drop{border-color:var(--ac);background:var(--acd)}
+/* A block carried off the hours is about to lose its time. The tray lights up
+   (above) and the thing being carried says so in red, so nobody finds out by
+   having done it. */
+.cal-unset{outline:2px dashed var(--cr);outline-offset:1px}
+.cal-order{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:0 0 8px;padding:8px 10px;
+  border:1px solid var(--acb);border-radius:10px;background:var(--acd)}
 .cal-chip{padding:4px 9px;border-radius:99px;background:var(--sur2);border:1px solid var(--b2);
   font-size:12px;cursor:grab;touch-action:pan-y;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;
   max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -2238,7 +2244,11 @@ en:{
   'tl-edit':'Fix the day or the minutes','tl-move':'Move to another task','tl-move-to':'Move this time to…',
   'tl-save':'Save','tl-cancel':'Cancel','tl-only-flags':'🏁 Flags only','tl-change':'Change task',
   'cal-untimed':'No time','cal-tray-empty':'every task has a time',
-  'cal-hint':'Drag a task onto the hours to give it a time; on a phone, hold it a moment first. Drag the bottom edge to change how long it is drawn — the list only ever shows when it starts.',
+  'cal-hint':'Drag a task onto the hours to give it a time, and off them to take it away; on a phone, hold it a moment first. Drag the bottom edge to change how long it is drawn — the list only ever shows when it starts.',
+  'cal-arrange':'🪄 Pick an order','cal-arrange-help':'They go into the free gaps of the day, starting at {t}.',
+  'cal-ord-quad':'By quadrant','cal-ord-late':'Most overdue first','cal-ord-flag':'Flags first','cal-ord-alpha':'A→Z',
+  'cal-arranged':'{n} task(s) placed','cal-arranged-left':'{n} did not fit','cal-arrange-none':'No free gap left to place them in.',
+  'cal-unset':'Time taken off "{t}"','cal-undo':'Undo','cal-cancel':'Cancel',
   'wkgoal-ask':'New weekly goal for "{t}":','wkgoal-full':'You already have {n} weekly goals this week.',
   'wkgoal-ask-quarter':'The week is full. New quarterly goal for "{t}":',
   'wkgoal-ask-year':'The week and the quarter are full. New yearly goal for "{t}":',
@@ -2597,7 +2607,11 @@ es:{
   'tl-edit':'Corregir el día o los minutos','tl-move':'Mover a otra tarea','tl-move-to':'Mover este tiempo a…',
   'tl-save':'Guardar','tl-cancel':'Cancelar','tl-only-flags':'🏁 Solo banderas','tl-change':'Cambiar tarea',
   'cal-untimed':'Sin hora','cal-tray-empty':'todas tienen hora',
-  'cal-hint':'Arrastra una tarea a las horas para darle hora; en celular, déjala apretada un momento primero. Arrastra el borde de abajo para cambiar cuánto dura en el dibujo — la lista solo muestra a qué hora empieza.',
+  'cal-hint':'Arrastra una tarea a las horas para darle hora, y fuera de ellas para quitársela; en celular, déjala apretada un momento primero. Arrastra el borde de abajo para cambiar cuánto dura en el dibujo — la lista solo muestra a qué hora empieza.',
+  'cal-arrange':'🪄 Elegir orden','cal-arrange-help':'Se acomodan en los huecos libres del día, desde las {t}.',
+  'cal-ord-quad':'Por cuadrante','cal-ord-late':'Más atrasadas primero','cal-ord-flag':'Banderas primero','cal-ord-alpha':'A→Z',
+  'cal-arranged':'{n} tarea(s) acomodadas','cal-arranged-left':'{n} no cupieron','cal-arrange-none':'No queda hueco libre para acomodarlas.',
+  'cal-unset':'Se le quitó la hora a "{t}"','cal-undo':'Deshacer','cal-cancel':'Cancelar',
   'wkgoal-ask':'Nueva meta semanal para "{t}":','wkgoal-full':'Ya tienes {n} metas semanales esta semana.',
   'wkgoal-ask-quarter':'La semana está llena. Nueva meta trimestral para "{t}":',
   'wkgoal-ask-year':'La semana y el trimestre están llenos. Nueva meta anual para "{t}":',
@@ -4623,6 +4637,9 @@ function pomoPillEl(){
     `</svg>`+
     `<span class="pp-in"><span class="pp-ph"></span><span class="pp-cl">00:00</span></span>`;
   b.onclick=()=>{
+    // The controls are on the card, which the calendar is covering: pressing
+    // the bubble is asking to go there, so the calendar steps aside.
+    if(STATE.showCal){STATE.showCal=false;render();}
     if(STATE.tab!=='plan'){STATE.tab='plan';localStorage.setItem('st_tab','plan');render();}
     const c=document.getElementById('pomo-clock');
     if(c)c.scrollIntoView({behavior:'smooth',block:'center'});
@@ -4646,9 +4663,20 @@ function syncPomoPill(){
   // Underway means running, or paused partway through — a session left paused
   // and forgotten is precisely the one worth a reminder in the corner.
   const live=!!p&&(p.running||(p.elapsed||0)>0);
-  // Never over a dialog: what is open is what you are dealing with.
-  const busy=!!document.querySelector('.ovl')||!STATE.authed;
-  const show=live&&!busy&&!pomoCardVisible();
+  /* Never over a dialog: what is open is what you are dealing with — with one
+     exception. The day calendar is not something you deal with and leave, it
+     is something you keep open all day beside the work it lays out, and the
+     timer is the other half of that: which block you are in, and how long is
+     left of it. So the calendar does not count as a dialog here.
+     And while it is open the real timer card is under it, "on screen" by the
+     numbers and invisible to the person, so the usual rule — hide the bubble
+     when the card is in view — has to stand down too, or the bubble would
+     vanish exactly when it is wanted. Any OTHER window opened on top of the
+     calendar (a task, say) still owns the screen. */
+  const calOpen=!!document.querySelector('.cal-big');
+  const other=[...document.querySelectorAll('.ovl')].some(o=>!o.querySelector('.cal-big'));
+  const busy=other||!STATE.authed;
+  const show=live&&!busy&&(calOpen||!pomoCardVisible());
   if(!show){
     if(_pomoPill&&document.body.contains(_pomoPill)){
       _pomoPill.classList.remove('on');
@@ -7019,7 +7047,7 @@ function renderTimeLogCard(){
    already set for 16:00 in the list is simply there. The only thing that
    lives here alone is how long a block is drawn (r.calDur), which the list
    never shows. Tasks with no time wait in the tray above; dragging one onto
-   the hours gives it a time, and dragging a block back to the tray takes it
+   the hours gives it a time, and dragging a block anywhere off them takes it
    away. ═══════════════════════════════════════════════════════════════════ */
 const CAL_HOUR_PX=48,CAL_SNAP=15,CAL_DEF_DUR=30,CAL_HOLD_MS=500;
 function calMin(ts){const m=/^(\d{1,2}):(\d{2})/.exec(ts||'');return m?(+m[1])*60+(+m[2]):null;}
@@ -7029,6 +7057,69 @@ function syncCalNow(){
   if(!el)return;
   const n=appNow();
   el.style.top=((n.getHours()*60+n.getMinutes())/60*CAL_HOUR_PX)+'px';
+}
+/* ── Let the app lay the tray out ──
+   Tasks with no time wait in the tray until each is dragged onto the hours one
+   by one. Choosing an order is the one decision a person actually has to make
+   about them — which first — and where each lands follows from it: the earliest
+   free stretch that holds it, from the start of the working day (or from now,
+   on today) to the end of it. Everything it writes is a plain time on a plain
+   task, so what it did can be moved, stretched or taken back like anything
+   put there by hand, and one press undoes the lot. */
+const CAL_AUTO_FROM=8*60,CAL_AUTO_TO=22*60;
+function calAutoStart(day){
+  let from=CAL_AUTO_FROM;
+  // Never into the past: on today it starts at the next quarter hour.
+  if(day===todayKey()){
+    const n=appNow();
+    from=Math.max(from,Math.ceil((n.getHours()*60+n.getMinutes())/CAL_SNAP)*CAL_SNAP);
+  }
+  return from;
+}
+function calAutoPlace(order,day,tray,timedAll){
+  const cmp={
+    quad:(a,b)=>quadRank(a)-quadRank(b)||String(a.due).localeCompare(String(b.due))||String(a.title).localeCompare(String(b.title)),
+    late:(a,b)=>String(a.due).localeCompare(String(b.due))||quadRank(a)-quadRank(b),
+    flag:(a,b)=>(!!b.flagged-!!a.flagged)||quadRank(a)-quadRank(b)||String(a.due).localeCompare(String(b.due)),
+    alpha:(a,b)=>String(a.title||'').localeCompare(String(b.title||''),undefined,{numeric:true,sensitivity:'base'})
+  }[order]||(()=>0);
+  const list=[...tray].sort(cmp);
+  /* What is already taken is EVERYTHING timed on this day, whether or not a tag
+     filter is currently hiding it: a block you cannot see this minute is still
+     a block, and putting a task on top of it would only show once the filter
+     came off. */
+  const taken=timedAll.map(r=>{
+    const s=calMin(r.time);
+    return[s,Math.min(24*60,s+Math.max(CAL_SNAP,r.calDur||CAL_DEF_DUR))];
+  });
+  const from=calAutoStart(day);
+  const placed=[],left=[];
+  list.forEach(r=>{
+    const d=Math.max(CAL_SNAP,r.calDur||CAL_DEF_DUR);
+    let s=from;
+    // First fit: jump past whatever is in the way, until it fits or the day ends.
+    for(;;){
+      if(s+d>CAL_AUTO_TO){s=null;break;}
+      const hit=taken.find(([a,b])=>a<s+d&&b>s);
+      if(!hit)break;
+      s=Math.ceil(hit[1]/CAL_SNAP)*CAL_SNAP;
+    }
+    if(s===null){left.push(r);return;}
+    taken.push([s,s+d]);
+    placed.push({r,s,was:r.time||''});
+  });
+  STATE.calOrderOpen=false;
+  if(!placed.length){render();flashToast(t('cal-arrange-none'));return;}
+  // One write for the lot — updateReminder saves and syncs once per task.
+  placed.forEach(({r,s})=>{r.time=calFmt(s);r._ts=CLOCK.now();});
+  savePlanner();
+  render();
+  let msg=t('cal-arranged').replace('{n}',placed.length);
+  if(left.length)msg+=' · '+t('cal-arranged-left').replace('{n}',left.length);
+  flashToast(msg,t('cal-undo'),()=>{
+    placed.forEach(({r,was})=>{r.time=was;r._ts=CLOCK.now();});
+    savePlanner();render();
+  });
 }
 function renderPomoCalendar(){
   const tk=todayKey();
@@ -7071,10 +7162,12 @@ function renderPomoCalendar(){
      is late; one without a time waits in the tray. Nothing here ever changes
      a task's date. */
   const open=reminders().filter(r=>!r.done&&r.completedOn!==tk&&r.due);
-  const timed=[],untimed=[];
+  const timed=[],untimed=[],timedAll=[];
   let hidden=0;
   open.forEach(r=>{
     if(!(r.due===day||(day<=tk&&r.due<day)))return;
+    // Before the filter on purpose: see calAutoPlace.
+    if(calMin(r.time)!==null)timedAll.push(r);
     if(!passes(r)){hidden++;return;}
     (calMin(r.time)!==null?timed:untimed).push(r);
   });
@@ -7106,7 +7199,20 @@ function renderPomoCalendar(){
   });
   // "Every task has a time" would be untrue while a filter is hiding some.
   if(!untimed.length)tray.appendChild(sp('xs dimmer',F.length?'—':t('cal-tray-empty')));
+  if(untimed.length){
+    const pick=bt('btn-ghost btn-xs',t('cal-arrange'),()=>{STATE.calOrderOpen=!STATE.calOrderOpen;render();});
+    pick.style.marginLeft='auto';
+    tray.appendChild(pick);
+  }
   wrap.appendChild(tray);
+  if(STATE.calOrderOpen&&untimed.length){
+    const box=dv('cal-order');
+    box.appendChild(sp('xs dimmer',t('cal-arrange-help').replace('{t}',calFmt(calAutoStart(day)))));
+    [['quad','cal-ord-quad'],['late','cal-ord-late'],['flag','cal-ord-flag'],['alpha','cal-ord-alpha']].forEach(([k,lbl])=>
+      box.appendChild(bt('btn-ac btn-xs',t(lbl),()=>calAutoPlace(k,day,untimed,timedAll))));
+    box.appendChild(bt('btn-ghost btn-xs',t('cal-cancel'),()=>{STATE.calOrderOpen=false;render();}));
+    wrap.appendChild(box);
+  }
 
   const scroll=dv('cal-scroll');
   const grid=dv('cal-grid');
@@ -7227,7 +7333,13 @@ function attachCalDrag(el,r,kind,day,getScroll,getGrid,tray){
       const inTL=ev.clientX>=sr.left&&ev.clientX<=sr.right&&ev.clientY>=sr.top&&ev.clientY<=sr.bottom;
       const tr=tray.getBoundingClientRect();
       g.inTray=!inTL&&ev.clientX>=tr.left&&ev.clientX<=tr.right&&ev.clientY>=tr.top&&ev.clientY<=tr.bottom;
-      tray.classList.toggle('drop',g.inTray&&kind==='block');
+      /* A block carried anywhere off the hours is on its way out of the
+         schedule, not only one carried onto the tray — the tray was only ever
+         the one place that said so. Both say so now, while it is still in
+         the hand: the tray lights and the block is outlined in red. */
+      const away=kind==='block'&&!inTL;
+      tray.classList.toggle('drop',away);
+      g.ghost.classList.toggle('cal-unset',away);
       if(inTL){
         if(ev.clientY<sr.top+24)scroll.scrollTop-=10;
         else if(ev.clientY>sr.bottom-24)scroll.scrollTop+=10;
@@ -7260,9 +7372,17 @@ function attachCalDrag(el,r,kind,day,getScroll,getGrid,tray){
            an hour now. */
         updateReminder(r.id,{time:calFmt(g.drop.min)});
         render();
-      }else if(g.inTray&&kind==='block'){
+      }else if(kind==='block'){
+        /* Let go anywhere off the hours and the time comes off — only the time.
+           The task is still there, still due when it was, back in the tray.
+           Because a stray release is now enough to do it, it says so and
+           offers the way back. */
+        const was=r.time||'';
         updateReminder(r.id,{time:''});
         render();
+        flashToast(t('cal-unset').replace('{t}',String(r.title||'').slice(0,40)),t('cal-undo'),()=>{
+          updateReminder(r.id,{time:was});render();
+        });
       }else if(_calRedraw)render();
     };
     const cancel=ev=>{
