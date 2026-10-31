@@ -500,7 +500,7 @@ button{cursor:pointer;font-family:var(--ff);font-size:15px;font-weight:600;borde
   border:1px dashed var(--b2);border-radius:10px;margin-bottom:8px}
 .cal-tray.drop{border-color:var(--ac);background:var(--acd)}
 .cal-chip{padding:4px 9px;border-radius:99px;background:var(--sur2);border:1px solid var(--b2);
-  font-size:12px;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none;
+  font-size:12px;cursor:grab;touch-action:pan-y;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;
   max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .cal-chip.late{border-color:var(--ng);color:var(--ng)}
 .cal-scroll{height:340px;overflow-y:auto;position:relative;border:1px solid var(--b1);
@@ -509,10 +509,11 @@ button{cursor:pointer;font-family:var(--ff);font-size:15px;font-weight:600;borde
 .cal-hr{position:absolute;left:-44px;width:38px;text-align:right;font-size:10px;color:var(--t3);transform:translateY(-6px)}
 .cal-line{position:absolute;left:0;right:0;border-top:1px solid var(--b1)}
 .cal-block{position:absolute;box-sizing:border-box;border-radius:8px;padding:2px 6px;font-size:11px;
-  line-height:1.25;overflow:hidden;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none;
+  line-height:1.25;overflow:hidden;cursor:grab;touch-action:pan-y;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;
   background:var(--acd);border:1px solid var(--acb);border-left:3px solid var(--ac);color:var(--t1)}
 .cal-block.late{background:var(--ngd);border-color:var(--ngb);border-left-color:var(--ng)}
-.cal-block .cal-rs{position:absolute;left:0;right:0;bottom:0;height:9px;cursor:ns-resize;touch-action:none}
+.cal-block .cal-rs{position:absolute;left:0;right:0;bottom:0;height:9px;cursor:ns-resize;touch-action:pan-y}
+.cal-held{outline:2px solid var(--ac);box-shadow:0 0 12px var(--ac)}
 .cal-now{position:absolute;left:-6px;right:0;border-top:2px solid var(--ng);z-index:3;pointer-events:none}
 .cal-now::before{content:'';position:absolute;left:-2px;top:-5px;width:8px;height:8px;border-radius:50%;background:var(--ng)}
 .cal-ind{position:absolute;left:0;right:0;border:2px dashed var(--ac);border-radius:8px;background:var(--acd);
@@ -882,6 +883,14 @@ const tutFocusTitle=tutFocus('[data-tut="add-title"]');
 const tutClose=k=>()=>{STATE[k]=false;render();};
 const tutTomorrow=()=>{const d=new Date(todayKey()+'T12:00:00');d.setDate(d.getDate()+1);return isoDate(d);};
 // The note is saved and put away, if it was not already.
+// The calendar on the day of the task just made, at its hour.
+const tutTask=()=>TUT.run&&TUT.run.ctx&&TUT.run.ctx.mineAll()[0];
+const tutCalTask=()=>{
+  const m=tutTask();if(!m)return;
+  STATE.calDay=m.due;STATE.calScrollDay=m.due;
+  STATE.calScroll=Math.max(0,((parseInt(m.time)||8)-1)*CAL_HOUR_PX);
+  render();
+};
 const tutDiaryClose=()=>{const w=document.querySelector('.diary-wrap');if(w)toggleDiaryEditor(w.parentElement,STATE.calSel,null);};
 // While the first part teaches a time on a task, a late hour must not hide the task it needs ticked.
 const tutHolds=r=>{const run=TUT.run;return !!(run&&run.ctx&&!run.replay&&run.stages[0]===1&&!run.known.has(r.id));};
@@ -972,8 +981,6 @@ const TUT_STAGES={
     {id:'statsIn', target:'[data-tut="stats-panel"]', win:'showStatsDetail', text:'tut3-statsin', manual:true, free:true, after:tutClose('showStatsDetail')},
     {id:'week',    tab:'plan',  target:'[data-tut="week-btn"]',   text:'tut3-wk',    temp:true, latch:true, done:()=>STATE.showWeek},
     {id:'weekIn',  target:'[data-tut="week-panel"]',  win:'showWeek', text:'tut3-wkin',  manual:true, free:true, after:tutClose('showWeek')},
-    {id:'dayCal',  tab:'plan',  target:'[data-tut="cal-btn"]',    text:'tut3-day',   temp:true, latch:true, done:()=>STATE.showCal},
-    {id:'dayIn',   target:'[data-tut="cal-panel"]',   win:'showCal', text:'tut3-dayin', manual:true, free:true, after:tutClose('showCal')},
     // The whole form, a part at a time, ending in a real task: the steps after it need one.
     {id:'more',    tab:'plan', target:'[data-tut="add"]', text:'tut3-more', temp:true, latch:true, done:()=>STATE.showAddForm},
     {id:'fWhen',   target:'[data-tut="add-when"]',    win:'showAddForm', soft:true, manual:true, text:'tut3-fwhen'},
@@ -985,9 +992,19 @@ const TUT_STAGES={
                    done:()=>tutChip()&&Date.now()-(TUT.typed['add-title']||0)>800},
     {id:'fNlpGo',  target:'[data-tut="add-nlp"]',     win:'showAddForm', soft:true, latch:true, text:'tut3-fnlpgo', done:c=>!tutChip()||c.count()>=1},
     {id:'fAdd',    target:'[data-tut="add-go"]',      win:'showAddForm', soft:true, text:'tut1-add', done:c=>c.count()>=1},
+    // Looking ahead only exists on "Today".
+    {id:'vSwipe',  tab:'plan', target:'[data-tut="list-card"]', latch:true, text:'tut3-swipe', done:()=>(STATE.view.peek||0)>0,
+                   enter:()=>{if(STATE.view.scope!=='today'){STATE.view.scope='today';saveView();render();}}},
+    {id:'vSwipe2', tab:'plan', target:'[data-tut="list-card"]', latch:true, text:'tut3-swipe2', done:()=>!STATE.view.peek,
+                   after:()=>{STATE.view.peek=0;saveView();render();}},
+    {id:'dayCal',  tab:'plan',  target:'[data-tut="cal-btn"]',    text:'tut3-day',   temp:true, latch:true, done:()=>STATE.showCal},
+    {id:'dayIn',   target:'[data-tut="cal-panel"]',   win:'showCal', text:'tut3-dayin', manual:true, free:true, enter:tutCalTask},
+    // The time of that task: moving it is the step. Soft, since without a time it sits in the tray above.
+    {id:'dayMove', target:'.cal-scroll', win:'showCal', soft:true, manual:true, free:true, text:'tut3-daymove', after:tutClose('showCal'),
+                   auto:()=>{const m=tutTask();return m&&m.time;}},
     {id:'vQuad',   tab:'plan', target:'[data-tut="v-layout"]', latch:true, text:'tut3-vquad', done:()=>tutLayout()==='quad',
                    // That task may be for tomorrow: on "Today" there would be nothing to see.
-                   enter:()=>{if(STATE.view.scope!=='all'){STATE.view.scope='all';STATE.view.peek=0;saveView();render();}}},
+                   enter:()=>{STATE.calDay=null;if(STATE.view.scope!=='all'){STATE.view.scope='all';STATE.view.peek=0;saveView();render();}}},
     {id:'vQuadIn', tab:'plan', target:'[data-tut="list-card"]', latch:true, text:'tut3-vquadin', after:tutListBack, done:()=>tutLayout()==='list'},
     {id:'vTags',   tab:'plan', target:'[data-tut="tag-bar"]', manual:true, free:true, text:'tut3-vtags',
                    after:()=>{STATE.view.tags=[];saveView();render();}},
@@ -1118,7 +1135,7 @@ function tutMarkDone(stages){
 const TUT_WINDOWS=['showGoals','showWeek','showCal','showStatsDetail'];
 function tutCloseAll(){
   _addFormDirty=null;
-  STATE.showAddForm=false;STATE.editingRem=null;STATE.selecting=false;STATE.addPrefill=null;
+  STATE.showAddForm=false;STATE.editingRem=null;STATE.selecting=false;STATE.addPrefill=null;STATE.calDay=null;
   TUT_WINDOWS.forEach(k=>{STATE[k]=false;});
 }
 /* Whenever it stops, for whatever reason, the person has to know where to find it
@@ -2107,6 +2124,9 @@ en:{
   'tut3-fmorn':'🌅 Morning routine: marks what you do in the morning. Those tasks have their own streak.',
   'tut3-fnlp':'It also understands dates. Write something like "Call mom tomorrow 5pm".',
   'tut3-fnlpgo':'It understood the date. Tap here and it fills it in.',
+  'tut3-swipe':'Slide this list to the left to peek at the next day. With a mouse, drag it.',
+  'tut3-swipe2':'That is how you see what is coming, day by day. Slide it to the right to come back.',
+  'tut3-daymove':'To move a task to another hour, hold it a moment until it lights up, then drag it. With a mouse, just drag it. That way a finger scrolling past never moves anything.',
   'tut3-vquad':'Now that the list has a task: ✜ lays it out in quadrants. Tap it.',
   'tut3-vquadin':'Four boxes: do it now, schedule it, delegate it, postpone it. Tap the empty space in a box to create a task right there. The 1️⃣ button sorts the list by quadrant. Go back to ☰ to continue.',
   'tut3-vtags':'These are your tags. Tap one to see only those tasks, and again to remove it. 🏷️✏️ renames or deletes them.',
@@ -2194,7 +2214,7 @@ en:{
   'tl-edit':'Fix the day or the minutes','tl-move':'Move to another task','tl-move-to':'Move this time to…',
   'tl-save':'Save','tl-cancel':'Cancel','tl-only-flags':'🏁 Flags only','tl-change':'Change task',
   'cal-untimed':'No time','cal-tray-empty':'every task has a time',
-  'cal-hint':'Drag a task onto the hours to give it a time. Drag the bottom edge to change how long it is drawn — the list only ever shows when it starts.',
+  'cal-hint':'Drag a task onto the hours to give it a time; on a phone, hold it a moment first. Drag the bottom edge to change how long it is drawn — the list only ever shows when it starts.',
   'wkgoal-ask':'New weekly goal for "{t}":','wkgoal-full':'You already have {n} weekly goals this week.',
   'wkgoal-ask-quarter':'The week is full. New quarterly goal for "{t}":',
   'wkgoal-ask-year':'The week and the quarter are full. New yearly goal for "{t}":',
@@ -2462,6 +2482,9 @@ es:{
   'tut3-fmorn':'🌅 Rutina matutina: marca lo que haces en la mañana. Esas tareas tienen su propia racha.',
   'tut3-fnlp':'Y entiende fechas. Escribe algo como «Llamar a mamá mañana 5pm».',
   'tut3-fnlpgo':'Entendió la fecha. Toca aquí y la llena sola.',
+  'tut3-swipe':'Desliza esta lista hacia la izquierda y te asomas al día siguiente. Con mouse, arrástrala.',
+  'tut3-swipe2':'Así ves lo que viene, día por día. Deslízala a la derecha para regresar.',
+  'tut3-daymove':'Para moverla de hora, déjala apretada un momento hasta que se ilumine y arrástrala. Con mouse, arrástrala directo. Así, al bajar con el dedo no mueves nada por accidente.',
   'tut3-vquad':'Ya que tu lista tiene una tarea: ✜ la acomoda en cuadrantes. Tócalo.',
   'tut3-vquadin':'Cuatro cajas: hazla ya, agéndala, delégala o postérgala. Toca el espacio vacío de una caja para crear ahí una tarea. El botón 1️⃣ ordena la lista por cuadrante. Regresa a ☰ para seguir.',
   'tut3-vtags':'Estas son tus etiquetas. Toca una para ver solo esas tareas, y otra vez para quitarla. 🏷️✏️ las renombra o las borra.',
@@ -2549,7 +2572,7 @@ es:{
   'tl-edit':'Corregir el día o los minutos','tl-move':'Mover a otra tarea','tl-move-to':'Mover este tiempo a…',
   'tl-save':'Guardar','tl-cancel':'Cancelar','tl-only-flags':'🏁 Solo banderas','tl-change':'Cambiar tarea',
   'cal-untimed':'Sin hora','cal-tray-empty':'todas tienen hora',
-  'cal-hint':'Arrastra una tarea a las horas para darle hora. Arrastra el borde de abajo para cambiar cuánto dura en el dibujo — la lista solo muestra a qué hora empieza.',
+  'cal-hint':'Arrastra una tarea a las horas para darle hora; en celular, déjala apretada un momento primero. Arrastra el borde de abajo para cambiar cuánto dura en el dibujo — la lista solo muestra a qué hora empieza.',
   'wkgoal-ask':'Nueva meta semanal para "{t}":','wkgoal-full':'Ya tienes {n} metas semanales esta semana.',
   'wkgoal-ask-quarter':'La semana está llena. Nueva meta trimestral para "{t}":',
   'wkgoal-ask-year':'La semana y el trimestre están llenos. Nueva meta anual para "{t}":',
@@ -6912,7 +6935,7 @@ function renderTimeLogCard(){
    never shows. Tasks with no time wait in the tray above; dragging one onto
    the hours gives it a time, and dragging a block back to the tray takes it
    away. ═══════════════════════════════════════════════════════════════════ */
-const CAL_HOUR_PX=48,CAL_SNAP=15,CAL_DEF_DUR=30;
+const CAL_HOUR_PX=48,CAL_SNAP=15,CAL_DEF_DUR=30,CAL_HOLD_MS=500;
 function calMin(ts){const m=/^(\d{1,2}):(\d{2})/.exec(ts||'');return m?(+m[1])*60+(+m[2]):null;}
 function calFmt(min){return pad2(Math.floor(min/60))+':'+pad2(min%60);}
 function syncCalNow(){
@@ -7028,8 +7051,11 @@ function renderPomoCalendar(){
 /* One drag for blocks and chips. Pointer events rather than HTML5 drag and
    drop, which does nothing on a phone. A press that never travels is a click
    and opens the task; one that does follows the finger with a ghost, shows
-   where it would land, and writes the time when it is let go. */
+   where it would land, and writes the time when it is let go.
+   A finger has to hold still first (see calHold), because a finger on a task is
+   far more often someone scrolling past it than someone moving it. */
 function attachCalDrag(el,r,kind,day,getScroll,getGrid,tray){
+  calHoldable(el);
   el.addEventListener('pointerdown',e=>{
     if(e.button&&e.button!==0)return;
     if(e.target.classList&&e.target.classList.contains('cal-rs'))return;
@@ -7039,7 +7065,9 @@ function attachCalDrag(el,r,kind,day,getScroll,getGrid,tray){
     try{el.setPointerCapture(e.pointerId);}catch(_){}
     const scroll=getScroll(),grid=getGrid();
     const dur=Math.max(CAL_SNAP,r.calDur||CAL_DEF_DUR);
+    const hold=calHold(el,e);
     const move=ev=>{
+      if(hold.waiting(ev))return;
       if(!g.dragging){
         if(Math.hypot(ev.clientX-g.sx,ev.clientY-g.sy)<6)return;
         g.dragging=true;
@@ -7077,11 +7105,15 @@ function attachCalDrag(el,r,kind,day,getScroll,getGrid,tray){
       el.removeEventListener('pointerup',end);
       el.removeEventListener('pointercancel',cancel);
       try{el.releasePointerCapture(e.pointerId);}catch(_){}
+      hold.off();
       el.style.opacity='';
       tray.classList.remove('drop');
       if(g.ghost)g.ghost.remove();
       if(g.ind)g.ind.remove();
-      if(!g.dragging){STATE.editingRem=null;STATE.taskTree=r.id;render();return;}
+      if(!g.dragging){
+        if(!hold.scrolled){STATE.editingRem=null;STATE.taskTree=r.id;render();}
+        return;
+      }
       if(g.drop){
         /* Only the time. The date is when the task was meant to be done, and
            an overdue one dropped on today's hours used to be rewritten to
@@ -7099,6 +7131,7 @@ function attachCalDrag(el,r,kind,day,getScroll,getGrid,tray){
       el.removeEventListener('pointermove',move);
       el.removeEventListener('pointerup',end);
       el.removeEventListener('pointercancel',cancel);
+      hold.off();
       el.style.opacity='';tray.classList.remove('drop');
       if(g.ghost)g.ghost.remove();
       if(g.ind)g.ind.remove();
@@ -7108,14 +7141,43 @@ function attachCalDrag(el,r,kind,day,getScroll,getGrid,tray){
     el.addEventListener('pointercancel',cancel);
   });
 }
+/* A mouse is ready at once. A finger waits: move before the hold is up and it was
+   a scroll, which is left to the browser. touch-action can only say "the browser
+   may scroll" when the touch begins, so past the hold the touchmove is what stops
+   it, and that listener has to be on the element before the touch starts. */
+function calHoldable(el){
+  el.addEventListener('touchmove',ev=>{if(el._calArmed)ev.preventDefault();},{passive:false});
+  el.addEventListener('contextmenu',ev=>{if(el._calTouch)ev.preventDefault();});   // a long press, here
+}
+function calHold(el,e){
+  const touch=e.pointerType==='touch';
+  const h={armed:!touch,scrolled:false,timer:0,
+    waiting(ev){
+      if(h.armed)return false;
+      if(Math.hypot(ev.clientX-e.clientX,ev.clientY-e.clientY)>10){clearTimeout(h.timer);h.scrolled=true;}
+      return true;
+    },
+    off(){clearTimeout(h.timer);el._calArmed=false;el._calTouch=false;el.classList.remove('cal-held');}};
+  if(touch){
+    el._calTouch=true;
+    h.timer=setTimeout(()=>{
+      h.armed=true;el._calArmed=true;el.classList.add('cal-held');
+      try{if(navigator.vibrate)navigator.vibrate(15);}catch(_){}
+    },CAL_HOLD_MS);
+  }
+  return h;
+}
 // The bottom edge of a block sets how long it is drawn — and nothing else.
 function attachCalResize(handle,block,r,startMin){
+  calHoldable(handle);
   handle.addEventListener('pointerdown',e=>{
     e.stopPropagation();e.preventDefault();
     try{handle.setPointerCapture(e.pointerId);}catch(_){}
     const top=block.getBoundingClientRect().top;
     let dur=Math.max(CAL_SNAP,r.calDur||CAL_DEF_DUR);
+    const hold=calHold(handle,e);
     const move=ev=>{
+      if(hold.waiting(ev))return;
       let d=Math.round((ev.clientY-top)/CAL_HOUR_PX*60/CAL_SNAP)*CAL_SNAP;
       dur=Math.max(CAL_SNAP,Math.min(24*60-startMin,d));
       block.style.height=Math.max(18,dur/60*CAL_HOUR_PX-1)+'px';
@@ -7125,6 +7187,8 @@ function attachCalResize(handle,block,r,startMin){
       handle.removeEventListener('pointerup',end);
       handle.removeEventListener('pointercancel',end);
       try{handle.releasePointerCapture(e.pointerId);}catch(_){}
+      hold.off();
+      if(!hold.armed)return;
       updateReminder(r.id,{calDur:dur});
       render();
     };
