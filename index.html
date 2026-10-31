@@ -532,7 +532,7 @@ button{cursor:pointer;font-family:var(--ff);font-size:15px;font-weight:600;borde
    emoji fell onto a line of its own and one flag stood a screen tall. There the
    row becomes two lines: the checkbox and the whole title, and the goal under
    it. */
-.flag-ttl{min-width:0;overflow-wrap:anywhere}
+.flag-ttl,.flag-note{min-width:0;overflow-wrap:anywhere}
 /* It is the width of the card that decides, not of the screen: a desktop window
    narrow enough to make this card half-width broke the same way a phone did. */
 .flag-box{container-type:inline-size}
@@ -931,6 +931,7 @@ const TUT_STAGES={
     {id:'vSort',   tab:'plan', target:'[data-tut="v-sort"]',   press:true, text:'tut1-vsort'},
     {id:'vSorted', tab:'plan', target:'[data-tut="list-card"]',manual:true, free:true, text:'tut1-vsort2'},
     {id:'vHide',   tab:'plan', target:'[data-tut="v-hide"]',   manual:true, free:true, text:'tut1-vhide'},
+    {id:'flagged', tab:'plan', target:'[data-tut="flag-box"]', text:'tut1-flagged', manual:true, look:true, done:c=>c.doneN()>0},
     {id:'colour',  tab:'plan', target:'[data-tut="day-card"]', text:'tut1-colour', manual:true, look:true, done:c=>c.doneN()>0},
     {id:'tick',    target:c=>c.nextOpen(),                  text:'tut1-tick',  done:c=>c.doneN()>=1},
     {id:'half',    tab:'plan', target:'[data-tut="day-card"]', text:'tut1-half', manual:true, look:true, done:c=>c.doneN()>=2},
@@ -2087,6 +2088,7 @@ en:{
   'tut1-vsort2':'Your list changed order. It stays how you leave it, and your points do not change.',
   'tut1-vhide':'Tasks with a time stay hidden until this many hours before, so they do not get in your way.',
   'tut1-prefs':'Up here: light or dark mode, language, and 🎓 to repeat this tutorial.',
+  'tut1-flagged':'Your 🏁 goal of the day also shows up here, in your goals section.',
   'tut1-colour':'This is your day. It is red because nothing is done yet. Your goal: get it out of the red.',
   'tut1-tick':'Mark this task as done.',
   'tut1-half':'Half done: yellow 🟡, and the candle lights up 🕯️. Every day without red adds to your streak.',
@@ -2111,7 +2113,7 @@ en:{
   'tut2-goalback':'Go back to your goals.',
   'tut2-link':'This ＋ links tasks to your goal. Tap it.',
   'tut2-pick':'Pick the task you made.',
-  'tut2-linked':'Done: that task now points to your goal. You can also do it from ✏️ on any task.',
+  'tut2-linked':'Done: that task now points to your goal.\nThe idea: your daily goals are steps toward your weekly, quarterly and yearly ones. That way you move forward every day.\nYou can also link from ✏️ on any task.',
   'tut2-next':'Done ✅\nStill to come: sleep, work, rewards, diary, stats and more. Now or tomorrow?',
   'tut3-hi':'Last part 🏛️\nNow you have all of Stoic.',
   'tut3-sleep':'Write how long you slept last night, like 7h30m. Sleep adds points; a late night takes them away.',
@@ -2444,6 +2446,7 @@ es:{
   'tut1-vsort2':'Tu lista cambió de orden. Se queda como la dejes y tus puntos no cambian.',
   'tut1-vhide':'Las tareas con hora se esconden hasta estas horas antes, para que no te estorben.',
   'tut1-prefs':'Aquí arriba: modo claro u oscuro, idioma y 🎓 para repetir este tutorial.',
+  'tut1-flagged':'Tu 🏁 meta del día también sale aquí, en tu sección de metas.',
   'tut1-colour':'Este es tu día. Está en rojo porque aún no haces nada. Tu meta: sacarlo del rojo.',
   'tut1-tick':'Marca esta tarea como hecha.',
   'tut1-half':'Mitad hecha: amarillo 🟡, y se prende la vela 🕯️. Cada día sin rojo suma a tu racha.',
@@ -2468,7 +2471,7 @@ es:{
   'tut2-goalback':'Regresa a tus metas.',
   'tut2-link':'Este ＋ liga tareas a tu meta. Tócalo.',
   'tut2-pick':'Elige la tarea que creaste.',
-  'tut2-linked':'Listo: esa tarea ya apunta a tu meta. También se puede desde ✏️ en cualquier tarea.',
+  'tut2-linked':'Listo: esa tarea ya apunta a tu meta.\nEl chiste: que tus metas del día sean pasos hacia las de la semana, el trimestre y el año. Así avanzas diario.\nTambién se liga desde ✏️ en cualquier tarea.',
   'tut2-next':'Listo ✅\nFalta: sueño, trabajo, recompensas, diario, estadísticas y más. ¿Ahora o mañana?',
   'tut3-hi':'Última parte 🏛️\nYa tienes todo Stoic.',
   'tut3-sleep':'Apunta cuánto dormiste anoche, como 7h30m. Dormir suma puntos; desvelarte los quita.',
@@ -5462,7 +5465,7 @@ function renderPlanner(){
       win.appendChild(conf);
       sum.appendChild(win);
     }else{
-      const box=dv('s4 flag-box');
+      const box=dv('s4 flag-box');box.dataset.tut='flag-box';
       flagsLeft.forEach(r=>{
         const row=dv('row gap8 flag-row');
         row.style.cssText='background:var(--sur2);border:1px solid var(--b1);border-radius:8px;padding:6px 9px';
@@ -5475,17 +5478,21 @@ function renderPlanner(){
            one list in the app showing a task as a plain label — the name you
            most want to sharpen sat in the only place that would not let you.
            Same words, same press, same result as everywhere else. */
-        const ttl=sp('sm f1 flag-ttl',r.title);
-        editableTitle(ttl,r,render);
-        row.appendChild(ttl);
         const wkNote=weeklyGoalNote(r);
+        // This is the goals section: what the task serves leads, and the task is the
+        // step toward it. A link gone stale has no goal to lead with.
+        const leads=wkNote!==null&&!wkNote.stale;
+        const ttl=sp(leads?'sm dimmer flag-note':'sm f1 flag-ttl',r.title);
+        editableTitle(ttl,r,render);
+        if(!leads)row.appendChild(ttl);
         if(wkNote!==null){
-          const suf=sp('sm dimmer flag-note',(wkNote.icon||(wkNote.stale?'⚠️':'🏁'))+' '+wkNote.text);
+          const suf=sp(leads?'sm f1 flag-ttl':'sm dimmer flag-note',(wkNote.icon||(wkNote.stale?'⚠️':'🏁'))+' '+wkNote.text);
           if(wkNote.done)suf.style.textDecoration='line-through';
           suf.title=t('rem-goal-for');
           if(wkNote.stale)staleGoalClick(suf,r);
           row.appendChild(suf);
         }
+        if(leads)row.appendChild(ttl);
         box.appendChild(row);
       });
       sum.appendChild(box);
@@ -6805,6 +6812,7 @@ function renderSwPick(){
 function renderCalModal(){
   const close=()=>{STATE.showCal=false;render();};
   const ov=dv('fi');ov.classList.add('ovl');
+  ov.style.zIndex='59';   // under the task it opens, which is drawn before it
   closeOnBackdrop(ov,close);
   const panel=dv('card cal-big');panel.dataset.tut='cal-panel';panel.style.cssText='max-width:820px;width:100%;margin:auto;max-height:none';
   const hd=dv('rowb mb6');
@@ -7064,7 +7072,12 @@ function renderPomoCalendar(){
    and opens the task; one that does follows the finger with a ghost, shows
    where it would land, and writes the time when it is let go.
    A finger has to hold still first (see calHold), because a finger on a task is
-   far more often someone scrolling past it than someone moving it. */
+   far more often someone scrolling past it than someone moving it.
+   The rest of the gesture is listened for on the window: a redraw halfway (a sync,
+   a tick) replaces the element, and listening on it left the ghost on the page for
+   good. render() also waits while one is moving, or the drop would land on a
+   calendar that is no longer the one on screen. */
+let _calDragAt=0,_calRedraw=false;
 function attachCalDrag(el,r,kind,day,getScroll,getGrid,tray){
   calHoldable(el);
   el.addEventListener('pointerdown',e=>{
@@ -7077,10 +7090,22 @@ function attachCalDrag(el,r,kind,day,getScroll,getGrid,tray){
     const scroll=getScroll(),grid=getGrid();
     const dur=Math.max(CAL_SNAP,r.calDur||CAL_DEF_DUR);
     const hold=calHold(el,e);
+    const finish=()=>{
+      window.removeEventListener('pointermove',move);
+      window.removeEventListener('pointerup',end);
+      window.removeEventListener('pointercancel',cancel);
+      hold.off();
+      el.style.opacity='';
+      tray.classList.remove('drop');
+      if(g.ghost)g.ghost.remove();
+      if(g.ind)g.ind.remove();
+      _calDragAt=0;
+    };
     const move=ev=>{
-      if(hold.waiting(ev))return;
+      if(ev.pointerId!==e.pointerId||hold.waiting(ev))return;
       if(!g.dragging){
-        if(Math.hypot(ev.clientX-g.sx,ev.clientY-g.sy)<6)return;
+        // Not 6: a click with a shaky hand is still a click, and it opens the task.
+        if(Math.hypot(ev.clientX-g.sx,ev.clientY-g.sy)<10)return;
         g.dragging=true;
         g.ghost=el.cloneNode(true);
         g.ghost.style.cssText+=`;position:fixed;z-index:90;pointer-events:none;opacity:.85;width:${Math.max(120,g.w)}px;left:0;top:0;height:auto`;
@@ -7088,6 +7113,7 @@ function attachCalDrag(el,r,kind,day,getScroll,getGrid,tray){
         el.style.opacity='.3';
         g.ind=dv('cal-ind');g.ind.style.display='none';grid.appendChild(g.ind);
       }
+      _calDragAt=Date.now();
       g.ghost.style.left=(ev.clientX-Math.min(g.offX,60))+'px';
       g.ghost.style.top=(ev.clientY-Math.min(g.offY,14))+'px';
       const sr=scroll.getBoundingClientRect();
@@ -7112,15 +7138,9 @@ function attachCalDrag(el,r,kind,day,getScroll,getGrid,tray){
       }
     };
     const end=ev=>{
-      el.removeEventListener('pointermove',move);
-      el.removeEventListener('pointerup',end);
-      el.removeEventListener('pointercancel',cancel);
+      if(ev.pointerId!==e.pointerId)return;
       try{el.releasePointerCapture(e.pointerId);}catch(_){}
-      hold.off();
-      el.style.opacity='';
-      tray.classList.remove('drop');
-      if(g.ghost)g.ghost.remove();
-      if(g.ind)g.ind.remove();
+      finish();
       if(!g.dragging){
         if(!hold.scrolled){STATE.editingRem=null;STATE.taskTree=r.id;render();}
         return;
@@ -7136,20 +7156,16 @@ function attachCalDrag(el,r,kind,day,getScroll,getGrid,tray){
       }else if(g.inTray&&kind==='block'){
         updateReminder(r.id,{time:''});
         render();
-      }
+      }else if(_calRedraw)render();
     };
-    const cancel=()=>{
-      el.removeEventListener('pointermove',move);
-      el.removeEventListener('pointerup',end);
-      el.removeEventListener('pointercancel',cancel);
-      hold.off();
-      el.style.opacity='';tray.classList.remove('drop');
-      if(g.ghost)g.ghost.remove();
-      if(g.ind)g.ind.remove();
+    const cancel=ev=>{
+      if(ev.pointerId!==e.pointerId)return;
+      finish();
+      if(_calRedraw)render();
     };
-    el.addEventListener('pointermove',move);
-    el.addEventListener('pointerup',end);
-    el.addEventListener('pointercancel',cancel);
+    window.addEventListener('pointermove',move);
+    window.addEventListener('pointerup',end);
+    window.addEventListener('pointercancel',cancel);
   });
 }
 /* A mouse is ready at once. A finger waits: move before the hold is up and it was
@@ -8437,6 +8453,10 @@ function enforcePomodoroFloor(){
   if((td.pomodoros||0)<minPoms){td.pomodoros=minPoms;S.set(K.TODAY,td);}
 }
 function render(){
+  // Held off while a task is moving in the calendar; a drag left still for
+  // seconds lets it through, so nothing can ever stop the page from drawing.
+  if(_calDragAt&&Date.now()-_calDragAt<3000){_calRedraw=true;return;}
+  _calRedraw=false;
   enforcePomodoroFloor();
   seedStarterTags();
   /* A dirty, unsaved note is written before the DOM under it is torn down.
