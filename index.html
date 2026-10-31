@@ -2189,6 +2189,9 @@ en:{
   'rem-del-warn':'Delete "{t}"?','rem-del-warn-kids':'Delete "{t}" and its {n} subtask(s)?',
   'rem-tag-ph':'New tag (work, home, gym…)','rem-filter':'Filter by tag','rem-filter-clear':'clear',
   'rem-filter-all':'· must have all of them',
+  'cal-tag-sum':'{d} day(s) · {n} task(s) with {tags}',
+  'cal-tag-norec':'No tags were recorded for this day',
+  'cal-tag-nodata':'The faintest days did not record their tags — only days since this existed do, plus the most recent ones still in the archive.',
   'tagmgr-open':'Rename or delete a tag everywhere','tagmgr-title':'Manage tags',
   'ext-measured':'Measured by the Stoic Block extension. Delete it to dismiss what it measured so far.',
   'tagmgr-none':'No tags yet.','tagmgr-suggest':'💡 Suggested','tagmgr-add':'+ Add','tagmgr-add-all':'Add all','tagmgr-one':'reminder','tagmgr-count':'reminders',
@@ -2548,6 +2551,9 @@ es:{
   'rem-del-warn':'¿Borrar "{t}"?','rem-del-warn-kids':'¿Borrar "{t}" y sus {n} subtarea(s)?',
   'rem-tag-ph':'Etiqueta nueva (trabajo, casa, gym…)','rem-filter':'Filtrar por etiqueta','rem-filter-clear':'limpiar',
   'rem-filter-all':'· deben tener todas',
+  'cal-tag-sum':'{d} día(s) · {n} tarea(s) con {tags}',
+  'cal-tag-norec':'No se guardaron etiquetas de este día',
+  'cal-tag-nodata':'Los días más tenues no guardaron sus etiquetas: solo lo hacen los días desde que esto existe, más los más recientes que aún están en el archivo.',
   'tagmgr-open':'Renombrar o borrar una etiqueta en todos lados','tagmgr-title':'Administrar etiquetas',
   'ext-measured':'Medido por la extensión Stoic Block. Bórralo para descartar lo que midió hasta ahora.',
   'tagmgr-none':'Todavía no hay etiquetas.','tagmgr-suggest':'💡 Sugeridas','tagmgr-add':'+ Añadir','tagmgr-add-all':'Añadir todas','tagmgr-one':'pendiente','tagmgr-count':'pendientes',
@@ -3190,7 +3196,12 @@ const CALC={
   },
   buildEntry(today,streaks,date){
     const sc=this.score(today,streaks);
-    return{date,_ts:CLOCK.now(),todayPoints:sc.total,status:sc.status,
+    // What the day finished, by tag — see dayTagTally. Left off the entry when
+    // there is nothing new to say, so upsertHist's merge keeps what was there.
+    const prevDay=STATE.history.find(h=>h.date===date);
+    const tg=dayTagTally(date,prevDay&&prevDay.tg);
+    const tagPart=tg!==undefined?{tg}:{};
+    return{...tagPart,date,_ts:CLOCK.now(),todayPoints:sc.total,status:sc.status,
       completedTasks:today.completed,totalTasks:today.target,pomodoros:today.pomodoros,
       pomoCfg:today._pomoCfg||pomoCfgFrom(STATE.pomo),
       penalties:today.penalties.map(p=>({type:p.type,count:p.count,points:this.penBase(p),streak:1})),
@@ -4203,6 +4214,89 @@ function logCompletion(r,tk){
 function unlogCompletion(r,tk){
   const i=completionLog().findIndex(x=>x.srcId===r.id&&x.date===tk);
   if(i>=0)completionLog().splice(i,1);
+}
+
+/* ── What each day finished, by tag ──
+   The calendar filters by tag, and a tag belongs to a task, not to a day. The
+   only place that remembers which tasks were finished on which day is the
+   completion log — and that keeps the last 200, which at a busy day's pace is
+   under a week. A filter built on it alone would be empty past that point and
+   would say "you did nothing" when the truth was "there is no record", which
+   is the one thing a filter must never confuse.
+
+   So each day carries its own small tally, written into the day's history
+   entry and therefore kept for as long as the day is. It is a list of
+   [tags, count] pairs rather than one number per tag, because the filter is
+   "has ALL of these" — and a day with gym ×2 and work ×3 does not say whether
+   a single task was both. Sets are sorted so the same set always groups. */
+function tallyFromLog(date){
+  const m=new Map();
+  completionLog().forEach(x=>{
+    if(x.date!==date)return;
+    const tg=normTags(x.tags).sort();
+    const k=JSON.stringify(tg);
+    const cur=m.get(k);
+    if(cur)cur[1]++;else m.set(k,[tg,1]);
+  });
+  return m.size?[...m.values()]:null;
+}
+function tallySum(tg){return Array.isArray(tg)?tg.reduce((s,p)=>s+p[1],0):0;}
+// How many of a day's tasks carried every tag in F.
+function tallyCount(tg,F){
+  if(!Array.isArray(tg))return 0;
+  return tg.reduce((s,[tags,n])=>F.every(x=>tags.includes(x))?s+n:s,0);
+}
+/* What to write on a day's entry, or undefined for "leave what is there".
+   Today is read straight from the log, including when it is empty — unticking
+   the last task must clear it. Any earlier day is only ever replaced by
+   something at least as complete: the log is trimmed from its old end, so a
+   day that is partly gone from it would otherwise be overwritten by an
+   undercount of itself. */
+function dayTagTally(date,prev){
+  const fresh=tallyFromLog(date);
+  if(date===todayKey())return fresh||[];
+  if(!fresh)return undefined;
+  return tallySum(fresh)>=tallySum(prev)?fresh:undefined;
+}
+/* Days that are still inside the log but were closed before this existed: write
+   their tally down now, while the log still has them. The oldest day in a full
+   log is skipped — it may already be missing some of its entries — and today is
+   left to save(). Local only; boot never pushes, and the next real change
+   carries it up. */
+function backfillTagTallies(){
+  const log=completionLog();
+  if(!log.length)return;
+  const dates=new Set(log.map(x=>x.date));
+  if(log.length>=LOG_MAX)dates.delete([...dates].sort()[0]);
+  let changed=false;
+  dates.forEach(d=>{
+    if(d===todayKey())return;
+    const e=STATE.history.find(h=>h.date===d&&!h._gap);
+    if(!e||Array.isArray(e.tg))return;
+    const f=tallyFromLog(d);
+    if(f){e.tg=f;changed=true;}
+  });
+  if(changed)S.set(K.HIST,STATE.history);
+}
+/* One day, as the calendar needs it: the tally and whether it is a real zero
+   or simply a day nobody recorded. */
+function dayTagData(date,entry){
+  if(date===todayKey())return{tg:tallyFromLog(date)||[],known:true};
+  if(entry&&Array.isArray(entry.tg))return{tg:entry.tg,known:true};
+  const f=tallyFromLog(date);
+  return f?{tg:f,known:true}:{tg:[],known:false};
+}
+// The calendar's own tag filter. Its own, not the list's: the list's lives on
+// the Plan tab and follows you across devices, and a calendar that dimmed
+// itself because of a filter you set days ago on another screen would be a
+// mystery with no cause on the page it is on.
+function calTagFilter(){
+  if(!Array.isArray(STATE.calTags)){
+    const v=S.get('st_caltags',[]);
+    STATE.calTags=Array.isArray(v)?v:[];
+  }
+  const known=new Set(allTags());
+  return STATE.calTags.filter(x=>known.has(x));
 }
 function setDone(r,tk,on){
   if(on){
@@ -10123,6 +10217,30 @@ function renderCalendar(onPick){
     const nx=bt('btn-icon','›',()=>shiftMonth(1));nx.style.fontSize='20px';
     hd.appendChild(pv);hd.appendChild(sp('lg w7',capFirst(new Date(cY,cM).toLocaleDateString(STATE.lang==='es'?'es-MX':'en-US',{month:'long',year:'numeric'}))));hd.appendChild(nx);wrap.appendChild(hd);
 
+    /* Filter by tag. The calendar paints a whole day's verdict and a tag is
+       one slice of a day, so filtering never recolours anything: a red day that
+       did include your gym stays red and says so. What changes is which days
+       are lit — the ones with a task carrying every chosen tag show how many,
+       and the rest step back. */
+    const allT=allTags();
+    const F=calTagFilter();
+    const setTags=next=>{STATE.calTags=next;S.set('st_caltags',next);build();};
+    if(allT.length){
+      const bar=dv('row gap6 mb10');bar.style.cssText='flex-wrap:wrap;align-items:center';
+      bar.appendChild(sp('xs dimmer up ls',t('rem-filter')));
+      allT.forEach(tg=>{
+        const on=F.includes(tg);
+        const c=bt('tagchip',tg,e=>{e.stopPropagation();setTags(on?F.filter(x=>x!==tg):[...F,tg]);});
+        c.type='button';
+        c.setAttribute('aria-pressed',on?'true':'false');
+        c.style.cssText+=';cursor:pointer'+(on?';outline:2px solid var(--ac)':';opacity:.55');
+        bar.appendChild(c);
+      });
+      if(F.length>1)bar.appendChild(sp('xs dimmer',t('rem-filter-all')));
+      if(F.length)bar.appendChild(bt('btn-ghost btn-xs',t('rem-filter-clear'),()=>setTags([])));
+      wrap.appendChild(bar);
+    }
+
     // #6: use history with gaps filled for calendar display
     const hMap=histMap();
     const medals=medalsByDate();
@@ -10141,6 +10259,7 @@ function renderCalendar(onPick){
     const cg=dv('cal-g mb10');
     (STATE.lang==='es'?['Lu','Ma','Mi','Ju','Vi','Sa','Do']:['Mo','Tu','We','Th','Fr','Sa','Su']).forEach(d=>cg.appendChild(dv('cal-hd',d)));
     for(let i=0;i<fd;i++)cg.appendChild(dv(''));
+    let tagDays=0,tagTasks=0,tagUnknown=0;      // the month under the filter
     for(let d=1;d<=dim;d++){
       const key=(()=>{const _d=new Date(cY,cM,d);return _d.getFullYear()+'-'+String(_d.getMonth()+1).padStart(2,'0')+'-'+String(_d.getDate()).padStart(2,'0');})();
       const entry=hMap.get(key);
@@ -10167,15 +10286,42 @@ function renderCalendar(onPick){
         cell.appendChild(mk);
       }
       const num=sp('cal-num',String(d));num.style.color=bg.txt;cell.appendChild(num);
+      // What this day did under the filter. A day in the future has nothing to
+      // say either way, so it is left exactly as it was.
+      let tagHit=0,tagKnown=true;
+      if(F.length&&key<=tk){
+        const td=dayTagData(key,entry);
+        tagKnown=td.known;
+        tagHit=tallyCount(td.tg,F);
+        if(tagHit>0){tagDays++;tagTasks+=tagHit;}
+        else if(!td.known&&(isToday||entry))tagUnknown++;
+        // Dimmed rather than hidden, and a day with no record dimmer still:
+        // "none that day" and "not recorded" must not look the same.
+        if(!tagHit)cell.style.opacity=td.known?'.38':'.2';
+        cell.title=tagHit?`${F.join(' + ')} ×${tagHit}`:(td.known?'':t('cal-tag-norec'));
+      }
       // #5: always show pts if entry exists
       if(isToday||entry){
         const val=isToday?liveToday.total:CALC.liveScore(entry,STATE.history);
-        const pts=sp('cal-pts',String(val));pts.style.color=bg.txt;cell.appendChild(pts);
+        /* Under the filter a lit day shows its count where the points were —
+           the question has changed from "what did the day pay" to "how much of
+           this tag was in it" — and the points move to the hover. The count is
+           text, so the lit day is not told by brightness alone. */
+        const pts=sp('cal-pts',tagHit?'×'+tagHit:String(val));
+        if(tagHit){pts.style.fontWeight='700';cell.title+=` · ${val} ${t('pts-s')}`;}
+        pts.style.color=bg.txt;cell.appendChild(pts);
       }
       cell.onclick=()=>{STATE.calSel=key===STATE.calSel?null:key;build();if(onPick)onPick();};
       cg.appendChild(cell);
     }
     wrap.appendChild(cg);
+    // The month in one line, under the grid it summarises.
+    if(F.length){
+      const sum=dv('xs dim ctr');
+      sum.textContent=t('cal-tag-sum').replace('{d}',tagDays).replace('{n}',tagTasks).replace('{tags}',F.join(' + '));
+      wrap.appendChild(sum);
+      if(tagUnknown)wrap.appendChild(dv('xs dimmer ctr mt4',t('cal-tag-nodata')));
+    }
   }
   build();return wrap;
 }
@@ -12791,7 +12937,7 @@ if('serviceWorker' in navigator){
   window.addEventListener('load',()=>{navigator.serviceWorker.register('./sw.js').catch(()=>{});});
 }
 handleAuthRedirect();   // opened from Google or from the password email? take the session first
-loadToday();healRepeatsStuckOnDoneDay();applyTheme();
+loadToday();healRepeatsStuckOnDoneDay();backfillTagTallies();applyTheme();
 
 // On boot: PULL from Supabase first (before pushing ANYTHING).
 // Supabase is the single source of truth.
