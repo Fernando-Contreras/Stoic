@@ -5545,20 +5545,27 @@ function renderPlanner(){
      that goal: with the flag's own name on the row, ticking it to say "I reached
      the goal" finished the task instead. The flags sit beside it as the steps, and
      are ticked in the list. A flag finished today keeps its goal here, because the
-     last step is exactly when the goal gets closed. */
+     last step is exactly when the goal gets closed. A goal reached before its step
+     stays, struck through, until the step is done too. */
   const flagsAll=reminders().filter(r=>r.flagged&&(r.completedOn===tk||(!r.done&&r.due<=tk)));
   const flagsLeft=flagsAll.filter(r=>r.completedOn!==tk);
   if(flagsAll.length&&featureOn('flags')){
-    const aims=new Map(),closedToday=new Set(),orphans=[];
+    const aims=new Map(),reachedIds=new Set(),orphans=[];
+    const aim=(goal,r)=>{
+      if(!aims.has(goal.id))aims.set(goal.id,{goal,steps:[]});
+      aims.get(goal.id).steps.push(r);
+    };
     flagsAll.forEach(r=>{
       const{goal,closed}=flagGoals(r);
-      closed.filter(g=>g.doneOn===tk).forEach(g=>closedToday.add(g.id));
-      if(goal){
-        if(!aims.has(goal.id))aims.set(goal.id,{goal,steps:[]});
-        aims.get(goal.id).steps.push(r);
-      }else if(!closed.length&&r.completedOn!==tk)orphans.push(r);
+      closed.filter(g=>g.doneOn===tk).forEach(g=>reachedIds.add(g.id));
+      if(goal)aim(goal,r);
+      closed.forEach(g=>aim(g,r));
+      if(!goal&&!closed.length&&r.completedOn!==tk)orphans.push(r);
     });
-    const rows=[...aims.values()].sort((a,b)=>goalDeadline(a.goal).localeCompare(goalDeadline(b.goal)));
+    const rows=[...aims.values()]
+      .filter(({goal,steps:list})=>!goal.doneOn||list.some(r=>r.completedOn!==tk))
+      .sort((a,b)=>(!!a.goal.doneOn-!!b.goal.doneOn)||goalDeadline(a.goal).localeCompare(goalDeadline(b.goal)));
+    rows.forEach(({goal})=>{if(goal.doneOn)reachedIds.add(goal.id);});
     const steps=list=>{
       const note=sp('sm dimmer flag-note','');
       list.forEach((r,i)=>{
@@ -5574,8 +5581,8 @@ function renderPlanner(){
        flags — the one place to reword or reschedule a flag once it has left
        this section. */
     const openFlags=()=>{STATE.showFlags=true;render();};
-    const count=rows.length+closedToday.size;
-    const gh=dv('xs dimmer up ls mt10 mb6',`🏁 ${t('goal-daily')}`+(count?` (${closedToday.size}/${count})`:''));
+    const count=rows.filter(({goal})=>!goal.doneOn).length+reachedIds.size;
+    const gh=dv('xs dimmer up ls mt10 mb6',`🏁 ${t('goal-daily')}`+(count?` (${reachedIds.size}/${count})`:''));
     gh.style.cursor='pointer';gh.title=t('flags-today');gh.onclick=openFlags;
     sum.appendChild(gh);
     const more=rows.length+orphans.length>0;
@@ -5608,10 +5615,14 @@ function renderPlanner(){
       };
       rows.forEach(({goal,steps:list})=>{
         const row=rowOf();
-        const cb=ip('checkbox','');cb.checked=false;
-        cb.onchange=()=>{leaveThen(row,()=>{toggleGoal(goal.id);render();if(goal.doneOn)showGoalDone(goal);});};
+        const cb=ip('checkbox','');cb.checked=!!goal.doneOn;
+        const press=()=>{toggleGoal(goal.id);render();if(goal.doneOn)showGoalDone(goal);};
+        // It only leaves if no step is holding it here.
+        cb.onchange=()=>{if(list.some(r=>r.completedOn!==tk))press();else leaveThen(row,press);};
         row.appendChild(cb);
-        row.appendChild(sp('sm f1 flag-ttl',GOAL_ICON[goal.kind]+' '+goal.title));
+        const ttl=sp('sm f1 flag-ttl',GOAL_ICON[goal.kind]+' '+goal.title);
+        if(goal.doneOn){ttl.classList.add('dim');ttl.style.textDecoration='line-through';}
+        row.appendChild(ttl);
         row.appendChild(steps(list));
       });
       /* Nothing to close on these, so no check: pressing the words names the goal. */
