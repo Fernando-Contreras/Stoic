@@ -5461,12 +5461,23 @@ function renderPlanner(){
       if(!aims.has(goal.id))aims.set(goal.id,{goal,steps:[]});
       aims.get(goal.id).steps.push(r);
     };
+    /* A step is listed ONCE, under one answer to "what is this for right now":
+       the goal you reached today if there is one, otherwise the open one that
+       ends soonest, otherwise nothing — and nothing is the "no goal scheduled"
+       line. A task that serves two goals used to be listed under both, so one
+       piece of work read as two. Today is the cut: the goal closed today is
+       the news, and it keeps the step until the day is over; tomorrow it has
+       been reported, and the step belongs to what is still ahead. A goal
+       closed on an earlier day no longer holds a step at all — it used to,
+       for as long as the task stayed open, which is how a finished goal kept
+       claiming work that now served another. */
     flagsAll.forEach(r=>{
       const{goal,closed}=flagGoals(r);
-      closed.filter(g=>g.doneOn===tk).forEach(g=>reachedIds.add(g.id));
-      if(goal)aim(goal,r);
-      closed.forEach(g=>aim(g,r));
-      if(!goal&&!closed.length&&r.completedOn!==tk)orphans.push(r);
+      const reached=closed.filter(g=>g.doneOn===tk);
+      reached.forEach(g=>reachedIds.add(g.id));
+      if(reached.length)reached.forEach(g=>aim(g,r));
+      else if(goal)aim(goal,r);
+      else if(r.completedOn!==tk)orphans.push(r);
     });
     const rows=[...aims.values()]
       .filter(({goal,steps:list})=>!goal.doneOn||list.some(r=>r.completedOn!==tk))
