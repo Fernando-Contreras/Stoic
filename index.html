@@ -503,8 +503,6 @@ button{cursor:pointer;font-family:var(--ff);font-size:15px;font-weight:600;borde
    (above) and the thing being carried says so in red, so nobody finds out by
    having done it. */
 .cal-unset{outline:2px dashed var(--cr);outline-offset:1px}
-.cal-order{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:0 0 8px;padding:8px 10px;
-  border:1px solid var(--acb);border-radius:10px;background:var(--acd)}
 .cal-chip{padding:4px 9px;border-radius:99px;background:var(--sur2);border:1px solid var(--b2);
   font-size:12px;cursor:grab;touch-action:pan-y;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;
   max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -896,17 +894,20 @@ const tutSuggest=n=>()=>{
   const i=document.querySelector('[data-tut="add-time"]');
   if(i)i.value=String(Math.min(23,appNow().getHours()+n)).padStart(2,'0')+':00';
 };
-// The note is saved and put away, if it was not already.
 // The calendar on the day of the task just made, at its hour.
 const tutTask=()=>TUT.run&&TUT.run.ctx&&TUT.run.ctx.mineAll()[0];
 const tutCalTask=()=>{
   const m=tutTask();if(!m)return;
+  const min=calMin(m.time);
   STATE.calDay=m.due;STATE.calScrollDay=m.due;
-  STATE.calScroll=Math.max(0,((parseInt(m.time)||8)-1)*CAL_HOUR_PX);
+  STATE.calScroll=Math.max(0,((min===null?8:Math.floor(min/60))-1)*CAL_HOUR_PX);
   render();
 };
+// That task is waiting in the tray: only then is there anything for the app to lay out.
+const tutInTray=()=>{const m=tutTask();return !!m&&!m.time;};
 // That task in the calendar, which the bubble has to leave uncovered.
 const tutCalBlock=()=>{const m=tutTask();return m&&document.querySelector('[data-cal-rem="'+m.id+'"]');};
+// The note is saved and put away, if it was not already.
 const tutDiaryClose=()=>{const w=document.querySelector('.diary-wrap');if(w)toggleDiaryEditor(w.parentElement,STATE.calSel,null);};
 // While the first part teaches a time on a task, a late hour must not hide the task it needs ticked.
 const tutHolds=r=>{const run=TUT.run;return !!(run&&run.ctx&&!run.replay&&run.stages[0]===1&&!run.known.has(r.id));};
@@ -1019,8 +1020,15 @@ const TUT_STAGES={
     {id:'dayCal',  tab:'plan',  target:'[data-tut="cal-btn"]',    text:'tut3-day',   temp:true, latch:true, done:()=>STATE.showCal},
     {id:'dayIn',   target:'[data-tut="cal-panel"]',   win:'showCal', text:'tut3-dayin', manual:true, free:true, enter:tutCalTask, clear:tutCalBlock},
     // The time of that task: moving it is the step. Soft, since without a time it sits in the tray above.
-    {id:'dayMove', target:'.cal-scroll', win:'showCal', soft:true, manual:true, free:true, text:'tut3-daymove', after:tutClose('showCal'), enter:tutCalTask, clear:tutCalBlock,
+    {id:'dayMove', target:'.cal-scroll', win:'showCal', soft:true, manual:true, free:true, text:'tut3-daymove', enter:tutCalTask, clear:tutCalBlock,
                    auto:()=>{const m=tutTask();return m&&m.time;}},
+    // Carried off the hours it loses its time, which also leaves something for the app to lay out.
+    // Whoever passes on that sees none of the steps after it: the tray would be empty.
+    {id:'dayOff',  target:'[data-tut="cal-panel"]', win:'showCal', soft:true, manual:true, free:true, latch:true, text:'tut3-dayoff', enter:tutCalTask, clear:tutCalBlock,
+                   done:tutInTray},
+    {id:'dayOrder',target:'[data-tut="cal-arrange"]', win:'showCal', press:true, text:'tut3-dayorder', done:()=>!tutInTray()},
+    {id:'dayDone', target:'.cal-scroll', win:'showCal', soft:true, manual:true, free:true, text:'tut3-dayplaced', enter:tutCalTask, clear:tutCalBlock,
+                   after:tutClose('showCal'), done:()=>!TUT.run.ack.dayOrder||tutInTray()},
     {id:'vQuad',   tab:'plan', target:'[data-tut="v-layout"]', latch:true, text:'tut3-vquad', done:()=>tutLayout()==='quad',
                    // That task may be for tomorrow: on "Today" there would be nothing to see.
                    enter:()=>{STATE.calDay=null;if(STATE.view.scope!=='all'){STATE.view.scope='all';STATE.view.peek=0;saveView();render();}}},
@@ -1085,7 +1093,7 @@ function tutAck(run,s){
 function tutToast(msg){
   const toast=document.createElement('div');
   toast.textContent=msg;
-  toast.style.cssText='position:fixed;left:50%;bottom:90px;transform:translateX(-50%);z-index:95;background:var(--sur3);color:var(--t1);border:1px solid var(--acb);border-radius:99px;padding:10px 18px;font-weight:700;box-shadow:0 6px 22px rgba(0,0,0,.4);max-width:90vw;text-align:center';
+  toast.style.cssText='position:fixed;left:50%;bottom:90px;transform:translateX(-50%);z-index:95;background:var(--sur3);color:var(--t1);border:1px solid var(--acb);border-radius:16px;padding:10px 18px;font-weight:700;box-shadow:0 6px 22px rgba(0,0,0,.4);width:max-content;max-width:90vw;text-align:center';
   document.body.appendChild(toast);
   setTimeout(()=>toast.remove(),3200);
 }
@@ -1378,7 +1386,13 @@ function tutTick(){
   const bub=L.bub;
   const bw=Math.min(320,vw-24);bub.style.width=bw+'px';
   const bh=bub.offsetHeight;
-  const place=(left,top)=>{bub.style.left=Math.round(Math.max(12,Math.min(left,vw-bw-12)))+'px';bub.style.top=Math.round(Math.max(8,Math.min(top,vh-bh-8)))+'px';};
+  const place=(left,top)=>{
+    const y=Math.round(Math.max(8,Math.min(top,vh-bh-8)));
+    bub.style.left=Math.round(Math.max(12,Math.min(left,vw-bw-12)))+'px';bub.style.top=y+'px';
+    // A toast with its Undo goes above the bubble rather than over what it says.
+    const fl=document.querySelector('.flash-toast');
+    if(fl)fl.style.bottom=(y+bh>vh-90-fl.offsetHeight&&y<vh-90?vh-y+10:90)+'px';
+  };
 
   L.cover.style.display='none';
   if(!el){
@@ -2146,7 +2160,10 @@ en:{
   'tut3-wk':'📊 compares your weeks. Tap it.',
   'tut3-wkin':'This week against last week. The arrows show what went up or down.',
   'tut3-day':'📅 is the day calendar. Tap it.',
-  'tut3-dayin':'Your tasks across the hours, to see if your day fits.',
+  'tut3-dayin':'Your tasks across the hours, to see if your day fits.\nLeave it open while you work: your pomodoro stays in sight.',
+  'tut3-dayoff':'Don\'t want a time on it? Drag it off the hours: the task stays, it only loses its time.\nTry it, or press Next.',
+  'tut3-dayorder':'Tasks with no time wait here. Tap 🪄 Lay out: they go into the free gaps, by quadrant.',
+  'tut3-dayplaced':'Done: the most important goes first. It moves like any other.',
   'tut3-more':'The ＋ now does more. Tap it.',
   'tut3-fwhen':'Date and time: when it is for.',
   'tut3-fquad':'Quadrant: how urgent and important it is.',
@@ -2164,7 +2181,7 @@ en:{
   'tut3-bell':'🔔 Alerts at the time of each task, on this device. They need an account. Tap it if you want them, or press Next.',
   'tut3-sel':'☑ changes several tasks at once. Tap it.',
   'tut3-selin':'Pick tasks: date, quadrant, repeat and more appear up here, for all of them at once.',
-  'tut3-end':'That is all of Stoic 🏛️\nMake your list every day and get it out of the red.',
+  'tut3-end':'That is all of Stoic 🏛️\nMake your list every day and get it out of the red.\nThe rules are under 🏛️ Stoic, up top.',
   'sk-candle':'Days without red',
   'rem-add':'+ Add reminder','rem-need-title':'Give it a name first',
   'rem-discard':'Close without adding this one? What you typed will be lost.',
@@ -2245,10 +2262,9 @@ en:{
   'tl-save':'Save','tl-cancel':'Cancel','tl-only-flags':'🏁 Flags only','tl-change':'Change task',
   'cal-untimed':'No time','cal-tray-empty':'every task has a time',
   'cal-hint':'Drag a task onto the hours to give it a time, and off them to take it away; on a phone, hold it a moment first. Drag the bottom edge to change how long it is drawn — the list only ever shows when it starts.',
-  'cal-arrange':'🪄 Pick an order','cal-arrange-help':'They go into the free gaps of the day, starting at {t}.',
-  'cal-ord-quad':'By quadrant','cal-ord-late':'Most overdue first','cal-ord-flag':'Flags first','cal-ord-alpha':'A→Z',
+  'cal-arrange':'🪄 Lay out',
   'cal-arranged':'{n} task(s) placed','cal-arranged-left':'{n} did not fit','cal-arrange-none':'No free gap left to place them in.',
-  'cal-unset':'Time taken off "{t}"','cal-undo':'Undo','cal-cancel':'Cancel',
+  'cal-unset':'Time taken off "{t}"','cal-undo':'Undo',
   'wkgoal-ask':'New weekly goal for "{t}":','wkgoal-full':'You already have {n} weekly goals this week.',
   'wkgoal-ask-quarter':'The week is full. New quarterly goal for "{t}":',
   'wkgoal-ask-year':'The week and the quarter are full. New yearly goal for "{t}":',
@@ -2509,7 +2525,10 @@ es:{
   'tut3-wk':'📊 compara tus semanas. Tócalo.',
   'tut3-wkin':'Esta semana contra la pasada. Las flechas dicen qué subió o bajó.',
   'tut3-day':'📅 es el calendario del día. Tócalo.',
-  'tut3-dayin':'Tus tareas en las horas del día, para ver si te cabe todo.',
+  'tut3-dayin':'Tus tareas en las horas del día, para ver si te cabe todo.\nDéjalo abierto mientras trabajas: tu pomodoro se queda a la vista.',
+  'tut3-dayoff':'¿Ya no quieres que tenga hora? Arrástrala fuera de las horas: la tarea se queda, solo pierde la hora.\nPruébalo, o dale Siguiente.',
+  'tut3-dayorder':'Las tareas sin hora esperan aquí. Toca 🪄 Acomodar: caen en los huecos libres, por cuadrante.',
+  'tut3-dayplaced':'Listo: lo más importante va primero. Se mueve como cualquier otra.',
   'tut3-more':'El ＋ ahora trae más. Tócalo.',
   'tut3-fwhen':'Fecha y hora: para cuándo es.',
   'tut3-fquad':'Cuadrante: qué tan urgente e importante es.',
@@ -2527,7 +2546,7 @@ es:{
   'tut3-bell':'🔔 Avisos a la hora de cada tarea, en este aparato. Necesitan cuenta. Tócala si los quieres, o dale Siguiente.',
   'tut3-sel':'☑ cambia varias tareas a la vez. Tócalo.',
   'tut3-selin':'Elige tareas: aquí arriba aparecen fecha, cuadrante, repetir y más, para todas a la vez.',
-  'tut3-end':'Eso es todo Stoic 🏛️\nHaz tu lista cada día y sácala del rojo.',
+  'tut3-end':'Eso es todo Stoic 🏛️\nHaz tu lista cada día y sácala del rojo.\nLas reglas están en 🏛️ Stoic, arriba.',
   'sk-candle':'Días sin rojo',
   'rem-add':'+ Agregar recordatorio','rem-need-title':'Ponle nombre primero',
   'rem-discard':'¿Cerrar sin agregarlo? Se pierde lo que escribiste.',
@@ -2608,10 +2627,9 @@ es:{
   'tl-save':'Guardar','tl-cancel':'Cancelar','tl-only-flags':'🏁 Solo banderas','tl-change':'Cambiar tarea',
   'cal-untimed':'Sin hora','cal-tray-empty':'todas tienen hora',
   'cal-hint':'Arrastra una tarea a las horas para darle hora, y fuera de ellas para quitársela; en celular, déjala apretada un momento primero. Arrastra el borde de abajo para cambiar cuánto dura en el dibujo — la lista solo muestra a qué hora empieza.',
-  'cal-arrange':'🪄 Elegir orden','cal-arrange-help':'Se acomodan en los huecos libres del día, desde las {t}.',
-  'cal-ord-quad':'Por cuadrante','cal-ord-late':'Más atrasadas primero','cal-ord-flag':'Banderas primero','cal-ord-alpha':'A→Z',
+  'cal-arrange':'🪄 Acomodar',
   'cal-arranged':'{n} tarea(s) acomodadas','cal-arranged-left':'{n} no cupieron','cal-arrange-none':'No queda hueco libre para acomodarlas.',
-  'cal-unset':'Se le quitó la hora a "{t}"','cal-undo':'Deshacer','cal-cancel':'Cancelar',
+  'cal-unset':'Se le quitó la hora a "{t}"','cal-undo':'Deshacer',
   'wkgoal-ask':'Nueva meta semanal para "{t}":','wkgoal-full':'Ya tienes {n} metas semanales esta semana.',
   'wkgoal-ask-quarter':'La semana está llena. Nueva meta trimestral para "{t}":',
   'wkgoal-ask-year':'La semana y el trimestre están llenos. Nueva meta anual para "{t}":',
@@ -6726,8 +6744,8 @@ function logTime(sec,r,label){
 // A line at the bottom for a moment; with an action it stays a few seconds
 // longer, long enough to press it.
 function flashToast(msg,actionLabel,action){
-  const toast=document.createElement('div');
-  toast.style.cssText='position:fixed;left:50%;bottom:90px;transform:translateX(-50%);z-index:95;background:var(--sur3);color:var(--t1);border:1px solid var(--acb);border-radius:99px;padding:10px 18px;font-weight:700;box-shadow:0 6px 22px rgba(0,0,0,.4);max-width:90vw;display:flex;align-items:center;gap:12px';
+  const toast=document.createElement('div');toast.className='flash-toast';
+  toast.style.cssText='position:fixed;left:50%;bottom:90px;transform:translateX(-50%);z-index:95;background:var(--sur3);color:var(--t1);border:1px solid var(--acb);border-radius:16px;padding:10px 18px;font-weight:700;box-shadow:0 6px 22px rgba(0,0,0,.4);width:max-content;max-width:90vw;display:flex;align-items:center;gap:12px';
   toast.appendChild(sp('',msg));
   if(actionLabel&&action){
     const b=bt('btn-ac btn-xs',actionLabel,()=>{toast.remove();action();});
@@ -7060,10 +7078,10 @@ function syncCalNow(){
 }
 /* ── Let the app lay the tray out ──
    Tasks with no time wait in the tray until each is dragged onto the hours one
-   by one. Choosing an order is the one decision a person actually has to make
-   about them — which first — and where each lands follows from it: the earliest
-   free stretch that holds it, from the start of the working day (or from now,
-   on today) to the end of it. Everything it writes is a plain time on a plain
+   by one. One press does it instead, and it asks nothing: what matters most goes
+   first, which is what the quadrants are for. Each lands in the earliest free
+   stretch that holds it, from the start of the working day (or from now, on
+   today) to the end of it. Everything it writes is a plain time on a plain
    task, so what it did can be moved, stretched or taken back like anything
    put there by hand, and one press undoes the lot. */
 const CAL_AUTO_FROM=8*60,CAL_AUTO_TO=22*60;
@@ -7076,14 +7094,8 @@ function calAutoStart(day){
   }
   return from;
 }
-function calAutoPlace(order,day,tray,timedAll){
-  const cmp={
-    quad:(a,b)=>quadRank(a)-quadRank(b)||String(a.due).localeCompare(String(b.due))||String(a.title).localeCompare(String(b.title)),
-    late:(a,b)=>String(a.due).localeCompare(String(b.due))||quadRank(a)-quadRank(b),
-    flag:(a,b)=>(!!b.flagged-!!a.flagged)||quadRank(a)-quadRank(b)||String(a.due).localeCompare(String(b.due)),
-    alpha:(a,b)=>String(a.title||'').localeCompare(String(b.title||''),undefined,{numeric:true,sensitivity:'base'})
-  }[order]||(()=>0);
-  const list=[...tray].sort(cmp);
+function calAutoPlace(day,tray,timedAll){
+  const list=[...tray].sort((a,b)=>quadRank(a)-quadRank(b)||String(a.due).localeCompare(String(b.due))||String(a.title).localeCompare(String(b.title)));
   /* What is already taken is EVERYTHING timed on this day, whether or not a tag
      filter is currently hiding it: a block you cannot see this minute is still
      a block, and putting a task on top of it would only show once the filter
@@ -7108,8 +7120,7 @@ function calAutoPlace(order,day,tray,timedAll){
     taken.push([s,s+d]);
     placed.push({r,s,was:r.time||''});
   });
-  STATE.calOrderOpen=false;
-  if(!placed.length){render();flashToast(t('cal-arrange-none'));return;}
+  if(!placed.length){flashToast(t('cal-arrange-none'));return;}
   // One write for the lot — updateReminder saves and syncs once per task.
   placed.forEach(({r,s})=>{r.time=calFmt(s);r._ts=CLOCK.now();});
   savePlanner();
@@ -7200,19 +7211,11 @@ function renderPomoCalendar(){
   // "Every task has a time" would be untrue while a filter is hiding some.
   if(!untimed.length)tray.appendChild(sp('xs dimmer',F.length?'—':t('cal-tray-empty')));
   if(untimed.length){
-    const pick=bt('btn-ghost btn-xs',t('cal-arrange'),()=>{STATE.calOrderOpen=!STATE.calOrderOpen;render();});
-    pick.style.marginLeft='auto';
+    const pick=bt('btn-ghost btn-xs',t('cal-arrange'),()=>calAutoPlace(day,untimed,timedAll));
+    pick.style.marginLeft='auto';pick.dataset.tut='cal-arrange';
     tray.appendChild(pick);
   }
   wrap.appendChild(tray);
-  if(STATE.calOrderOpen&&untimed.length){
-    const box=dv('cal-order');
-    box.appendChild(sp('xs dimmer',t('cal-arrange-help').replace('{t}',calFmt(calAutoStart(day)))));
-    [['quad','cal-ord-quad'],['late','cal-ord-late'],['flag','cal-ord-flag'],['alpha','cal-ord-alpha']].forEach(([k,lbl])=>
-      box.appendChild(bt('btn-ac btn-xs',t(lbl),()=>calAutoPlace(k,day,untimed,timedAll))));
-    box.appendChild(bt('btn-ghost btn-xs',t('cal-cancel'),()=>{STATE.calOrderOpen=false;render();}));
-    wrap.appendChild(box);
-  }
 
   const scroll=dv('cal-scroll');
   const grid=dv('cal-grid');
@@ -12165,151 +12168,107 @@ function renderRules(onClose){
      it printed was, by construction, always the same sentence; the rules say
      that sentence once, directly, below. */
   const body=dv('fi');
-  /* Short on purpose. These rules had grown to the length nobody reads, which
-     makes them worse than no rules: the app looked explained while the one
-     line that mattered was buried in a paragraph. Every fact that was here is
-     still here — the wording around it is not. The numbers come from the
+  /* Only the numbers. How the app works is the tutorial's job now, so what stays
+     here is what a person comes back to check. The numbers come from the
      constants, so this cannot drift from what the code charges. */
   body.innerHTML=STATE.lang==='es'?`<div class="s16 dim">
   <div>
-    <div class="md up ls dimmer w7 mb10">📋 Qué es</div>
+    <div class="md up ls dimmer w7 mb10">🎯 La idea</div>
     <div class="s6">
-      <div>Dos pestañas y ya: en <strong>📋 Plan</strong> pones lo que vas a hacer, y en <strong>📊 Puntaje</strong> ves en qué se convirtió — puntos y un color para el día.</div>
-      <div>La idea es simple: lo que haces suma, lo que te das de premio resta, y lo que sostienes día tras día vale cada vez más.</div>
+      <div>Lo que haces suma. Tus gustos restan. Lo que sostienes vale cada vez más.</div>
     </div>
   </div>
   <hr class="dv">
   <div>
-    <div class="md up ls dimmer w7 mb10">🔗 Plan → Puntaje</div>
+    <div class="md up ls dimmer w7 mb10">🎨 Tu color</div>
     <div class="s6">
-      <div><span class="ac w6">Plan le pasa todo a Puntaje solo</span>: tu meta del día, lo que llevas hecho y tus Metas. Al revés nunca.</div>
-      <div>Si escribes un número a mano, ese manda — hasta que vuelvas a mover tu lista. ¿Quieres que Plan lo retome? Pon <span class="ac w6">0</span> en la meta.</div>
-      <div><span class="cr w6">Lo que dejaste pendiente no desaparece</span>: conserva su fecha y sigue contando hoy.</div>
-      <div><span class="cp w6">Etiquetas</span>, <span class="cp w6">subtareas</span> y <span class="cp w6">repeticiones</span> funcionan como esperarías. Cada subtarea se paloma por su cuenta.</div>
-      <div><span class="ac w6">Cuadrantes</span>: <span class="cr w6">🚨1️⃣</span> hazla ya · <span class="cg w6">👑2️⃣</span> agéndala · <span class="cy w6">🤖3️⃣</span> delégala · <span class="dimmer w6">🤏🏼4️⃣</span> postérgala. La vista <span class="ac w6">✜</span> los pone en cruz.</div>
-      <div>El <span class="ac w6">🍅 pomodoro</span> está en Plan: cada minuto enfocado es un punto y cada 25 son un 🍅. Nunca te quita lo que ya habías puesto tú.</div>
-    </div>
-  </div>
-  <hr class="dv">
-  <div>
-    <div class="md up ls dimmer w7 mb10">📊 El color del día</div>
-    <div class="s6">
-      <div>Es cuánto de tu meta cerraste: <span class="cp w6">🟣 100%</span> · <span class="cg w6">🟢 85%</span> · <span class="cy w6">🟡 50%</span> · <span class="cr w6">🔴 menos</span>.</div>
-      <div class="xs dimmer">Cerrar tus Metas 🏁 te sube un nivel, así que a veces un día verde trae 60% de tareas. No es error.</div>
+      <div><span class="cp w6">🟣 100%</span> · <span class="cg w6">🟢 85%</span> · <span class="cy w6">🟡 50%</span> · <span class="cr w6">🔴 menos</span></div>
+      <div>Termina todas tus 🏁 y subes un color.</div>
     </div>
   </div>
   <hr class="dv">
   <div>
     <div class="md up ls ac w7 mb10">💰 Puntos</div>
     <div class="s6">
-      <div>✅ Tarea <span class="ac w6">+1</span> · 🌅 Rutina <span class="ac w6">+25</span> · 🏅 Metas <span class="ac w6">+100</span> · 🍅 Pomodoro <span class="ac w6">+${POM_PTS}</span> · 💼 Trabajo <span class="ac w6">+1</span>/min · 😴 Sueño <span class="ac w6">+1</span>/min</div>
-      <div>🎨 Color del día, se acumula: <span class="cy">🟡 +10</span> · <span class="cg">🟢 +30</span> · <span class="cp">🟣 +60</span>.</div>
-      <div>Todo eso <span class="ac w6">× su racha</span> — las tareas van con la de 🏅 Metas. Una racha paga por <span class="ac w6">raíz cuadrada</span> de sus días: 9d ×${multAt(9)} · 100d ×${multAt(100)} · 400d ×${multAt(400)}. Nunca deja de crecer, nunca se dispara.</div>
+      <div>✅ Tarea <span class="ac w6">+1</span> · 🌅 Rutina <span class="ac w6">+25</span> · 🏅 Metas <span class="ac w6">+100</span> · 🍅 Pomodoro <span class="ac w6">+${POM_PTS}</span> · 💼 Trabajo y 😴 Sueño <span class="ac w6">+1</span>/min</div>
+      <div>🎨 <span class="cy">🟡 +10</span> · <span class="cg">🟢 +30</span> · <span class="cp">🟣 +60</span>, se acumulan.</div>
+      <div>Tu racha los multiplica: 9 días <span class="ac w6">×${multAt(9)}</span> · 100 días <span class="ac w6">×${multAt(100)}</span> · 400 días <span class="ac w6">×${multAt(400)}</span></div>
     </div>
   </div>
   <hr class="dv">
   <div>
-    <div class="md up ls dimmer w7 mb10">🏆 Metas de periodo</div>
+    <div class="md up ls dimmer w7 mb10">🏆 Metas largas</div>
     <div class="s6">
-      <div>Estas no hacen racha; aquí el premio es <span class="ac w6">acabarlas antes</span>. Te pagan <span class="ac w6">1,000 por cada día que te sobre</span>: una semanal cerrada el domingo vale 7,000 y el sábado 1,000. Una anual llega a 365,000.</div>
-      <div>Puedes traer 📅 5 semanales · 📈 5 trimestrales · 🏆 10 anuales. La semana empieza <strong>domingo</strong>. Las del día son tus banderas 🏁.</div>
-      <div>La fecha no se mueve. Si se te pasa, la meta sigue ahí y la puedes cerrar, pero ya solo paga lo mínimo — <strong>postergar nunca sale a cuenta</strong>. ¿La cerraste tarde? Corrige la fecha junto a sus puntos.</div>
-      <div class="xs dimmer">Sus puntos caen en el día en que la cerraste, y ahí los ves en el calendario. Si mueves esa fecha, los puntos se mueven con ella.</div>
+      <div>Pagan <span class="ac w6">1,000 por cada día que te sobre</span>. Si se pasa la fecha, solo lo mínimo.</div>
     </div>
   </div>
   <hr class="dv">
   <div>
     <div class="md up ls ng w7 mb10">🤤 Recompensas</div>
     <div class="s6">
-      <div>Son los gustos que quieres mantener a raya. Cuestan puntos, y entre más seguido caes, más caro te sale: <span class="ng w6">× su racha, hasta ×${PEN_CAP}</span>.</div>
-      ${rewards().map(r=>`<div><span class="ng w6">${escapeHtml(rewardLabel(r))}</span> — ${r.byMinutes?`−${PEN_RATE} por minuto; los primeros ${FREE_MINS_BASE} del día no cuentan como recaída (los pomodoros solo abaratan de ahí para arriba — ver abajo)`:t(REWARD_TIERS[r.tier].name).toLowerCase()+', −'+rewardCost(r).toLocaleString()}</div>`).join('')}
-      <div><span class="ng w6">🌙 Trasnoché</span> — caro × tu racha de desvelo.</div>
-      <div class="xs dimmer"><span class="ac w6">La lista es tuya</span>: renómbralas, cámbiales el ícono, quítalas o agrega las tuyas (hasta 5) con el ⚙ de la tarjeta.</div>
+      <div>${rewards().map(r=>`<span class="ng w6">${escapeHtml(rewardLabel(r))}</span> ${r.byMinutes?`−${PEN_RATE}/min`:'−'+rewardCost(r).toLocaleString()}`).join(' · ')}</div>
+      <div>Entre más seguido caes, más caras: hasta <span class="ng w6">×${PEN_CAP}</span>. Desvelarte también cuesta.</div>
     </div>
   </div>
   <hr class="dv">
   <div>
-    <div class="md up ls dimmer w7 mb10">🔄 Rachas — una sola regla</div>
+    <div class="md up ls dimmer w7 mb10">🔥 Rachas</div>
     <div class="s6">
-      <div class="ac w6">La racha cuenta lo que hiciste. El color del día decide cuánto vale o cuánto cuesta ese día.</div>
-      <div><span class="cr w6">🔴 Rojo</span> — ese día paga a <strong>precio base</strong> y la racha sigue mañana donde iba. Lo único que rompe es la racha de <span class="cp">días sin rojo</span>.</div>
-      <div><span class="ac w6">Un día bueno</span> te cobra la recompensa a base <strong>sin romperle la racha</strong>: <span class="cy">🟡</span> una ligera · <span class="cg">🟢</span> una media · <span class="cp">🟣</span> una grande.</div>
-      <div>Lo único que rompe una racha es <strong>dejar de hacer la cosa</strong>, o saltarte un día.</div>
-      <div><span class="ac w6">Las que se miden en minutos traen ${FREE_MINS_BASE} min diarios de gracia como piso</span>: por debajo de eso se cobra igual (−${PEN_RATE} por minuto) pero <strong>no cuenta como recaída</strong> — no arrastra la racha ni te la sube. Ese piso es fijo, no lo mueven los pomodoros. Pasándote de los ${FREE_MINS_BASE} min, el día ya cuenta entero y la racha corre — pero si ese día metiste pomodoros, lo que <strong>te cobra</strong> baja: cada pomodoro que terminas te gana su descanso como precio base (con 25-5-25-5-25-5-25-15: 4 pomodoros = 30 min, 8 = 60, 20 = 2 h 30; si cambias tus descansos en el cronómetro, esto se ajusta). Los pomodoros abaratan el día; <strong>nunca le salvan la racha</strong>.</div>
-      <div><span class="ac w6">🎖️ Medallas</span> a los 10, 20, 50, 100, 200, 500 y 1000 días de cualquier racha positiva. Las recompensas nunca dan.</div>
-      <div class="xs dimmer">Un día sin registrar cuenta como −1,000 y día rojo. ¡Registra diario!</div>
+      <div>Se rompen si dejas de hacerlo o te saltas un día.</div>
+      <div>Un día 🔴 solo rompe la de días sin rojo.</div>
+      <div>Un buen día te cobra una recompensa a precio base: <span class="cy">🟡</span> ligera · <span class="cg">🟢</span> media · <span class="cp">🟣</span> grande.</div>
+      <div>Día sin registrar: <span class="cr w6">−1,000</span> y rojo.</div>
     </div>
   </div>
   <hr class="dv">
   <div class="xs dimmer ctr">Stoic · Hecho por JuanFer</div>
 </div>`:`<div class="s16 dim">
   <div>
-    <div class="md up ls dimmer w7 mb10">📋 What this is</div>
+    <div class="md up ls dimmer w7 mb10">🎯 The idea</div>
     <div class="s6">
-      <div>Two tabs, that is all: in <strong>📋 Plan</strong> you put what you are going to do, and in <strong>📊 Score</strong> you see what it turned into — points, and a colour for the day.</div>
-      <div>The idea is simple: what you do adds up, what you treat yourself to takes away, and what you keep up day after day is worth more each time.</div>
+      <div>What you do adds up. Your treats take away. What you keep up is worth more each time.</div>
     </div>
   </div>
   <hr class="dv">
   <div>
-    <div class="md up ls dimmer w7 mb10">🔗 Plan → Score</div>
+    <div class="md up ls dimmer w7 mb10">🎨 Your colour</div>
     <div class="s6">
-      <div><span class="ac w6">Plan hands everything to Score on its own</span>: the day's target, what you have done and your Goals. Never the other way round.</div>
-      <div>Type a number and that one wins — until you touch your list again. Want Plan to take it back? Put <span class="ac w6">0</span> in the target.</div>
-      <div><span class="cr w6">What you left undone does not vanish</span>: it keeps its date and still counts today.</div>
-      <div><span class="cp w6">Tags</span>, <span class="cp w6">subtasks</span> and <span class="cp w6">repeats</span> work the way you would expect. Each subtask ticks on its own.</div>
-      <div><span class="ac w6">Quadrants</span>: <span class="cr w6">🚨1️⃣</span> do it now · <span class="cg w6">👑2️⃣</span> schedule it · <span class="cy w6">🤖3️⃣</span> delegate it · <span class="dimmer w6">🤏🏼4️⃣</span> postpone it. The <span class="ac w6">✜</span> view lays them out as a cross.</div>
-      <div>The <span class="ac w6">🍅 pomodoro</span> is in Plan: every focused minute is a point and every 25 are one 🍅. It never takes away what you put in yourself.</div>
-    </div>
-  </div>
-  <hr class="dv">
-  <div>
-    <div class="md up ls dimmer w7 mb10">📊 The day's colour</div>
-    <div class="s6">
-      <div>It is how much of your target you closed: <span class="cp w6">🟣 100%</span> · <span class="cg w6">🟢 85%</span> · <span class="cy w6">🟡 50%</span> · <span class="cr w6">🔴 less</span>.</div>
-      <div class="xs dimmer">Closing your Goals 🏁 bumps it one tier, so sometimes a green day carries 60% of tasks. That is not a bug.</div>
+      <div><span class="cp w6">🟣 100%</span> · <span class="cg w6">🟢 85%</span> · <span class="cy w6">🟡 50%</span> · <span class="cr w6">🔴 less</span></div>
+      <div>Finish all your 🏁 and you go up one colour.</div>
     </div>
   </div>
   <hr class="dv">
   <div>
     <div class="md up ls ac w7 mb10">💰 Points</div>
     <div class="s6">
-      <div>✅ Task <span class="ac w6">+1</span> · 🌅 Morning <span class="ac w6">+25</span> · 🏅 Goals <span class="ac w6">+100</span> · 🍅 Pomodoro <span class="ac w6">+${POM_PTS}</span> · 💼 Work <span class="ac w6">+1</span>/min · 😴 Sleep <span class="ac w6">+1</span>/min</div>
-      <div>🎨 Day colour, it stacks: <span class="cy">🟡 +10</span> · <span class="cg">🟢 +30</span> · <span class="cp">🟣 +60</span>.</div>
-      <div>All of it <span class="ac w6">× its run</span> — tasks ride the 🏅 Goals one. A run pays by the <span class="ac w6">square root</span> of its days: 9d ×${multAt(9)} · 100d ×${multAt(100)} · 400d ×${multAt(400)}. It never stops growing and never runs away.</div>
+      <div>✅ Task <span class="ac w6">+1</span> · 🌅 Morning <span class="ac w6">+25</span> · 🏅 Goals <span class="ac w6">+100</span> · 🍅 Pomodoro <span class="ac w6">+${POM_PTS}</span> · 💼 Work and 😴 Sleep <span class="ac w6">+1</span>/min</div>
+      <div>🎨 <span class="cy">🟡 +10</span> · <span class="cg">🟢 +30</span> · <span class="cp">🟣 +60</span>, they stack.</div>
+      <div>Your run multiplies them: 9 days <span class="ac w6">×${multAt(9)}</span> · 100 days <span class="ac w6">×${multAt(100)}</span> · 400 days <span class="ac w6">×${multAt(400)}</span></div>
     </div>
   </div>
   <hr class="dv">
   <div>
-    <div class="md up ls dimmer w7 mb10">🏆 Period goals</div>
+    <div class="md up ls dimmer w7 mb10">🏆 Long goals</div>
     <div class="s6">
-      <div>These build no runs; here the prize is <span class="ac w6">finishing early</span>. They pay <span class="ac w6">1,000 for every day you have left over</span>: a weekly closed on Sunday is worth 7,000, on Saturday 1,000. A yearly reaches 365,000.</div>
-      <div>You can carry 📅 5 weekly · 📈 5 quarterly · 🏆 10 yearly. The week starts <strong>Sunday</strong>. The daily ones are your 🏁 flags.</div>
-      <div>The deadline does not move. Miss it and the goal is still there to close, but it only pays the floor — <strong>postponing never wins</strong>. Closed it late? Correct the date next to its points.</div>
-      <div class="xs dimmer">Their points land on the day you closed them, where you can see them in the calendar. Move that date and the points move with it.</div>
+      <div>They pay <span class="ac w6">1,000 for every day left over</span>. Miss the date and they pay the minimum.</div>
     </div>
   </div>
   <hr class="dv">
   <div>
     <div class="md up ls ng w7 mb10">🤤 Rewards</div>
     <div class="s6">
-      <div>The treats you want to keep at bay. They cost points, and the more often you give in, the dearer they get: <span class="ng w6">× their run, up to ×${PEN_CAP}</span>.</div>
-      ${rewards().map(r=>`<div><span class="ng w6">${escapeHtml(rewardLabel(r))}</span> — ${r.byMinutes?`−${PEN_RATE} a minute; the first ${FREE_MINS_BASE} of a day do not count as a slip (pomodoros only cut the price past that — see below)`:t(REWARD_TIERS[r.tier].name).toLowerCase()+', −'+rewardCost(r).toLocaleString()}</div>`).join('')}
-      <div><span class="ng w6">🌙 Slept Late</span> — expensive × your late-night run.</div>
-      <div class="xs dimmer"><span class="ac w6">The list is yours</span>: rename them, change the icon, drop them or add your own (up to 5) from the ⚙ on the card.</div>
+      <div>${rewards().map(r=>`<span class="ng w6">${escapeHtml(rewardLabel(r))}</span> ${r.byMinutes?`−${PEN_RATE}/min`:'−'+rewardCost(r).toLocaleString()}`).join(' · ')}</div>
+      <div>The more often you give in, the dearer: up to <span class="ng w6">×${PEN_CAP}</span>. Staying up late costs too.</div>
     </div>
   </div>
   <hr class="dv">
   <div>
-    <div class="md up ls dimmer w7 mb10">🔄 Runs — one rule</div>
+    <div class="md up ls dimmer w7 mb10">🔥 Runs</div>
     <div class="s6">
-      <div class="ac w6">A run counts what you did. The colour of the day decides what it is worth, or what it costs, that day.</div>
-      <div><span class="cr w6">🔴 Red</span> — that day pays <strong>base</strong> and tomorrow the run carries on where it was. The only run it breaks is the <span class="cp">non-red</span> one.</div>
-      <div><span class="ac w6">A good day</span> charges a reward at base <strong>without ending its run</strong>: <span class="cy">🟡</span> a light one · <span class="cg">🟢</span> a medium one · <span class="cp">🟣</span> a large one.</div>
-      <div>The only things that end a run are <strong>not doing the thing</strong> and skipping a day.</div>
-      <div><span class="ac w6">The ones measured in minutes carry a ${FREE_MINS_BASE}-minute daily floor</span>: under that it is still charged (−${PEN_RATE} a minute) but <strong>does not count as a slip</strong> — it neither carries the run forward nor starts one. That floor is fixed; pomodoros never move it. Past ${FREE_MINS_BASE} minutes the day counts in full and the run advances — but if you logged pomodoros that day, what it <strong>costs</strong> drops: every pomodoro you finish earns its break at base price (with 25-5-25-5-25-5-25-15: 4 pomodoros = 30 min, 8 = 60, 20 = 2 h 30; change your breaks on the timer and this follows). Pomodoros make the day cheaper; they <strong>never save the run</strong>.</div>
-      <div><span class="ac w6">🎖️ Medals</span> at 10, 20, 50, 100, 200, 500 and 1000 days of any positive run. Rewards never earn one.</div>
-      <div class="xs dimmer">A day you forget to log counts as −1,000 and a red day. Log every day!</div>
+      <div>They end if you stop doing it or skip a day.</div>
+      <div>A 🔴 day only ends the non-red one.</div>
+      <div>A good day charges a reward at base price: <span class="cy">🟡</span> light · <span class="cg">🟢</span> medium · <span class="cp">🟣</span> large.</div>
+      <div>A day not logged: <span class="cr w6">−1,000</span> and red.</div>
     </div>
   </div>
   <hr class="dv">
