@@ -870,7 +870,8 @@ function applyFeatureGates(root){
    window: read-only too, but it has to keep scrolling), press (done when the lit
    thing is pressed, whatever that changes), win (the STATE flag of the window it lives
    in, opened again if it closed), keep (run on every tick while the step lasts), show
-   (run when the step is gone back to).
+   (run when the step is gone back to), clear (what the bubble must not sit on when a
+   tall target leaves it no room beside it).
    A step that asks for something moves on when it is done, without a Next. One thing
    lit at a time, always the next thing to press.
 
@@ -889,7 +890,6 @@ const tutSuggest=n=>()=>{
   const i=document.querySelector('[data-tut="add-time"]');
   if(i)i.value=String(Math.min(23,appNow().getHours()+n)).padStart(2,'0')+':00';
 };
-const tutTomorrow=()=>{const d=new Date(todayKey()+'T12:00:00');d.setDate(d.getDate()+1);return isoDate(d);};
 // The note is saved and put away, if it was not already.
 // The calendar on the day of the task just made, at its hour.
 const tutTask=()=>TUT.run&&TUT.run.ctx&&TUT.run.ctx.mineAll()[0];
@@ -899,6 +899,8 @@ const tutCalTask=()=>{
   STATE.calScroll=Math.max(0,((parseInt(m.time)||8)-1)*CAL_HOUR_PX);
   render();
 };
+// That task in the calendar, which the bubble has to leave uncovered.
+const tutCalBlock=()=>{const m=tutTask();return m&&document.querySelector('[data-cal-rem="'+m.id+'"]');};
 const tutDiaryClose=()=>{const w=document.querySelector('.diary-wrap');if(w)toggleDiaryEditor(w.parentElement,STATE.calSel,null);};
 // While the first part teaches a time on a task, a late hour must not hide the task it needs ticked.
 const tutHolds=r=>{const run=TUT.run;return !!(run&&run.ctx&&!run.replay&&run.stages[0]===1&&!run.known.has(r.id));};
@@ -958,9 +960,9 @@ const TUT_STAGES={
     {id:'goalAdd', target:'[data-tut="goal-in"]', soft:true, win:'showGoals', enter:tutFocus('[data-tut="goal-in"]'), text:'tut2-goaladd',
                    done:c=>c.newGoals()>0||tutFilled('goal-in')},
     {id:'goalGo',  target:'[data-tut="goal-go"]', soft:true, win:'showGoals', text:'tut2-goalgo', done:c=>c.newGoals()>0},
-    // Nothing is open by now, so the + would find nothing: first a step to link. It goes
-    // on tomorrow so that it does not take the colour the first part earned.
-    {id:'stepPlus',tab:'plan', target:'[data-tut="add"]', text:'tut2-stepplus', keep:()=>{STATE.addPrefill={due:tutTomorrow()};},
+    // Nothing is open by now, so the + would find nothing: first a step to link. It is
+    // for today and flagged, because only that puts the goal in the section on the plan.
+    {id:'stepPlus',tab:'plan', target:'[data-tut="add"]', text:'tut2-stepplus', keep:()=>{STATE.addPrefill={flag:true};},
                    done:c=>STATE.showAddForm||c.count()>=1},
     {id:'stepType',...tutForm(3), target:'[data-tut="add-title"]', soft:true, enter:tutFocusTitle, text:'tut2-steptype', done:c=>c.count()>=1||tutTitled()},
     {id:'stepGo',  ...tutForm(3), target:'[data-tut="add-go"]',    soft:true, text:'tut1-add',  done:c=>c.count()>=1},
@@ -970,7 +972,7 @@ const TUT_STAGES={
                    win:'showGoals', press:true, temp:true, text:'tut2-link'},
     {id:'goalPick',target:'[data-tut="goal-pick"]', win:'showGoals', soft:true, latch:true, text:'tut2-pick', done:c=>c.linked()>0},
     {id:'goalDone',target:'[data-tut="goal-chips"]', win:'showGoals', text:'tut2-linked', manual:true, look:true, after:tutClose('showGoals')},
-    {id:'goalHow', tab:'plan', manual:true,                 text:'tut2-goalhow'},
+    {id:'goalHow', tab:'plan', target:'[data-tut="flag-box"]', text:'tut2-goalhow', manual:true, look:true},
     {id:'next2',   manual:true, choice:true,                text:'tut2-next'}
   ],
   3:[
@@ -1009,9 +1011,9 @@ const TUT_STAGES={
     {id:'vSwipe2', tab:'plan', target:'[data-tut="list-card"]', latch:true, text:'tut3-swipe2', done:()=>!STATE.view.peek,
                    after:()=>{STATE.view.peek=0;saveView();render();}},
     {id:'dayCal',  tab:'plan',  target:'[data-tut="cal-btn"]',    text:'tut3-day',   temp:true, latch:true, done:()=>STATE.showCal},
-    {id:'dayIn',   target:'[data-tut="cal-panel"]',   win:'showCal', text:'tut3-dayin', manual:true, free:true, enter:tutCalTask},
+    {id:'dayIn',   target:'[data-tut="cal-panel"]',   win:'showCal', text:'tut3-dayin', manual:true, free:true, enter:tutCalTask, clear:tutCalBlock},
     // The time of that task: moving it is the step. Soft, since without a time it sits in the tray above.
-    {id:'dayMove', target:'.cal-scroll', win:'showCal', soft:true, manual:true, free:true, text:'tut3-daymove', after:tutClose('showCal'),
+    {id:'dayMove', target:'.cal-scroll', win:'showCal', soft:true, manual:true, free:true, text:'tut3-daymove', after:tutClose('showCal'), enter:tutCalTask, clear:tutCalBlock,
                    auto:()=>{const m=tutTask();return m&&m.time;}},
     {id:'vQuad',   tab:'plan', target:'[data-tut="v-layout"]', latch:true, text:'tut3-vquad', done:()=>tutLayout()==='quad',
                    // That task may be for tomorrow: on "Today" there would be nothing to see.
@@ -1299,9 +1301,10 @@ function tutPaint(step){
 }
 
 function tutTick(){
-  const run=TUT.run,L=TUT.L;if(!run||!L)return;
-  // Out of the way of whatever else has the screen: a medal, the login, a recovery.
-  const away=!STATE.authed||STATE.recovery||document.querySelector('.ms-ov');
+  const run=TUT.run,L=TUT.L;if(!run||!L||run.entering)return;
+  // Out of the way of whatever else has the screen: a medal, the login, a recovery, a task
+  // opened on purpose.
+  const away=!STATE.authed||STATE.recovery||STATE.taskTree||document.querySelector('.ms-ov');
   const pill=TUT.pill,pl='🎓 '+t('tut-resume');
   if(pill.textContent!==pl)pill.textContent=pl;
   pill.style.display=run.paused&&!run.hint&&!away?'':'none';
@@ -1329,7 +1332,10 @@ function tutTick(){
   }else if(run.entered!==step.id){
     run.peekIn=null;
     run.entered=step.id;run.scrollTries=0;run.scrollNext=0;
+    // A redraw inside enter ticks too, and must not judge the step before its base is set.
+    run.entering=true;
     if(step.enter)step.enter();
+    run.entering=false;
     run.autoBase=step.auto?step.auto():null;
   }else if(step.auto&&step.auto()!==run.autoBase){
     tutAck(run,step);
@@ -1410,7 +1416,9 @@ function tutTick(){
     place(cx-bw/2,h.t-46-bh);
   }else{                                  // no room either way: the bubble takes the emptier end of the screen
     hand.style.display='none';
-    place((vw-bw)/2,(h.t+h.b)/2>vh/2?12:vh-bh-12);
+    const keep=step.clear&&step.clear();
+    const mid=keep?(rectOf(keep).top+rectOf(keep).bottom)/2:(h.t+h.b)/2;
+    place((vw-bw)/2,mid>vh/2?12:vh-bh-12);
   }
 }
 
@@ -2090,12 +2098,12 @@ en:{
   'tut1-vsort2':'Your list changed order. It stays how you leave it, and your points do not change.',
   'tut1-vhide':'Tasks with a time stay hidden until this many hours before, so they do not get in your way.',
   'tut1-prefs':'Up here: light or dark mode, language, and 🎓 to repeat this tutorial.',
-  'tut1-flagged':'Here you see the bigger goals your 🏁 tasks point to.\nYou have none yet, so you get a ⚠️. You will make them later.',
+  'tut1-flagged':'Goals to annihilate: here you see the long goals your 🏁 tasks point to.\nYou have none yet, so you get a ⚠️. You will make them in part 2.',
   'tut1-colour':'This is your day. It is red because nothing is done yet. Your goal: get it out of the red.',
   'tut1-tick':'Mark this task as done.',
   'tut1-half':'Half done: yellow 🟡, and the candle lights up 🕯️. Every day without red adds to your streak.',
-  'tut1-tick2':'Now mark your 🏁 goal of the day.',
-  'tut1-end':'Your colour depends on how much you finish:\n🔴 less than 50%\n🟡 50%\n🟢 85%\n🟣 100%\n\nMore colour, more points. Finish your goals of the day and you go up one colour.',
+  'tut1-tick2':'Now mark your 🏁 goal of the day, here in your list.',
+  'tut1-end':'Your colour depends on how much you finish:\n🔴 less than 50%\n🟡 50%\n🟢 85%\n🟣 100%\n\nMore colour, more points. Finish all your 🏁 and you go up one colour.',
   'tut1-next':'That is the essentials ✅\nNext: points, streaks, timers and long goals. Now or tomorrow?',
   'tut2-hi':'Let us go on 🕯️\nThe app grew: points, streaks, timers and long goals.',
   'tut2-tab':'Open Score.',
@@ -2110,13 +2118,13 @@ en:{
   'tut2-goals':'Your long goals: for the week, the quarter and the year. Tap one.',
   'tut2-goaladd':'Write a goal for this week. Tip: make it specific and measurable, like "Run 5 km on Saturday". The sooner you reach it, the more it is worth.',
   'tut2-goalgo':'Tap "+ Add goal".',
-  'tut2-stepplus':'Goals are reached in steps. Make one: tap the ＋.',
-  'tut2-steptype':'Write the step. I left it for tomorrow so your day today stays the same.',
+  'tut2-stepplus':'Goals are reached in steps. Make the first one, for today: tap the ＋.',
+  'tut2-steptype':'Write a small step you will really do today. I already gave it a 🏁.',
   'tut2-goalback':'Go back to your goals.',
-  'tut2-goalhow':'When a 🏁 task points to a goal, that goal shows up in Goals to annihilate.\nCheck it there when you reach the goal. The task gets checked in your list.',
+  'tut2-goalhow':'See: your goal is now in Goals to annihilate, with its step beside it.\nThe step gets checked in your list. This box is for the day you reach the goal.',
   'tut2-link':'This ＋ links tasks to your goal. Tap it.',
-  'tut2-pick':'Pick the task you made.',
-  'tut2-linked':'Done: that task now points to your goal.\nThe idea: your daily goals are steps toward your weekly, quarterly and yearly ones. That way you move forward every day.\nYou can also link from ✏️ on any task.',
+  'tut2-pick':'Pick your step.',
+  'tut2-linked':'Done: your step now points to your goal.\nThe idea: move one step a day toward your weekly, quarterly and yearly goals.\nYou can also link from ✏️ on any task.',
   'tut2-next':'Done ✅\nStill to come: sleep, work, rewards, diary, stats and more. Now or tomorrow?',
   'tut3-hi':'Last part 🏛️\nNow you have all of Stoic.',
   'tut3-sleep':'Write how long you slept last night, like 7h30m. Sleep adds points; a late night takes them away.',
@@ -2143,10 +2151,10 @@ en:{
   'tut3-fnlpgo':'Tap here and it fills in the date.',
   'tut3-swipe':'Slide this list to the left to see the next day. With a mouse, drag it.',
   'tut3-swipe2':'Slide it to the right to come back.',
-  'tut3-daymove':'To change its time, hold the task a moment and drag it. With a mouse, just drag it.',
+  'tut3-daymove':'To change its time, hold the task a moment and drag it. With a mouse, just drag it.\nOne tap opens it to edit.',
   'tut3-vquad':'✜ arranges your list in quadrants. Tap it.',
   'tut3-vquadin':'Four boxes: do it now, schedule it, delegate it, postpone it. 1️⃣ sorts the list this way. Go back to ☰.',
-  'tut3-vtags':'Tap a tag to see only those tasks. Tap it again to remove it.',
+  'tut3-vtags':'Tap a tag to see only those tasks. Tap it again to remove it. The day calendar filters the same way.',
   'tut3-bell':'🔔 Alerts at the time of each task, on this device. They need an account. Tap it if you want them, or press Next.',
   'tut3-sel':'☑ changes several tasks at once. Tap it.',
   'tut3-selin':'Pick tasks: date, quadrant, repeat and more appear up here, for all of them at once.',
@@ -2449,12 +2457,12 @@ es:{
   'tut1-vsort2':'Tu lista cambió de orden. Se queda como la dejes y tus puntos no cambian.',
   'tut1-vhide':'Las tareas con hora se esconden hasta estas horas antes, para que no te estorben.',
   'tut1-prefs':'Aquí arriba: modo claro u oscuro, idioma y 🎓 para repetir este tutorial.',
-  'tut1-flagged':'Aquí ves las metas grandes a las que apuntan tus tareas con 🏁.\nAún no tienes, por eso sale ⚠️. Las haces más adelante.',
+  'tut1-flagged':'Metas por exterminar: aquí salen las metas largas a las que apuntan tus 🏁.\nAún no tienes, por eso sale ⚠️. Las harás en la parte 2.',
   'tut1-colour':'Este es tu día. Está en rojo porque aún no haces nada. Tu meta: sacarlo del rojo.',
   'tut1-tick':'Marca esta tarea como hecha.',
   'tut1-half':'Mitad hecha: amarillo 🟡, y se prende la vela 🕯️. Cada día sin rojo suma a tu racha.',
-  'tut1-tick2':'Ahora marca tu 🏁 meta del día.',
-  'tut1-end':'Tu color depende de cuánto termines:\n🔴 menos de 50%\n🟡 50%\n🟢 85%\n🟣 100%\n\nMejor color, más puntos. Si cumples tus metas del día, subes un color.',
+  'tut1-tick2':'Ahora marca tu 🏁 meta del día, aquí en Pendientes.',
+  'tut1-end':'Tu color depende de cuánto termines:\n🔴 menos de 50%\n🟡 50%\n🟢 85%\n🟣 100%\n\nMejor color, más puntos. Si terminas todas tus 🏁, subes un color.',
   'tut1-next':'Eso es lo esencial ✅\nSigue: puntos, rachas, cronómetros y metas largas. ¿Ahora o mañana?',
   'tut2-hi':'Sigamos 🕯️\nLa app creció: puntos, rachas, cronómetros y metas largas.',
   'tut2-tab':'Abre Puntaje.',
@@ -2469,13 +2477,13 @@ es:{
   'tut2-goals':'Tus metas largas: de la semana, del trimestre y del año. Toca una.',
   'tut2-goaladd':'Escribe una meta de esta semana. Tip: que sea específica y medible, como «Correr 5 km el sábado». Mientras antes la cumplas, más vale.',
   'tut2-goalgo':'Toca «+ Agregar meta».',
-  'tut2-stepplus':'Las metas se cumplen con pasos. Crea uno: toca el ＋.',
-  'tut2-steptype':'Escribe el paso. Lo dejé para mañana, así tu día de hoy no cambia.',
+  'tut2-stepplus':'Las metas se cumplen con pasos. Crea el primero, para hoy: toca el ＋.',
+  'tut2-steptype':'Escribe un paso chiquito que sí vayas a hacer hoy. Ya le puse 🏁.',
   'tut2-goalback':'Regresa a tus metas.',
-  'tut2-goalhow':'Cuando una tarea con 🏁 apunta a una meta, esa meta sale en Metas por exterminar.\nAhí le das check cuando cumplas la meta. La tarea se marca en Pendientes.',
+  'tut2-goalhow':'Mira: tu meta ya salió en Metas por exterminar, con su paso al lado.\nEl paso se marca en Pendientes. Esta casilla es para el día que cumplas la meta.',
   'tut2-link':'Este ＋ liga tareas a tu meta. Tócalo.',
-  'tut2-pick':'Elige la tarea que creaste.',
-  'tut2-linked':'Listo: esa tarea ya apunta a tu meta.\nEl chiste: que tus metas del día sean pasos hacia las de la semana, el trimestre y el año. Así avanzas diario.\nTambién se liga desde ✏️ en cualquier tarea.',
+  'tut2-pick':'Elige tu paso.',
+  'tut2-linked':'Listo: tu paso ya apunta a tu meta.\nEl chiste: que cada día avances un paso hacia tus metas de la semana, el trimestre y el año.\nTambién se liga desde ✏️ en cualquier tarea.',
   'tut2-next':'Listo ✅\nFalta: sueño, trabajo, recompensas, diario, estadísticas y más. ¿Ahora o mañana?',
   'tut3-hi':'Última parte 🏛️\nYa tienes todo Stoic.',
   'tut3-sleep':'Apunta cuánto dormiste anoche, como 7h30m. Dormir suma puntos; desvelarte los quita.',
@@ -2502,10 +2510,10 @@ es:{
   'tut3-fnlpgo':'Toca aquí y llena la fecha sola.',
   'tut3-swipe':'Desliza esta lista a la izquierda para ver el día siguiente. Con mouse, arrástrala.',
   'tut3-swipe2':'Deslízala a la derecha para regresar.',
-  'tut3-daymove':'Para cambiarle la hora, deja apretada la tarea un momento y arrástrala. Con mouse, arrástrala directo.',
+  'tut3-daymove':'Para cambiarle la hora, deja apretada la tarea un momento y arrástrala. Con mouse, arrástrala directo.\nUn toque la abre para editarla.',
   'tut3-vquad':'✜ acomoda tu lista en cuadrantes. Tócalo.',
   'tut3-vquadin':'Cuatro cajas: hazla ya, agéndala, delégala o postérgala. 1️⃣ ordena la lista así. Regresa a ☰.',
-  'tut3-vtags':'Toca una etiqueta para ver solo esas tareas. Tócala otra vez para quitarla.',
+  'tut3-vtags':'Toca una etiqueta para ver solo esas tareas. Tócala otra vez para quitarla. El calendario del día filtra igual.',
   'tut3-bell':'🔔 Avisos a la hora de cada tarea, en este aparato. Necesitan cuenta. Tócala si los quieres, o dale Siguiente.',
   'tut3-sel':'☑ cambia varias tareas a la vez. Tócalo.',
   'tut3-selin':'Elige tareas: aquí arriba aparecen fecha, cuadrante, repetir y más, para todas a la vez.',
@@ -3712,7 +3720,8 @@ function closeOnBackdrop(ov,close){
   ov.onclick=e=>{
     const started=downOn;downOn=null;
     // During the tutorial a stray press out here is nothing: the form it is walking stays.
-    if(e.target===ov&&started===ov&&!(TUT.run&&!TUT.run.paused))close();
+    // A task opened on the side is not part of the walk, and the tutorial steps aside for it.
+    if(e.target===ov&&started===ov&&(STATE.taskTree||!(TUT.run&&!TUT.run.paused)))close();
   };
   return ov;
 }
@@ -7152,6 +7161,7 @@ function renderPomoCalendar(){
   // the place across redraws, which a drop or a tick of the clock causes.
   scroll.addEventListener('scroll',()=>{STATE.calScroll=scroll.scrollTop;});
   requestAnimationFrame(()=>{
+    if(!scroll.isConnected)return;   // redrawn since: the newer one decides the place
     if(STATE.calScroll==null||STATE.calScrollDay!==day){
       const n=appNow();
       const mins=day===tk?Math.max(0,n.getHours()*60+n.getMinutes()-60):7*60;
@@ -7175,6 +7185,7 @@ function renderPomoCalendar(){
    calendar that is no longer the one on screen. */
 let _calDragAt=0,_calRedraw=false;
 function attachCalDrag(el,r,kind,day,getScroll,getGrid,tray){
+  el.dataset.calRem=r.id;
   calHoldable(el);
   el.addEventListener('pointerdown',e=>{
     if(e.button&&e.button!==0)return;
