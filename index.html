@@ -503,6 +503,9 @@ button{cursor:pointer;font-family:var(--ff);font-size:15px;font-weight:600;borde
    (above) and the thing being carried says so in red, so nobody finds out by
    having done it. */
 .cal-unset{outline:2px dashed var(--cr);outline-offset:1px}
+/* Sunday's 📊: see weekNudge. */
+.wk-sun{border-color:var(--ac);animation:wk-sun 1.6s ease-in-out infinite}
+@keyframes wk-sun{0%,100%{box-shadow:0 0 0 0 transparent}50%{box-shadow:0 0 12px 3px var(--ac)}}
 .cal-chip{padding:4px 9px;border-radius:99px;background:var(--sur2);border:1px solid var(--b2);
   font-size:12px;cursor:grab;touch-action:pan-y;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;
   max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -917,6 +920,11 @@ const tutListBack=()=>{STATE.view.layout='list';saveView();render();};
 const tutCalDay=()=>{if(!STATE.calSel){STATE.calSel=todayKey();render();}};
 // The note closes when it loses focus, and Next is outside it: open it again.
 const tutDiaryOpen=()=>{if(!document.querySelector('.diary-wrap')&&STATE.calSel){STATE.diaryOpen=STATE.calSel;render();}};
+// Gone back to, the note has to be there to be pointed at; past it, it has to be put away.
+const tutDiaryBack=()=>{tutCalDay();tutDiaryOpen();};
+const tutDiaryAway=()=>{tutCalDay();tutDiaryClose();};
+// Part 1 leaves its 🏁 open to be the step here. Someone who skipped or finished it makes one.
+const tutHasStep=()=>{const tk=todayKey();return reminders().some(r=>r.flagged&&!r.done&&r.completedOn!==tk&&r.due&&r.due<=tk);};
 // The button the form offers once it has understood a date in the title.
 const tutChip=()=>{const b=document.querySelector('[data-tut="add-nlp"]');return !!b&&b.style.display!=='none';};
 const TUT_STAGES={
@@ -943,10 +951,13 @@ const TUT_STAGES={
     {id:'vHide',   tab:'plan', target:'[data-tut="v-hide"]',   manual:true, free:true, text:'tut1-vhide'},
     {id:'flagged', tab:'plan', target:'[data-tut="flag-box"]', text:'tut1-flagged', manual:true, look:true, done:c=>c.doneN()>0},
     {id:'colour',  tab:'plan', target:'[data-tut="day-card"]', text:'tut1-colour', manual:true, look:true, done:c=>c.doneN()>0},
-    {id:'tick',    target:c=>c.nextOpen(),                  text:'tut1-tick',  done:c=>c.doneN()>=1},
-    {id:'half',    tab:'plan', target:'[data-tut="day-card"]', text:'tut1-half', manual:true, look:true, done:c=>c.doneN()>=2},
-    {id:'tick2',   target:c=>c.nextOpen(),                  text:'tut1-tick2', done:c=>c.doneN()>=2},
+    // Latched: the part ends by unticking one, and that must not bring these back.
+    {id:'tick',    target:c=>c.nextOpen(),                  text:'tut1-tick',  latch:true, done:c=>c.doneN()>=1},
+    {id:'half',    tab:'plan', target:'[data-tut="day-card"]', text:'tut1-half', manual:true, look:true, latch:true, done:c=>c.doneN()>=2},
+    {id:'tick2',   target:c=>c.nextOpen(),                  text:'tut1-tick2', latch:true, done:c=>c.doneN()>=2},
     {id:'end',     tab:'plan', target:'[data-tut="day-card"]', text:'tut1-end', manual:true},
+    // That 🏁 is the step the second part links to a goal, and a step has to be open.
+    {id:'untick',  tab:'plan', target:c=>c.flagEl(),        text:'tut1-untick', latch:true, done:c=>c.flagOpen()},
     {id:'prefs',   tab:'plan', target:'[data-tut="hdr-acts"]', text:'tut1-prefs', manual:true, free:true, enter:()=>tutHintSeen()},
     {id:'next1',   manual:true, choice:true,                text:'tut1-next'}
   ],
@@ -967,12 +978,12 @@ const TUT_STAGES={
     {id:'goalAdd', target:'[data-tut="goal-in"]', soft:true, win:'showGoals', enter:tutFocus('[data-tut="goal-in"]'), text:'tut2-goaladd',
                    done:c=>c.newGoals()>0||tutFilled('goal-in')},
     {id:'goalGo',  target:'[data-tut="goal-go"]', soft:true, win:'showGoals', text:'tut2-goalgo', done:c=>c.newGoals()>0},
-    // Nothing is open by now, so the + would find nothing: first a step to link. It is
-    // for today and flagged, because only that puts the goal in the section on the plan.
+    // The 🏁 from the first part is the step. With none open the + would find nothing: one
+    // is made here, for today and flagged, because only that puts the goal on the plan.
     {id:'stepPlus',tab:'plan', target:'[data-tut="add"]', text:'tut2-stepplus', keep:()=>{STATE.addPrefill={flag:true};},
-                   done:c=>STATE.showAddForm||c.count()>=1},
-    {id:'stepType',...tutForm(3), target:'[data-tut="add-title"]', soft:true, enter:tutFocusTitle, text:'tut2-steptype', done:c=>c.count()>=1||tutTitled()},
-    {id:'stepGo',  ...tutForm(3), target:'[data-tut="add-go"]',    soft:true, text:'tut1-add',  done:c=>c.count()>=1},
+                   done:c=>tutHasStep()||STATE.showAddForm||c.count()>=1},
+    {id:'stepType',...tutForm(3), target:'[data-tut="add-title"]', soft:true, enter:tutFocusTitle, text:'tut2-steptype', done:c=>tutHasStep()||c.count()>=1||tutTitled()},
+    {id:'stepGo',  ...tutForm(3), target:'[data-tut="add-go"]',    soft:true, text:'tut1-add',  done:c=>tutHasStep()||c.count()>=1},
     {id:'goalBack',tab:'plan', target:'[data-tut="goal-tiles"]', text:'tut2-goalback', temp:true, latch:true, done:()=>STATE.showGoals},
     // A replay may have no goal, so no +: it shows where one goes.
     {id:'goalLink',target:()=>document.querySelector('[data-tut="goal-link"]')||document.querySelector('[data-tut="goal-in"]'),
@@ -987,23 +998,24 @@ const TUT_STAGES={
     {id:'sleep',   tab:'score', target:'[data-tut="sleep-card"]', text:'tut3-sleep', manual:true, auto:()=>STATE.today.sleep.sleepDuration},
     {id:'work',    tab:'score', target:'[data-tut="work-card"]',  text:'tut3-work',  manual:true, auto:()=>STATE.today.work.workDuration},
     {id:'rewards', tab:'score', target:'[data-tut="rew-card"]',   text:'tut3-rew',   manual:true},
+    {id:'rewards2',tab:'score', target:'[data-tut="rew-card"]',   text:'tut3-rew2',  manual:true},
     {id:'month',   tab:'score', target:'[data-tut="month-cal"]',  text:'tut3-cal',   manual:true, auto:()=>STATE.calSel,
                    enter:()=>{STATE.calSel=null;render();}},
     // The note for real: open it, give the day a title, see the template, leave it saved.
     {id:'diary',   tab:'score', target:'[data-tut="note-add"]', text:'tut3-diary', latch:true, enter:tutCalDay, show:tutCalDay,
                    done:()=>!!document.querySelector('.diary-wrap')},
-    {id:'dTitle',  target:'[data-tut="diary-title"]', soft:true, manual:true, latch:true, text:'tut3-dtitle', keep:tutDiaryOpen,
+    {id:'dTitle',  tab:'score', target:'[data-tut="diary-title"]', soft:true, manual:true, latch:true, text:'tut3-dtitle', keep:tutDiaryOpen, show:tutDiaryBack,
                    enter:tutFocus('[data-tut="diary-title"]'), done:()=>tutFilled('diary-title')},
-    {id:'dTpl',    target:'.diary-area', soft:true, manual:true, text:'tut3-dtpl', keep:tutDiaryOpen,
+    {id:'dTpl',    tab:'score', target:'.diary-area', soft:true, manual:true, text:'tut3-dtpl', keep:tutDiaryOpen, show:tutDiaryBack,
                    after:tutDiaryClose},
-    {id:'dSaved',  tab:'score', target:'[data-tut="note-add"]', manual:true, free:true, text:'tut3-dsaved', show:tutCalDay, after:tutDiaryClose},
+    {id:'dSaved',  tab:'score', target:'[data-tut="note-add"]', manual:true, free:true, text:'tut3-dsaved', show:tutDiaryAway, after:tutDiaryClose},
+    {id:'dHist',   tab:'score', target:'[data-tut="hist-edit"]', manual:true, look:true, text:'tut3-dhist', enter:tutCalDay, show:tutDiaryAway},
     {id:'stats',   tab:'score', target:'[data-tut="stats-all"]',  text:'tut3-stats', temp:true, latch:true, done:()=>STATE.showStatsDetail},
     {id:'statsIn', target:'[data-tut="stats-panel"]', win:'showStatsDetail', text:'tut3-statsin', manual:true, free:true, after:tutClose('showStatsDetail')},
     {id:'week',    tab:'plan',  target:'[data-tut="week-btn"]',   text:'tut3-wk',    temp:true, latch:true, done:()=>STATE.showWeek},
     {id:'weekIn',  target:'[data-tut="week-panel"]',  win:'showWeek', text:'tut3-wkin',  manual:true, free:true, after:tutClose('showWeek')},
     // The whole form, a part at a time, ending in a real task: the steps after it need one.
     {id:'more',    tab:'plan', target:'[data-tut="add"]', text:'tut3-more', temp:true, latch:true, done:()=>STATE.showAddForm},
-    {id:'fWhen',   target:'[data-tut="add-when"]',    ...tutForm(4), soft:true, manual:true, text:'tut3-fwhen'},
     {id:'fQuad',   target:'[data-tut="add-quad"]',    ...tutForm(4), soft:true, manual:true, text:'tut3-fquad'},
     {id:'fTags',   target:'[data-tut="add-tags"]',    ...tutForm(4), soft:true, manual:true, text:'tut3-ftags'},
     {id:'fRep',    target:'[data-tut="add-rep"]',     ...tutForm(4), soft:true, manual:true, text:'tut3-frep'},
@@ -1062,6 +1074,8 @@ function tutCtx(run){
     newGoals:()=>goals().filter(g=>!run.known.has(g.id)).length,
     linked:()=>reminders().filter(r=>goalIdsOf(r).some(id=>!run.known.has(id))).length,
     doneN:()=>mineAll().filter(isDone).length,
+    flagOpen:()=>{const m=mineAll().find(r=>r.flagged);return !m||!isDone(m);},
+    flagEl:()=>{const m=mineAll().find(r=>r.flagged);return m&&document.querySelector('[data-tut-rem="'+m.id+'"]');},
     // The plain task before the day's goal, so the colour climbs in the order the bubbles say.
     nextOpen:()=>{
       const open=mineAll().filter(r=>!isDone(r));
@@ -1159,6 +1173,9 @@ function tutMarkDone(stages){
 }
 // Whatever a step left open, so the next thing is not behind it.
 const TUT_WINDOWS=['showGoals','showWeek','showCal','showStatsDetail'];
+// The page each is drawn on. Opened from the other one it stays open unseen, and turns up
+// on top of whatever comes next when the page changes.
+const TUT_WIN_TAB={showGoals:'plan',showWeek:'plan',showCal:'plan',showStatsDetail:'score'};
 function tutCloseAll(){
   _addFormDirty=null;
   STATE.showAddForm=false;STATE.editingRem=null;STATE.selecting=false;STATE.addPrefill=null;STATE.calDay=null;STATE.swPick=false;
@@ -1328,9 +1345,14 @@ function tutTick(){
   if(!step){tutFinish();return;}
   L.style.display='';
   // Back to the page this step lives on, if a pause wandered off it, or left a window open.
-  if(step.tab&&TUT_WINDOWS.some(k=>STATE[k])){TUT_WINDOWS.forEach(k=>{STATE[k]=false;});render();}
-  if(step.tab&&STATE.tab!==step.tab&&!document.querySelector('.ovl')){
-    STATE.tab=step.tab;localStorage.setItem('st_tab',step.tab);render();
+  // Only ever one window: going back opens this step's, and the last one must not stay behind it.
+  if(step.tab||step.win||peek){
+    const stray=TUT_WINDOWS.filter(k=>STATE[k]&&k!==step.win);
+    if(stray.length){stray.forEach(k=>{STATE[k]=false;});render();}
+  }
+  const tab=step.tab||TUT_WIN_TAB[step.win];
+  if(tab&&STATE.tab!==tab&&!document.querySelector('.ovl')){
+    STATE.tab=tab;localStorage.setItem('st_tab',tab);render();
   }
   // And the window it lives in, if that closed.
   if(step.win&&!STATE[step.win]){STATE[step.win]=true;render();}
@@ -1408,12 +1430,17 @@ function tutTick(){
     return;
   }
   let r=rectOf(el);
+  // On a big screen the tab bar sticks to the top, and what sits under it is lit but not seen.
+  const bar=document.querySelector('.tabbar');
+  const barB=bar&&!document.querySelector('.ovl')&&getComputedStyle(bar).position==='sticky'?bar.getBoundingClientRect():null;
+  const safe=barB&&barB.top<=1?barB.bottom-oy+8:0;
   // A few tries: a tab change puts its own scroll back right after this one.
-  if((r.top<0||r.bottom>vh)&&run.scrollTries<4&&Date.now()>=run.scrollNext){
+  if((r.top<safe||r.bottom>vh)&&run.scrollTries<4&&Date.now()>=run.scrollNext){
     run.scrollTries++;run.scrollNext=Date.now()+400;
     // At once, not smooth: a redraw halfway would stop it short, with the light off screen.
     el.scrollIntoView({block:(r.height>vh*.6?'start':'center')});
     r=rectOf(el);
+    if(r.top<safe){window.scrollBy(0,r.top-safe);r=rectOf(el);}
   }
   const h={l:Math.max(4,r.left-8),t:Math.max(4,r.top-8),r:Math.min(vw-4,r.right+8),b:Math.min(vh-4,r.bottom+8)};
   box(dT,0,0,vw,h.t);
@@ -2023,7 +2050,7 @@ en:{
   'tpl-grateful':'3 reasons why I am deeply grateful',
   'tpl-bad':'1 bad thing of today (feel free to complain):',
   'tpl-bad-act':'What are you going to do about it?',
-  'tpl-weekly-left':'There are still {n} weekly goals waiting to be completed.',
+  'tpl-weekly-left':'{n} weekly goals left to complete.','tpl-weekly-left-1':'1 weekly goal left to complete.',
   'tpl-weekly-done':"You've completed all your weekly goals.",
   'tpl-weekly-plan':'Plan for doing so:',
   'tpl-why':'Why these results?:','tpl-dream':'Today I remember dreaming:',
@@ -2123,6 +2150,7 @@ en:{
   'tut1-tick':'Mark this task as done.',
   'tut1-half':'Half done: yellow 🟡, and the candle lights up 🕯️. Every day without red adds to your streak.',
   'tut1-tick2':'Now mark your 🏁 goal of the day, here in your list.',
+  'tut1-untick':'Marked one by mistake? It unticks the same way. Untick your 🏁: you will use it in part 2.',
   'tut1-end':'Your colour depends on how much you finish:\n🔴 less than 50%\n🟡 50%\n🟢 85%\n🟣 100%\n\nMore colour, more points. Finish all your 🏁 and you go up one colour.',
   'tut1-next':'That is the essentials ✅\nNext: points, streaks, timers and long goals. Now or tomorrow?',
   'tut2-hi':'Let us go on 🕯️\nThe app grew: points, streaks, timers and long goals.',
@@ -2135,7 +2163,7 @@ en:{
   'tut2-swstop':'Now stop it.',
   'tut2-swadd':'Add that time to a task.',
   'tut2-swpick':'Pick one. Score will show where your day went.',
-  'tut2-goals':'Your long goals: for the week, the quarter and the year. Tap one.',
+  'tut2-goals':'Your 🏁 today is surely a step toward something bigger: a goal for the week, the quarter or the year. Let\'s set it. Tap here.',
   'tut2-goaladd':'Write a goal for this week. Tip: make it specific and measurable, like "Run 5 km on Saturday". The sooner you reach it, the more it is worth.',
   'tut2-goalgo':'Tap "+ Add goal".',
   'tut2-stepplus':'Goals are reached in steps. Make the first one, for today: tap the ＋.',
@@ -2143,29 +2171,30 @@ en:{
   'tut2-goalback':'Go back to your goals.',
   'tut2-goalhow':'See: your goal is now in Goals to annihilate, with its step beside it.\nThe step gets checked in your list, and the goal leaves for today. This box is for the day you reach the goal.',
   'tut2-link':'This ＋ links tasks to your goal. Tap it.',
-  'tut2-pick':'Pick your step.',
-  'tut2-linked':'Done: your step now points to your goal.\nThe idea: move one step a day toward your weekly, quarterly and yearly goals.\nYou can also link from ✏️ on any task.',
+  'tut2-pick':'Pick your 🏁.',
+  'tut2-linked':'Done: your 🏁 is now a step toward your goal.\nThe idea: move one step a day toward your weekly, quarterly and yearly goals.\nYou can also link from ✏️ on any task.',
   'tut2-next':'Done ✅\nStill to come: sleep, work, rewards, diary, stats and more. Now or tomorrow?',
   'tut3-hi':'Last part 🏛️\nNow you have all of Stoic.',
   'tut3-sleep':'Write how long you slept last night, like 7h30m. Sleep adds points; a late night takes them away.',
-  'tut3-work':'Write your hours of work today, like 2h30m. Every 25 minutes counts as a pomodoro.',
-  'tut3-rew':'Rewards to keep at bay: 💊 stimulants, 🌐 procrastination and 💦 orgasms. They are not bad, they just cost points. You can edit them later.',
+  'tut3-work':'Write your hours of work today, like 2.5h. Every 25 minutes counts as a pomodoro.',
+  'tut3-rew2':'💊 Stimulants: anything you put in your body for a kick. Coffee, sugar, junk food, weed.\n🌐 Procrastination: time on social media.\n💦 Orgasms: any orgasm, alone or with someone.',
+  'tut3-dhist':'Forgot to log a day? Fix it here.',
+  'tut3-rew':'Rewards: what you enjoy but want to keep at bay. They are not bad, they just cost points.\nThese are suggestions: you can edit them later.',
   'tut3-cal':'Every day stays painted in its colour. Tap one.',
   'tut3-diary':'Each day has its own note. Tap here to write it.',
   'tut3-dtitle':'Give the day a title, or press Next.',
   'tut3-dtpl':'This template is optional: answer what you like, or delete it.',
-  'tut3-dsaved':'It saves when you tap outside. Tap it to edit. Forgot to log a day? Use "Edit History".',
+  'tut3-dsaved':'It saves when you tap outside. Tap it to edit.',
   'tut3-stats':'All you have earned. Tap it for the detail.',
   'tut3-statsin':'Medals, records and streaks. They fill up as your days go by.',
   'tut3-wk':'📊 compares your weeks. Tap it.',
-  'tut3-wkin':'This week against last week. The arrows show what went up or down.',
+  'tut3-wkin':'Your week against the one before. The arrows show what went up or down.',
   'tut3-day':'📅 is the day calendar. Tap it.',
   'tut3-dayin':'Your tasks across the hours, to see if your day fits.\nLeave it open while you work: your pomodoro stays in sight.',
   'tut3-dayoff':'Don\'t want a time on it? Drag it off the hours: the task stays, it only loses its time.\nTry it, or press Next.',
   'tut3-dayorder':'Tasks with no time wait here. Tap 🪄 Lay out: they go into the free gaps, by quadrant.',
-  'tut3-dayplaced':'Done: the most important goes first. It moves like any other.',
+  'tut3-dayplaced':'Done: the most important goes first. ↩️ Undo takes back anything you do here.',
   'tut3-more':'The ＋ now does more. Tap it.',
-  'tut3-fwhen':'Date and time: when it is for.',
   'tut3-fquad':'Quadrant: how urgent and important it is.',
   'tut3-ftags':'Tags: they group tasks so you can filter them.',
   'tut3-frep':'Repeat: when you finish it, the task returns on its next date.',
@@ -2238,7 +2267,7 @@ en:{
   'push-needlogin':'Sign in first — alerts need your account.',
   'push-denied':'Notifications are blocked for this site. Allow them in the browser settings and try again.',
   'push-failed':'Could not turn alerts on. Try again in a moment.',
-  'wk-title':'Week at a glance','wk-vs':'vs','wk-this':'This week','wk-last':'Last week',
+  'wk-title':'Week at a glance','wk-vs':'vs','wk-this':'This week','wk-last':'Last week','wk-before':'Week before',
   'wk-points':'Points','wk-tasks':'Tasks completed','wk-goals':'Goals closed','wk-pom':'Pomodoros',
   'wk-work':'Work','wk-sleep':'Sleep per day','wk-reds':'Red days','wk-best':'Best day',
   'wk-late':'Overdue now','wk-opengoals':'Open goals',
@@ -2388,7 +2417,7 @@ es:{
   'tpl-grateful':'3 razones por las que estoy profundamente agradecido',
   'tpl-bad':'1 cosa mala de hoy (quéjate a gusto):',
   'tpl-bad-act':'¿Qué vas a hacer al respecto?',
-  'tpl-weekly-left':'Todavía quedan {n} metas semanales por completar.',
+  'tpl-weekly-left':'Quedan {n} metas semanales por completar.','tpl-weekly-left-1':'Queda 1 meta semanal por completar.',
   'tpl-weekly-done':'Ya completaste todas tus metas semanales.',
   'tpl-weekly-plan':'Plan para lograrlo:',
   'tpl-why':'¿Por qué estos resultados?:','tpl-dream':'Hoy recuerdo haber soñado:',
@@ -2488,6 +2517,7 @@ es:{
   'tut1-tick':'Marca esta tarea como hecha.',
   'tut1-half':'Mitad hecha: amarillo 🟡, y se prende la vela 🕯️. Cada día sin rojo suma a tu racha.',
   'tut1-tick2':'Ahora marca tu 🏁 meta del día, aquí en Pendientes.',
+  'tut1-untick':'¿Marcaste una por error? Se desmarca igual. Desmarca tu 🏁: la usarás en la parte 2.',
   'tut1-end':'Tu color depende de cuánto termines:\n🔴 menos de 50%\n🟡 50%\n🟢 85%\n🟣 100%\n\nMejor color, más puntos. Si terminas todas tus 🏁, subes un color.',
   'tut1-next':'Eso es lo esencial ✅\nSigue: puntos, rachas, cronómetros y metas largas. ¿Ahora o mañana?',
   'tut2-hi':'Sigamos 🕯️\nLa app creció: puntos, rachas, cronómetros y metas largas.',
@@ -2500,7 +2530,7 @@ es:{
   'tut2-swstop':'Ahora detenlo.',
   'tut2-swadd':'Súmale ese tiempo a una tarea.',
   'tut2-swpick':'Elige una. En Puntaje verás en qué se te fue el día.',
-  'tut2-goals':'Tus metas largas: de la semana, del trimestre y del año. Toca una.',
+  'tut2-goals':'Tu 🏁 de hoy seguro es un paso hacia algo más grande: una meta de la semana, del trimestre o del año. Vamos a ponerla. Toca aquí.',
   'tut2-goaladd':'Escribe una meta de esta semana. Tip: que sea específica y medible, como «Correr 5 km el sábado». Mientras antes la cumplas, más vale.',
   'tut2-goalgo':'Toca «+ Agregar meta».',
   'tut2-stepplus':'Las metas se cumplen con pasos. Crea el primero, para hoy: toca el ＋.',
@@ -2508,29 +2538,30 @@ es:{
   'tut2-goalback':'Regresa a tus metas.',
   'tut2-goalhow':'Mira: tu meta ya salió en Metas por exterminar, con su paso al lado.\nEl paso se marca en Pendientes, y la meta se va por hoy. Esta casilla es para el día que cumplas la meta.',
   'tut2-link':'Este ＋ liga tareas a tu meta. Tócalo.',
-  'tut2-pick':'Elige tu paso.',
-  'tut2-linked':'Listo: tu paso ya apunta a tu meta.\nEl chiste: que cada día avances un paso hacia tus metas de la semana, el trimestre y el año.\nTambién se liga desde ✏️ en cualquier tarea.',
+  'tut2-pick':'Elige tu 🏁.',
+  'tut2-linked':'Listo: tu 🏁 ya es un paso hacia tu meta.\nEl chiste: que cada día avances un paso hacia tus metas de la semana, el trimestre y el año.\nTambién se liga desde ✏️ en cualquier tarea.',
   'tut2-next':'Listo ✅\nFalta: sueño, trabajo, recompensas, diario, estadísticas y más. ¿Ahora o mañana?',
   'tut3-hi':'Última parte 🏛️\nYa tienes todo Stoic.',
   'tut3-sleep':'Apunta cuánto dormiste anoche, como 7h30m. Dormir suma puntos; desvelarte los quita.',
-  'tut3-work':'Apunta tus horas de trabajo de hoy, como 2h30m. Cada 25 minutos cuentan como un pomodoro.',
-  'tut3-rew':'Recompensas que quieres mantener a raya: 💊 estimulantes, 🌐 procrastinación y 💦 orgasmos. No son malas, solo cuestan puntos. Después podrás editarlas.',
+  'tut3-work':'Apunta tus horas de trabajo de hoy, como 2.5h. Cada 25 minutos cuentan como un pomodoro.',
+  'tut3-rew2':'💊 Estimulantes: lo que le metes a tu cuerpo para prenderte. Café, azúcar, comida chatarra, marihuana.\n🌐 Procrastinación: tiempo en redes sociales.\n💦 Orgasmos: cualquier orgasmo, solo o acompañado.',
+  'tut3-dhist':'¿Olvidaste registrar un día? Aquí lo arreglas.',
+  'tut3-rew':'Recompensas: lo que te gusta pero quieres mantener a raya. No son malas, solo cuestan puntos.\nEstas son sugeridas: después puedes editarlas.',
   'tut3-cal':'Cada día se queda pintado de su color. Toca uno.',
   'tut3-diary':'Cada día tiene su nota. Toca aquí para escribirla.',
   'tut3-dtitle':'Ponle título al día, o dale Siguiente.',
   'tut3-dtpl':'Esta plantilla es opcional: contesta lo que quieras, o bórrala.',
-  'tut3-dsaved':'Se guarda al tocar afuera. Tócala para editarla. ¿Olvidaste registrar un día? Usa «Editar Historial».',
+  'tut3-dsaved':'Se guarda al tocar afuera. Tócala para editarla.',
   'tut3-stats':'Todo lo que has ganado. Tócalo para ver el detalle.',
   'tut3-statsin':'Medallas, récords y rachas. Se llenan con los días.',
   'tut3-wk':'📊 compara tus semanas. Tócalo.',
-  'tut3-wkin':'Esta semana contra la pasada. Las flechas dicen qué subió o bajó.',
+  'tut3-wkin':'Tu semana contra la anterior. Las flechas dicen qué subió o bajó.',
   'tut3-day':'📅 es el calendario del día. Tócalo.',
   'tut3-dayin':'Tus tareas en las horas del día, para ver si te cabe todo.\nDéjalo abierto mientras trabajas: tu pomodoro se queda a la vista.',
   'tut3-dayoff':'¿Ya no quieres que tenga hora? Arrástrala fuera de las horas: la tarea se queda, solo pierde la hora.\nPruébalo, o dale Siguiente.',
   'tut3-dayorder':'Las tareas sin hora esperan aquí. Toca 🪄 Acomodar: caen en los huecos libres, por cuadrante.',
-  'tut3-dayplaced':'Listo: lo más importante va primero. Se mueve como cualquier otra.',
+  'tut3-dayplaced':'Listo: lo más importante va primero. ↩️ Deshacer regresa lo que hagas aquí.',
   'tut3-more':'El ＋ ahora trae más. Tócalo.',
-  'tut3-fwhen':'Fecha y hora: para cuándo es.',
   'tut3-fquad':'Cuadrante: qué tan urgente e importante es.',
   'tut3-ftags':'Etiquetas: agrupan tareas para filtrarlas.',
   'tut3-frep':'Repetir: al terminarla, la tarea regresa en su siguiente fecha.',
@@ -2603,7 +2634,7 @@ es:{
   'push-needlogin':'Inicia sesión primero — los avisos necesitan tu cuenta.',
   'push-denied':'Las notificaciones están bloqueadas para este sitio. Permítelas en los ajustes del navegador y vuelve a intentar.',
   'push-failed':'No se pudieron prender los avisos. Intenta de nuevo en un momento.',
-  'wk-title':'La semana de un vistazo','wk-vs':'contra','wk-this':'Esta semana','wk-last':'Pasada',
+  'wk-title':'La semana de un vistazo','wk-vs':'contra','wk-this':'Esta semana','wk-last':'Pasada','wk-before':'Antepasada',
   'wk-points':'Puntos','wk-tasks':'Tareas completadas','wk-goals':'Metas cerradas','wk-pom':'Pomodoros',
   'wk-work':'Trabajo','wk-sleep':'Sueño por día','wk-reds':'Días rojos','wk-best':'Mejor día',
   'wk-late':'Atrasadas ahora','wk-opengoals':'Metas abiertas',
@@ -4092,8 +4123,8 @@ const TAG_STARTERS=[
    hint:{es:'Parte de tu rutina de la mañana: lo primero que haces en el día.',en:'Part of your morning routine: the first things you do in the day.'}},
   {es:'🩳 Cortas',en:'🩳 Quick',
    hint:{es:'Tareas que se resuelven en pocos minutos. Ideales para huecos entre cosas.',en:'Tasks that take only a few minutes. Good for the gaps between things.'}},
-  {es:'☝🏼⏳ De una vez',en:'☝🏼⏳ In one go',
-   hint:{es:'Se hacen de una sola sentada, sin partirse en pedazos.',en:'Done in a single sitting, not split up.'}}
+  {es:'☝🏼⏳ Una vez a la semana',en:'☝🏼⏳ Once a week',
+   hint:{es:'Lo que toca una sola vez a la semana.',en:'What comes up just once a week.'}}
 ];
 function starterTagName(s){return STATE.lang==='es'?s.es:s.en;}
 function tagHint(tg){
@@ -5405,8 +5436,9 @@ function renderPlanner(){
   // and the pomodoro's break phase — and neither read clearly.
   const right=dv('row gap8');
   // The week against the last one: numbers about the day, so it sits with the day's numbers.
-  const wkBtn=bt('btn-ghost btn-sm','📊',()=>{STATE.showWeek=true;render();});
+  const wkBtn=bt('btn-ghost btn-sm','📊',()=>{STATE.showWeek=true;weekSeen();render();});
   wkBtn.title=t('wk-title');wkBtn.dataset.tut='week-btn';
+  if(weekNudge())wkBtn.classList.add('wk-sun');
   right.appendChild(gate(wkBtn,'weekReview'));
   right.appendChild(sbadge(dayStatus));
   const taskCount=sp('md mo ac w7',`${s.done}/${s.total}`);const pctSpan=el('span','xs');pctSpan.style.opacity='.7';pctSpan.textContent=` (${dayPct}%)`;taskCount.appendChild(pctSpan);right.appendChild(taskCount);
@@ -5896,11 +5928,13 @@ function renderPlanner(){
     card.addEventListener('pointercancel',endSwipe);
     card.addEventListener('click',e=>{if(swallow){swallow=false;e.stopPropagation();e.preventDefault();}},true);
   }
-  const h=dv('rowb mb10');
+  // The buttons drop to a line of their own, together, when the title needs the room.
+  const h=dv('rowb mb10');h.style.flexWrap='wrap';h.style.rowGap='8px';
+  const hBtns=dv('row gap8');hBtns.style.marginLeft='auto';
   const left=dv('row gap8');
   // Both lists fold, so a long day can be pushed out of the way to reach what
   // is below it.
-  left.style.cssText='cursor:pointer;user-select:none;flex:1';
+  left.style.cssText='cursor:pointer;user-select:none;flex:1 1 auto;white-space:nowrap';
   left.onclick=()=>{V.closedOpen=!V.closedOpen;saveView();render();};
   left.appendChild(sp('sm dimmer',V.closedOpen?'▶':'▼'));
   left.appendChild(sp('ctit',t('rem-open-h')));
@@ -5914,7 +5948,7 @@ function renderPlanner(){
   // moved up to the day's summary, where the numbers are.)
   const dayCalBtn=bt('btn-ghost btn-sm','📅',()=>{STATE.showCal=true;render();});
   dayCalBtn.title=t('cal-open');dayCalBtn.dataset.tut='cal-btn';
-  h.appendChild(gate(dayCalBtn,'dayCal'));
+  hBtns.appendChild(gate(dayCalBtn,'dayCal'));
   // Alerts at the time of each task. Filled when this device has them on.
   const bellBtn=bt(pushOn()?'btn-ac btn-sm':'btn-ghost btn-sm',pushOn()?'🔔':'🔕',async()=>{
     bellBtn.disabled=true;
@@ -5926,18 +5960,19 @@ function renderPlanner(){
     render();
   });
   bellBtn.title=pushOn()?t('push-title-on'):t('push-title-off');bellBtn.dataset.tut='bell-btn';
-  h.appendChild(gate(bellBtn,'alerts'));
+  hBtns.appendChild(gate(bellBtn,'alerts'));
   const selBtn=bt(STATE.selecting?'btn-ac btn-sm':'btn-ghost btn-sm','☑',()=>{
     STATE.selecting=!STATE.selecting;STATE.selected=[];render();
   });
   selBtn.title=t('sel-mode');selBtn.dataset.tut='sel-btn';
-  h.appendChild(gate(selBtn,'bulk'));
+  hBtns.appendChild(gate(selBtn,'bulk'));
   /* The + stays a +. It used to turn into an ✕ while the form was unfolded,
      one row above a list where every ✕ deletes a task — the same mark meaning
      "close this" and "throw this away" within a thumb's width of each other. */
   const addBtn=bt('btn-ac btn-sm','＋',()=>openAddForm());addBtn.dataset.tut='add';
   addBtn.title=t('rem-new');
-  h.appendChild(addBtn);
+  hBtns.appendChild(addBtn);
+  h.appendChild(hBtns);
   card.appendChild(h);
   if(!V.closedOpen){
     ctrl.dataset.tut='view-ctrl';
@@ -6172,6 +6207,15 @@ function weekStats(startKey,endKey){
   return{pom:Math.round(pom*10)/10,work,sleepAvg:nDays?Math.round(sleep/nDays):0,points:Math.round(points),
     tasks,goalsClosed,reds,nDays,bestPts:bestPts===null?null:Math.round(bestPts),bestDate};
 }
+/* The week starts on Sunday, so Sunday is when the last one can be looked at
+   whole. The 📊 glows that day until it is opened, once per device: a nudge, not
+   a window that opens on its own over whatever you came to do. */
+const isSunday=k=>new Date(k+'T12:00:00').getDay()===0;
+function weekNudge(){
+  if(!isSunday(todayKey()))return false;
+  try{return localStorage.getItem('st_wk_seen')!==todayKey();}catch(e){return false;}
+}
+function weekSeen(){try{localStorage.setItem('st_wk_seen',todayKey());}catch(e){}}
 function renderWeekReviewModal(){
   const close=()=>{STATE.showWeek=false;render();};
   const ov=dv('fi');ov.classList.add('ovl');
@@ -6181,7 +6225,13 @@ function renderWeekReviewModal(){
   ov.appendChild(panel);
   const isEs=STATE.lang==='es';
   const tk=todayKey();
-  const thisW=periodBounds('week',tk);
+  // On a Sunday this week is one day old: the week worth reading is the one that just ended.
+  const sunday=isSunday(tk);
+  const thisW=(()=>{
+    if(!sunday)return periodBounds('week',tk);
+    const d=new Date(tk+'T12:00:00');d.setDate(d.getDate()-1);
+    return periodBounds('week',isoDate(d));
+  })();
   const lastStart=(()=>{const d=new Date(thisW.start+'T12:00:00');d.setDate(d.getDate()-7);return isoDate(d);})();
   const lastW=periodBounds('week',lastStart);
   const a=weekStats(thisW.start,thisW.end<tk?thisW.end:tk);
@@ -6191,7 +6241,7 @@ function renderWeekReviewModal(){
   hd.appendChild(bt('btn-icon','✕',close));
   panel.appendChild(hd);
   const fmt=d=>capFirst(new Date(d+'T12:00:00').toLocaleDateString(isEs?'es-MX':'en-US',{day:'numeric',month:'short'}));
-  panel.appendChild(dv('xs dimmer mb10',`${fmt(thisW.start)} – ${fmt(tk)}   ·   ${t('wk-vs')} ${fmt(lastW.start)} – ${fmt(lastW.end)}`));
+  panel.appendChild(dv('xs dimmer mb10',`${fmt(thisW.start)} – ${fmt(sunday?thisW.end:tk)}   ·   ${t('wk-vs')} ${fmt(lastW.start)} – ${fmt(lastW.end)}`));
 
   const rows=[
     [t('wk-points'),a.points,b.points,v=>v.toLocaleString(),1],
@@ -6204,7 +6254,7 @@ function renderWeekReviewModal(){
   ];
   const tbl=dv('s6');
   const head=dv('row gap8');head.style.cssText='font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.06em;padding:0 10px';
-  [['',1.6],[t('wk-this'),1],[t('wk-last'),1],['',.4]].forEach(([x,f])=>{const c=sp('',x);c.style.flex=String(f);c.style.textAlign=f===1.6?'left':'right';head.appendChild(c);});
+  [['',1.6],[t(sunday?'wk-last':'wk-this'),1],[t(sunday?'wk-before':'wk-last'),1],['',.4]].forEach(([x,f])=>{const c=sp('',x);c.style.flex=String(f);c.style.textAlign=f===1.6?'left':'right';head.appendChild(c);});
   tbl.appendChild(head);
   rows.forEach(([label,x,y,f,good])=>{
     const r=dv('row gap8');
@@ -6919,7 +6969,23 @@ function renderSwPick(){
 
 /* The day calendar, in a window of its own. */
 let _calStaysOpen=false;   // set by render(): the window was already on screen
+/* A finger on a timeline makes mistakes, so everything done to the hours can be
+   walked back, one step at a time, for as long as the window stays open. */
+let _calUndo=[];
+function calRemember(list){
+  _calUndo.push(list.map(r=>({id:r.id,time:r.time||'',calDur:r.calDur})));
+  if(_calUndo.length>30)_calUndo.shift();
+}
+function calUndoLast(){
+  const last=_calUndo.pop();if(!last)return;
+  last.forEach(x=>{
+    const r=reminders().find(y=>y.id===x.id);
+    if(r){r.time=x.time;r.calDur=x.calDur;r._ts=CLOCK.now();}
+  });
+  savePlanner();render();
+}
 function renderCalModal(){
+  if(!_calStaysOpen)_calUndo=[];
   const close=()=>{STATE.showCal=false;render();};
   // The fade is how it ARRIVES. Redrawn in place it has already arrived.
   const ov=dv(_calStaysOpen?'':'fi');ov.classList.add('ovl');
@@ -6928,7 +6994,10 @@ function renderCalModal(){
   const panel=dv('card cal-big');panel.dataset.tut='cal-panel';panel.style.cssText='max-width:820px;width:100%;margin:auto;max-height:none';
   const hd=dv('rowb mb6');
   hd.appendChild(sp('ctit',t('cal-title')));
-  hd.appendChild(bt('btn-icon','✕',close));
+  const acts=dv('row gap8');
+  if(_calUndo.length)acts.appendChild(bt('btn-ghost btn-xs','↩️ '+t('cal-undo'),calUndoLast));
+  acts.appendChild(bt('btn-icon','✕',close));
+  hd.appendChild(acts);
   panel.appendChild(hd);
   panel.appendChild(renderPomoCalendar());
   ov.appendChild(panel);
@@ -7116,19 +7185,17 @@ function calAutoPlace(day,tray,timedAll){
     }
     if(s===null){left.push(r);return;}
     taken.push([s,s+d]);
-    placed.push({r,s,was:r.time||''});
+    placed.push({r,s});
   });
   if(!placed.length){flashToast(t('cal-arrange-none'));return;}
+  calRemember(placed.map(x=>x.r));
   // One write for the lot — updateReminder saves and syncs once per task.
   placed.forEach(({r,s})=>{r.time=calFmt(s);r._ts=CLOCK.now();});
   savePlanner();
   render();
   let msg=t('cal-arranged').replace('{n}',placed.length);
   if(left.length)msg+=' · '+t('cal-arranged-left').replace('{n}',left.length);
-  flashToast(msg,t('cal-undo'),()=>{
-    placed.forEach(({r,was})=>{r.time=was;r._ts=CLOCK.now();});
-    savePlanner();render();
-  });
+  flashToast(msg,t('cal-undo'),calUndoLast);
 }
 function renderPomoCalendar(){
   const tk=todayKey();
@@ -7371,6 +7438,7 @@ function attachCalDrag(el,r,kind,day,getScroll,getGrid,tray){
            today — which erased how late it was (and for a repeating task,
            where in its rhythm it belonged). It is still overdue; it just has
            an hour now. */
+        calRemember([r]);
         updateReminder(r.id,{time:calFmt(g.drop.min)});
         render();
       }else if(kind==='block'){
@@ -7378,12 +7446,10 @@ function attachCalDrag(el,r,kind,day,getScroll,getGrid,tray){
            The task is still there, still due when it was, back in the tray.
            Because a stray release is now enough to do it, it says so and
            offers the way back. */
-        const was=r.time||'';
+        calRemember([r]);
         updateReminder(r.id,{time:''});
         render();
-        flashToast(t('cal-unset').replace('{t}',String(r.title||'').slice(0,40)),t('cal-undo'),()=>{
-          updateReminder(r.id,{time:was});render();
-        });
+        flashToast(t('cal-unset').replace('{t}',String(r.title||'').slice(0,40)),t('cal-undo'),calUndoLast);
       }else if(_calRedraw)render();
     };
     const cancel=ev=>{
@@ -7444,6 +7510,7 @@ function attachCalResize(handle,block,r,startMin){
       try{handle.releasePointerCapture(e.pointerId);}catch(_){}
       hold.off();
       if(!hold.armed)return;
+      calRemember([r]);
       updateReminder(r.id,{calDur:dur});
       render();
     };
@@ -10419,7 +10486,7 @@ function renderDayPanel(){
        a bad thing to hide a day's numbers behind: fixing a day you forgot to
        log is not a flourish, it is the repair you reach for most. */
     const eb=bt('btn-ghost btn-sm',t('edit-hist'),()=>{STATE.histDay=key;render();});
-    eb.style.whiteSpace='nowrap';hd.appendChild(eb);
+    eb.style.whiteSpace='nowrap';eb.dataset.tut='hist-edit';hd.appendChild(eb);
   }
   wrap.appendChild(hd);
   if(!key){wrap.appendChild(dv('sm dimmer ctr mt16 mb16',t('pick-day')));return wrap;}
@@ -12827,7 +12894,7 @@ function diaryTemplate(){
   // → marks the line as a heading of its own. It carries a number that
   // changes, so it can never match the fixed list diaryHeadings holds.
   const weekly='→ '+(left
-    ? t('tpl-weekly-left').replace('{n}',left)+'\n'+t('tpl-weekly-plan')+'\n'
+    ? t(left===1?'tpl-weekly-left-1':'tpl-weekly-left').replace('{n}',left)+'\n'+t('tpl-weekly-plan')+'\n'
     : t('tpl-weekly-done')+'\n');
   return [
     t('tpl-grateful'),'    1. ','    2. ','    3. ','',
