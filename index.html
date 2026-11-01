@@ -2141,7 +2141,7 @@ en:{
   'tut2-stepplus':'Goals are reached in steps. Make the first one, for today: tap the ＋.',
   'tut2-steptype':'Write a small step you will really do today. I already gave it a 🏁.',
   'tut2-goalback':'Go back to your goals.',
-  'tut2-goalhow':'See: your goal is now in Goals to annihilate, with its step beside it.\nThe step gets checked in your list. This box is for the day you reach the goal.',
+  'tut2-goalhow':'See: your goal is now in Goals to annihilate, with its step beside it.\nThe step gets checked in your list, and the goal leaves for today. This box is for the day you reach the goal.',
   'tut2-link':'This ＋ links tasks to your goal. Tap it.',
   'tut2-pick':'Pick your step.',
   'tut2-linked':'Done: your step now points to your goal.\nThe idea: move one step a day toward your weekly, quarterly and yearly goals.\nYou can also link from ✏️ on any task.',
@@ -2506,7 +2506,7 @@ es:{
   'tut2-stepplus':'Las metas se cumplen con pasos. Crea el primero, para hoy: toca el ＋.',
   'tut2-steptype':'Escribe un paso chiquito que sí vayas a hacer hoy. Ya le puse 🏁.',
   'tut2-goalback':'Regresa a tus metas.',
-  'tut2-goalhow':'Mira: tu meta ya salió en Metas por exterminar, con su paso al lado.\nEl paso se marca en Pendientes. Esta casilla es para el día que cumplas la meta.',
+  'tut2-goalhow':'Mira: tu meta ya salió en Metas por exterminar, con su paso al lado.\nEl paso se marca en Pendientes, y la meta se va por hoy. Esta casilla es para el día que cumplas la meta.',
   'tut2-link':'Este ＋ liga tareas a tu meta. Tócalo.',
   'tut2-pick':'Elige tu paso.',
   'tut2-linked':'Listo: tu paso ya apunta a tu meta.\nEl chiste: que cada día avances un paso hacia tus metas de la semana, el trimestre y el año.\nTambién se liga desde ✏️ en cualquier tarea.',
@@ -5505,9 +5505,9 @@ function renderPlanner(){
   /* What today's flags are aiming at. A row here is a goal and its check closes
      that goal: with the flag's own name on the row, ticking it to say "I reached
      the goal" finished the task instead. The flags sit beside it as the steps, and
-     are ticked in the list. A flag finished today keeps its goal here, because the
-     last step is exactly when the goal gets closed. A goal reached before its step
-     stays, struck through, until the step is done too. */
+     are ticked in the list. A step done today leaves, and a goal with no step left
+     leaves with it until its next one: this is what is still to do today. A goal
+     reached before its step stays, struck through, until the step is done too. */
   const flagsAll=reminders().filter(r=>r.flagged&&(r.completedOn===tk||(!r.done&&r.due<=tk)));
   const flagsLeft=flagsAll.filter(r=>r.completedOn!==tk);
   if(flagsAll.length&&featureOn('flags')){
@@ -5530,12 +5530,12 @@ function renderPlanner(){
       const{goal,closed}=flagGoals(r);
       const reached=closed.filter(g=>g.doneOn===tk);
       reached.forEach(g=>reachedIds.add(g.id));
+      if(r.completedOn===tk)return;
       if(reached.length)reached.forEach(g=>aim(g,r));
       else if(goal)aim(goal,r);
-      else if(r.completedOn!==tk)orphans.push(r);
+      else orphans.push(r);
     });
     const rows=[...aims.values()]
-      .filter(({goal,steps:list})=>!goal.doneOn||list.some(r=>r.completedOn!==tk))
       .sort((a,b)=>(!!a.goal.doneOn-!!b.goal.doneOn)||goalDeadline(a.goal).localeCompare(goalDeadline(b.goal)));
     rows.forEach(({goal})=>{if(goal.doneOn)reachedIds.add(goal.id);});
     const steps=list=>{
@@ -5543,7 +5543,6 @@ function renderPlanner(){
       list.forEach((r,i)=>{
         if(i)note.appendChild(document.createTextNode(' · '));
         const ttl=sp('',r.title);
-        if(r.completedOn===tk)ttl.style.textDecoration='line-through';
         editableTitle(ttl,r,render);
         note.appendChild(ttl);
       });
@@ -5588,9 +5587,8 @@ function renderPlanner(){
       rows.forEach(({goal,steps:list})=>{
         const row=rowOf();
         const cb=ip('checkbox','');cb.checked=!!goal.doneOn;
-        const press=()=>{toggleGoal(goal.id);render();if(goal.doneOn)showGoalDone(goal);};
-        // It only leaves if no step is holding it here.
-        cb.onchange=()=>{if(list.some(r=>r.completedOn!==tk))press();else leaveThen(row,press);};
+        // It stays, struck through: a step is still open or it would not be here.
+        cb.onchange=()=>{toggleGoal(goal.id);render();if(goal.doneOn)showGoalDone(goal);};
         row.appendChild(cb);
         const ttl=sp('sm f1 flag-ttl',GOAL_ICON[goal.kind]+' '+goal.title);
         if(goal.doneOn){ttl.classList.add('dim');ttl.style.textDecoration='line-through';}
