@@ -4425,6 +4425,17 @@ function toggleReminder(id,forceDone){
   const r=reminders().find(x=>x.id===id);if(!r)return;
   const tk=todayKey();
   const on=forceDone?true:r.completedOn!==tk;
+  /* Ticking a task whose own stopwatch is on it is the same as stopping that
+     stopwatch: the time goes on the task, and the tick below does the rest. */
+  if(on&&swState().rid===id){
+    const sec=swSeconds(),before=taskSecs(id);
+    swReset();
+    if(sec>0){
+      logTime(sec,r);
+      const rec=before.length&&sec>=30&&sec<Math.min(...before);
+      flashToast((rec?'🏆 '+t('sw-record')+' ':'✓ ')+fmtHMS(sec)+' → '+r.title);
+    }
+  }
   // A parent is ticked on its own. It used to carry its subtasks with it,
   // which breaks the way this is actually used: the parent is a bonus task in
   // its own right — "finish the oldest thing under here" — and its subtasks
