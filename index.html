@@ -516,7 +516,7 @@ button{cursor:pointer;font-family:var(--ff);font-size:15px;font-weight:600;borde
 .cal-chip.late{border-color:var(--ng);color:var(--ng)}
 .cal-scroll{height:340px;overflow-y:auto;position:relative;border:1px solid var(--b1);
   border-radius:10px;background:var(--sur2);touch-action:pan-y}
-.cal-grid{position:relative;margin-left:44px;margin-right:6px}
+.cal-grid{position:relative;margin-left:44px;margin-right:6px;user-select:none;-webkit-user-select:none}
 .cal-hr{position:absolute;left:-44px;width:38px;text-align:right;font-size:10px;color:var(--t3);transform:translateY(-6px)}
 .cal-line{position:absolute;left:0;right:0;border-top:1px solid var(--b1)}
 .cal-block{position:absolute;box-sizing:border-box;border-radius:8px;padding:2px 6px;font-size:11px;
@@ -2362,7 +2362,7 @@ en:{
   'sw-change':'Change task','sw-change-to':'Time this on…','sw-stop-save':'Stop and save','sw-task-start':'Time this task',
   'ts-line':'{n} times · total {tot} · average {avg} · fastest {min} · slowest {max}',
   'cal-untimed':'No time','cal-tray-empty':'every task has a time',
-  'cal-hint':'Drag a task onto the hours to give it a time, and off them to take it away; on a phone, hold it a moment first. Drag the bottom edge to change how long it is drawn — the list only ever shows when it starts.',
+  'cal-dur':'Minutes it takes on the calendar','cal-hint':'Drag a task onto the hours to give it a time, and off them to take it away; on a phone, hold it a moment first. Drag the bottom edge to change how long it is drawn — the list only ever shows when it starts. Drag across empty hours to make a new task for exactly that time.',
   'cal-arrange':'🪄 Lay out',
   'cal-arranged':'{n} task(s) placed','cal-arranged-left':'{n} did not fit','cal-arrange-none':'No free gap left to place them in.',
   'cal-unset':'Time taken off "{t}"','cal-undo':'Undo',
@@ -2740,7 +2740,7 @@ es:{
   'sw-change':'Cambiar tarea','sw-change-to':'Cronometrar esto en…','sw-stop-save':'Detener y guardar','sw-task-start':'Cronometrar esta tarea',
   'ts-line':'{n} veces · total {tot} · promedio {avg} · más rápida {min} · más lenta {max}',
   'cal-untimed':'Sin hora','cal-tray-empty':'todas tienen hora',
-  'cal-hint':'Arrastra una tarea a las horas para darle hora, y fuera de ellas para quitársela; en celular, déjala apretada un momento primero. Arrastra el borde de abajo para cambiar cuánto dura en el dibujo — la lista solo muestra a qué hora empieza.',
+  'cal-dur':'Minutos que dura en el calendario','cal-hint':'Arrastra una tarea a las horas para darle hora, y fuera de ellas para quitársela; en celular, déjala apretada un momento primero. Arrastra el borde de abajo para cambiar cuánto dura en el dibujo — la lista solo muestra a qué hora empieza. Arrastra sobre horas vacías para crear una tarea nueva justo en ese horario.',
   'cal-arrange':'🪄 Acomodar',
   'cal-arranged':'{n} tarea(s) acomodadas','cal-arranged-left':'{n} no cupieron','cal-arrange-none':'No queda hueco libre para acomodarlas.',
   'cal-unset':'Se le quitó la hora a "{t}"','cal-undo':'Deshacer',
@@ -4466,6 +4466,7 @@ function addReminder(data){
     tags:normTags(data.tags&&data.tags.length?data.tags:(p?tagsOf(p):[])),
     parent:p?p.id:null,
     repeat:data.repeat||null, // subtasks keep their own rhythm, like any reminder
+    ...(data.calDur?{calDur:data.calDur}:{}),   // how long the day calendar draws it
     done:false,completedOn:null,
     created:CLOCK.now(),_ts:CLOCK.now()
   });
@@ -7642,6 +7643,7 @@ function renderPomoCalendar(){
     syncCalNow();
   }
   scroll.appendChild(grid);
+  attachCalCreate(grid,scroll,day);
   wrap.appendChild(scroll);
   wrap.appendChild(dv('xs dimmer mt6',t('cal-hint')));
 
@@ -7831,6 +7833,67 @@ function attachCalResize(handle,block,r,startMin){
     handle.addEventListener('pointermove',move);
     handle.addEventListener('pointerup',end);
     handle.addEventListener('pointercancel',end);
+  });
+}
+
+/* Dragging across empty hours draws a new task: where it starts is its time,
+   how far it was dragged is how long it is drawn. It opens the same form the ＋
+   does, already holding that day, time and length — nothing is made until Add.
+   A press on a block is that block's own; one that never travels is nothing at
+   all, so a stray click does not open a form. A finger holds a moment first, the
+   same as for moving a block, since on a phone a drag is mostly scrolling. */
+function attachCalCreate(grid,scroll,day){
+  calHoldable(grid);
+  grid.addEventListener('pointerdown',e=>{
+    if(e.button&&e.button!==0)return;
+    if(e.target.closest&&e.target.closest('.cal-block'))return;
+    const slot=y=>Math.max(0,Math.min(24*60-CAL_SNAP,Math.floor((y-grid.getBoundingClientRect().top)/CAL_HOUR_PX*60/CAL_SNAP)*CAL_SNAP));
+    const a=slot(e.clientY);
+    const hold=calHold(grid,e);
+    let ind=null,lo=a,hi=a+CAL_SNAP,moved=false;
+    const finish=()=>{
+      window.removeEventListener('pointermove',move);
+      window.removeEventListener('pointerup',end);
+      window.removeEventListener('pointercancel',cancel);
+      window.removeEventListener('selectstart',noSel,true);
+      hold.off();
+      if(ind)ind.remove();
+      _calDragAt=0;
+    };
+    const noSel=ev=>ev.preventDefault();
+    const move=ev=>{
+      if(ev.pointerId!==e.pointerId||hold.waiting(ev))return;
+      if(!moved){
+        if(Math.hypot(ev.clientX-e.clientX,ev.clientY-e.clientY)<8)return;
+        moved=true;
+        ind=dv('cal-ind');grid.appendChild(ind);
+      }
+      _calDragAt=Date.now();
+      const sr=scroll.getBoundingClientRect();
+      if(ev.clientY<sr.top+24)scroll.scrollTop-=10;
+      else if(ev.clientY>sr.bottom-24)scroll.scrollTop+=10;
+      const c=slot(ev.clientY);
+      lo=Math.min(a,c);hi=Math.min(24*60,Math.max(a,c)+CAL_SNAP);
+      ind.style.top=(lo/60*CAL_HOUR_PX)+'px';
+      ind.style.height=Math.max(18,(hi-lo)/60*CAL_HOUR_PX)+'px';
+      ind.textContent=calFmt(lo)+'–'+calFmt(hi%1440);
+    };
+    const end=ev=>{
+      if(ev.pointerId!==e.pointerId)return;
+      finish();
+      if(!moved){if(_calRedraw)render();return;}
+      STATE.addPrefill={due:day,time:calFmt(lo),dur:hi-lo};
+      openAddForm(0);
+    };
+    const cancel=ev=>{
+      if(ev.pointerId!==e.pointerId)return;
+      finish();
+      if(_calRedraw)render();
+    };
+    window.addEventListener('selectstart',noSel,true);
+    window.addEventListener('pointermove',move);
+    window.addEventListener('pointerup',end);
+    window.addEventListener('pointercancel',cancel);
   });
 }
 
@@ -8932,6 +8995,8 @@ function renderAddModal(){
   const row2=dv('row gap8 mt8');row2.style.flexWrap='wrap';row2.dataset.tut='add-when';
   const di=ip('date','',pf.due||todayKey(),'');di.style.cssText='flex:0 0 148px;min-width:130px';
   const hi=ip('time','',pf.time||'','');hi.style.cssText='flex:0 0 104px';hi.title=t('rem-time');hi.dataset.tut='add-time';
+  // Drawn on the day calendar: the length that was dragged out comes with the time.
+  const du=ip('number','',pf.dur?String(pf.dur):'','min');du.min=CAL_SNAP;du.step=CAL_SNAP;du.style.cssText='flex:0 0 84px';du.title=t('cal-dur');
   const showNlp=()=>{
     const p=parseWhen(ti.value);
     if(!p){nlp.style.display='none';return;}
@@ -8953,7 +9018,7 @@ function renderAddModal(){
   // quadrant already chosen — the click said which box it belongs in, and
   // making you say it again in a dropdown would be asking twice.
   const pi=sk('',QUAD.map(q=>[String(q),q?`${quadEmoji(q)} ${quadName(q)}`:quadName(0)]),String(STATE.addQuad||0));pi.style.cssText='flex:1;min-width:120px';pi.dataset.tut='add-quad';
-  row2.appendChild(di);row2.appendChild(hi);row2.appendChild(gate(pi,'quadrants'));panel.appendChild(row2);
+  row2.appendChild(di);row2.appendChild(hi);if(pf.dur)row2.appendChild(du);row2.appendChild(gate(pi,'quadrants'));panel.appendChild(row2);
   const dl=document.createElement('datalist');dl.id='st-tags';
   allTags().forEach(tg=>{const o=document.createElement('option');o.value=tg;dl.appendChild(o);});
   panel.appendChild(dl);
@@ -9010,6 +9075,8 @@ function renderAddModal(){
             ?{dom:new Date((di.value||todayKey())+'T12:00:00').getDate()}:{})}:null;
     addReminder({title,notes:noi.value,due:nth?snapNthDue(di.value||todayKey(),rep):(di.value||todayKey()),time:hi.value,priority:parseInt(pi.value)||0,
       flagged:fc.checked,morning:mcb.checked,tags:picker.get(),
+      // Only with a time: a length with no start is nothing to draw.
+      calDur:pf.dur&&hi.value?Math.max(CAL_SNAP,Math.min(12*60,parseInt(du.value)||pf.dur)):0,
       repeat:rep});
     // The task is in; the popup goes, and the list behind it shows what landed.
     _addFormDirty=null;STATE.showAddForm=false;STATE.addQuad=0;STATE.addPrefill=null;render();
