@@ -8848,7 +8848,11 @@ function renderReminderRow(r,tk,opts){
      line below it, because it is part of what the task IS — the flag says
      the day is scored on it and this says what it is for. Pressing it opens
      the goals, which is where the rest of that story lives. */
-  goalsServedBy(r).filter(g=>g.kind!=='week').forEach(g=>{
+  /* Only a goal that is still ahead of it, or was reached today. One finished
+     months ago is history, not what this task is for: the goals window had put
+     it away under Terminadas while the task kept announcing it. The link itself
+     stays, quietly, so the goal still counts the task among its steps. */
+  goalsServedBy(r).filter(g=>g.kind!=='week'&&(!g.doneOn||g.doneOn===tk)).forEach(g=>{
     const chip=bt('tagchip',`${GOAL_ICON[g.kind]} ${g.title.slice(0,28)}`,
       e=>{e.stopPropagation();STATE.showGoals=true;render();});
     chip.style.cssText+=';cursor:pointer;border-color:var(--acb);color:var(--ac)';
