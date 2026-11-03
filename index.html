@@ -6934,10 +6934,15 @@ function swReset(){const s=swState();s.running=false;s.startedAt=0;s.elapsed=0;s
 function swRestart(){const s=swState();s.ms=0;s.elapsed=0;s.running=true;s.startedAt=CLOCK.now();savePomo();}
 // The clock is two spans — the time and its thousandths — so a frame only
 // rewrites text and never rebuilds anything.
+/* There is one clock on the card: a task's timer when there is one (the running one,
+   else the first), the free stopwatch when there is not. */
+function tmMain(){const l=tmList();return l.find(m=>m.running)||l[0]||null;}
+function curMs(){const m=tmMain();return m?tmMs(m):swMs();}
+function curRunning(){const m=tmMain();return m?m.running:swState().running;}
 function paintSw(){
   const main=document.getElementById('sw-main');
   if(!main)return false;
-  const ms=swMs();
+  const ms=curMs();
   main.textContent=fmtHMS(Math.floor(ms/1000));
   const fr=document.getElementById('sw-frac');
   if(fr)fr.textContent='.'+String(Math.floor(ms%1000)).padStart(3,'0');
@@ -6955,7 +6960,7 @@ function swLoop(){
   const step=()=>{
     _swRaf=0;_swLast=performance.now();
     if(!paintSw())return;                 // the page was left: stop
-    if(swState().running){_swRaf=requestAnimationFrame(step);}
+    if(curRunning()){_swRaf=requestAnimationFrame(step);}
   };
   _swLast=performance.now();
   _swRaf=requestAnimationFrame(step);
@@ -7020,7 +7025,7 @@ function tmPause(m){if(!m.running)return;m.ms=tmMs(m);m.running=false;m.startedA
 const TM_LONG=12*3600;   // nobody focuses longer than this at a stretch
 function tmPauseOthers(m){
   tmList().slice().forEach(o=>{
-    if(o===m||!o.running)return;
+    if(o===m)return;
     const s=tmSave(o);
     if(s&&s.sec>0)flashToast('✓ '+fmtHMS(s.sec)+' → '+s.r.title+(s.sec>TM_LONG?' ⚠':''),t('tl-editlink'),()=>goEditLog(s.eid));
   });
@@ -7036,10 +7041,16 @@ function goEditLog(eid){
   requestAnimationFrame(()=>{const c=document.getElementById('timelog-card');if(c)c.scrollIntoView({block:'center'});});
 }
 function tmResume(m){if(m.running)return;tmPauseOthers(m);m.running=true;m.startedAt=CLOCK.now();savePomo();}
+function tmRestart(m){tmPauseOthers(m);m.ms=0;m.running=true;m.startedAt=CLOCK.now();savePomo();}
 function tmStart(r){
   const l=tmList();
-  // The one running is about to be saved, so it does not take up a place.
-  if(l.filter(x=>!x.running).length>=TM_MAX){flashToast(t('tm-max').replace('{n}',TM_MAX));return false;}
+  /* One stopwatch: the free one, if it has something on it, is asked about before
+     it is replaced, as it always was. */
+  const s=swState();
+  if(s.running||swSeconds()>0){
+    if(!confirm(t('sw-replace').replace('{t}',fmtSecs(swSeconds()))))return false;
+    swReset();
+  }
   const m={rid:r.id,ms:0,startedAt:0,running:false};
   l.push(m);
   tmResume(m);
@@ -7087,7 +7098,7 @@ function tmStop(m){
 /* A task's own ⏱, the same on the list and on its chips in the grid and the cross.
    With no timer it starts one. With one it shows its clock, and pressing that
    pauses or resumes it, with a ⏹ beside it that saves. */
-function swTaskBtn(r,openAfter){
+function swTaskBtn(r,openAfter,compact){
   const m=tmOf(r.id);
   const open=()=>{STATE.editingRem=null;STATE.taskTree=r.id;render();};
   if(!m){
@@ -7108,6 +7119,12 @@ function swTaskBtn(r,openAfter){
   const stop=bt('btn-icon','⏹',e=>{e.stopPropagation();tmStop(m);});
   stop.title=t('sw-stop-save');
   wrap.appendChild(main);wrap.appendChild(stop);
+  // Start over from zero, running: left off the narrow chips, which have no room for a third.
+  if(!compact){
+    const rs=bt('btn-icon','↺',e=>{e.stopPropagation();tmRestart(m);render();});
+    rs.title=t('pomo-reset');
+    wrap.appendChild(rs);
+  }
   return gate(wrap,'stopwatch');
 }
 function swTaskPress(r){
@@ -7172,10 +7189,10 @@ function flashToast(msg,actionLabel,action){
   setTimeout(()=>toast.remove(),actionLabel?6500:2600);
 }
 
-/* The task timers that are going, one block each: whose it is (its name opens the
-   task), its clock, and what can be done with it. The free stopwatch is below. */
-function renderTimerRows(w){
-  const l=tmList();
+/* Any task timers beyond the one on the clock — left over from when several could
+   wait paused — one small block each: whose it is (its name opens the task), its
+   clock, and what can be done with it. Starting one saves the one on the clock. */
+function renderTimerRows(w,l){
   if(!l.length)return;
   const box=dv('s6 mt8');box.dataset.tut='tm-list';
   l.forEach(m=>{
@@ -7204,7 +7221,6 @@ function renderStopwatchPage(){
   const w=dv('');w.dataset.tut='sw-card';
   w.style.cssText='margin-top:14px;padding-top:12px;border-top:1px solid var(--b1)';
   const s=swState();
-  const sec=swSeconds();
   const tk=todayKey();
   const todayEntries=timeLog().filter(e=>e.date===tk);
   const tot=todayEntries.reduce((a,e)=>a+e.sec,0);
@@ -7220,7 +7236,17 @@ function renderStopwatchPage(){
   };
   hd.appendChild(stat);
   w.appendChild(hd);
-  renderTimerRows(w);
+  // One clock: the task's timer when there is one, else the free stopwatch.
+  const tm=tmMain();
+  const tmR=tm?tmTask(tm):null;
+  const sec=tm?tmSecs(tm):swSeconds();
+  if(tm){
+    // Whose it is; its name opens the task.
+    const nm=dv('sm ctr mt8 ac w6',tmR?tmR.title:t('tm-gone'));
+    nm.style.cssText+=';overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-left:auto;margin-right:auto;max-width:100%';
+    if(tmR){nm.style.cursor='pointer';nm.title=t('rem-detail');nm.onclick=()=>{STATE.editingRem=null;STATE.taskTree=tmR.id;render();};}
+    w.appendChild(nm);
+  }
   const clock=dv('ctr xxl w8 mo mt6');
   clock.id='sw-clock';clock.style.color='var(--ac)';
   const cm=sp('');cm.id='sw-main';cm.textContent=fmtHMS(sec);
@@ -7229,12 +7255,24 @@ function renderStopwatchPage(){
      not shove the seconds around. Left out under reduced motion: a number that
      rewrites itself sixty times a second is exactly what that setting is for. */
   if(!reducedMotion()){
-    const cf=sp('sw-ms','.'+String(Math.floor(swMs()%1000)).padStart(3,'0'));cf.id='sw-frac';
+    const cf=sp('sw-ms','.'+String(Math.floor(curMs()%1000)).padStart(3,'0'));cf.id='sw-frac';
     clock.appendChild(cf);
   }
   w.appendChild(clock);
-  if(s.running)swLoop();
+  if(curRunning())swLoop();
   const row=dv('row gap8 mt10');row.style.flexWrap='wrap';
+  if(tm){
+    // A task's timer: pausing and saving are two things, and so is starting over.
+    row.appendChild(bt(tm.running?'btn-ghost btn-sm':'btn-ac btn-sm',tm.running?'⏸ '+t('pomo-pause'):'▶ '+t('sw-resume'),
+      ()=>{if(tm.running)tmPause(tm);else tmResume(tm);render();}));
+    row.appendChild(bt(tm.running?'btn-ac btn-sm':'btn-ghost btn-sm','⏹ '+t('sw-stop-save'),()=>tmStop(tm)));
+    // Started on the wrong one: the time so far goes with it to the right one.
+    if(tmR)row.appendChild(bt('btn-ghost btn-sm','🔁 '+t('sw-change'),()=>{STATE.swRe=tm.rid;STATE.swPick=true;STATE.swQ='';render();}));
+    row.appendChild(bt('btn-ghost btn-sm',t('pomo-reset'),()=>{tmRestart(tm);render();}));
+    w.appendChild(row);
+    renderTimerRows(w,tmList().filter(x=>x!==tm));
+    return w;
+  }
   // Pausing and saving are two things: this one only pauses, and a task's time has its own button to be saved.
   const swGo=bt(s.running?'btn-ghost btn-sm f1-desktop':'btn-ac btn-sm f1-desktop',
     s.running?'⏸ '+t('pomo-pause'):'▶ '+(sec>0?t('sw-resume'):t('pomo-start')),
@@ -8330,7 +8368,7 @@ function remChip(r,tk,redraw,peeking){
     if(!doneToday&&!peeking&&!STATE.selecting){
       const line=dv('row gap4');line.style.cssText='align-items:center;flex-wrap:nowrap;justify-content:space-between';
       m.style.cssText+=';min-width:0;flex:1';
-      const tb=swTaskBtn(r,true);tb.style.cssText+=';flex:none;padding:0 6px;font-size:12px';
+      const tb=swTaskBtn(r,true,true);tb.style.cssText+=';flex:none;padding:0 6px;font-size:12px';
       line.appendChild(m);line.appendChild(tb);
       cell.appendChild(line);
     }else cell.appendChild(m);
@@ -13841,7 +13879,7 @@ setInterval(()=>{
   // The stopwatch's own clock, patched in place like the timer's.
   // (the per-frame loop does this while the tab is in front; this beat keeps
   // it right when frames are not being handed out)
-  if(p&&p.sw&&p.sw.running)paintSw();
+  if(p&&(curRunning()))paintSw();
   // Each task timer's clock, wherever it is drawn: its ⏱ on a row or chip, its block in the card.
   if(p&&p.tms)p.tms.forEach(m=>{
     if(!m.running)return;
