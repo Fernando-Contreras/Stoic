@@ -6944,6 +6944,16 @@ function swStopTask(){
   const rec=before.length&&sec>=30&&sec<Math.min(...before);
   swLoggedToast((rec?'🏆 '+t('sw-record')+' ':'✓ ')+fmtHMS(sec)+' → '+r.title,r,eid);
 }
+/* A task's own ⏱, the same on the list and on its chips in the grid and the cross.
+   While it is the one being timed it shows the clock and pressing it saves. */
+function swTaskBtn(r){
+  const sw=swState(),mine=sw.rid===r.id&&(sw.running||swSeconds()>0);
+  const tb=bt('btn-icon'+(mine?' sw-on':''),mine?(sw.running?'⏹ ':'▶ ')+fmtHMS(swSeconds()):'⏱',
+    e=>{e.stopPropagation();swTaskPress(r);});
+  if(mine&&sw.running)tb.dataset.swLive='1';
+  tb.title=mine?t('sw-stop-save'):t('sw-task-start');
+  return gate(tb,'stopwatch');
+}
 function swTaskPress(r){
   const s=swState();
   if(s.rid===r.id&&(s.running||swSeconds()>0)){
@@ -7034,16 +7044,18 @@ function renderStopwatchPage(){
   if(owner)w.appendChild(dv('sm ctr mt4 ac w6','→ '+owner.title));
   if(s.running)swLoop();
   const row=dv('row gap8 mt10');row.style.flexWrap='wrap';
+  // Pausing and saving are two things: this one only pauses, and a task's time has its own button to be saved.
   const swGo=bt(s.running?'btn-ghost btn-sm f1-desktop':'btn-ac btn-sm f1-desktop',
-    s.running?(owner?'⏹ '+t('sw-stop-save'):'⏸ '+t('pomo-pause')):'▶ '+(sec>0?t('sw-resume'):t('pomo-start')),
-    ()=>{if(s.running&&owner)return swStopTask();s.running?swPause():swStart();render();});
+    s.running?'⏸ '+t('pomo-pause'):'▶ '+(sec>0?t('sw-resume'):t('pomo-start')),
+    ()=>{s.running?swPause():swStart();render();});
   swGo.dataset.tut='sw-go';
   row.appendChild(swGo);
+  if(owner&&sec>0)row.appendChild(bt(s.running?'btn-ac btn-sm':'btn-ghost btn-sm','⏹ '+t('sw-stop-save'),swStopTask));
   // One press and it starts over from zero, already running — no question,
   // and no second press on Start.
   row.appendChild(bt('btn-ghost btn-sm',t('pomo-reset'),()=>{swRestart();render();}));
   // Stopped with time on it: the way to put it on a task sits in the same row.
-  if(!s.running&&sec>0){
+  if(!s.running&&sec>0&&!owner){
     const swAdd=bt('btn-ac btn-sm',t('sw-add'),()=>{STATE.swPick=true;STATE.swQ='';render();});
     swAdd.dataset.tut='sw-add';
     row.appendChild(swAdd);
@@ -8043,7 +8055,15 @@ function remChip(r,tk,redraw,peeking){
       if(wkNote.stale)staleGoalClick(wk,r);
       m.appendChild(wk);
     }
-    cell.appendChild(m);
+    /* Its ⏱ rides the meta line, which has the room: the title row is already
+       fighting the box, the flag and the quadrant for width. */
+    if(!doneToday&&!peeking&&!STATE.selecting){
+      const line=dv('row gap4');line.style.cssText='align-items:center;flex-wrap:nowrap;justify-content:space-between';
+      m.style.cssText+=';min-width:0;flex:1';
+      const tb=swTaskBtn(r);tb.style.cssText+=';flex:none;padding:0 6px;font-size:12px';
+      line.appendChild(m);line.appendChild(tb);
+      cell.appendChild(line);
+    }else cell.appendChild(m);
     // Standing on its own, a subtask says where it came from.
     if(r.parent){
       const par=reminders().find(x=>x.id===r.parent);
@@ -8626,14 +8646,7 @@ function renderReminderRow(r,tk,opts){
     });
     in_.title=t('rem-indent');tools.appendChild(in_);
   }
-  if(!doneToday&&!opts.peeking&&!STATE.selecting){
-    const sw=swState(),mine=sw.rid===r.id&&(sw.running||swSeconds()>0);
-    const tb=bt('btn-icon'+(mine?' sw-on':''),mine?(sw.running?'⏹ ':'▶ ')+fmtHMS(swSeconds()):'⏱',
-      e=>{e.stopPropagation();swTaskPress(r);});
-    if(mine&&sw.running)tb.dataset.swLive='1';
-    tb.title=mine?t('sw-stop-save'):t('sw-task-start');
-    tools.appendChild(gate(tb,'stopwatch'));
-  }
+  if(!doneToday&&!opts.peeking&&!STATE.selecting)tools.appendChild(swTaskBtn(r));
   const ed=bt('btn-icon','✏️',()=>{STATE.editingRem=STATE.editingRem===r.id?null:r.id;rd();});
   ed.title=t('rem-edit');ed.dataset.tutEdit=r.id;
   tools.appendChild(ed);
