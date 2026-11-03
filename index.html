@@ -2359,7 +2359,7 @@ en:{
   'tl-edit':'Fix the day or the minutes','tl-move':'Move to another task','tl-move-to':'Move this time to…',
   'tl-save':'Save','tl-cancel':'Cancel','tl-only-flags':'🏁 Flags only','tl-change':'Change task','tl-complete':'Complete task','tl-completed':'Done: "{t}"','tl-auto':'done, back {d}','tl-undo':'Undo','tl-undone':'Back on the list: "{t}"',
   'sw-record':'New record!','sw-replace':'The stopwatch has {t} with no task. Start over at zero for this one?',
-  'sw-stop-save':'Stop and save','sw-task-start':'Time this task',
+  'sw-change':'Change task','sw-change-to':'Time this on…','sw-stop-save':'Stop and save','sw-task-start':'Time this task',
   'ts-line':'{n} times · total {tot} · average {avg} · fastest {min} · slowest {max}',
   'cal-untimed':'No time','cal-tray-empty':'every task has a time',
   'cal-hint':'Drag a task onto the hours to give it a time, and off them to take it away; on a phone, hold it a moment first. Drag the bottom edge to change how long it is drawn — the list only ever shows when it starts.',
@@ -2737,7 +2737,7 @@ es:{
   'tl-edit':'Corregir el día o los minutos','tl-move':'Mover a otra tarea','tl-move-to':'Mover este tiempo a…',
   'tl-save':'Guardar','tl-cancel':'Cancelar','tl-only-flags':'🏁 Solo banderas','tl-change':'Cambiar tarea','tl-complete':'Completar tarea','tl-completed':'Hecha: "{t}"','tl-auto':'hecha, vuelve {d}','tl-undo':'Deshacer','tl-undone':'De vuelta en pendientes: "{t}"',
   'sw-record':'¡Nuevo récord!','sw-replace':'El cronómetro trae {t} sin tarea. ¿Lo pongo en cero para esta?',
-  'sw-stop-save':'Detener y guardar','sw-task-start':'Cronometrar esta tarea',
+  'sw-change':'Cambiar tarea','sw-change-to':'Cronometrar esto en…','sw-stop-save':'Detener y guardar','sw-task-start':'Cronometrar esta tarea',
   'ts-line':'{n} veces · total {tot} · promedio {avg} · más rápida {min} · más lenta {max}',
   'cal-untimed':'Sin hora','cal-tray-empty':'todas tienen hora',
   'cal-hint':'Arrastra una tarea a las horas para darle hora, y fuera de ellas para quitársela; en celular, déjala apretada un momento primero. Arrastra el borde de abajo para cambiar cuánto dura en el dibujo — la lista solo muestra a qué hora empieza.',
@@ -7065,13 +7065,18 @@ function renderStopwatchPage(){
     ()=>{s.running?swPause():swStart();render();});
   swGo.dataset.tut='sw-go';
   row.appendChild(swGo);
-  if(owner&&sec>0)row.appendChild(bt(s.running?'btn-ac btn-sm':'btn-ghost btn-sm','⏹ '+t('sw-stop-save'),swStopTask));
+  // From the first moment: the clock is already counting for this task, even while the display still reads 0:00.
+  if(owner){
+    row.appendChild(bt(s.running?'btn-ac btn-sm':'btn-ghost btn-sm','⏹ '+t('sw-stop-save'),swStopTask));
+    // Started on the wrong one: the time so far goes with it to the right one.
+    row.appendChild(bt('btn-ghost btn-sm','🔁 '+t('sw-change'),()=>{STATE.swRe=true;STATE.swPick=true;STATE.swQ='';render();}));
+  }
   // One press and it starts over from zero, already running — no question,
   // and no second press on Start.
   row.appendChild(bt('btn-ghost btn-sm',t('pomo-reset'),()=>{swRestart();render();}));
   // Stopped with time on it: the way to put it on a task sits in the same row.
   if(!s.running&&sec>0&&!owner){
-    const swAdd=bt('btn-ac btn-sm',t('sw-add'),()=>{STATE.swPick=true;STATE.swQ='';render();});
+    const swAdd=bt('btn-ac btn-sm',t('sw-add'),()=>{STATE.swRe=false;STATE.swPick=true;STATE.swQ='';render();});
     swAdd.dataset.tut='sw-add';
     row.appendChild(swAdd);
   }
@@ -7092,12 +7097,14 @@ function renderSwPick(){
   const mvE=STATE.swMove?timeLog().find(e=>e.id===STATE.swMove):null;
   if(STATE.swMove&&!mvE)STATE.swMove=null;
   const sec=mvE?mvE.sec:swSeconds();
-  const close=()=>{STATE.swPick=false;STATE.swMove=null;render();};
+  // A third errand: the running stopwatch changes task, keeping what it has counted. Only while it has one.
+  const re=!mvE&&!!STATE.swRe&&!!swTask();
+  const close=()=>{STATE.swPick=false;STATE.swMove=null;STATE.swRe=false;render();};
   const ov=dv('fi');ov.classList.add('ovl');
   closeOnBackdrop(ov,close);
   const panel=dv('card');panel.dataset.tut='sw-pick';panel.style.cssText='max-width:520px;width:100%;margin:auto';
   const hd=dv('rowb mb6');
-  hd.appendChild(sp('ctit',mvE?t('tl-move-to'):t('sw-add-to')));
+  hd.appendChild(sp('ctit',mvE?t('tl-move-to'):re?t('sw-change-to'):t('sw-add-to')));
   hd.appendChild(bt('btn-icon','✕',close));
   panel.appendChild(hd);
 
@@ -7108,7 +7115,7 @@ function renderSwPick(){
   mw.appendChild(sp('xs dimmer',t('sw-minutes')));
   const mi=ip('number','',String(defMin));mi.min=1;mi.style.cssText='width:76px';
   mw.appendChild(mi);
-  if(!mvE)tr.appendChild(mw);
+  if(!mvE&&!re)tr.appendChild(mw);
   panel.appendChild(tr);
   // The stopwatch may have been left running past what you really did; the
   // number can be trimmed here. Untouched, the exact seconds are kept.
@@ -7119,6 +7126,14 @@ function renderSwPick(){
     return Math.round(v)===defMin?sec:Math.round(v*60);
   };
   const put=(r,label)=>{
+    if(re){
+      // Nothing is logged and the clock is not touched: only whose it is.
+      if(!r)return;
+      swState().rid=r.id;savePomo();
+      STATE.swPick=false;STATE.swRe=false;render();
+      flashToast('→ '+r.title);
+      return;
+    }
     const s_=secs();
     if(s_<=0){mi.focus();return;}
     if(mvE){
@@ -7177,10 +7192,10 @@ function renderSwPick(){
   const orow=dv('row gap6 mt10');
   orow.appendChild(oi);
   orow.appendChild(bt('btn-ghost btn-sm',t('sw-other-add'),doOther));
-  panel.appendChild(orow);
+  if(!re)panel.appendChild(orow);
   const recent=[];
   timeLog().forEach(e=>{if(!e.rid&&e.title&&!recent.includes(e.title)&&recent.length<5)recent.push(e.title);});
-  if(recent.length){
+  if(recent.length&&!re){
     const rr=dv('row gap6 mt6');rr.style.flexWrap='wrap';
     rr.appendChild(sp('xs dimmer',t('sw-recent')));
     recent.forEach(n=>{const c=bt('btn-ghost btn-xs',n,()=>put(null,n));rr.appendChild(c);});
