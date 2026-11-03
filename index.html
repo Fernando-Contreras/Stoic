@@ -2226,7 +2226,7 @@ en:{
   'tut2-sw':'Stopwatch: to compete with yourself. Beat your record on a task, or pile up hours on a project. Tap ▶.',
   'tut2-swstop':'Now stop it.',
   'tut2-swadd':'Add that time to a task.',
-  'tut2-swpick':'Pick one. Tip: in list view each task has its own ⏱; stop it and the time goes on that task by itself. If it repeats, it also ticks itself off.',
+  'tut2-swpick':'Pick one. Tip: each task has its own ⏱, up to 3 at once; stop one and the time goes on that task by itself. If it repeats, it also ticks itself off.',
   'tut2-tlgo':'That time is saved. Let\'s see where it went: tap Score.',
   'tut2-tlcard':'Here is where your time went: the total, how much went to 🏁 flags, and how many tasks. Up top you choose the period, or only flags. Try them.',
   'tut2-tlrow':'Tap a task to see each time you timed it.',
@@ -2361,7 +2361,7 @@ en:{
   'tl-edit':'Fix the day or the minutes','tl-move':'Move to another task','tl-move-to':'Move this time to…',
   'tl-save':'Save','tl-cancel':'Cancel','tl-only-flags':'🏁 Flags only','tl-change':'Change task','tl-complete':'Complete task','tl-completed':'Done: "{t}"','tl-auto':'done, back {d}','tl-undo':'Undo','tl-undone':'Back on the list: "{t}"',
   'sw-record':'New record!','sw-replace':'The stopwatch has {t} with no task. Start over at zero for this one?',
-  'sw-change':'Change task','sw-change-to':'Time this on…','sw-stop-save':'Stop and save','sw-task-start':'Time this task',
+  'sw-change':'Change task','sw-change-to':'Time this on…','tm-max':'{n} timers at once at most. Stop one first.','tm-gone':'(task deleted)','tm-has':'That task already has its own timer.','sw-stop-save':'Stop and save','sw-task-start':'Time this task',
   'ts-line':'{n} times · total {tot} · average {avg} · fastest {min} · slowest {max}',
   'cal-untimed':'No time','cal-tray-empty':'every task has a time',
   'cal-dur':'Minutes it takes on the calendar','cal-hint':'Drag a task onto the hours to give it a time, and off them to take it away; on a phone, hold it a moment first. Drag the bottom edge to change how long it is drawn — the list only ever shows when it starts. Drag across empty hours to make a new task for exactly that time.',
@@ -2604,7 +2604,7 @@ es:{
   'tut2-sw':'Cronómetro: para competir contra ti. Rompe tu récord en una tarea o junta horas en un proyecto. Dale ▶.',
   'tut2-swstop':'Ahora detenlo.',
   'tut2-swadd':'Súmale ese tiempo a una tarea.',
-  'tut2-swpick':'Elige una. Tip: en modo lista cada tarea trae su ⏱; al detenerlo, el tiempo se le suma solo. Si se repite, también se marca hecha.',
+  'tut2-swpick':'Elige una. Tip: cada tarea trae su ⏱, hasta 3 a la vez; al detener uno, el tiempo se le suma solo. Si se repite, también se marca hecha.',
   'tut2-tlgo':'Ese tiempo ya quedó guardado. Veamos a dónde se fue: toca Puntaje.',
   'tut2-tlcard':'Aquí ves en qué se te fue el tiempo: el total, cuánto fue a 🏁 banderas y cuántas tareas. Arriba eliges el periodo, o solo banderas. Pruébalos.',
   'tut2-tlrow':'Toca una tarea para ver cada vez que la cronometraste.',
@@ -2739,7 +2739,7 @@ es:{
   'tl-edit':'Corregir el día o los minutos','tl-move':'Mover a otra tarea','tl-move-to':'Mover este tiempo a…',
   'tl-save':'Guardar','tl-cancel':'Cancelar','tl-only-flags':'🏁 Solo banderas','tl-change':'Cambiar tarea','tl-complete':'Completar tarea','tl-completed':'Hecha: "{t}"','tl-auto':'hecha, vuelve {d}','tl-undo':'Deshacer','tl-undone':'De vuelta en pendientes: "{t}"',
   'sw-record':'¡Nuevo récord!','sw-replace':'El cronómetro trae {t} sin tarea. ¿Lo pongo en cero para esta?',
-  'sw-change':'Cambiar tarea','sw-change-to':'Cronometrar esto en…','sw-stop-save':'Detener y guardar','sw-task-start':'Cronometrar esta tarea',
+  'sw-change':'Cambiar tarea','sw-change-to':'Cronometrar esto en…','tm-max':'Máximo {n} cronómetros a la vez. Detén uno primero.','tm-gone':'(tarea borrada)','tm-has':'Esa tarea ya tiene su propio cronómetro.','sw-stop-save':'Detener y guardar','sw-task-start':'Cronometrar esta tarea',
   'ts-line':'{n} veces · total {tot} · promedio {avg} · más rápida {min} · más lenta {max}',
   'cal-untimed':'Sin hora','cal-tray-empty':'todas tienen hora',
   'cal-dur':'Minutos que dura en el calendario','cal-hint':'Arrastra una tarea a las horas para darle hora, y fuera de ellas para quitársela; en celular, déjala apretada un momento primero. Arrastra el borde de abajo para cambiar cuánto dura en el dibujo — la lista solo muestra a qué hora empieza. Arrastra sobre horas vacías para crear una tarea nueva justo en ese horario.',
@@ -4445,14 +4445,10 @@ function toggleReminder(id,forceDone){
   const on=forceDone?true:r.completedOn!==tk;
   /* Ticking a task whose own stopwatch is on it is the same as stopping that
      stopwatch: the time goes on the task, and the tick below does the rest. */
-  if(on&&swState().rid===id){
-    const sec=swSeconds(),before=taskSecs(id);
-    swReset();
-    if(sec>0){
-      logTime(sec,r);
-      const rec=before.length&&sec>=30&&sec<Math.min(...before);
-      flashToast((rec?'🏆 '+t('sw-record')+' ':'✓ ')+fmtHMS(sec)+' → '+r.title);
-    }
+  const tm=on?tmOf(id):null;
+  if(tm){
+    const o=tmSave(tm);
+    if(o&&o.sec>0)flashToast((o.rec?'🏆 '+t('sw-record')+' ':'✓ ')+fmtHMS(o.sec)+' → '+r.title);
   }
   // A parent is ticked on its own. It used to carry its subtasks with it,
   // which breaks the way this is actually used: the parent is a bonus task in
@@ -4830,7 +4826,9 @@ function syncPomoPill(){_syncPomoPill();syncSwPill();}
 let _swPill=null;
 function syncSwPill(){
   const s=STATE.pomo&&STATE.pomo.sw;
-  const live=!!s&&(s.running||swSeconds()>0);
+  const tms=STATE.pomo?tmList():[];
+  const free=!!s&&(s.running||swSeconds()>0);
+  const live=free||tms.length>0;
   const c=document.getElementById('sw-clock');
   let seen=false;
   if(c){const b=c.getBoundingClientRect();const h=window.innerHeight||document.documentElement.clientHeight;seen=!!b.height&&b.bottom>8&&b.top<h-8;}
@@ -4854,10 +4852,13 @@ function syncSwPill(){
     document.body.appendChild(b);
     _swPill=b;
   }
-  const r=swTask();
-  _swPill.querySelector('.sp-cl').textContent='⏱ '+fmtHMS(swSeconds());
-  _swPill.querySelector('.sp-t').textContent=r?r.title:'';
-  _swPill.classList.toggle('paused',!s.running);
+  // One bubble for all of them: the one running (or the first), and how many others there are.
+  const shown=tms.find(m=>m.running)||tms[0]||null;
+  const r=shown?tmTask(shown):null;
+  const others=tms.length-(shown?1:0)+(free&&shown?1:0);
+  _swPill.querySelector('.sp-cl').textContent='⏱ '+fmtHMS(shown?tmSecs(shown):swSeconds());
+  _swPill.querySelector('.sp-t').textContent=(r?r.title:'')+(others>0?' +'+others:'');
+  _swPill.classList.toggle('paused',shown?!tms.some(m=>m.running)&&!(s&&s.running):!s.running);
   _swPill.classList.toggle('stack',!!(_pomoPill&&_pomoPill.classList.contains('on')));
   _swPill.title=t('sw-title')+(r?' → '+r.title:'');
   _swPill.style.pointerEvents='auto';
@@ -6959,10 +6960,39 @@ function logTime(sec,r,label){
   savePlanner();
   return id;
 }
-/* A stopwatch started from a task's own ⏱ belongs to that task (s.rid): stopping
-   it puts the time there by itself, with no picker. One stopwatch still, so
-   starting another task's first saves the one running. */
-function swTask(){const s=swState();return s.rid?reminders().find(r=>r.id===s.rid)||null:null;}
+/* Task timers. Each task's own ⏱ starts a timer that belongs to that task, up to
+   three at once, kept beside the free stopwatch (which stays as it was). Stopping
+   one puts its time on its task by itself, with no picker. They ride in the
+   timer's own state (p.tms), so they travel with it like the stopwatch does, and
+   count off the wall clock. Time counted by several at once is counted by each:
+   the day's total can be longer than the day. */
+const TM_MAX=3;
+function tmList(){
+  const p=STATE.pomo;
+  if(!p.tms)p.tms=[];
+  /* Before there were several, the one task timer lived on the stopwatch itself
+     (s.rid). It is lifted out into the list, still running if it was. */
+  const s=p.sw;
+  if(s&&s.rid){
+    const rid=s.rid;
+    const base=s.ms!=null?s.ms:(s.elapsed||0)*1000;
+    if(!p.tms.some(m=>m.rid===rid)&&(s.running||base>0))p.tms.push({rid,ms:base,startedAt:s.startedAt||0,running:!!s.running});
+    s.rid=null;s.running=false;s.startedAt=0;s.elapsed=0;s.ms=0;
+  }
+  return p.tms;
+}
+function tmOf(rid){return tmList().find(m=>m.rid===rid)||null;}
+function tmMs(m){return m.running?m.ms+Math.max(0,CLOCK.now()-m.startedAt):m.ms;}
+function tmSecs(m){return Math.floor(tmMs(m)/1000);}
+function tmTask(m){return reminders().find(r=>r.id===m.rid)||null;}
+function tmPause(m){if(!m.running)return;m.ms=tmMs(m);m.running=false;m.startedAt=0;savePomo();}
+function tmResume(m){if(m.running)return;m.running=true;m.startedAt=CLOCK.now();savePomo();}
+function tmStart(r){
+  const l=tmList();
+  if(l.length>=TM_MAX){flashToast(t('tm-max').replace('{n}',TM_MAX));return false;}
+  l.push({rid:r.id,ms:0,startedAt:CLOCK.now(),running:true});
+  savePomo();return true;
+}
 // Every time logged on a task, in seconds: what its record and its average are made of.
 function taskSecs(id){return timeLog().filter(e=>e.rid===id&&e.sec>0).map(e=>e.sec);}
 function tsLine(a){
@@ -6970,48 +7000,63 @@ function tsLine(a){
   return t('ts-line').replace('{n}',n).replace('{tot}',fmtSecs(tot)).replace('{avg}',fmtHMS(tot/n))
     .replace('{min}',fmtHMS(Math.min(...a))).replace('{max}',fmtHMS(Math.max(...a)));
 }
-function swStopTask(){
-  const s=swState(),r=swTask(),sec=swSeconds();
-  s.rid=null;
-  if(!r){swPause();render();return;}          // its task is gone: the time stays, for the picker
+/* A timer ends: its time goes on its task and it leaves the list. A faster time
+   than every one before is a record; under half a minute is a slip of the thumb.
+   If its task is gone the time is kept for the picker (on the free stopwatch when
+   that is idle), or logged under a name when it is not. */
+function tmSave(m){
+  const r=tmTask(m),sec=tmSecs(m),l=tmList();
+  l.splice(l.indexOf(m),1);
+  savePomo();
+  if(!r){
+    if(sec>0){
+      const s=swState();
+      if(!s.running&&swSeconds()===0){s.ms=m.ms;s.elapsed=sec;s.running=false;s.startedAt=0;savePomo();}
+      else logTime(sec,null,t('tm-gone'));
+    }
+    return null;
+  }
+  if(sec<=0)return{r,sec:0};
   const before=taskSecs(r.id);
-  swReset();
-  if(sec<=0){render();return;}
   const eid=logTime(sec,r);
-  render();
-  // Faster than every time before is a record. Under half a minute is a slip of the thumb.
   const rec=before.length&&sec>=30&&sec<Math.min(...before);
-  swLoggedToast((rec?'🏆 '+t('sw-record')+' ':'✓ ')+fmtHMS(sec)+' → '+r.title,r,eid);
+  return{r,sec,rec,eid};
+}
+function tmStop(m){
+  const o=tmSave(m);
+  render();
+  if(o&&o.sec>0)swLoggedToast((o.rec?'🏆 '+t('sw-record')+' ':'✓ ')+fmtHMS(o.sec)+' → '+o.r.title,o.r,o.eid);
 }
 /* A task's own ⏱, the same on the list and on its chips in the grid and the cross.
-   While it is the one being timed it shows the clock and pressing it saves. */
+   With no timer it starts one. With one it shows its clock, and pressing that
+   pauses or resumes it, with a ⏹ beside it that saves. */
 function swTaskBtn(r,openAfter){
-  const sw=swState(),mine=sw.rid===r.id&&(sw.running||swSeconds()>0);
-  const tb=bt('btn-icon'+(mine?' sw-on':''),mine?(sw.running?'⏹ ':'▶ ')+fmtHMS(swSeconds()):'⏱',
-    e=>{
+  const m=tmOf(r.id);
+  const open=()=>{STATE.editingRem=null;STATE.taskTree=r.id;render();};
+  if(!m){
+    const tb=bt('btn-icon','⏱',e=>{
       e.stopPropagation();
       swTaskPress(r);
       /* On a chip, starting the timer is also opening the task: the chip's own
          press does that, and this one stops short of it. Only when it started —
-         stopping is the end of the task, not a reason to open it. */
-      const s=swState();
-      if(openAfter&&s.rid===r.id&&s.running){STATE.editingRem=null;STATE.taskTree=r.id;render();}
+         pausing or saving is not a reason to open it. */
+      if(openAfter&&tmOf(r.id))open();
     });
-  if(mine&&sw.running)tb.dataset.swLive='1';
-  tb.title=mine?t('sw-stop-save'):t('sw-task-start');
-  return gate(tb,'stopwatch');
+    tb.title=t('sw-task-start');
+    return gate(tb,'stopwatch');
+  }
+  const wrap=dv('row gap4');wrap.style.cssText+=';display:inline-flex;flex-wrap:nowrap';
+  const main=bt('btn-icon sw-on',(m.running?'⏸ ':'▶ ')+fmtHMS(tmSecs(m)),e=>{e.stopPropagation();swTaskPress(r);});
+  main.dataset.tm=r.id;main.title=m.running?t('pomo-pause'):t('sw-resume');
+  const stop=bt('btn-icon','⏹',e=>{e.stopPropagation();tmStop(m);});
+  stop.title=t('sw-stop-save');
+  wrap.appendChild(main);wrap.appendChild(stop);
+  return gate(wrap,'stopwatch');
 }
 function swTaskPress(r){
-  const s=swState();
-  if(s.rid===r.id&&(s.running||swSeconds()>0)){
-    if(s.running)swStopTask();else{swStart();render();}
-    return;
-  }
-  if(s.running||swSeconds()>0){
-    if(swTask())swStopTask();                  // the other task's time is saved, never lost
-    else if(!confirm(t('sw-replace').replace('{t}',fmtSecs(swSeconds()))))return;
-  }
-  s.rid=r.id;swRestart();render();
+  const m=tmOf(r.id);
+  if(m){if(m.running)tmPause(m);else tmResume(m);render();return;}
+  if(tmStart(r))render();
 }
 /* What you most likely want next, having just put time on a task, is to be
    done with it — so that is what the notice offers: the very same press as
@@ -7070,6 +7115,34 @@ function flashToast(msg,actionLabel,action){
   setTimeout(()=>toast.remove(),actionLabel?6500:2600);
 }
 
+/* The task timers that are going, one block each: whose it is (its name opens the
+   task), its clock, and what can be done with it. The free stopwatch is below. */
+function renderTimerRows(w){
+  const l=tmList();
+  if(!l.length)return;
+  const box=dv('s6 mt8');box.dataset.tut='tm-list';
+  l.forEach(m=>{
+    const r=tmTask(m);
+    const c=dv('card2');c.style.padding='10px 12px';
+    const top=dv('row gap8');top.style.cssText+=';flex-wrap:nowrap;align-items:center';
+    const nm=sp('sm f1 ac w6',r?r.title:t('tm-gone'));
+    nm.style.cssText+=';min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer';
+    if(r){nm.title=t('rem-detail');nm.onclick=()=>{STATE.editingRem=null;STATE.taskTree=r.id;render();};}
+    const clk=sp('lg w8 mo',fmtHMS(tmSecs(m)));clk.dataset.tmclock=m.rid;clk.style.color='var(--ac)';
+    if(!m.running)clk.style.opacity='.6';
+    top.appendChild(nm);top.appendChild(clk);
+    c.appendChild(top);
+    const row=dv('row gap6 mt6');row.style.flexWrap='wrap';
+    row.appendChild(bt(m.running?'btn-ghost btn-xs':'btn-ac btn-xs',m.running?'⏸ '+t('pomo-pause'):'▶ '+t('sw-resume'),
+      ()=>{if(m.running)tmPause(m);else tmResume(m);render();}));
+    row.appendChild(bt(m.running?'btn-ac btn-xs':'btn-ghost btn-xs','⏹ '+t('sw-stop-save'),()=>tmStop(m)));
+    // Started on the wrong one: the time so far goes with it to the right one.
+    if(r)row.appendChild(bt('btn-ghost btn-xs','🔁 '+t('sw-change'),()=>{STATE.swRe=m.rid;STATE.swPick=true;STATE.swQ='';render();}));
+    c.appendChild(row);
+    box.appendChild(c);
+  });
+  w.appendChild(box);
+}
 function renderStopwatchPage(){
   const w=dv('');w.dataset.tut='sw-card';
   w.style.cssText='margin-top:14px;padding-top:12px;border-top:1px solid var(--b1)';
@@ -7090,6 +7163,7 @@ function renderStopwatchPage(){
   };
   hd.appendChild(stat);
   w.appendChild(hd);
+  renderTimerRows(w);
   const clock=dv('ctr xxl w8 mo mt6');
   clock.id='sw-clock';clock.style.color='var(--ac)';
   const cm=sp('');cm.id='sw-main';cm.textContent=fmtHMS(sec);
@@ -7102,14 +7176,6 @@ function renderStopwatchPage(){
     clock.appendChild(cf);
   }
   w.appendChild(clock);
-  const owner=swTask();
-  if(owner){
-    // Its name opens the task, the same as pressing the task anywhere else.
-    const on=dv('sm ctr mt4 ac w6','→ '+owner.title);
-    on.style.cursor='pointer';on.title=t('rem-detail');
-    on.onclick=()=>{STATE.editingRem=null;STATE.taskTree=owner.id;render();};
-    w.appendChild(on);
-  }
   if(s.running)swLoop();
   const row=dv('row gap8 mt10');row.style.flexWrap='wrap';
   // Pausing and saving are two things: this one only pauses, and a task's time has its own button to be saved.
@@ -7118,17 +7184,11 @@ function renderStopwatchPage(){
     ()=>{s.running?swPause():swStart();render();});
   swGo.dataset.tut='sw-go';
   row.appendChild(swGo);
-  // From the first moment: the clock is already counting for this task, even while the display still reads 0:00.
-  if(owner){
-    row.appendChild(bt(s.running?'btn-ac btn-sm':'btn-ghost btn-sm','⏹ '+t('sw-stop-save'),swStopTask));
-    // Started on the wrong one: the time so far goes with it to the right one.
-    row.appendChild(bt('btn-ghost btn-sm','🔁 '+t('sw-change'),()=>{STATE.swRe=true;STATE.swPick=true;STATE.swQ='';render();}));
-  }
   // One press and it starts over from zero, already running — no question,
   // and no second press on Start.
   row.appendChild(bt('btn-ghost btn-sm',t('pomo-reset'),()=>{swRestart();render();}));
   // Stopped with time on it: the way to put it on a task sits in the same row.
-  if(!s.running&&sec>0&&!owner){
+  if(!s.running&&sec>0){
     const swAdd=bt('btn-ac btn-sm',t('sw-add'),()=>{STATE.swRe=false;STATE.swPick=true;STATE.swQ='';render();});
     swAdd.dataset.tut='sw-add';
     row.appendChild(swAdd);
@@ -7149,9 +7209,10 @@ function renderSwPick(){
      only where it belongs changes. */
   const mvE=STATE.swMove?timeLog().find(e=>e.id===STATE.swMove):null;
   if(STATE.swMove&&!mvE)STATE.swMove=null;
-  const sec=mvE?mvE.sec:swSeconds();
-  // A third errand: the running stopwatch changes task, keeping what it has counted. Only while it has one.
-  const re=!mvE&&!!STATE.swRe&&!!swTask();
+  // A third errand: a task timer changes task, keeping what it has counted. Only while it still exists.
+  const reM=!mvE&&STATE.swRe?tmOf(STATE.swRe):null;
+  const re=!!reM;
+  const sec=mvE?mvE.sec:re?tmSecs(reM):swSeconds();
   const close=()=>{STATE.swPick=false;STATE.swMove=null;STATE.swRe=false;render();};
   const ov=dv('fi');ov.classList.add('ovl');
   closeOnBackdrop(ov,close);
@@ -7182,7 +7243,8 @@ function renderSwPick(){
     if(re){
       // Nothing is logged and the clock is not touched: only whose it is.
       if(!r)return;
-      swState().rid=r.id;savePomo();
+      if(r.id!==reM.rid&&tmOf(r.id)){flashToast(t('tm-has'));return;}   // it already has a timer of its own
+      reM.rid=r.id;savePomo();
       STATE.swPick=false;STATE.swRe=false;render();
       flashToast('→ '+r.title);
       return;
@@ -13722,10 +13784,14 @@ setInterval(()=>{
   // The stopwatch's own clock, patched in place like the timer's.
   // (the per-frame loop does this while the tab is in front; this beat keeps
   // it right when frames are not being handed out)
-  if(p&&p.sw&&p.sw.running){
-    paintSw();
-    document.querySelectorAll('[data-sw-live]').forEach(b=>{b.textContent='⏹ '+fmtHMS(swSeconds());});
-  }
+  if(p&&p.sw&&p.sw.running)paintSw();
+  // Each task timer's clock, wherever it is drawn: its ⏱ on a row or chip, its block in the card.
+  if(p&&p.tms)p.tms.forEach(m=>{
+    if(!m.running)return;
+    const txt=fmtHMS(tmSecs(m));
+    document.querySelectorAll('[data-tm="'+m.rid+'"]').forEach(b=>{b.textContent='⏸ '+txt;});
+    document.querySelectorAll('[data-tmclock="'+m.rid+'"]').forEach(b=>{b.textContent=txt;});
+  });
   if(p&&p.running){
     const mini=document.getElementById('pomo-mini');
     if(mini)mini.textContent=(p.phase==='focus'?'🍅 ':'☕ ')+fmtClock(pomoRemaining(p));
