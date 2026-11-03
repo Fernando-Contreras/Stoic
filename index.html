@@ -517,6 +517,8 @@ button{cursor:pointer;font-family:var(--ff);font-size:15px;font-weight:600;borde
 .cal-scroll{height:340px;overflow-y:auto;position:relative;border:1px solid var(--b1);
   border-radius:10px;background:var(--sur2);touch-action:pan-y pinch-zoom}
 .cal-grid{position:relative;margin-left:44px;margin-right:6px;user-select:none;-webkit-user-select:none}
+/* Zoomed in, the page is moved around by hand, so nothing keeps the sideways half of a drag. */
+html.zoomed *{touch-action:auto!important}
 .cal-hr{position:absolute;left:-44px;width:38px;text-align:right;font-size:10px;color:var(--t3);transform:translateY(-6px)}
 .cal-line{position:absolute;left:0;right:0;border-top:1px solid var(--b1)}
 .cal-block{position:absolute;box-sizing:border-box;border-radius:8px;padding:2px 6px;font-size:11px;
@@ -6049,12 +6051,16 @@ function renderPlanner(){
   if(V.scope==='today'&&!V.closedOpen&&!STATE.selecting){
     card.style.touchAction='pan-y pinch-zoom';
     let sx=null,sy=null,drag=false,swallow=false;
+    // A pinch is never a swipe, and neither is anything done while zoomed in (see swipeBlocked).
+    const calm=()=>{card.style.transition='transform .18s ease,opacity .18s ease';card.style.transform='';card.style.opacity='';};
     card.addEventListener('pointerdown',e=>{
       if(e.pointerType==='mouse'&&e.button!==0)return;
+      if(swipeBlocked(e)){sx=null;if(drag){drag=false;calm();}return;}
       sx=e.clientX;sy=e.clientY;drag=false;
     });
     card.addEventListener('pointermove',e=>{
       if(sx===null)return;
+      if(swipeBlocked(e)){sx=null;drag=false;calm();return;}
       const dx=e.clientX-sx,dy=e.clientY-sy;
       if(!drag){
         if(Math.abs(dx)<8)return;
@@ -6079,7 +6085,8 @@ function renderPlanner(){
       drag=false;
     };
     card.addEventListener('pointerup',endSwipe);
-    card.addEventListener('pointercancel',endSwipe);
+    // Cancelled by the browser (it took the gesture for a pinch or a scroll): nothing was decided.
+    card.addEventListener('pointercancel',()=>{sx=null;drag=false;calm();});
     card.addEventListener('click',e=>{if(swallow){swallow=false;e.stopPropagation();e.preventDefault();}},true);
   }
   // The buttons drop to a line of their own, together, when the title needs the room.
@@ -10777,6 +10784,22 @@ function histMap(){
 /* ═══ CALENDAR — #5 pts visible, #8 flag glow ═══ */
 /* Picking a day no longer opens the day underneath the grid; it fills the panel
    beside it, which is where the note now lives. onPick redraws that panel. */
+/* What a sideways drag has to ignore. A pinch is two fingers, and while they
+   move apart they also move sideways — read as a swipe, it changed the day under
+   the zoom; and the browser ends a pinch with a cancel, which must not count as a
+   release. Zoomed in, a drag is the page being moved around, not a day being
+   turned: then the swipe zones give the touch back (the `zoomed` class). */
+const _touchIds=new Set();
+['pointerdown','pointerup','pointercancel'].forEach(ev=>window.addEventListener(ev,e=>{
+  if(e.pointerType!=='touch')return;
+  if(ev==='pointerdown')_touchIds.add(e.pointerId);else _touchIds.delete(e.pointerId);
+},true));
+function pageZoomed(){const v=window.visualViewport;return !!v&&v.scale>1.02;}
+function swipeBlocked(e){return (e.pointerType==='touch'&&(_touchIds.size>1||e.isPrimary===false))||pageZoomed();}
+if(window.visualViewport){
+  const zc=()=>document.documentElement.classList.toggle('zoomed',pageZoomed());
+  visualViewport.addEventListener('resize',zc);
+}
 function renderCalendar(onPick){
   const wrap=dv('card');wrap.dataset.tut='month-cal';const now=new Date();
   if(!STATE.calYM)STATE.calYM={y:now.getFullYear(),m:now.getMonth()};
@@ -10795,12 +10818,15 @@ function renderCalendar(onPick){
   wrap.style.touchAction='pan-y pinch-zoom';
   let sx=null,sy=null,drag=false,swallow=false;
   const gridEl=()=>wrap.querySelector('.cal-g');
+  const calm=()=>{const g=gridEl();if(g){g.style.transition='transform .18s ease,opacity .18s ease';g.style.transform='';g.style.opacity='';}};
   wrap.addEventListener('pointerdown',e=>{
     if(e.pointerType==='mouse'&&e.button!==0)return;
+    if(swipeBlocked(e)){sx=null;if(drag){drag=false;calm();}return;}
     sx=e.clientX;sy=e.clientY;drag=false;
   });
   wrap.addEventListener('pointermove',e=>{
     if(sx===null)return;
+    if(swipeBlocked(e)){sx=null;drag=false;calm();return;}
     const dx=e.clientX-sx,dy=e.clientY-sy;
     if(!drag){
       if(Math.abs(dx)<8)return;
@@ -10820,7 +10846,7 @@ function renderCalendar(onPick){
     drag=false;
   };
   wrap.addEventListener('pointerup',endSwipe);
-  wrap.addEventListener('pointercancel',endSwipe);
+  wrap.addEventListener('pointercancel',()=>{sx=null;drag=false;calm();});
   wrap.addEventListener('click',e=>{if(swallow){swallow=false;e.stopPropagation();e.preventDefault();}},true);
   const isLight=document.body.classList.contains('light');
   const sBg=isLight
