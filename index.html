@@ -990,6 +990,16 @@ const TUT_STAGES={
     {id:'swStop',  tab:'plan', target:'[data-tut="sw-go"]',  text:'tut2-swstop', latch:true, done:()=>!swState().running},
     {id:'swAdd',   tab:'plan', target:'[data-tut="sw-add"]', text:'tut2-swadd',  temp:true, latch:true, done:()=>STATE.swPick||swSeconds()===0},
     {id:'swPick',  target:'[data-tut="sw-pick"]', win:'swPick', soft:true, text:'tut2-swpick', latch:true, done:()=>!STATE.swPick&&TUT.run.peek==null},
+    // Where that time went: Score, and the card is walked with its own controls.
+    {id:'tlGo',    target:'[data-tut="tab-score"]',         text:'tut2-tlgo',   latch:true, done:()=>STATE.tab==='score'},
+    {id:'tlCard',  tab:'score', target:'[data-tut="tl-card"]', text:'tut2-tlcard', manual:true, free:true},
+    {id:'tlRow',   tab:'score', target:()=>document.querySelector('[data-tut="tl-row"]')||document.querySelector('[data-tut="tl-card"]'),
+                   text:'tut2-tlrow', manual:true, free:true, auto:()=>STATE.tlOpen},
+    {id:'tlEntry', tab:'score', target:()=>document.querySelector('[data-tut="tl-det"]')||document.querySelector('[data-tut="tl-card"]'),
+                   text:'tut2-tlentry', manual:true, free:true,
+                   enter:()=>{if(!STATE.tlOpen){const l=document.querySelector('[data-tut="tl-row"]');if(l)l.click();}},
+                   after:()=>{STATE.tlOpen=null;STATE.tlEdit=null;render();}},
+    {id:'tlBack',  target:'[data-tut="tab-plan"]',          text:'tut2-back',   latch:true, done:()=>STATE.tab==='plan'},
     {id:'goals',   tab:'plan', target:'[data-tut="goal-tiles"]', text:'tut2-goals', temp:true, latch:true, done:()=>STATE.showGoals},
     {id:'goalAdd', target:'[data-tut="goal-in"]', soft:true, win:'showGoals', enter:tutFocus('[data-tut="goal-in"]'), text:'tut2-goaladd',
                    done:c=>c.newGoals()>0||tutFilled('goal-in')},
@@ -2185,6 +2195,10 @@ en:{
   'tut2-swstop':'Now stop it.',
   'tut2-swadd':'Add that time to a task.',
   'tut2-swpick':'Pick one. Score will show where your day went.',
+  'tut2-tlgo':'That time is saved. Let\'s see where it went: tap Score.',
+  'tut2-tlcard':'Here is where your time went: the total, how much went to 🏁 flags, and how many tasks. Up top you choose the period, or only flags. Try them.',
+  'tut2-tlrow':'Tap a task to see each time you timed it.',
+  'tut2-tlentry':'Each time lives here. ✎ fixes its day or minutes, ↪ moves it to another task, ✕ deletes it.',
   'tut2-goals':'Your 🏁 today is surely a step toward something bigger: a goal for the week, the quarter or the year. Let\'s set it. Tap here.',
   'tut2-goaladd':'Write a goal for this week. Tip: make it specific and measurable, like "Run 5 km on Saturday". The sooner you reach it, the more it is worth.',
   'tut2-goalgo':'Tap "+ Add goal".',
@@ -2556,6 +2570,10 @@ es:{
   'tut2-swstop':'Ahora detenlo.',
   'tut2-swadd':'Súmale ese tiempo a una tarea.',
   'tut2-swpick':'Elige una. En Puntaje verás en qué se te fue el día.',
+  'tut2-tlgo':'Ese tiempo ya quedó guardado. Veamos a dónde se fue: toca Puntaje.',
+  'tut2-tlcard':'Aquí ves en qué se te fue el tiempo: el total, cuánto fue a 🏁 banderas y cuántas tareas. Arriba eliges el periodo, o solo banderas. Pruébalos.',
+  'tut2-tlrow':'Toca una tarea para ver cada vez que la cronometraste.',
+  'tut2-tlentry':'Cada vez queda aquí. ✎ corrige el día o los minutos, ↪ lo pasa a otra tarea y ✕ lo borra.',
   'tut2-goals':'Tu 🏁 de hoy seguro es un paso hacia algo más grande: una meta de la semana, del trimestre o del año. Vamos a ponerla. Toca aquí.',
   'tut2-goaladd':'Escribe una meta de esta semana. Tip: que sea específica y medible, como «Correr 5 km el sábado». Mientras antes la cumplas, más vale.',
   'tut2-goalgo':'Toca «+ Agregar meta».',
@@ -7065,7 +7083,7 @@ function renderCalModal(){
    to the entries behind it, each of which can be taken back out. */
 function renderTimeLogCard(){
   const tk=todayKey();
-  const card=dv('card mt12');card.id='timelog-card';
+  const card=dv('card mt12');card.id='timelog-card';card.dataset.tut='tl-card';
   let range='week';try{range=localStorage.getItem('st_tlrange')||'week';}catch(e){}
   if(!['today','week','month','all'].includes(range))range='week';
   const hd=dv('rowb mb8');hd.style.flexWrap='wrap';hd.style.gap='6px';
@@ -7121,7 +7139,7 @@ function renderTimeLogCard(){
   const list=dv('s6');
   rows.forEach(g=>{
     const box=dv('');
-    const line=dv('row gap8');line.style.cursor='pointer';
+    const line=dv('row gap8');line.style.cursor='pointer';line.dataset.tut='tl-row';
     line.appendChild(sp('',g.flag?'🏁':'•'));
     const ti=sp('sm f1',g.title);ti.style.cssText='min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
     line.appendChild(ti);
@@ -7131,7 +7149,7 @@ function renderTimeLogCard(){
     const bar=dv('tl-bar');const fill=document.createElement('i');fill.style.width=Math.max(2,Math.round(g.sec/max*100))+'%';
     bar.appendChild(fill);box.appendChild(bar);
     if(STATE.tlOpen===g.key){
-      const det=dv('s4 mt6');
+      const det=dv('s4 mt6');det.dataset.tut='tl-det';
       g.items.slice().sort((a,b)=>b.date.localeCompare(a.date)||b.at-a.at).forEach(e=>{
         if(STATE.tlEdit===e.id){
           /* A slip is fixed where it shows: the day and the minutes. Never a
