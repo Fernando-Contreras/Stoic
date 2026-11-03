@@ -9117,12 +9117,17 @@ function render(){
      with a fade, and drawing it anew each time made the whole calendar blink
      out and back on every single change. See renderCalModal. */
   _calStaysOpen=!!root.querySelector('.cal-big');
+  /* The same goes for every other window: a pop-up drawn again because a timer
+     started or a box was ticked behind it is the same pop-up, not a new one. */
+  const ovlSig=o=>{const p=o.firstElementChild;return (p?p.className+'|'+(p.dataset.tut||''):'')+'|'+((o.querySelector('.ctit')||{}).textContent||'');};
+  const seenOvl=new Set([...root.querySelectorAll('.ovl')].map(ovlSig));
   root.innerHTML='';
   if(STATE.recovery){root.appendChild(renderRecovery());return;}
   if(!STATE.authed){root.appendChild(renderLogin());return;}
   // A locked tab cannot be the one on screen (a stage chosen after it was open).
   if(STATE.tab==='score'&&!featureOn('tabScore'))STATE.tab='plan';
   root.appendChild(renderApp());
+  if(seenOvl.size)root.querySelectorAll('.ovl.fi').forEach(o=>{if(seenOvl.has(ovlSig(o)))o.classList.remove('fi');});
   applyFeatureGates(root);
   tutTick();
   checkMilestone();
