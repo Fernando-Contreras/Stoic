@@ -7396,6 +7396,8 @@ function renderSwPick(){
   };
   qi.oninput=()=>{STATE.swQ=qi.value;draw();};
   draw();
+  // Ready to type the moment it opens; to pick without words, scroll.
+  setTimeout(()=>{if(qi.isConnected)qi.focus();},0);
 
   // Something that is not a task: its name, and what you typed before.
   const oi=ip('text','','',t('sw-other-ph'));
