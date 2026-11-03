@@ -638,8 +638,11 @@ html.zoomed *{touch-action:auto!important}
 #sw-pill.stack{bottom:102px}
 #sw-pill .sp-dot{width:8px;height:8px;border-radius:50%;background:var(--cr);flex:none;animation:spBlink 1.2s ease-in-out infinite}
 #sw-pill.paused .sp-dot{animation:none;background:var(--t3)}
-#sw-pill .sp-cl{font-weight:700;font-variant-numeric:tabular-nums;color:var(--ac)}
-#sw-pill .sp-t{font-size:12px;color:var(--t2);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* The clock never wraps or shrinks — a long task name gave it the leftover room, which
+   was none, and it broke over two lines. The name is what gives way, with an ellipsis. */
+#sw-pill .sp-cl{font-weight:700;font-variant-numeric:tabular-nums;color:var(--ac);flex:none;white-space:nowrap}
+#sw-pill .sp-dot{flex:none}
+#sw-pill .sp-t{font-size:12px;color:var(--t2);flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 @keyframes spBlink{50%{opacity:.2}}
 @media(max-width:700px){
   #sw-pill{right:calc(14px + env(safe-area-inset-right,0px));bottom:calc(80px + env(safe-area-inset-bottom,0px))}
