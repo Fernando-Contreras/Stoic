@@ -620,6 +620,31 @@ button{cursor:pointer;font-family:var(--ff);font-size:15px;font-weight:600;borde
   }
 }
 @media(prefers-reduced-motion:reduce){#pomo-pill{transition:none}}
+/* The stopwatch's bubble: the same idea as the timer's, a pill with a blinking dot
+   like a camera recording. With the timer's bubble also out it sits on top of it. */
+#sw-pill{
+  position:fixed;z-index:60;right:18px;bottom:18px;height:40px;max-width:min(240px,70vw);
+  display:flex;align-items:center;gap:8px;padding:0 14px 0 12px;border-radius:99px;
+  background:var(--sur);border:1px solid var(--acb);color:var(--t1);font:inherit;
+  box-shadow:0 6px 22px rgba(0,0,0,.34);cursor:pointer;
+  opacity:0;transform:translateY(8px) scale(.9);
+  transition:opacity .22s ease,transform .22s cubic-bezier(.2,.9,.3,1.3),bottom .25s ease;
+  -webkit-tap-highlight-color:transparent;
+}
+#sw-pill.on{opacity:1;transform:none}
+#sw-pill.paused.on{opacity:.62}
+#sw-pill.stack{bottom:102px}
+#sw-pill .sp-dot{width:8px;height:8px;border-radius:50%;background:var(--cr);flex:none;animation:spBlink 1.2s ease-in-out infinite}
+#sw-pill.paused .sp-dot{animation:none;background:var(--t3)}
+#sw-pill .sp-cl{font-weight:700;font-variant-numeric:tabular-nums;color:var(--ac)}
+#sw-pill .sp-t{font-size:12px;color:var(--t2);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+@keyframes spBlink{50%{opacity:.2}}
+@media(max-width:700px){
+  #sw-pill{right:calc(14px + env(safe-area-inset-right,0px));bottom:calc(80px + env(safe-area-inset-bottom,0px))}
+  #sw-pill.stack{bottom:calc(156px + env(safe-area-inset-bottom,0px))}
+}
+@media(prefers-reduced-motion:reduce){#sw-pill{transition:none}#sw-pill .sp-dot{animation:none}}
+.sw-on{color:var(--ac);font-weight:700;font-variant-numeric:tabular-nums;border:1px solid var(--acb);border-radius:99px;padding:2px 8px}
 
 /* ═══════════════════════════════════════════════════════════════════════
    ── PHONE ──
@@ -894,6 +919,11 @@ const tutFilled=tag=>{const i=document.querySelector('[data-tut="'+tag+'"]');ret
 const tutTitled=()=>tutFilled('add-title');
 const tutFocus=sel=>()=>{const i=document.querySelector(sel);if(i)i.focus();};
 const tutFocusTitle=tutFocus('[data-tut="add-title"]');
+// An example already in the title, so the step is pressing, not typing. Left alone if something is written.
+const tutPrefill=v=>()=>{
+  const i=document.querySelector('[data-tut="add-title"]');
+  if(i&&!i.value.trim()){i.value=typeof v==='function'?v():v;i.dispatchEvent(new Event('input',{bubbles:true}));}
+};
 const tutClose=k=>()=>{STATE[k]=false;render();};
 // The steps of one add form, which Back can walk among while it stays open.
 const tutForm=n=>({win:'showAddForm',form:n});
@@ -941,13 +971,13 @@ const TUT_STAGES={
     {id:'hi',      manual:true, btn:'tut-start', lang:true, text:'tut1-hi',    done:c=>c.count()>0},
     {id:'howto',   manual:true, lang:true,                  text:'tut1-howto', done:c=>c.count()>0},
     {id:'plus',    tab:'plan', target:'[data-tut="add"]',   text:'tut1-plus',  done:c=>STATE.showAddForm||c.count()>=1},
-    {id:'type',    ...tutForm(1), target:'[data-tut="add-title"]', soft:true, text:'tut1-type', done:c=>c.count()>=1||tutTitled()},
+    {id:'type',    ...tutForm(1), target:'[data-tut="add-title"]', soft:true, manual:true, enter:tutPrefill('🛏️🛏️🛏️'), text:'tut1-type', done:c=>c.count()>=1},
     {id:'time',    ...tutForm(1), target:'[data-tut="add-time"]',  soft:true, manual:true, enter:tutSuggest(1), text:'tut1-time', done:c=>c.count()>=1},
     {id:'addIt',   ...tutForm(1), target:'[data-tut="add-go"]',    soft:true, text:'tut1-add',  done:c=>c.count()>=1},
     {id:'plus2',   tab:'plan', target:'[data-tut="add"]',   text:'tut1-plus2', done:c=>STATE.showAddForm||c.count()>=2},
     {id:'flag',    ...tutForm(2), target:'[data-tut="add-flag"]',  soft:true, text:'tut1-flag',
                    done:c=>c.count()>=2||!!(document.querySelector('[data-tut="add-flag"] input')||{}).checked},
-    {id:'type2',   ...tutForm(2), target:'[data-tut="add-title"]', soft:true, enter:tutFocusTitle, text:'tut1-type2', done:c=>c.count()>=2||tutTitled()},
+    {id:'type2',   ...tutForm(2), target:'[data-tut="add-title"]', soft:true, manual:true, enter:tutPrefill('🏃🏃🏃'), text:'tut1-type2', done:c=>c.count()>=2},
     {id:'time2',   ...tutForm(2), target:'[data-tut="add-time"]',  soft:true, manual:true, enter:tutSuggest(2), text:'tut1-time', done:c=>c.count()>=2},
     {id:'addIt2',  ...tutForm(2), target:'[data-tut="add-go"]',    soft:true, text:'tut1-add',  done:c=>c.count()>=2},
     // How the list can be shown, one control at a time, while it has something on it.
@@ -1039,8 +1069,8 @@ const TUT_STAGES={
     {id:'weekIn',  target:'[data-tut="week-panel"]',  win:'showWeek', text:'tut3-wkin',  manual:true, free:true, after:tutClose('showWeek')},
     // The whole form, a part at a time, ending in a real task: the steps after it need one.
     {id:'more',    tab:'plan', target:'[data-tut="add"]', text:'tut3-more', temp:true, latch:true, done:()=>STATE.showAddForm},
-    {id:'fNlp',    target:'[data-tut="add-title"]',   ...tutForm(4), soft:true, manual:true, latch:true, enter:tutFocusTitle, text:'tut3-fnlp',
-                   done:()=>tutChip()&&Date.now()-(TUT.typed['add-title']||0)>800},
+    {id:'fNlp',    target:'[data-tut="add-title"]',   ...tutForm(4), soft:true, manual:true, latch:true, enter:tutPrefill(()=>t('tut3-fnlp-ex')), text:'tut3-fnlp',
+                   done:c=>c.count()>=1},
     {id:'fNlpGo',  target:'[data-tut="add-nlp"]',     ...tutForm(4), soft:true, latch:true, text:'tut3-fnlpgo', done:c=>!tutChip()||c.count()>=1},
     {id:'fQuad',   target:'[data-tut="add-quad"]',    ...tutForm(4), soft:true, manual:true, text:'tut3-fquad'},
     {id:'fTags',   target:'[data-tut="add-tags"]',    ...tutForm(4), soft:true, manual:true, text:'tut3-ftags'},
@@ -2163,12 +2193,12 @@ en:{
   'tut1-hi':'Welcome to Stoic 🏛️\nYour day is measured by a list of tasks and a colour. I will show you in 3 parts.',
   'tut1-howto':'In a hurry?\n⏸ Pause: use the app and continue later.\nSkip: jump this part, or all of it.\n← Back: read again.',
   'tut1-plus':'Let us make your list. Tap the ＋.',
-  'tut1-type':'Write something for today, like "Make the bed".',
+  'tut1-type':'Example already written: 🛏️🛏️🛏️ = make the bed. With emojis your tasks read at a glance. Change it if you like and tap Next.',
   'tut1-time':'I suggested this time. Change it if you like, or press Next.',
   'tut1-add':'Tap "Add".',
   'tut1-plus2':'Now the most important thing today. Tap the ＋.',
   'tut1-flag':'Turn on 🏁 Goal of the day: it is what matters most today.',
-  'tut1-type2':'Write it.',
+  'tut1-type2':'Example already written: 🏃🏃🏃 = go for a run. Tap Next.',
   'tut1-vscope':'"All" shows everything pending. "Today", only today and what is overdue. Tap one.',
   'tut1-vlayout':'Tap ▦ to see your list in squares.',
   'tut1-vlayout2':'More fits at a glance. Go back to ☰.',
@@ -2191,10 +2221,10 @@ en:{
   'tut2-streak':'Your streaks: days in a row doing something. 🕯️ counts days without red; a red day takes it back to zero.',
   'tut2-back':'Go back to Plan.',
   'tut2-pomo':'Pomodoro: 25 minutes of focus, then a break. Each one adds points. Tap ▶, or Next if not now.',
-  'tut2-sw':'Stopwatch: it times what you do. Tap ▶.',
+  'tut2-sw':'Stopwatch: to compete with yourself. Beat your record on a task, or pile up hours on a project. Tap ▶.',
   'tut2-swstop':'Now stop it.',
   'tut2-swadd':'Add that time to a task.',
-  'tut2-swpick':'Pick one. Score will show where your day went.',
+  'tut2-swpick':'Pick one. Tip: in list view each task has its own ⏱; stop it and the time goes on that task by itself.',
   'tut2-tlgo':'That time is saved. Let\'s see where it went: tap Score.',
   'tut2-tlcard':'Here is where your time went: the total, how much went to 🏁 flags, and how many tasks. Up top you choose the period, or only flags. Try them.',
   'tut2-tlrow':'Tap a task to see each time you timed it.',
@@ -2234,11 +2264,11 @@ en:{
   'tut3-dayorder':'Tasks with no time wait here. Tap 🪄 Lay out: it shares them out over your day, what matters most first.',
   'tut3-dayplaced':'Done. Play with it for a while, moving tasks around: ↩️ Undo takes back anything you do here.',
   'tut3-more':'The ＋ now does more. Tap it.',
-  'tut3-fquad':'Quadrant: how urgent and important it is. Pick one.',
-  'tut3-ftags':'Tags: they group tasks so you can filter them. Pick one if you like.',
+  'tut3-fquad':'Quadrant, by its emoji: 🚨1️⃣ urgent and important · 👑2️⃣ important, not urgent · 🤖3️⃣ urgent, not important · 🤏🏼4️⃣ neither. Pick one.',
+  'tut3-ftags':'Tags group tasks so you can filter them. They are pure emoji: 🌞🌻 morning · 🩳🩳🩳 quick · ☝🏼⏳ once a week. Pick one if you like.',
   'tut3-frep':'Repeat: when you finish it, the task returns on its next date.',
   'tut3-fmorn':'🏁 Goal of the day and 🌅 Morning routine: each one has its own streak.',
-  'tut3-fnlp':'Now a complete task, starting with its title. It understands dates, so write "Call mom tomorrow 5pm".',
+  'tut3-fnlp':'Now a complete task. Example already written: 📞👩 tomorrow 5pm = call mom. It understands dates. Tap Next.','tut3-fnlp-ex':'📞👩 tomorrow 5pm',
   'tut3-fnlpgo':'Tap here and it fills in the date and time.',
   'tut3-swipe':'Slide this list to the left to see the next day. With a mouse, drag it.',
   'tut3-swipe2':'Slide it to the right to come back.',
@@ -2328,6 +2358,9 @@ en:{
   'tl-none-range':'Nothing logged in this period.','tl-del':'Remove this entry',
   'tl-edit':'Fix the day or the minutes','tl-move':'Move to another task','tl-move-to':'Move this time to…',
   'tl-save':'Save','tl-cancel':'Cancel','tl-only-flags':'🏁 Flags only','tl-change':'Change task','tl-complete':'Complete task','tl-completed':'Done: "{t}"',
+  'sw-record':'New record!','sw-replace':'The stopwatch has {t} with no task. Start over at zero for this one?',
+  'sw-stop-save':'Stop and save','sw-task-start':'Time this task',
+  'ts-line':'{n} times · total {tot} · average {avg} · fastest {min} · slowest {max}',
   'cal-untimed':'No time','cal-tray-empty':'every task has a time',
   'cal-hint':'Drag a task onto the hours to give it a time, and off them to take it away; on a phone, hold it a moment first. Drag the bottom edge to change how long it is drawn — the list only ever shows when it starts.',
   'cal-arrange':'🪄 Lay out',
@@ -2538,12 +2571,12 @@ es:{
   'tut1-hi':'Te damos la bienvenida a Stoic 🏛️\nTu día se mide con una lista de tareas y un color. Te lo enseño en 3 partes.',
   'tut1-howto':'¿Con prisa?\n⏸ Pausar: usa la app y sigue después.\nSaltar: brinca esta parte, o todo.\n← Atrás: vuelve a leer.',
   'tut1-plus':'Vamos a hacer tu lista. Toca el ＋.',
-  'tut1-type':'Escribe algo para hoy, como «Tender la cama».',
+  'tut1-type':'Ejemplo ya escrito: 🛏️🛏️🛏️ = tender la cama. Con emojis tus tareas se leen de un vistazo. Cámbialo si quieres y dale Siguiente.',
   'tut1-time':'Te sugerí esta hora. Cámbiala si quieres, o dale Siguiente.',
   'tut1-add':'Toca «Agregar».',
   'tut1-plus2':'Ahora lo más importante de hoy. Toca el ＋.',
   'tut1-flag':'Prende 🏁 Meta del día: es lo que más importa hoy.',
-  'tut1-type2':'Escríbela.',
+  'tut1-type2':'Ejemplo ya escrito: 🏃🏃🏃 = salir a correr. Dale Siguiente.',
   'tut1-vscope':'«Todos» enseña todo lo pendiente. «Hoy», solo lo de hoy y lo atrasado. Toca uno.',
   'tut1-vlayout':'Toca ▦ para ver tu lista en cuadritos.',
   'tut1-vlayout2':'Así cabe más de un vistazo. Regresa a ☰.',
@@ -2566,10 +2599,10 @@ es:{
   'tut2-streak':'Tus rachas: días seguidos haciendo algo. 🕯️ cuenta días sin rojo; un día rojo la regresa a cero.',
   'tut2-back':'Regresa a Plan.',
   'tut2-pomo':'Pomodoro: 25 minutos de enfoque y un descanso. Cada uno suma puntos. Dale ▶, o Siguiente si no es momento.',
-  'tut2-sw':'Cronómetro: mide cuánto te toma algo. Dale ▶.',
+  'tut2-sw':'Cronómetro: para competir contra ti. Rompe tu récord en una tarea o junta horas en un proyecto. Dale ▶.',
   'tut2-swstop':'Ahora detenlo.',
   'tut2-swadd':'Súmale ese tiempo a una tarea.',
-  'tut2-swpick':'Elige una. En Puntaje verás en qué se te fue el día.',
+  'tut2-swpick':'Elige una. Tip: en modo lista cada tarea trae su ⏱; al detenerlo, el tiempo se le suma solo.',
   'tut2-tlgo':'Ese tiempo ya quedó guardado. Veamos a dónde se fue: toca Puntaje.',
   'tut2-tlcard':'Aquí ves en qué se te fue el tiempo: el total, cuánto fue a 🏁 banderas y cuántas tareas. Arriba eliges el periodo, o solo banderas. Pruébalos.',
   'tut2-tlrow':'Toca una tarea para ver cada vez que la cronometraste.',
@@ -2609,11 +2642,11 @@ es:{
   'tut3-dayorder':'Las tareas sin hora esperan aquí. Toca 🪄 Acomodar: las reparte en tu día, lo más importante primero.',
   'tut3-dayplaced':'Listo. Juega un rato moviendo tareas: ↩️ Deshacer regresa lo que hagas aquí.',
   'tut3-more':'El ＋ ahora trae más. Tócalo.',
-  'tut3-fquad':'Cuadrante: qué tan urgente e importante es. Elige uno.',
-  'tut3-ftags':'Etiquetas: agrupan tareas para filtrarlas. Elige una si quieres.',
+  'tut3-fquad':'Cuadrante, por su emoji: 🚨1️⃣ urgente e importante · 👑2️⃣ importante, no urgente · 🤖3️⃣ urgente, no importante · 🤏🏼4️⃣ ni uno ni otro. Elige uno.',
+  'tut3-ftags':'Las etiquetas agrupan tareas para filtrarlas. Son puro emoji: 🌞🌻 mañana · 🩳🩳🩳 cortas · ☝🏼⏳ una vez a la semana. Elige una si quieres.',
   'tut3-frep':'Repetir: al terminarla, la tarea regresa en su siguiente fecha.',
   'tut3-fmorn':'🏁 Meta del día y 🌅 Rutina matutina: cada una tiene su propia racha.',
-  'tut3-fnlp':'Ahora una tarea completa, empezando por el título. Entiende fechas: escribe «Llamar a mamá mañana 5pm».',
+  'tut3-fnlp':'Ahora una tarea completa. Ejemplo ya escrito: 📞👩 mañana 5pm = llamar a mamá. Entiende fechas. Dale Siguiente.','tut3-fnlp-ex':'📞👩 mañana 5pm',
   'tut3-fnlpgo':'Toca aquí y llena la fecha y la hora sola.',
   'tut3-swipe':'Desliza esta lista a la izquierda para ver el día siguiente. Con mouse, arrástrala.',
   'tut3-swipe2':'Deslízala a la derecha para regresar.',
@@ -2703,6 +2736,9 @@ es:{
   'tl-none-range':'Nada registrado en este periodo.','tl-del':'Quitar este registro',
   'tl-edit':'Corregir el día o los minutos','tl-move':'Mover a otra tarea','tl-move-to':'Mover este tiempo a…',
   'tl-save':'Guardar','tl-cancel':'Cancelar','tl-only-flags':'🏁 Solo banderas','tl-change':'Cambiar tarea','tl-complete':'Completar tarea','tl-completed':'Hecha: "{t}"',
+  'sw-record':'¡Nuevo récord!','sw-replace':'El cronómetro trae {t} sin tarea. ¿Lo pongo en cero para esta?',
+  'sw-stop-save':'Detener y guardar','sw-task-start':'Cronometrar esta tarea',
+  'ts-line':'{n} veces · total {tot} · promedio {avg} · más rápida {min} · más lenta {max}',
   'cal-untimed':'Sin hora','cal-tray-empty':'todas tienen hora',
   'cal-hint':'Arrastra una tarea a las horas para darle hora, y fuera de ellas para quitársela; en celular, déjala apretada un momento primero. Arrastra el borde de abajo para cambiar cuánto dura en el dibujo — la lista solo muestra a qué hora empieza.',
   'cal-arrange':'🪄 Acomodar',
@@ -4165,17 +4201,20 @@ function allTags(){
    to anyone who does not have them. Each one says what it is for — the whole
    point of a suggestion is that you do not have to work that out. Matched by
    either language's name, so switching language does not make them strangers. */
+/* Emoji only, the same in both languages, and the hint says the word. The worded
+   names (es/en) are what the first accounts were given, so those still count. */
 const TAG_STARTERS=[
-  {es:'🌞🌻 Mañana',en:'🌞🌻 Morning',
-   hint:{es:'Parte de tu rutina de la mañana: lo primero que haces en el día.',en:'Part of your morning routine: the first things you do in the day.'}},
-  {es:'🩳 Cortas',en:'🩳 Quick',
-   hint:{es:'Tareas que se resuelven en pocos minutos. Ideales para huecos entre cosas.',en:'Tasks that take only a few minutes. Good for the gaps between things.'}},
-  {es:'☝🏼⏳ Una vez a la semana',en:'☝🏼⏳ Once a week',
-   hint:{es:'Lo que toca una sola vez a la semana.',en:'What comes up just once a week.'}}
+  {name:'🌞🌻',es:'🌞🌻 Mañana',en:'🌞🌻 Morning',
+   hint:{es:'Mañana: parte de tu rutina de la mañana, lo primero que haces en el día.',en:'Morning: part of your morning routine, the first things you do in the day.'}},
+  {name:'🩳🩳🩳',es:'🩳 Cortas',en:'🩳 Quick',
+   hint:{es:'Cortas: tareas de pocos minutos. Ideales para huecos entre cosas.',en:'Quick: tasks of a few minutes. Good for the gaps between things.'}},
+  {name:'☝🏼⏳',es:'☝🏼⏳ Una vez a la semana',en:'☝🏼⏳ Once a week',
+   hint:{es:'Una vez a la semana: lo que toca una sola vez a la semana.',en:'Once a week: what comes up just once a week.'}}
 ];
-function starterTagName(s){return STATE.lang==='es'?s.es:s.en;}
+function starterTagName(s){return s.name;}
+function isStarterTag(s,tg){return tg===s.name||tg===s.es||tg===s.en;}
 function tagHint(tg){
-  const s=TAG_STARTERS.find(x=>x.es===tg||x.en===tg);
+  const s=TAG_STARTERS.find(x=>isStarterTag(x,tg));
   return s?s.hint[STATE.lang==='es'?'es':'en']:'';
 }
 /* A brand-new account starts with the suggested set already made. Only ever for
@@ -4754,7 +4793,47 @@ function pomoCardVisible(){
   const h=window.innerHeight||document.documentElement.clientHeight;
   return r.bottom>8&&r.top<h-8;
 }
-function syncPomoPill(){
+function syncPomoPill(){_syncPomoPill();syncSwPill();}
+/* The stopwatch's bubble, by the timer bubble's rules: out while it runs (or sits
+   paused with time on it) and its card is off screen, never over a window but the
+   day calendar, and pressing it only goes back to the card. */
+let _swPill=null;
+function syncSwPill(){
+  const s=STATE.pomo&&STATE.pomo.sw;
+  const live=!!s&&(s.running||swSeconds()>0);
+  const c=document.getElementById('sw-clock');
+  let seen=false;
+  if(c){const b=c.getBoundingClientRect();const h=window.innerHeight||document.documentElement.clientHeight;seen=!!b.height&&b.bottom>8&&b.top<h-8;}
+  const calOpen=!!document.querySelector('.cal-big');
+  const other=[...document.querySelectorAll('.ovl')].some(o=>!o.querySelector('.cal-big'));
+  const show=live&&!other&&STATE.authed&&(calOpen||!seen);
+  if(!show){
+    if(_swPill&&document.body.contains(_swPill)){_swPill.classList.remove('on');_swPill.style.pointerEvents='none';}
+    return;
+  }
+  if(!_swPill||!document.body.contains(_swPill)){
+    const b=document.createElement('button');
+    b.id='sw-pill';b.type='button';
+    b.innerHTML='<span class="sp-dot"></span><span class="sp-cl"></span><span class="sp-t"></span>';
+    b.onclick=()=>{
+      if(STATE.showCal){STATE.showCal=false;render();}
+      if(STATE.tab!=='plan'){STATE.tab='plan';localStorage.setItem('st_tab','plan');render();}
+      const k=document.getElementById('sw-clock');
+      if(k)k.scrollIntoView({behavior:'smooth',block:'center'});
+    };
+    document.body.appendChild(b);
+    _swPill=b;
+  }
+  const r=swTask();
+  _swPill.querySelector('.sp-cl').textContent='⏱ '+fmtHMS(swSeconds());
+  _swPill.querySelector('.sp-t').textContent=r?r.title:'';
+  _swPill.classList.toggle('paused',!s.running);
+  _swPill.classList.toggle('stack',!!(_pomoPill&&_pomoPill.classList.contains('on')));
+  _swPill.title=t('sw-title')+(r?' → '+r.title:'');
+  _swPill.style.pointerEvents='auto';
+  _swPill.classList.add('on');
+}
+function _syncPomoPill(){
   const p=STATE.pomo;
   // Underway means running, or paused partway through — a session left paused
   // and forgotten is precisely the one worth a reminder in the corner.
@@ -6382,7 +6461,7 @@ function renderTagManagerModal(){
     /* The suggested ones you do not have yet, each with what it is for. Adding
        one only puts the name in your library — no task is touched. */
     const have=new Set(tags);
-    const missing=TAG_STARTERS.filter(s=>!have.has(s.es)&&!have.has(s.en));
+    const missing=TAG_STARTERS.filter(s=>!tags.some(tg=>isStarterTag(s,tg)));
     if(missing.length){
       const sh=dv('rowb mt12 mb6');
       sh.appendChild(sp('xs dimmer up ls',t('tagmgr-suggest')));
@@ -6785,7 +6864,7 @@ function swMs(){
 function swSeconds(){return Math.floor(swMs()/1000);}
 function swStart(){const s=swState();if(s.running)return;if(s.ms==null)s.ms=(s.elapsed||0)*1000;s.running=true;s.startedAt=CLOCK.now();savePomo();}
 function swPause(){const s=swState();if(!s.running)return;s.ms=swMs();s.elapsed=Math.floor(s.ms/1000);s.running=false;s.startedAt=0;savePomo();}
-function swReset(){const s=swState();s.running=false;s.startedAt=0;s.elapsed=0;s.ms=0;savePomo();}
+function swReset(){const s=swState();s.running=false;s.startedAt=0;s.elapsed=0;s.ms=0;s.rid=null;savePomo();}
 // The Reset button: back to zero and running at once, from any state.
 function swRestart(){const s=swState();s.ms=0;s.elapsed=0;s.running=true;s.startedAt=CLOCK.now();savePomo();}
 // The clock is two spans — the time and its thousandths — so a frame only
@@ -6841,6 +6920,70 @@ function logTime(sec,r,label){
   savePlanner();
   return id;
 }
+/* A stopwatch started from a task's own ⏱ belongs to that task (s.rid): stopping
+   it puts the time there by itself, with no picker. One stopwatch still, so
+   starting another task's first saves the one running. */
+function swTask(){const s=swState();return s.rid?reminders().find(r=>r.id===s.rid)||null:null;}
+// Every time logged on a task, in seconds: what its record and its average are made of.
+function taskSecs(id){return timeLog().filter(e=>e.rid===id&&e.sec>0).map(e=>e.sec);}
+function tsLine(a){
+  const n=a.length,tot=a.reduce((x,y)=>x+y,0);
+  return t('ts-line').replace('{n}',n).replace('{tot}',fmtSecs(tot)).replace('{avg}',fmtHMS(tot/n))
+    .replace('{min}',fmtHMS(Math.min(...a))).replace('{max}',fmtHMS(Math.max(...a)));
+}
+function swStopTask(){
+  const s=swState(),r=swTask(),sec=swSeconds();
+  s.rid=null;
+  if(!r){swPause();render();return;}          // its task is gone: the time stays, for the picker
+  const before=taskSecs(r.id);
+  swReset();
+  if(sec<=0){render();return;}
+  const eid=logTime(sec,r);
+  render();
+  // Faster than every time before is a record. Under half a minute is a slip of the thumb.
+  const rec=before.length&&sec>=30&&sec<Math.min(...before);
+  swLoggedToast((rec?'🏆 '+t('sw-record')+' ':'✓ ')+fmtHMS(sec)+' → '+r.title,r,eid);
+}
+function swTaskPress(r){
+  const s=swState();
+  if(s.rid===r.id&&(s.running||swSeconds()>0)){
+    if(s.running)swStopTask();else{swStart();render();}
+    return;
+  }
+  if(s.running||swSeconds()>0){
+    if(swTask())swStopTask();                  // the other task's time is saved, never lost
+    else if(!confirm(t('sw-replace').replace('{t}',fmtSecs(swSeconds()))))return;
+  }
+  s.rid=r.id;swRestart();render();
+}
+/* What you most likely want next, having just put time on a task, is to be
+   done with it — so that is what the notice offers: the very same press as
+   ticking its box in the list. It can only ever COMPLETE: the task is
+   looked up again when it is pressed, and one that has been ticked in the
+   meantime is left alone, because ticking it a second time would log a
+   second completion (and, on a repeating task, move its date twice).
+   A time put on something that is not a task, or on a task already done
+   today, has nothing to complete, so those keep the way back to the right
+   task — which is still in Score for any of them, on the entry's ↪. */
+function swLoggedToast(msg,r,eid){
+  const tk=todayKey();
+  const open=r&&!(r.done||r.completedOn===tk);
+  if(open){
+    flashToast(msg,t('tl-complete'),()=>{
+      const cur=reminders().find(x=>x.id===r.id);
+      if(cur&&!cur.done&&cur.completedOn!==todayKey()){
+        toggleReminder(cur.id,true);
+        render();
+        flashToast(t('tl-completed').replace('{t}',String(cur.title||'').slice(0,40)));
+      }
+    });
+  }else{
+    // Right after is when a wrong pick shows; one press puts it on the right task.
+    flashToast(msg,t('tl-change'),()=>{
+      STATE.swMove=eid;STATE.swQ='';render();
+    });
+  }
+}
 // A line at the bottom for a moment; with an action it stays a few seconds
 // longer, long enough to press it.
 function flashToast(msg,actionLabel,action){
@@ -6887,11 +7030,13 @@ function renderStopwatchPage(){
     clock.appendChild(cf);
   }
   w.appendChild(clock);
+  const owner=swTask();
+  if(owner)w.appendChild(dv('sm ctr mt4 ac w6','→ '+owner.title));
   if(s.running)swLoop();
   const row=dv('row gap8 mt10');row.style.flexWrap='wrap';
   const swGo=bt(s.running?'btn-ghost btn-sm f1-desktop':'btn-ac btn-sm f1-desktop',
-    s.running?'⏸ '+t('pomo-pause'):'▶ '+(sec>0?t('sw-resume'):t('pomo-start')),
-    ()=>{s.running?swPause():swStart();render();});
+    s.running?(owner?'⏹ '+t('sw-stop-save'):'⏸ '+t('pomo-pause')):'▶ '+(sec>0?t('sw-resume'):t('pomo-start')),
+    ()=>{if(s.running&&owner)return swStopTask();s.running?swPause():swStart();render();});
   swGo.dataset.tut='sw-go';
   row.appendChild(swGo);
   // One press and it starts over from zero, already running — no question,
@@ -6959,38 +7104,13 @@ function renderSwPick(){
     swReset();
     STATE.swPick=false;
     render();
-    const msg='✓ '+fmtSecs(s_)+' → '+(r?r.title:label);
-    /* What you most likely want next, having just put time on a task, is to be
-       done with it — so that is what the notice offers: the very same press as
-       ticking its box in the list. It can only ever COMPLETE: the task is
-       looked up again when it is pressed, and one that has been ticked in the
-       meantime is left alone, because ticking it a second time would log a
-       second completion (and, on a repeating task, move its date twice).
-       A time put on something that is not a task, or on a task already done
-       today, has nothing to complete, so those keep the way back to the right
-       task — which is still in Score for any of them, on the entry's ↪. */
-    const open=r&&!(r.done||r.completedOn===tk);
-    if(open){
-      flashToast(msg,t('tl-complete'),()=>{
-        const cur=reminders().find(x=>x.id===r.id);
-        if(cur&&!cur.done&&cur.completedOn!==todayKey()){
-          toggleReminder(cur.id,true);
-          render();
-          flashToast(t('tl-completed').replace('{t}',String(cur.title||'').slice(0,40)));
-        }
-      });
-    }else{
-      // Right after is when a wrong pick shows; one press puts it on the right task.
-      flashToast(msg,t('tl-change'),()=>{
-        STATE.swMove=eid;STATE.swQ='';render();
-      });
-    }
+    swLoggedToast('✓ '+fmtSecs(s_)+' → '+(r?r.title:label),r,eid);
   };
 
   const qi=ip('text','',STATE.swQ||'',t('sw-search'));
   qi.style.cssText='width:100%;margin-bottom:8px';
   panel.appendChild(qi);
-  const list=dv('s4');list.style.cssText='max-height:38vh;overflow-y:auto';
+  const list=dv('s4');list.style.cssText='max-height:50vh;overflow-y:auto';
   panel.appendChild(list);
 
   const rowFor=r=>{
@@ -7006,7 +7126,9 @@ function renderSwPick(){
     const q=(STATE.swQ||'').trim().toLowerCase();
     const pool=reminders().filter(r=>(!r.done||r.completedOn===tk)&&(!q||String(r.title||'').toLowerCase().includes(q)));
     const flags=pool.filter(r=>r.flagged);
-    const others=pool.filter(r=>!r.flagged&&(q||(r.due&&r.due<=tk))).slice(0,q?60:30);
+    const shut=r=>r.done||r.completedOn===tk?1:0;
+    const others=pool.filter(r=>!r.flagged&&(q||!r.due||r.due<=tk))
+      .sort((a,b)=>shut(a)-shut(b)||quadRank(a)-quadRank(b)).slice(0,q?60:200);
     if(flags.length){
       list.appendChild(dv('xs dimmer up ls',t('sw-flags')));
       flags.forEach(r=>list.appendChild(rowFor(r)));
@@ -7150,6 +7272,7 @@ function renderTimeLogCard(){
     bar.appendChild(fill);box.appendChild(bar);
     if(STATE.tlOpen===g.key){
       const det=dv('s4 mt6');det.dataset.tut='tl-det';
+      if(g.items.length>1)det.appendChild(dv('xs ac',tsLine(g.items.map(e=>e.sec))));
       g.items.slice().sort((a,b)=>b.date.localeCompare(a.date)||b.at-a.at).forEach(e=>{
         if(STATE.tlEdit===e.id){
           /* A slip is fixed where it shows: the day and the minutes. Never a
@@ -8430,6 +8553,16 @@ function renderReminderRow(r,tk,opts){
     openTree.title=t('rem-open-tree');
     metaLine.appendChild(openTree);
   }
+  // Its times so far: how many, the average and the record. Pressed, the whole line.
+  const ts=taskSecs(r.id);
+  if(ts.length){
+    if(meta.length||own)metaLine.appendChild(sp('',' · '));
+    const avg=ts.reduce((x,y)=>x+y,0)/ts.length;
+    const st=sp('','⏱ '+ts.length+'× · ⌀ '+fmtHMS(avg)+(ts.length>1?' · 🏆 '+fmtHMS(Math.min(...ts)):''));
+    st.style.cursor='pointer';st.title=tsLine(ts);
+    st.onclick=e=>{e.stopPropagation();flashToast(tsLine(ts));};
+    metaLine.appendChild(gate(st,'stopwatch'));
+  }
   mid.appendChild(metaLine);
 
   // Two levels only, so a subtask cannot spawn its own.
@@ -8459,6 +8592,14 @@ function renderReminderRow(r,tk,opts){
       rd();
     });
     in_.title=t('rem-indent');tools.appendChild(in_);
+  }
+  if(!doneToday&&!opts.peeking&&!STATE.selecting){
+    const sw=swState(),mine=sw.rid===r.id&&(sw.running||swSeconds()>0);
+    const tb=bt('btn-icon'+(mine?' sw-on':''),mine?(sw.running?'⏹ ':'▶ ')+fmtHMS(swSeconds()):'⏱',
+      e=>{e.stopPropagation();swTaskPress(r);});
+    if(mine&&sw.running)tb.dataset.swLive='1';
+    tb.title=mine?t('sw-stop-save'):t('sw-task-start');
+    tools.appendChild(gate(tb,'stopwatch'));
   }
   const ed=bt('btn-icon','✏️',()=>{STATE.editingRem=STATE.editingRem===r.id?null:r.id;rd();});
   ed.title=t('rem-edit');ed.dataset.tutEdit=r.id;
@@ -13355,7 +13496,10 @@ setInterval(()=>{
   // The stopwatch's own clock, patched in place like the timer's.
   // (the per-frame loop does this while the tab is in front; this beat keeps
   // it right when frames are not being handed out)
-  if(p&&p.sw&&p.sw.running)paintSw();
+  if(p&&p.sw&&p.sw.running){
+    paintSw();
+    document.querySelectorAll('[data-sw-live]').forEach(b=>{b.textContent='⏹ '+fmtHMS(swSeconds());});
+  }
   if(p&&p.running){
     const mini=document.getElementById('pomo-mini');
     if(mini)mini.textContent=(p.phase==='focus'?'🍅 ':'☕ ')+fmtClock(pomoRemaining(p));
