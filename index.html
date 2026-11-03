@@ -2313,7 +2313,7 @@ en:{
   'tl-empty':'Nothing logged yet. Use the stopwatch ⏱ in Plan and add the time to a task.',
   'tl-none-range':'Nothing logged in this period.','tl-del':'Remove this entry',
   'tl-edit':'Fix the day or the minutes','tl-move':'Move to another task','tl-move-to':'Move this time to…',
-  'tl-save':'Save','tl-cancel':'Cancel','tl-only-flags':'🏁 Flags only','tl-change':'Change task',
+  'tl-save':'Save','tl-cancel':'Cancel','tl-only-flags':'🏁 Flags only','tl-change':'Change task','tl-complete':'Complete task','tl-completed':'Done: "{t}"',
   'cal-untimed':'No time','cal-tray-empty':'every task has a time',
   'cal-hint':'Drag a task onto the hours to give it a time, and off them to take it away; on a phone, hold it a moment first. Drag the bottom edge to change how long it is drawn — the list only ever shows when it starts.',
   'cal-arrange':'🪄 Lay out',
@@ -2684,7 +2684,7 @@ es:{
   'tl-empty':'Aún no hay tiempo registrado. Usa el cronómetro ⏱ en Plan y añade el tiempo a una tarea.',
   'tl-none-range':'Nada registrado en este periodo.','tl-del':'Quitar este registro',
   'tl-edit':'Corregir el día o los minutos','tl-move':'Mover a otra tarea','tl-move-to':'Mover este tiempo a…',
-  'tl-save':'Guardar','tl-cancel':'Cancelar','tl-only-flags':'🏁 Solo banderas','tl-change':'Cambiar tarea',
+  'tl-save':'Guardar','tl-cancel':'Cancelar','tl-only-flags':'🏁 Solo banderas','tl-change':'Cambiar tarea','tl-complete':'Completar tarea','tl-completed':'Hecha: "{t}"',
   'cal-untimed':'Sin hora','cal-tray-empty':'todas tienen hora',
   'cal-hint':'Arrastra una tarea a las horas para darle hora, y fuera de ellas para quitársela; en celular, déjala apretada un momento primero. Arrastra el borde de abajo para cambiar cuánto dura en el dibujo — la lista solo muestra a qué hora empieza.',
   'cal-arrange':'🪄 Acomodar',
@@ -6941,10 +6941,32 @@ function renderSwPick(){
     swReset();
     STATE.swPick=false;
     render();
-    // Right after is when a wrong pick shows; one press puts it on the right task.
-    flashToast('✓ '+fmtSecs(s_)+' → '+(r?r.title:label),t('tl-change'),()=>{
-      STATE.swMove=eid;STATE.swQ='';render();
-    });
+    const msg='✓ '+fmtSecs(s_)+' → '+(r?r.title:label);
+    /* What you most likely want next, having just put time on a task, is to be
+       done with it — so that is what the notice offers: the very same press as
+       ticking its box in the list. It can only ever COMPLETE: the task is
+       looked up again when it is pressed, and one that has been ticked in the
+       meantime is left alone, because ticking it a second time would log a
+       second completion (and, on a repeating task, move its date twice).
+       A time put on something that is not a task, or on a task already done
+       today, has nothing to complete, so those keep the way back to the right
+       task — which is still in Score for any of them, on the entry's ↪. */
+    const open=r&&!(r.done||r.completedOn===tk);
+    if(open){
+      flashToast(msg,t('tl-complete'),()=>{
+        const cur=reminders().find(x=>x.id===r.id);
+        if(cur&&!cur.done&&cur.completedOn!==todayKey()){
+          toggleReminder(cur.id,true);
+          render();
+          flashToast(t('tl-completed').replace('{t}',String(cur.title||'').slice(0,40)));
+        }
+      });
+    }else{
+      // Right after is when a wrong pick shows; one press puts it on the right task.
+      flashToast(msg,t('tl-change'),()=>{
+        STATE.swMove=eid;STATE.swQ='';render();
+      });
+    }
   };
 
   const qi=ip('text','',STATE.swQ||'',t('sw-search'));
