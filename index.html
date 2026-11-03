@@ -7332,6 +7332,22 @@ function renderTimeLogCard(){
    the hours gives it a time, and dragging a block anywhere off them takes it
    away. ═══════════════════════════════════════════════════════════════════ */
 const CAL_HOUR_PX=48,CAL_SNAP=15,CAL_DEF_DUR=30,CAL_HOLD_MS=500;
+/* How long a task is drawn until its edge is pulled: what it has taken on
+   average by the stopwatch, rounded to the grid; with no times yet, half an
+   hour. Pulled, it is what was pulled. The averages are read once for a whole
+   drawing rather than once per block. */
+let _calAvg=null,_calAvgAt=0;
+function calDurOf(r){
+  if(r.calDur)return Math.max(CAL_SNAP,r.calDur);
+  if(!_calAvg||Date.now()-_calAvgAt>300){
+    const sum=new Map();
+    timeLog().forEach(e=>{if(e.rid&&e.sec>0){const a=sum.get(e.rid)||[0,0];a[0]+=e.sec;a[1]++;sum.set(e.rid,a);}});
+    _calAvg=new Map([...sum].map(([id,[sec,n]])=>[id,sec/n/60]));_calAvgAt=Date.now();
+  }
+  const m=_calAvg.get(r.id);
+  if(!m)return CAL_DEF_DUR;
+  return Math.max(CAL_SNAP,Math.min(12*60,Math.round(m/CAL_SNAP)*CAL_SNAP));
+}
 function calMin(ts){const m=/^(\d{1,2}):(\d{2})/.exec(ts||'');return m?(+m[1])*60+(+m[2]):null;}
 function calFmt(min){return pad2(Math.floor(min/60))+':'+pad2(min%60);}
 function syncCalNow(){
@@ -7368,9 +7384,9 @@ function calAutoPlace(day,tray,timedAll){
      came off. */
   const taken=timedAll.map(r=>{
     const s=calMin(r.time);
-    return[s,Math.min(24*60,s+Math.max(CAL_SNAP,r.calDur||CAL_DEF_DUR))];
+    return[s,Math.min(24*60,s+calDurOf(r))];
   });
-  const lenOf=r=>Math.max(CAL_SNAP,r.calDur||CAL_DEF_DUR);
+  const lenOf=r=>calDurOf(r);
   const from=calAutoStart(day);
   // The room left once every task is counted, split evenly behind each of them.
   let free=0;
@@ -7433,6 +7449,23 @@ function renderPomoCalendar(){
   nav.appendChild(bt('btn-icon','›',()=>shift(1)));
   if(day!==tk)nav.appendChild(bt('btn-ghost btn-xs',t('cal-today'),()=>{STATE.calDay=null;render();}));
   wrap.appendChild(nav);
+  /* Slid sideways, a day over: left is the next one, right the one before. Only
+     a quick, flat slide — a held finger is moving a task, an upright one is
+     scrolling the hours, and a row that scrolls sideways keeps its own slide. */
+  let sw0=null;
+  wrap.addEventListener('touchstart',e=>{
+    if(e.touches.length!==1){sw0=null;return;}
+    let n=e.target;
+    while(n&&n!==wrap){if(n.scrollWidth>n.clientWidth+2&&/auto|scroll/.test(getComputedStyle(n).overflowX)){sw0=null;return;}n=n.parentElement;}
+    sw0={x:e.touches[0].clientX,y:e.touches[0].clientY,at:Date.now()};
+  },{passive:true});
+  wrap.addEventListener('touchend',e=>{
+    const a=sw0;sw0=null;
+    if(!a||Date.now()-a.at>=CAL_HOLD_MS||document.querySelector('.cal-held'))return;
+    const dx=e.changedTouches[0].clientX-a.x,dy=e.changedTouches[0].clientY-a.y;
+    if(Math.abs(dx)<60||Math.abs(dy)>Math.abs(dx)*0.6)return;
+    shift(dx<0?1:-1);
+  },{passive:true});
 
   /* Filter by tag, the way the list does it: a view, never a fact. Tasks that
      do not carry every chosen tag step out of the tray and off the hours, and
@@ -7514,7 +7547,7 @@ function renderPomoCalendar(){
 
   // Overlapping blocks share the width instead of covering each other.
   const ev=timed.map(r=>{
-    const s=calMin(r.time),d=Math.max(CAL_SNAP,r.calDur||CAL_DEF_DUR);
+    const s=calMin(r.time),d=calDurOf(r);
     return{r,s,e:Math.min(24*60,s+d),d};
   }).sort((a,b)=>a.s-b.s);
   let grp=null;
@@ -7591,7 +7624,7 @@ function attachCalDrag(el,r,kind,day,getScroll,getGrid,tray){
              w:rect.width,dragging:false,ghost:null,ind:null,drop:null,inTray:false};
     try{el.setPointerCapture(e.pointerId);}catch(_){}
     const scroll=getScroll(),grid=getGrid();
-    const dur=Math.max(CAL_SNAP,r.calDur||CAL_DEF_DUR);
+    const dur=calDurOf(r);
     const hold=calHold(el,e);
     const finish=()=>{
       window.removeEventListener('pointermove',move);
@@ -7717,7 +7750,7 @@ function attachCalResize(handle,block,r,startMin){
     e.stopPropagation();e.preventDefault();
     try{handle.setPointerCapture(e.pointerId);}catch(_){}
     const top=block.getBoundingClientRect().top;
-    let dur=Math.max(CAL_SNAP,r.calDur||CAL_DEF_DUR);
+    let dur=calDurOf(r);
     const hold=calHold(handle,e);
     const move=ev=>{
       if(hold.waiting(ev))return;
