@@ -7322,18 +7322,24 @@ function renderTimeLogCard(){
           const r=dv('row gap6');r.style.flexWrap='wrap';
           const di=ip('date','',e.date);di.max=tk;di.style.cssText='width:auto';
           const mi=ip('number','',String(Math.round(e.sec/60*10)/10));mi.min=0.1;mi.step='any';mi.style.cssText='width:80px';
-          const save=()=>{
+          const apply=()=>{
             const v=parseFloat(mi.value);
-            if(!(v>0)){mi.focus();return;}
+            if(!(v>0)){mi.focus();return false;}
             const d=/^\d{4}-\d{2}-\d{2}$/.test(di.value)&&di.value<=tk?di.value:e.date;
             // Untouched minutes keep their exact seconds.
             if(Math.round(v*10)/10!==Math.round(e.sec/60*10)/10)e.sec=Math.round(v*60);
             e.date=d;
-            STATE.tlEdit=null;savePlanner();render();
+            return true;
           };
+          const save=()=>{if(apply()){STATE.tlEdit=null;savePlanner();render();}};
           mi.onkeydown=ev=>{if(ev.key==='Enter')save();if(ev.key==='Escape'){STATE.tlEdit=null;render();}};
           r.appendChild(di);r.appendChild(mi);r.appendChild(sp('xs dimmer',t('sw-minutes')));
           r.appendChild(bt('btn-ac btn-xs',t('tl-save'),save));
+          // Which task it went to is part of the same slip: what was typed here is kept, then the picker opens.
+          r.appendChild(bt('btn-ghost btn-xs','↪ '+t('tl-change'),()=>{
+            if(!apply())return;
+            STATE.tlEdit=null;STATE.swMove=e.id;STATE.swQ='';savePlanner();render();
+          }));
           r.appendChild(bt('btn-ghost btn-xs',t('tl-cancel'),()=>{STATE.tlEdit=null;render();}));
           det.appendChild(r);
           setTimeout(()=>mi.focus(),0);
