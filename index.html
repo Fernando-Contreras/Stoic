@@ -6958,10 +6958,18 @@ function swStopTask(){
 }
 /* A task's own ⏱, the same on the list and on its chips in the grid and the cross.
    While it is the one being timed it shows the clock and pressing it saves. */
-function swTaskBtn(r){
+function swTaskBtn(r,openAfter){
   const sw=swState(),mine=sw.rid===r.id&&(sw.running||swSeconds()>0);
   const tb=bt('btn-icon'+(mine?' sw-on':''),mine?(sw.running?'⏹ ':'▶ ')+fmtHMS(swSeconds()):'⏱',
-    e=>{e.stopPropagation();swTaskPress(r);});
+    e=>{
+      e.stopPropagation();
+      swTaskPress(r);
+      /* On a chip, starting the timer is also opening the task: the chip's own
+         press does that, and this one stops short of it. Only when it started —
+         stopping is the end of the task, not a reason to open it. */
+      const s=swState();
+      if(openAfter&&s.rid===r.id&&s.running){STATE.editingRem=null;STATE.taskTree=r.id;render();}
+    });
   if(mine&&sw.running)tb.dataset.swLive='1';
   tb.title=mine?t('sw-stop-save'):t('sw-task-start');
   return gate(tb,'stopwatch');
@@ -8170,7 +8178,7 @@ function remChip(r,tk,redraw,peeking){
     if(!doneToday&&!peeking&&!STATE.selecting){
       const line=dv('row gap4');line.style.cssText='align-items:center;flex-wrap:nowrap;justify-content:space-between';
       m.style.cssText+=';min-width:0;flex:1';
-      const tb=swTaskBtn(r);tb.style.cssText+=';flex:none;padding:0 6px;font-size:12px';
+      const tb=swTaskBtn(r,true);tb.style.cssText+=';flex:none;padding:0 6px;font-size:12px';
       line.appendChild(m);line.appendChild(tb);
       cell.appendChild(line);
     }else cell.appendChild(m);
