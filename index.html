@@ -648,6 +648,31 @@ html.zoomed *{touch-action:auto!important}
 @media(prefers-reduced-motion:reduce){#sw-pill{transition:none}#sw-pill .sp-dot{animation:none}}
 .sw-on{color:var(--ac);font-weight:700;font-variant-numeric:tabular-nums;border:1px solid var(--acb);border-radius:99px;padding:2px 8px}
 
+/* A phone held on its side is wider than the phone rule below but no taller than
+   a sliver, and the sticky bar there slid out of place while the page scrolled,
+   leaving the page showing above it. It takes the phone's way instead — fixed to
+   the bottom edge, which is the one that holds there — only thinner, since height
+   is what a phone on its side has least of. A touch screen only: a desktop
+   window dragged short keeps its bar at the top. */
+@media(min-width:701px) and (max-height:520px) and (pointer:coarse){
+  .tabbar{
+    position:fixed;left:0;right:0;bottom:0;top:auto;z-index:50;
+    max-width:none;margin:0;border-radius:0;border:none;
+    border-top:1px solid var(--b2);background:var(--sur);
+    padding:4px 12px calc(4px + env(safe-area-inset-bottom,0px));
+    padding-left:calc(12px + env(safe-area-inset-left,0px));
+    padding-right:calc(12px + env(safe-area-inset-right,0px));
+    gap:8px;box-shadow:0 -8px 24px rgba(0,0,0,.30);
+  }
+  .tabbar button{padding:7px 8px;font-size:14px;border-radius:10px}
+  .tabbar::before{display:none}
+  #root{padding-bottom:calc(64px + env(safe-area-inset-bottom,0px))}
+  #pomo-pill{bottom:calc(58px + env(safe-area-inset-bottom,0px));right:calc(14px + env(safe-area-inset-right,0px));width:62px;height:62px}
+  #sw-pill{bottom:calc(58px + env(safe-area-inset-bottom,0px));right:calc(14px + env(safe-area-inset-right,0px))}
+  #sw-pill.stack{bottom:calc(128px + env(safe-area-inset-bottom,0px))}
+  .tut-pill{bottom:calc(58px + env(safe-area-inset-bottom,0px))}
+}
+
 /* ═══════════════════════════════════════════════════════════════════════
    ── PHONE ──
    Everything below this line is inside a phone-width query and cannot be
