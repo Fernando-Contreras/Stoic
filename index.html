@@ -2303,7 +2303,7 @@ en:{
   'rep-pick-days':'Days of the month','rep-on-days':'on the',
   'rep-31-note':'Leave empty to repeat on the same day each month. Day 31 means the last day, whatever the month.',
   'view-today':'This day','view-all':'All',
-  'peek-tomorrow':'Tomorrow','peek-day-after':'Day after tomorrow','peek-back':'Back one day','peek-fwd':'Peek ahead one more day',
+  'peek-tomorrow':'Tomorrow','peek-day-after':'Day after tomorrow','peek-back':'Back one day','peek-home':'Back to today','peek-fwd':'Peek ahead one more day',
   'sort-date-asc':'earliest first','sort-date-desc':'latest first','sort-prio':'by quadrant','sort-alpha':'alphabetical',
   'view-hidden':'later ones hidden','view-hidden-1':'later one hidden',
   'view-hidden-f':'hidden by the filter','view-hidden-f-1':'hidden by the filter',
@@ -2681,7 +2681,7 @@ es:{
   'rep-pick-days':'Días del mes','rep-on-days':'los días',
   'rep-31-note':'Déjalo vacío para repetir el mismo día cada mes. El día 31 significa el último, sea cual sea el mes.',
   'view-today':'Este día','view-all':'Todos',
-  'peek-tomorrow':'Mañana','peek-day-after':'Pasado mañana','peek-back':'Un día atrás','peek-fwd':'Ver un día más adelante',
+  'peek-tomorrow':'Mañana','peek-day-after':'Pasado mañana','peek-back':'Un día atrás','peek-home':'Volver a hoy','peek-fwd':'Ver un día más adelante',
   'sort-date-asc':'más temprano primero','sort-date-desc':'más tarde primero','sort-prio':'por cuadrante','sort-alpha':'alfabético',
   'view-hidden':'de más adelante, ocultos','view-hidden-1':'de más adelante, oculto',
   'view-hidden-f':'ocultas por el filtro','view-hidden-f-1':'oculta por el filtro',
@@ -6143,7 +6143,11 @@ function renderPlanner(){
       const back=bt('btn-icon','‹',()=>{V.peek=Math.max(0,peek-1);render();});
       back.title=t('peek-back');
       lft2.appendChild(back);
-      lft2.appendChild(sp('sm ac w6','🔮 '+dayLbl));
+      // Its name is the way home: the same as pressing "This day", which is what that does from here.
+      const lbl2=sp('sm ac w6','🔮 '+dayLbl);
+      lbl2.style.cursor='pointer';lbl2.title=t('peek-home');
+      lbl2.onclick=()=>{V.peek=0;saveView();render();};
+      lft2.appendChild(lbl2);
       const fwd=bt('btn-icon','›',()=>{V.peek=peek+1;render();});
       fwd.title=t('peek-fwd');
       lft2.appendChild(fwd);
