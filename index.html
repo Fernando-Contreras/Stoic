@@ -2265,7 +2265,7 @@ en:{
   'tut3-dayplaced':'Done. Play with it for a while, moving tasks around: ↩️ Undo takes back anything you do here.',
   'tut3-more':'The ＋ now does more. Tap it.',
   'tut3-fquad':'Quadrant, by its emoji: 🚨1️⃣ urgent and important · 👑2️⃣ important, not urgent · 🤖3️⃣ urgent, not important · 🤏🏼4️⃣ neither. Pick one.',
-  'tut3-ftags':'Tags group tasks so you can filter them. They are pure emoji: 🌞🌻 morning · 🩳🩳🩳 quick · ☝🏼⏳ once a week. Pick one if you like.',
+  'tut3-ftags':'Tags group tasks so you can filter them. They are pure emoji: 🌞🌻 morning · 5️⃣⏱️ five minutes · ☝🏼⏳ once a week. Pick one if you like.',
   'tut3-frep':'Repeat: when you finish it, the task returns on its next date. Timing it with its ⏱ finishes it for you.',
   'tut3-fmorn':'🏁 Goal of the day and 🌅 Morning routine: each one has its own streak.',
   'tut3-fnlp':'Now a complete task. Example already written: 📞👩 tomorrow 5pm = call mom. It understands dates. Tap Next.','tut3-fnlp-ex':'📞👩 tomorrow 5pm',
@@ -2643,7 +2643,7 @@ es:{
   'tut3-dayplaced':'Listo. Juega un rato moviendo tareas: ↩️ Deshacer regresa lo que hagas aquí.',
   'tut3-more':'El ＋ ahora trae más. Tócalo.',
   'tut3-fquad':'Cuadrante, por su emoji: 🚨1️⃣ urgente e importante · 👑2️⃣ importante, no urgente · 🤖3️⃣ urgente, no importante · 🤏🏼4️⃣ ni uno ni otro. Elige uno.',
-  'tut3-ftags':'Las etiquetas agrupan tareas para filtrarlas. Son puro emoji: 🌞🌻 mañana · 🩳🩳🩳 cortas · ☝🏼⏳ una vez a la semana. Elige una si quieres.',
+  'tut3-ftags':'Las etiquetas agrupan tareas para filtrarlas. Son puro emoji: 🌞🌻 mañana · 5️⃣⏱️ cinco minutos · ☝🏼⏳ una vez a la semana. Elige una si quieres.',
   'tut3-frep':'Repetir: al terminarla, la tarea regresa en su siguiente fecha. Si la cronometras con su ⏱, se termina sola.',
   'tut3-fmorn':'🏁 Meta del día y 🌅 Rutina matutina: cada una tiene su propia racha.',
   'tut3-fnlp':'Ahora una tarea completa. Ejemplo ya escrito: 📞👩 mañana 5pm = llamar a mamá. Entiende fechas. Dale Siguiente.','tut3-fnlp-ex':'📞👩 mañana 5pm',
@@ -4206,13 +4206,29 @@ function allTags(){
 const TAG_STARTERS=[
   {name:'🌞🌻',es:'🌞🌻 Mañana',en:'🌞🌻 Morning',
    hint:{es:'Mañana: parte de tu rutina de la mañana, lo primero que haces en el día.',en:'Morning: part of your morning routine, the first things you do in the day.'}},
-  {name:'🩳🩳🩳',es:'🩳 Cortas',en:'🩳 Quick',
-   hint:{es:'Cortas: tareas de pocos minutos. Ideales para huecos entre cosas.',en:'Quick: tasks of a few minutes. Good for the gaps between things.'}},
+  // Was 🩳🩳🩳 ("shorts"): said nothing about what it is. Five minutes is the whole rule — see migrateQuickTag.
+  {name:'5️⃣⏱️',es:'🩳 Cortas',en:'🩳 Quick',old:['🩳🩳🩳'],
+   hint:{es:'5 mins: tareas que con 5 minutos ya se pueden tachar. Ideales para huecos entre cosas.',en:'5 mins: tasks that five minutes is enough to tick off. Good for the gaps between things.'}},
   {name:'☝🏼⏳',es:'☝🏼⏳ Una vez a la semana',en:'☝🏼⏳ Once a week',
    hint:{es:'Una vez a la semana: lo que toca una sola vez a la semana.',en:'Once a week: what comes up just once a week.'}}
 ];
 function starterTagName(s){return s.name;}
-function isStarterTag(s,tg){return tg===s.name||tg===s.es||tg===s.en;}
+function isStarterTag(s,tg){return tg===s.name||tg===s.es||tg===s.en||(s.old||[]).includes(tg);}
+/* The quick tag changed its name, so accounts that already have it are moved to
+   the new one — on the tasks, in the library and in an active filter — once.
+   Only after the cloud copy has been pulled: this edits real tasks, and on a
+   device that had not yet seen them it would stamp stale copies as the newest. */
+function migrateQuickTag(){
+  const P=STATE.planner;
+  if(!P||P.quickTagMoved||!STATE.authed)return;
+  const cloud=SB.init();
+  if(cloud&&!SB.pulledOk)return;
+  P.quickTagMoved=true;
+  const s=TAG_STARTERS.find(x=>x.old&&x.old.length);
+  let moved=0;
+  [...s.old,s.es,s.en].forEach(o=>{if(o!==s.name)moved+=renameTagEverywhere(o,s.name)||0;});
+  if(!moved)S.set(K.PLANNER,P);else savePlanner();
+}
 function tagHint(tg){
   const s=TAG_STARTERS.find(x=>isStarterTag(x,tg));
   return s?s.hint[STATE.lang==='es'?'es':'en']:'';
@@ -7076,7 +7092,13 @@ function renderStopwatchPage(){
   }
   w.appendChild(clock);
   const owner=swTask();
-  if(owner)w.appendChild(dv('sm ctr mt4 ac w6','→ '+owner.title));
+  if(owner){
+    // Its name opens the task, the same as pressing the task anywhere else.
+    const on=dv('sm ctr mt4 ac w6','→ '+owner.title);
+    on.style.cursor='pointer';on.title=t('rem-detail');
+    on.onclick=()=>{STATE.editingRem=null;STATE.taskTree=owner.id;render();};
+    w.appendChild(on);
+  }
   if(s.running)swLoop();
   const row=dv('row gap8 mt10');row.style.flexWrap='wrap';
   // Pausing and saving are two things: this one only pauses, and a task's time has its own button to be saved.
@@ -9165,6 +9187,7 @@ function render(){
   _calRedraw=false;
   enforcePomodoroFloor();
   seedStarterTags();
+  migrateQuickTag();
   /* A dirty, unsaved note is written before the DOM under it is torn down.
      Its own 600ms debounce would normally catch it, but render() can be
      called for reasons that have nothing to do with the diary at all — a
