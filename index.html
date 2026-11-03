@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <!-- viewport-fit=cover lets the page reach under the notch and the home bar, so
      the safe-area insets below have real numbers to work with. -->
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <!-- Rewritten from JS while a pomodoro runs; see syncPomoTitle. The building
      is the favicon's job, not the title's — both at once read as a stutter. -->
 <title>Stoic</title>
@@ -511,19 +511,19 @@ button{cursor:pointer;font-family:var(--ff);font-size:15px;font-weight:600;borde
 .wk-sun{border-color:var(--ac);animation:wk-sun 1.6s ease-in-out infinite}
 @keyframes wk-sun{0%,100%{box-shadow:0 0 0 0 transparent}50%{box-shadow:0 0 12px 3px var(--ac)}}
 .cal-chip{padding:4px 9px;border-radius:99px;background:var(--sur2);border:1px solid var(--b2);
-  font-size:12px;cursor:grab;touch-action:pan-y;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;
+  font-size:12px;cursor:grab;touch-action:pan-y pinch-zoom;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;
   max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .cal-chip.late{border-color:var(--ng);color:var(--ng)}
 .cal-scroll{height:340px;overflow-y:auto;position:relative;border:1px solid var(--b1);
-  border-radius:10px;background:var(--sur2);touch-action:pan-y}
+  border-radius:10px;background:var(--sur2);touch-action:pan-y pinch-zoom}
 .cal-grid{position:relative;margin-left:44px;margin-right:6px;user-select:none;-webkit-user-select:none}
 .cal-hr{position:absolute;left:-44px;width:38px;text-align:right;font-size:10px;color:var(--t3);transform:translateY(-6px)}
 .cal-line{position:absolute;left:0;right:0;border-top:1px solid var(--b1)}
 .cal-block{position:absolute;box-sizing:border-box;border-radius:8px;padding:2px 6px;font-size:11px;
-  line-height:1.25;overflow:hidden;cursor:grab;touch-action:pan-y;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;
+  line-height:1.25;overflow:hidden;cursor:grab;touch-action:pan-y pinch-zoom;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;
   background:var(--acd);border:1px solid var(--acb);border-left:3px solid var(--ac);color:var(--t1)}
 .cal-block.late{background:var(--ngd);border-color:var(--ngb);border-left-color:var(--ng)}
-.cal-block .cal-rs{position:absolute;left:0;right:0;bottom:0;height:9px;cursor:ns-resize;touch-action:pan-y}
+.cal-block .cal-rs{position:absolute;left:0;right:0;bottom:0;height:9px;cursor:ns-resize;touch-action:pan-y pinch-zoom}
 .cal-held{outline:2px solid var(--ac);box-shadow:0 0 12px var(--ac)}
 .cal-now{position:absolute;left:-6px;right:0;border-top:2px solid var(--ng);z-index:3;pointer-events:none}
 .cal-now::before{content:'';position:absolute;left:-2px;top:-5px;width:8px;height:8px;border-radius:50%;background:var(--ng)}
@@ -6047,7 +6047,7 @@ function renderPlanner(){
      follows it, so letting go does not also open whatever task is
      underneath. */
   if(V.scope==='today'&&!V.closedOpen&&!STATE.selecting){
-    card.style.touchAction='pan-y';
+    card.style.touchAction='pan-y pinch-zoom';
     let sx=null,sy=null,drag=false,swallow=false;
     card.addEventListener('pointerdown',e=>{
       if(e.pointerType==='mouse'&&e.button!==0)return;
@@ -10792,7 +10792,7 @@ function renderCalendar(onPick){
      touch-action:pan-y leaves vertical scrolling to the browser and hands us
      the sideways drag, and a real drag past the threshold swallows the click
      that trails it so the release does not also pick a day. */
-  wrap.style.touchAction='pan-y';
+  wrap.style.touchAction='pan-y pinch-zoom';
   let sx=null,sy=null,drag=false,swallow=false;
   const gridEl=()=>wrap.querySelector('.cal-g');
   wrap.addEventListener('pointerdown',e=>{
