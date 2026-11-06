@@ -7043,7 +7043,15 @@ function goEditLog(eid){
   render();
   requestAnimationFrame(()=>{const c=document.getElementById('timelog-card');if(c)c.scrollIntoView({block:'center'});});
 }
-function tmResume(m){if(m.running)return;tmPauseOthers(m);m.running=true;m.startedAt=CLOCK.now();savePomo();}
+function tmResume(m){
+  if(m.running)return;
+  tmPauseOthers(m);m.running=true;m.startedAt=CLOCK.now();savePomo();
+  /* Working on a task is what a focus stretch is for, so the timer goes with it —
+     unless one is already going, or it is sitting on a break, which is not the
+     moment to start counting one down. */
+  const p=STATE.pomo;
+  if(p&&!p.running&&p.phase==='focus'){unlockAudio();pomoStart();}
+}
 function tmRestart(m){tmPauseOthers(m);m.ms=0;m.running=true;m.startedAt=CLOCK.now();savePomo();}
 function tmStart(r){
   const l=tmList();
