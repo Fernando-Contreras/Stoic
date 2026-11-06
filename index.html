@@ -9176,6 +9176,14 @@ function parseWhen(text,baseKey){
   clean=clean.replace(/^(?:para|el|a|de|on|at|for)\s+/i,'').replace(/\s+(?:para|el|a|de|on|at|for|las?|,)+$/i,'').replace(/[\s,;-]+$/,'').trim();
   return{due,time,clean:clean||text.trim()};
 }
+/* The day the list is showing: today, or the one slid ahead to. A task made from
+   there is for that day — the + and a quadrant's own + both ask. */
+function listViewDate(){
+  const V=STATE.view,tk=todayKey();
+  const peek=V.scope==='today'?Math.max(0,V.peek||0):0;
+  if(!peek)return tk;
+  const d=new Date(tk+'T12:00:00');d.setDate(d.getDate()+peek);return isoDate(d);
+}
 let _addFormDirty=null;
 function closeAddForm(){
   if(_addFormDirty&&_addFormDirty()&&!confirm(t('rem-discard')))return;
@@ -9208,7 +9216,7 @@ function renderAddModal(){
   const noi=taEl(pf.notes||'',t('rem-notes-ph'));noi.style.marginTop='6px';
   panel.appendChild(ti);panel.appendChild(nlp);panel.appendChild(noi);
   const row2=dv('row gap8 mt8');row2.style.flexWrap='wrap';row2.dataset.tut='add-when';
-  const di=ip('date','',pf.due||todayKey(),'');di.style.cssText='flex:0 0 148px;min-width:130px';
+  const di=ip('date','',pf.due||listViewDate(),'');di.style.cssText='flex:0 0 148px;min-width:130px';
   const hi=ip('time','',pf.time||'','');hi.style.cssText='flex:0 0 104px';hi.title=t('rem-time');hi.dataset.tut='add-time';
   // Drawn on the day calendar: the length that was dragged out comes with the time.
   const du=ip('number','',pf.dur?String(pf.dur):'','min');du.min=CAL_SNAP;du.step=CAL_SNAP;du.style.cssText='flex:0 0 84px';du.title=t('cal-dur');
@@ -9237,7 +9245,8 @@ function renderAddModal(){
   const dl=document.createElement('datalist');dl.id='st-tags';
   allTags().forEach(tg=>{const o=document.createElement('option');o.value=tg;dl.appendChild(o);});
   panel.appendChild(dl);
-  const picker=tagPicker([]);
+  // The filters on screen are what the list is showing, so what is made here belongs to it.
+  const picker=tagPicker(pf.tags||STATE.view.tags||[]);
   picker.el.style.marginTop='8px';picker.el.dataset.tut='add-tags';
   // (A locked part is taken out of the page after it is drawn but its box still
   // holds its value, so the form reads exactly as before.)
