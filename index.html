@@ -10641,9 +10641,13 @@ function renderPomCard(sk_,todayStatus){
   const nmProc=rwProc?rewardName(rwProc):(STATE.lang==='es'?'Procrastinación':'Procrastination');
   // When the day's colour is what holds it down (the pomodoros alone would allow more), it says so.
   const capped=!!bestOf(STATE.today)&&freeMinsFor(val,{...STATE.today,_best:null,best:null})>freeMinsFor(val,STATE.today);
+  const bc=bestOf(STATE.today);
+  const bcEs={red:'rojo 🔴',yellow:'amarillo 🟡',green:'verde 🟢',purple:'morado 🟣'}[bc]||'';
+  const bcEn={red:'red 🔴',yellow:'yellow 🟡',green:'green 🟢',purple:'purple 🟣'}[bc]||'';
+  const capMins=bc?COLOR_CAP_MINS[bc]:0;
   const allowLine=STATE.lang==='es'
-    ?`🌐 hasta ${fmtDur(freeMinsFor(val,STATE.today))} de ${nmProc.toLowerCase()} a precio base hoy`+(capped?' · tope por tu color':'')
-    :`🌐 up to ${fmtDur(freeMinsFor(val,STATE.today))} of ${nmProc.toLowerCase()} at base price today`+(capped?' · capped by your colour':'');
+    ?`🌐 hasta ${fmtDur(freeMinsFor(val,STATE.today))} de ${nmProc.toLowerCase()} a precio base hoy`+(capped?` · tope ${capMins} mins por ${bcEs}`:'')
+    :`🌐 up to ${fmtDur(freeMinsFor(val,STATE.today))} of ${nmProc.toLowerCase()} at base price today`+(capped?` · cap ${capMins} mins for ${bcEn}`:'');
   if(STATE.pomo&&STATE.pomo.minutesToday>0){
     card.appendChild(dv('xs dimmer mt6',`⏱ ${STATE.pomo.minutesToday} min ${t('pomo-from-timer')} · ${allowLine}`));
   }else{
