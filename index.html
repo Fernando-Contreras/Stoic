@@ -867,7 +867,7 @@ const DEBUG_FOR_GUESTS=true;
    Nobody is held here: the next stage is one tap away (the 🎓 button or the card
    at the top of the plan), and "show everything" is always offered. */
 const FEATURE_STAGE={
-  tabScore:2, streaks:2, sleep:2, work:2, rewards:2, pomodoro:2, stopwatch:2, goals:2,
+  tabScore:2, tabStats:2, streaks:2, sleep:2, work:2, rewards:2, pomodoro:2, stopwatch:2, goals:2,
   quadrants:3, morning:3, tags:3, weekReview:3,
   monthCal:3, dayCal:3, diary:3, stats:3, charts:3, alerts:3, bulk:3
 };
@@ -1050,12 +1050,12 @@ const TUT_STAGES={
     {id:'swStop',  tab:'plan', target:'[data-tut="sw-go"]',  text:'tut2-swstop', latch:true, done:()=>!swState().running},
     {id:'swAdd',   tab:'plan', target:'[data-tut="sw-add"]', text:'tut2-swadd',  temp:true, latch:true, done:()=>STATE.swPick||swSeconds()===0},
     {id:'swPick',  target:'[data-tut="sw-pick"]', win:'swPick', soft:true, text:'tut2-swpick', latch:true, done:()=>!STATE.swPick&&TUT.run.peek==null},
-    // Where that time went: Score, and the card is walked with its own controls.
-    {id:'tlGo',    target:'[data-tut="tab-score"]',         text:'tut2-tlgo',   latch:true, done:()=>STATE.tab==='score'},
-    {id:'tlCard',  tab:'score', target:'[data-tut="tl-card"]', text:'tut2-tlcard', manual:true, free:true},
-    {id:'tlRow',   tab:'score', target:()=>document.querySelector('[data-tut="tl-row"]')||document.querySelector('[data-tut="tl-card"]'),
+    // Where that time went: Stats, and the card is walked with its own controls.
+    {id:'tlGo',    target:'[data-tut="tab-stats"]',         text:'tut2-tlgo',   latch:true, done:()=>STATE.tab==='stats'},
+    {id:'tlCard',  tab:'stats', target:'[data-tut="tl-card"]', text:'tut2-tlcard', manual:true, free:true},
+    {id:'tlRow',   tab:'stats', target:()=>document.querySelector('[data-tut="tl-row"]')||document.querySelector('[data-tut="tl-card"]'),
                    text:'tut2-tlrow', manual:true, free:true, auto:()=>STATE.tlOpen},
-    {id:'tlEntry', tab:'score', target:()=>document.querySelector('[data-tut="tl-det"]')||document.querySelector('[data-tut="tl-card"]'),
+    {id:'tlEntry', tab:'stats', target:()=>document.querySelector('[data-tut="tl-det"]')||document.querySelector('[data-tut="tl-card"]'),
                    text:'tut2-tlentry', manual:true, free:true,
                    enter:()=>{if(!STATE.tlOpen){const l=document.querySelector('[data-tut="tl-row"]');if(l)l.click();}},
                    after:()=>{STATE.tlOpen=null;STATE.tlEdit=null;render();}},
@@ -1093,7 +1093,8 @@ const TUT_STAGES={
     {id:'dSaved',  tab:'score', target:'[data-tut="note-add"]', manual:true, free:true, text:'tut3-dsaved', show:tutDiaryAway, after:tutDiaryClose},
     {id:'dHist',   tab:'score', target:'[data-tut="hist-edit"]', press:true, text:'tut3-dhist', enter:tutHistDay},
     {id:'dHistIn', target:'[data-tut="hist-panel"]', win:'histDay', open:tutYesterday, text:'tut3-dhistin', manual:true, free:true, after:tutClose('histDay')},
-    {id:'stats',   tab:'score', target:'[data-tut="stats-all"]',  text:'tut3-stats', temp:true, latch:true, done:()=>STATE.showStatsDetail},
+    {id:'toStats', target:'[data-tut="tab-stats"]',         text:'tut3-tostats', latch:true, done:()=>STATE.tab==='stats'},
+    {id:'stats',   tab:'stats', target:'[data-tut="stats-all"]',  text:'tut3-stats', temp:true, latch:true, done:()=>STATE.showStatsDetail},
     {id:'statsIn', target:'[data-tut="stats-panel"]', win:'showStatsDetail', text:'tut3-statsin', manual:true, free:true, after:tutClose('showStatsDetail')},
     {id:'week',    tab:'plan',  target:'[data-tut="week-btn"]',   text:'tut3-wk',    temp:true, latch:true, done:()=>STATE.showWeek},
     {id:'weekIn',  target:'[data-tut="week-panel"]',  win:'showWeek', text:'tut3-wkin',  manual:true, free:true, after:tutClose('showWeek')},
@@ -1259,7 +1260,7 @@ function tutMarkDone(stages){
 const TUT_WINDOWS=['showGoals','showWeek','showCal','showStatsDetail','showRewards','histDay'];
 // The page each is drawn on. Opened from the other one it stays open unseen, and turns up
 // on top of whatever comes next when the page changes.
-const TUT_WIN_TAB={showGoals:'plan',showWeek:'plan',showCal:'plan',showStatsDetail:'score',showRewards:'score',histDay:'score'};
+const TUT_WIN_TAB={showGoals:'plan',showWeek:'plan',showCal:'plan',showStatsDetail:'stats',showRewards:'score',histDay:'score'};
 function tutCloseAll(){
   _addFormDirty=null;
   STATE.showAddForm=false;STATE.editingRem=null;STATE.selecting=false;STATE.addPrefill=null;STATE.calDay=null;STATE.swPick=false;
@@ -2215,7 +2216,7 @@ en:{
   'cloud-active':'☁️ Cloud sync active — data syncs across devices.',
   'guest-only':'Guest mode only — no Supabase credentials found.',
   'daily-tracker':'daily habit tracker · by JuanFer',
-  'tab-plan':'Plan','tab-score':'Score','made-by':'Stoic · Made by JuanFer',
+  'tab-plan':'Plan','tab-score':'Score','tab-stats':'Stats','made-by':'Stoic · Made by JuanFer',
   'rem-title':'Reminders','rem-new':'New reminder','rem-what':'What needs doing?',
   'tut-start':'Start','tut-next':'Next','tut-finish':'Done!','tut-skip':'Skip','tut-pause':'⏸ Pause','tut-resume':'Resume tutorial','tut-part':'Part {n} of {of}','tut-skip-q':'What would you like?','tut-skip-part':'Skip this part','tut-skip-all':'I already know Stoic: show everything','tut-back':'Back to the tutorial','tut-skipped':'Everything is open. The 🎓 up top repeats the tutorial.','tut-replay':'Tutorial','tut-replay-note':'This is a replay: Next moves on without creating anything.','tut-done-replay':'Done. The 🎓 up top repeats it.','tut-done-real':'Done. The 🎓 up top repeats it.','tut-paused':'Paused. The 🎓 up top brings you back here.','tut-prev':'← Back','tut-got-it':'Got it',
   'tut-later':'Tomorrow','tut-go-on':'Go on','tut-later-toast':'Until tomorrow. Can\'t wait? Tap the 🎓 up top.','tut-wait':'There is more in Stoic: tomorrow, or now.','tut-wait-all':'Show everything',
@@ -2255,7 +2256,7 @@ en:{
   'tut2-swstop':'Now stop it.',
   'tut2-swadd':'Add that time to a task.',
   'tut2-swpick':'Pick one. Tip: each task has its own ⏱, and starting one saves the one running; stop one and the time goes on that task by itself. If it repeats, it also ticks itself off.',
-  'tut2-tlgo':'That time is saved. Let\'s see where it went: tap Score.',
+  'tut2-tlgo':'That time is saved. Let\'s see where it went: tap 📊 Stats.',
   'tut2-tlcard':'Here is where your time went: the total, how much went to 🏁 flags, and how many tasks. Up top you choose the period, or only flags. Try them.',
   'tut2-tlrow':'Tap a task to see each time you timed it.',
   'tut2-tlentry':'Each time lives here. ✎ fixes its day or minutes, ↪ moves it to another task, ✕ deletes it.',
@@ -2284,7 +2285,7 @@ en:{
   'tut3-dtitle':'Give the day a title, or press Next.',
   'tut3-dtpl':'This template is optional: answer what you like, or delete it.',
   'tut3-dsaved':'It saves when you tap outside. Tap it to edit.',
-  'tut3-stats':'All you have earned. Tap it for the detail.',
+  'tut3-stats':'All you have earned. Tap it for the detail.','tut3-tostats':'Looking back has its own tab. Tap 📊 Stats.',
   'tut3-statsin':'Medals, records and streaks. They fill up as your days go by.\nScroll to the bottom to see every stat.',
   'tut3-wk':'📊 compares your weeks. Tap it.',
   'tut3-wkin':'Your week against the one before. The arrows show what went up or down. Up top you switch weeks.',
@@ -2593,7 +2594,7 @@ es:{
   'cloud-active':'☁️ Sincronización activa — datos entre dispositivos.',
   'guest-only':'Solo modo invitado — sin credenciales Supabase.',
   'daily-tracker':'rastreador diario · por JuanFer',
-  'tab-plan':'Plan','tab-score':'Puntaje','made-by':'Stoic · Hecho por JuanFer',
+  'tab-plan':'Plan','tab-score':'Puntaje','tab-stats':'Stats','made-by':'Stoic · Hecho por JuanFer',
   'rem-title':'Recordatorios','rem-new':'Nuevo recordatorio','rem-what':'¿Qué hay que hacer?',
   'tut-start':'Empezar','tut-next':'Siguiente','tut-finish':'¡Listo!','tut-skip':'Saltar','tut-pause':'⏸ Pausar','tut-resume':'Seguir tutorial','tut-part':'Parte {n} de {of}','tut-skip-q':'¿Qué prefieres?','tut-skip-part':'Saltar esta parte','tut-skip-all':'Ya sé usar Stoic: mostrar todo','tut-back':'Volver al tutorial','tut-skipped':'Ya está todo abierto. El 🎓 de arriba repite el tutorial.','tut-replay':'Tutorial','tut-replay-note':'Es un repaso: Siguiente avanza sin crear nada.','tut-done-replay':'Listo. El 🎓 de arriba lo repite.','tut-done-real':'Listo. El 🎓 de arriba lo repite.','tut-paused':'En pausa. El 🎓 de arriba te regresa aquí.','tut-prev':'← Atrás','tut-got-it':'Entendido',
   'tut-later':'Mañana','tut-go-on':'Seguir','tut-later-toast':'Hasta mañana. ¿No aguantas? Toca el 🎓 de arriba.','tut-wait':'Hay más en Stoic: mañana, o ahorita.','tut-wait-all':'Mostrar todo',
@@ -2633,7 +2634,7 @@ es:{
   'tut2-swstop':'Ahora detenlo.',
   'tut2-swadd':'Súmale ese tiempo a una tarea.',
   'tut2-swpick':'Elige una. Tip: cada tarea trae su ⏱, y al iniciar uno se guarda el que corría; al detener uno, el tiempo se le suma solo. Si se repite, también se marca hecha.',
-  'tut2-tlgo':'Ese tiempo ya quedó guardado. Veamos a dónde se fue: toca Puntaje.',
+  'tut2-tlgo':'Ese tiempo ya quedó guardado. Veamos a dónde se fue: toca 📊 Stats.',
   'tut2-tlcard':'Aquí ves en qué se te fue el tiempo: el total, cuánto fue a 🏁 banderas y cuántas tareas. Arriba eliges el periodo, o solo banderas. Pruébalos.',
   'tut2-tlrow':'Toca una tarea para ver cada vez que la cronometraste.',
   'tut2-tlentry':'Cada vez queda aquí. ✎ corrige el día o los minutos, ↪ lo pasa a otra tarea y ✕ lo borra.',
@@ -2662,7 +2663,7 @@ es:{
   'tut3-dtitle':'Ponle título al día, o dale Siguiente.',
   'tut3-dtpl':'Esta plantilla es opcional: contesta lo que quieras, o bórrala.',
   'tut3-dsaved':'Se guarda al tocar afuera. Tócala para editarla.',
-  'tut3-stats':'Todo lo que has ganado. Tócalo para ver el detalle.',
+  'tut3-stats':'Todo lo que has ganado. Tócalo para ver el detalle.','tut3-tostats':'Ver cómo vas tiene su propia pestaña. Toca 📊 Stats.',
   'tut3-statsin':'Medallas, récords y rachas. Se llenan con los días.\nBaja hasta el final para ver todas las estadísticas.',
   'tut3-wk':'📊 compara tus semanas. Tócalo.',
   'tut3-wkin':'Tu semana contra la anterior. Las flechas dicen qué subió o bajó. Arriba cambias de semana.',
@@ -7071,7 +7072,7 @@ function tmPauseOthers(m){
 function goEditLog(eid){
   const e=timeLog().find(x=>x.id===eid);if(!e)return;
   try{localStorage.setItem('st_tlrange','all');if(!e.flag)localStorage.setItem('st_tlflags','0');}catch(_){}
-  STATE.tab='score';try{localStorage.setItem('st_tab','score');}catch(_){}
+  STATE.tab='stats';try{localStorage.setItem('st_tab','stats');}catch(_){}
   STATE.tlOpen=e.rid?'r:'+e.rid:'t:'+String(e.title||'').toLowerCase();
   STATE.tlEdit=eid;
   render();
@@ -7193,17 +7194,24 @@ function swTaskPress(r){
 function swLoggedToast(msg,r,eid){
   const tk=todayKey();
   const open=r&&!(r.done||r.completedOn===tk);
-  /* A task that comes back on a later day is done by being timed: this turn is
-     spent, and the next one is already waiting. One that does not repeat may
-     well be unfinished, so that one is only offered. An hourly one is left
-     alone too — it comes back within the day, so a tick there is a tally. */
-  if(open&&r.repeat&&r.repeat.unit!=='hour'&&r.due<=tk){
+  /* A task that comes back is done by being timed: this turn is spent, and the
+     next one is already waiting. One that does not repeat may well be
+     unfinished, so that one is only offered. An hourly one is ticked the same
+     way, and its tally goes up by one; it comes back at its next hour. */
+  if(open&&r.repeat&&r.due<=tk){
+    const hourly=r.repeat.unit==='hour';
+    const n0=doneCount(r,tk);
     toggleReminder(r.id,true);
     render();
-    flashToast(msg+' · '+t('tl-auto').replace('{d}',fmtShort(r.due)),t('tl-undo'),()=>{
-      const cur=reminders().find(x=>x.id===r.id);
-      if(cur&&cur.completedOn===todayKey()){
-        toggleReminder(cur.id);
+    const back=hourly&&r.due===tk&&r.time?r.time:fmtShort(r.due);
+    flashToast(msg+' · '+t('tl-auto').replace('{d}',back),t('tl-undo'),()=>{
+      const cur=reminders().find(x=>x.id===r.id),k=todayKey();
+      /* An hourly one never reads as done today (it is waiting for its next hour),
+         so its undo is asked of the tally: still one more than before the tick. */
+      if(cur&&(hourly?doneCount(cur,k)>n0:cur.completedOn===k)){
+        setDone(cur,k,false);
+        if(hourly)cur.completedOn=null;   // the ticks left today are a tally, not a day done
+        savePlanner();
         render();
         flashToast(t('tl-undone').replace('{t}',String(cur.title||'').slice(0,40)));
       }
@@ -7280,7 +7288,7 @@ function renderStopwatchPage(){
   const stat=sp('xs dimmer',tot?`${fmtSecs(tot)} ${t('sw-today')}`+(fl?` · 🏁 ${fmtSecs(fl)}`:''):'');
   stat.style.cursor='pointer';stat.title=t('sw-jump-title');
   stat.onclick=()=>{
-    if(STATE.tab!=='score'){STATE.tab='score';localStorage.setItem('st_tab','score');render();}
+    if(STATE.tab!=='stats'){STATE.tab='stats';localStorage.setItem('st_tab','stats');render();}
     requestAnimationFrame(()=>document.getElementById('timelog-card')?.scrollIntoView({behavior:'smooth',block:'center'}));
   };
   hd.appendChild(stat);
@@ -9456,6 +9464,7 @@ function render(){
   if(!STATE.authed){root.appendChild(renderLogin());return;}
   // A locked tab cannot be the one on screen (a stage chosen after it was open).
   if(STATE.tab==='score'&&!featureOn('tabScore'))STATE.tab='plan';
+  if(STATE.tab==='stats'&&!featureOn('tabStats'))STATE.tab=featureOn('tabScore')?'score':'plan';
   root.appendChild(renderApp());
   if(seenOvl.size)root.querySelectorAll('.ovl.fi').forEach(o=>{if(seenOvl.has(ovlSig(o)))o.classList.remove('fi');});
   applyFeatureGates(root);
@@ -10347,8 +10356,11 @@ function renderApp(){
   // .tabbar carries what used to be written here inline, so a phone can move
   // the whole thing to the bottom of the screen. Same look on a big screen.
   const tabs=dv('row gap6 mt4 mb4 tabbar');
+  /* Score is today: what you log and what it earns. Stats is looking back: where
+     the time went and everything added up. */
   [['plan',`📋 ${t('tab-plan')}`,st.total?`${st.done}/${st.total}`:''],
-   ['score',`📊 ${t('tab-score')}`,'']].forEach(([id,label,badge])=>{
+   ['score',`🏆 ${t('tab-score')}`,''],
+   ['stats',`📊 ${t('tab-stats')}`,'']].forEach(([id,label,badge])=>{
     const active=STATE.tab===id;
     const b=bt(active?'btn-ac btn-sm f1':'btn-sm f1',label+(badge?`  ${badge}`:''),()=>{
       if(active){
@@ -10369,12 +10381,19 @@ function renderApp(){
     else b.style.flex='1';
     b.dataset.tut='tab-'+id;
     if(id==='score')gate(b,'tabScore');
+    if(id==='stats')gate(b,'tabStats');
     tabs.appendChild(b);
   });
   wrap.appendChild(tabs);
 
   if(STATE.tab==='plan'){
     wrap.appendChild(renderPlanner());
+    wrap.appendChild(dv('xs dimmer ctr mt16 mb16',t('made-by')));
+    return wrap;
+  }
+  if(STATE.tab==='stats'){
+    wrap.appendChild(gate(renderTimeLogCard(),'stopwatch'));
+    wrap.appendChild(gate(renderStats(total,sc),'stats'));
     wrap.appendChild(dv('xs dimmer ctr mt16 mb16',t('made-by')));
     return wrap;
   }
@@ -10415,8 +10434,12 @@ function renderApp(){
   wrap.appendChild(gate(ch,'monthCal'));
   if(STATE.dayDetail)wrap.appendChild(renderDayDetailModal(STATE.dayDetail));
   if(STATE.histDay)wrap.appendChild(renderHistModal(STATE.histDay));
-  wrap.appendChild(gate(renderTimeLogCard(),'stopwatch'));
-  wrap.appendChild(gate(renderStats(total,sc),'stats'));
+  /* The streak tiles here open the full breakdown, which is drawn by the stats:
+     only its window comes over to this page. */
+  if(STATE.showStatsDetail&&featureOn('stats')){
+    const ov=renderStats(total,sc).querySelector(':scope > .ovl');
+    if(ov)wrap.appendChild(ov);
+  }
   // Reset All — at the bottom where it's hard to hit accidentally
   const resetWrap=dv('card mt12');resetWrap.style.cssText='border-color:var(--ngb);background:var(--ngd)';
   const resetRow=dv('rowb');
