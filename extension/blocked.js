@@ -33,14 +33,17 @@ async function paint(){
     return;
   }
   $('nums').textContent=fmtMin(st.used)+' de '+fmtMin(st.allowed);
-  $('detail').textContent='Tu tiempo de procrastinación de hoy ya llegó a lo que te dan tus pomodoros ('+st.poms+' hoy)'
+  $('detail').textContent='Tu tiempo de procrastinación de hoy ya llegó a lo que te toca hoy ('+st.poms+' pomodoros)'
     +(st.measured?'. Medimos '+fmtMin(st.measured)+' en estos sitios.':'.');
   // How many more pomodoros it takes for the allowance to pass what is logged
   // (worked out once, in logic.js, so this page and the badge always agree).
   const need=st.needPoms||0;
+  const COLOR={red:'rojo',yellow:'amarillo',green:'verde',purple:'morado'};
   $('how').textContent=need>0
     ?'Te faltan '+need+(need===1?' pomodoro':' pomodoros')+' para que se abra: cada uno que terminas te gana su descanso como tiempo permitido.'
-    :'';
+    :st.colorCapped
+      ?'Hoy el techo es de '+fmtMin(st.allowed)+' porque tu mejor color es el '+(COLOR[st.best]||st.best)+'. Más pomodoros no lo abren: sube tu color del día (cierra más tareas).'
+      :'';
 }
 
 $('recheck').onclick=async()=>{

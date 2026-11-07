@@ -28,10 +28,19 @@ export function pomoRestMins(n,cfg){
   return shorts*cfg.brk+longs*cfg.longBrk+frac*next;
 }
 
+/* The most a day's colour lets it allow, whatever the pomodoros say. `best` is
+   the best colour the day has reached (today._best), which Stoic only ever raises
+   through the day. A day without one (before the rule) has no ceiling. */
+export const COLOR_CAP_MINS={red:30,yellow:60,green:90,purple:120};
+export function capFor(best){return COLOR_CAP_MINS[best]||null;}
+
 /* What today's pomodoros allow: never less than the flat 30, otherwise the rest
-   those pomodoros earned in the lengths set on the timer. */
-export function freeMinsFor(pomodoros,cfgRaw){
-  return Math.max(FREE_MINS_BASE,Math.round(pomoRestMins(pomodoros,pomoCfgFrom(cfgRaw))));
+   those pomodoros earned in the lengths set on the timer — and never more than
+   the day's colour allows. */
+export function freeMinsFor(pomodoros,cfgRaw,best){
+  const own=Math.max(FREE_MINS_BASE,Math.round(pomoRestMins(pomodoros,pomoCfgFrom(cfgRaw))));
+  const cap=capFor(best);
+  return cap?Math.min(cap,own):own;
 }
 
 // Minutes logged against one reward in a day, however many entries it took.
@@ -49,10 +58,13 @@ export function penMinutes(day,type,excludeExt){
    does it. Zero when nothing is blocking. The block lifts once the allowance is
    strictly above `used`; the allowance climbs with every pomodoro, so this just
    counts them one at a time rather than solving for it. */
-export function pomsToUnblock(used,poms,cfg){
+export function pomsToUnblock(used,poms,cfg,best){
   const u=Number(used)||0,have=Number(poms)||0;
-  if(freeMinsFor(have,cfg)>u)return 0;
-  for(let m=1;m<=2000;m++)if(freeMinsFor(have+m,cfg)>u)return m;
+  if(freeMinsFor(have,cfg,best)>u)return 0;
+  // At or past the colour's ceiling no number of pomodoros lifts it: only a better colour does.
+  const cap=capFor(best);
+  if(cap&&cap<=u)return 0;
+  for(let m=1;m<=2000;m++)if(freeMinsFor(have+m,cfg,best)>u)return m;
   return 2000;
 }
 
@@ -96,7 +108,10 @@ export function computeBudget(today,now,measured){
   const meas=measuredMinutes(measured,current?today._extAck:null);
   const used=manual+meas;
   const cfg=today&&today._pomoCfg;
-  const allowed=freeMinsFor(poms,cfg);
+  const best=current&&capFor(today._best)?today._best:null;
+  const allowed=freeMinsFor(poms,cfg,best);
+  const blocked=used>=allowed;     // "equal or more", as it was asked
+  const needPoms=pomsToUnblock(used,poms,cfg,best);
   return{
     day:dayNow,
     current,
@@ -106,8 +121,11 @@ export function computeBudget(today,now,measured){
     measured:meas,
     allowed,
     left:Math.max(0,allowed-used),
-    blocked:used>=allowed,     // "equal or more", as it was asked
-    needPoms:pomsToUnblock(used,poms,cfg)
+    blocked,
+    needPoms,
+    // Held by the day's colour rather than by pomodoros: more of them will not open it.
+    best,
+    colorCapped:blocked&&needPoms===0&&!!best
   };
 }
 

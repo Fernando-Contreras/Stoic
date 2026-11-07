@@ -213,6 +213,7 @@ function paintBadge(st){
   chrome.action.setBadgeBackgroundColor({color});
   let title='Stoic Block';
   if(st.blocked&&st.needPoms)title+=' · te '+(st.needPoms===1?'falta 1 pomodoro':'faltan '+st.needPoms+' pomodoros')+' para desbloquear';
+  else if(st.colorCapped)title+=' · bloqueado: techo de tu color de hoy';
   else if(st.blocked)title+=' · bloqueado';
   else if(text&&!st.reason&&st.ok!==false)title+=' · '+st.left+' min libres';
   try{chrome.action.setTitle({title});}catch(e){}

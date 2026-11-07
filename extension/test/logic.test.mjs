@@ -24,6 +24,15 @@ t('allowance: nonsense settings fall back to the defaults instead of breaking',(
   assert.equal(freeMinsFor(20,{brk:-5,longBrk:NaN,cycle:'4'}),150);
 });
 
+// ---- the colour's ceiling: red 30, yellow 60, green 90, purple 120
+t('ceiling: the colour caps what pomodoros earned (20 pomodoros = 150)',()=>{
+  assert.equal(freeMinsFor(20,undefined,'red'),30);
+  assert.equal(freeMinsFor(20,undefined,'yellow'),60);
+  assert.equal(freeMinsFor(20,undefined,'green'),90);
+  assert.equal(freeMinsFor(20,undefined,'purple'),120);
+});
+t('ceiling: never raises what pomodoros earned (5 pomodoros = 35 stays 35 on purple)',()=>assert.equal(freeMinsFor(5,undefined,'purple'),35));
+t('ceiling: no colour, or an unknown one, is no ceiling',()=>{assert.equal(freeMinsFor(20),150);assert.equal(freeMinsFor(20,undefined,'blue'),150);assert.equal(freeMinsFor(20,undefined,null),150);});
 // ---- minutes logged
 t('minutes: details.minutes wins, count is the fallback, other rewards ignored',()=>{
   const d={penalties:[
@@ -40,6 +49,29 @@ const day='2026-10-29';
 const at=new Date('2026-10-29T18:00:00Z');                // still the 29th in Cancún (UTC-5)
 const today=(o)=>({_date:day,_tz:'America/Cancun',pomodoros:0,penalties:[],...o});
 const mins=m=>[{type:'internet',details:{minutes:m}}];
+
+t('ceiling: budget reads today._best — 26 pomodoros, green, 3h of scrolling is blocked at 90',()=>{
+  const b=computeBudget(today({penalties:mins(90),pomodoros:26,_best:'green'}),at);
+  assert.equal(b.allowed,90);assert.equal(b.blocked,true);assert.equal(b.best,'green');
+  assert.equal(b.needPoms,0);assert.equal(b.colorCapped,true);
+});
+t('ceiling: under the ceiling more pomodoros still open it (60 used, 8 pomodoros = 60, green)',()=>{
+  const b=computeBudget(today({penalties:mins(60),pomodoros:8,_best:'green'}),at);
+  assert.equal(b.blocked,true);assert.equal(b.colorCapped,false);assert.equal(b.needPoms,1);
+});
+t('ceiling: red day, 30 used -> blocked and only a better colour opens it',()=>{
+  const b=computeBudget(today({penalties:mins(30),pomodoros:12,_best:'red'}),at);
+  assert.equal(b.blocked,true);assert.equal(b.colorCapped,true);
+});
+t('ceiling: a day without _best behaves as before',()=>{
+  const b=computeBudget(today({penalties:mins(100),pomodoros:20}),at);
+  assert.equal(b.allowed,150);assert.equal(b.blocked,false);assert.equal(b.best,null);
+});
+t("ceiling: yesterday's best colour does not apply to today",()=>{
+  const b=computeBudget(today({_date:'2026-10-28',_best:'red',pomodoros:20}),at);
+  assert.equal(b.best,null);assert.equal(b.allowed,30);
+});
+
 
 t('budget: nothing logged -> not blocked, 30 left',()=>{
   const b=computeBudget(today(),at);
