@@ -693,10 +693,12 @@ html.zoomed *{touch-action:auto!important}
     /* Every env() carries a 0px fallback. Without one, a browser that does not
        know the function throws the whole declaration away — and that is the
        declaration holding the bar off the bottom of the screen. */
-    padding:7px 12px calc(7px + env(safe-area-inset-bottom,0px));
-    gap:8px;box-shadow:0 -8px 24px rgba(0,0,0,.30);
+    padding:7px 8px calc(7px + env(safe-area-inset-bottom,0px));
+    gap:6px;box-shadow:0 -8px 24px rgba(0,0,0,.30);
   }
-  .tabbar button{padding:11px 8px;font-size:15px;border-radius:10px}
+  /* Three tabs, one line each: "Estadísticas" is long, so the side room goes. */
+  .tabbar button{padding:11px 4px;font-size:14px;border-radius:10px;white-space:nowrap;min-width:0}
+  @media (max-width:360px){.tabbar button{padding:11px 2px;font-size:12.5px}}
   /* The bar is full width down here; the band behind it would only be a
      second background over the same pixels. */
   .tabbar::before{display:none}
@@ -1094,8 +1096,8 @@ const TUT_STAGES={
     {id:'dHist',   tab:'score', target:'[data-tut="hist-edit"]', press:true, text:'tut3-dhist', enter:tutHistDay},
     {id:'dHistIn', target:'[data-tut="hist-panel"]', win:'histDay', open:tutYesterday, text:'tut3-dhistin', manual:true, free:true, after:tutClose('histDay')},
     {id:'toStats', target:'[data-tut="tab-stats"]',         text:'tut3-tostats', latch:true, done:()=>STATE.tab==='stats'},
-    {id:'stats',   tab:'stats', target:'[data-tut="stats-all"]',  text:'tut3-stats', temp:true, latch:true, done:()=>STATE.showStatsDetail},
-    {id:'statsIn', target:'[data-tut="stats-panel"]', win:'showStatsDetail', text:'tut3-statsin', manual:true, free:true, after:tutClose('showStatsDetail')},
+    {id:'stats',   tab:'stats', target:'[data-tut="stats-all"]',  text:'tut3-stats', manual:true},
+    {id:'statsIn', tab:'stats', target:'[data-tut="stats-panel"]', text:'tut3-statsin', manual:true},
     {id:'week',    tab:'plan',  target:'[data-tut="week-btn"]',   text:'tut3-wk',    temp:true, latch:true, done:()=>STATE.showWeek},
     {id:'weekIn',  target:'[data-tut="week-panel"]',  win:'showWeek', text:'tut3-wkin',  manual:true, free:true, after:tutClose('showWeek')},
     // The whole form, a part at a time, ending in a real task: the steps after it need one.
@@ -2159,7 +2161,7 @@ en:{
   'ch-title':'Charts','ch-table':'Table','ch-chart':'Chart',
   'disc-red':'Red day: everything pays base','disc-light':'Light rewards at base price',
   'disc-med':'Light and medium at base price','disc-all':'Any reward at base price',
-  'stats-title':'Stats',
+  'stats-title':'🏆 Points and streaks',
   'best-day':'Best day','worst-day':'Worst day','all-avg':'All-time avg','last7-avg':'Last 7 avg',
   'total-poms':'Pomodoros','work-total':'Work total','sleep-total':'Sleep total','clean-streak':'Clean streak',
   'purple-days':'Purple days','best-streak':'Best streak',
@@ -2285,8 +2287,8 @@ en:{
   'tut3-dtitle':'Give the day a title, or press Next.',
   'tut3-dtpl':'This template is optional: answer what you like, or delete it.',
   'tut3-dsaved':'It saves when you tap outside. Tap it to edit.',
-  'tut3-stats':'All you have earned. Tap it for the detail.','tut3-tostats':'Looking back has its own tab. Tap 📊 Stats.',
-  'tut3-statsin':'Medals, records and streaks. They fill up as your days go by.\nScroll to the bottom to see every stat.',
+  'tut3-stats':'All you have earned, in one number.','tut3-tostats':'Looking back has its own tab. Tap 📊 Stats.',
+  'tut3-statsin':'Medals, records and streaks. They fill up as your days go by.',
   'tut3-wk':'📊 compares your weeks. Tap it.',
   'tut3-wkin':'Your week against the one before. The arrows show what went up or down. Up top you switch weeks.',
   'tut3-day':'📅 is the day calendar. Tap it.',
@@ -2390,7 +2392,7 @@ en:{
   'tl-edit':'Fix the day or the minutes','tl-move':'Move to another task','tl-move-to':'Move this time to…',
   'tl-save':'Save','tl-cancel':'Cancel','tl-only-flags':'🏁 Flags only','tl-change':'Change task','tl-complete':'Complete task','tl-completed':'Done: "{t}"','tl-auto':'done, back {d}','tl-undo':'Undo','tl-undone':'Back on the list: "{t}"',
   'sw-record':'New record!','sw-replace':'The stopwatch has {t} with no task. Start over at zero for this one?',
-  'sw-change':'Change task','sw-change-to':'Time this on…','tm-max':'{n} timers at most. Stop one first.','tl-fix':'Fix it','tl-editlink':'Edit','tm-long':'⚠ {t} → {n}. Nobody focuses that long: did you forget to stop it?','tm-long-live':'⚠ "{n}" has been counting for over 12 hours. Is it really still going?','tm-gone':'(task deleted)','tm-has':'That task already has its own timer.','sw-stop-save':'Stop and save','sw-task-start':'Time this task',
+  'sw-change':'Change task','sw-change-to':'Time this on…','tm-max':'{n} timers at most. Stop one first.','tl-fix':'Fix it','tl-editlink':'Edit','tl-see':'See its times','tm-long':'⚠ {t} → {n}. Nobody focuses that long: did you forget to stop it?','tm-long-live':'⚠ "{n}" has been counting for over 12 hours. Is it really still going?','tm-gone':'(task deleted)','tm-has':'That task already has its own timer.','sw-stop-save':'Stop and save','sw-task-start':'Time this task',
   'ts-line':'{n} times · total {tot} · average {avg} · fastest {min} · slowest {max}',
   'cal-untimed':'No time','cal-tray-empty':'every task has a time',
   'cal-dur':'Minutes it takes on the calendar','cal-hint':'Drag a task onto the hours to give it a time, and off them to take it away; on a phone, hold it a moment first. Drag the bottom edge to change how long it is drawn — the list only ever shows when it starts. Drag across empty hours to make a new task for exactly that time.',
@@ -2537,7 +2539,7 @@ es:{
   'ch-title':'Gráficos','ch-table':'Tabla','ch-chart':'Gráfico',
   'disc-red':'Día rojo: todo paga a precio base','disc-light':'Recompensas ligeras a precio base',
   'disc-med':'Ligeras y medias a precio base','disc-all':'Cualquier recompensa a precio base',
-  'stats-title':'Estadísticas',
+  'stats-title':'🏆 Puntos y rachas',
   'best-day':'Mejor día','worst-day':'Peor día','all-avg':'Promedio total','last7-avg':'Últimos 7 días',
   'total-poms':'Pomodoros','work-total':'Trabajo total','sleep-total':'Sueño total','clean-streak':'Racha limpia',
   'purple-days':'Días morados','best-streak':'Mejor racha',
@@ -2594,7 +2596,7 @@ es:{
   'cloud-active':'☁️ Sincronización activa — datos entre dispositivos.',
   'guest-only':'Solo modo invitado — sin credenciales Supabase.',
   'daily-tracker':'rastreador diario · por JuanFer',
-  'tab-plan':'Plan','tab-score':'Puntaje','tab-stats':'Stats','made-by':'Stoic · Hecho por JuanFer',
+  'tab-plan':'Plan','tab-score':'Puntaje','tab-stats':'Estadísticas','made-by':'Stoic · Hecho por JuanFer',
   'rem-title':'Recordatorios','rem-new':'Nuevo recordatorio','rem-what':'¿Qué hay que hacer?',
   'tut-start':'Empezar','tut-next':'Siguiente','tut-finish':'¡Listo!','tut-skip':'Saltar','tut-pause':'⏸ Pausar','tut-resume':'Seguir tutorial','tut-part':'Parte {n} de {of}','tut-skip-q':'¿Qué prefieres?','tut-skip-part':'Saltar esta parte','tut-skip-all':'Ya sé usar Stoic: mostrar todo','tut-back':'Volver al tutorial','tut-skipped':'Ya está todo abierto. El 🎓 de arriba repite el tutorial.','tut-replay':'Tutorial','tut-replay-note':'Es un repaso: Siguiente avanza sin crear nada.','tut-done-replay':'Listo. El 🎓 de arriba lo repite.','tut-done-real':'Listo. El 🎓 de arriba lo repite.','tut-paused':'En pausa. El 🎓 de arriba te regresa aquí.','tut-prev':'← Atrás','tut-got-it':'Entendido',
   'tut-later':'Mañana','tut-go-on':'Seguir','tut-later-toast':'Hasta mañana. ¿No aguantas? Toca el 🎓 de arriba.','tut-wait':'Hay más en Stoic: mañana, o ahorita.','tut-wait-all':'Mostrar todo',
@@ -2634,7 +2636,7 @@ es:{
   'tut2-swstop':'Ahora detenlo.',
   'tut2-swadd':'Súmale ese tiempo a una tarea.',
   'tut2-swpick':'Elige una. Tip: cada tarea trae su ⏱, y al iniciar uno se guarda el que corría; al detener uno, el tiempo se le suma solo. Si se repite, también se marca hecha.',
-  'tut2-tlgo':'Ese tiempo ya quedó guardado. Veamos a dónde se fue: toca 📊 Stats.',
+  'tut2-tlgo':'Ese tiempo ya quedó guardado. Veamos a dónde se fue: toca 📊 Estadísticas.',
   'tut2-tlcard':'Aquí ves en qué se te fue el tiempo: el total, cuánto fue a 🏁 banderas y cuántas tareas. Arriba eliges el periodo, o solo banderas. Pruébalos.',
   'tut2-tlrow':'Toca una tarea para ver cada vez que la cronometraste.',
   'tut2-tlentry':'Cada vez queda aquí. ✎ corrige el día o los minutos, ↪ lo pasa a otra tarea y ✕ lo borra.',
@@ -2663,8 +2665,8 @@ es:{
   'tut3-dtitle':'Ponle título al día, o dale Siguiente.',
   'tut3-dtpl':'Esta plantilla es opcional: contesta lo que quieras, o bórrala.',
   'tut3-dsaved':'Se guarda al tocar afuera. Tócala para editarla.',
-  'tut3-stats':'Todo lo que has ganado. Tócalo para ver el detalle.','tut3-tostats':'Ver cómo vas tiene su propia pestaña. Toca 📊 Stats.',
-  'tut3-statsin':'Medallas, récords y rachas. Se llenan con los días.\nBaja hasta el final para ver todas las estadísticas.',
+  'tut3-stats':'Todo lo que has ganado, en un número.','tut3-tostats':'Ver cómo vas tiene su propia pestaña. Toca 📊 Estadísticas.',
+  'tut3-statsin':'Medallas, récords y rachas. Se llenan con los días.',
   'tut3-wk':'📊 compara tus semanas. Tócalo.',
   'tut3-wkin':'Tu semana contra la anterior. Las flechas dicen qué subió o bajó. Arriba cambias de semana.',
   'tut3-day':'📅 es el calendario del día. Tócalo.',
@@ -2768,7 +2770,7 @@ es:{
   'tl-edit':'Corregir el día o los minutos','tl-move':'Mover a otra tarea','tl-move-to':'Mover este tiempo a…',
   'tl-save':'Guardar','tl-cancel':'Cancelar','tl-only-flags':'🏁 Solo banderas','tl-change':'Cambiar tarea','tl-complete':'Completar tarea','tl-completed':'Hecha: "{t}"','tl-auto':'hecha, vuelve {d}','tl-undo':'Deshacer','tl-undone':'De vuelta en pendientes: "{t}"',
   'sw-record':'¡Nuevo récord!','sw-replace':'El cronómetro trae {t} sin tarea. ¿Lo pongo en cero para esta?',
-  'sw-change':'Cambiar tarea','sw-change-to':'Cronometrar esto en…','tm-max':'Máximo {n} cronómetros. Detén uno primero.','tl-fix':'Corregir','tl-editlink':'Editar','tm-long':'⚠ {t} → {n}. Nadie se enfoca tanto tiempo: ¿se te olvidó detenerlo?','tm-long-live':'⚠ Llevas más de 12 horas con "{n}". ¿De verdad sigue corriendo?','tm-gone':'(tarea borrada)','tm-has':'Esa tarea ya tiene su propio cronómetro.','sw-stop-save':'Detener y guardar','sw-task-start':'Cronometrar esta tarea',
+  'sw-change':'Cambiar tarea','sw-change-to':'Cronometrar esto en…','tm-max':'Máximo {n} cronómetros. Detén uno primero.','tl-fix':'Corregir','tl-editlink':'Editar','tl-see':'Ver sus tiempos','tm-long':'⚠ {t} → {n}. Nadie se enfoca tanto tiempo: ¿se te olvidó detenerlo?','tm-long-live':'⚠ Llevas más de 12 horas con "{n}". ¿De verdad sigue corriendo?','tm-gone':'(tarea borrada)','tm-has':'Esa tarea ya tiene su propio cronómetro.','sw-stop-save':'Detener y guardar','sw-task-start':'Cronometrar esta tarea',
   'ts-line':'{n} veces · total {tot} · promedio {avg} · más rápida {min} · más lenta {max}',
   'cal-untimed':'Sin hora','cal-tray-empty':'todas tienen hora',
   'cal-dur':'Minutos que dura en el calendario','cal-hint':'Arrastra una tarea a las horas para darle hora, y fuera de ellas para quitársela; en celular, déjala apretada un momento primero. Arrastra el borde de abajo para cambiar cuánto dura en el dibujo — la lista solo muestra a qué hora empieza. Arrastra sobre horas vacías para crear una tarea nueva justo en ese horario.',
@@ -4509,7 +4511,7 @@ function toggleReminder(id,forceDone){
   const tm=on?tmOf(id):null;
   if(tm){
     const o=tmSave(tm);
-    if(o&&o.sec>0)flashToast((o.rec?'🏆 '+t('sw-record')+' ':'✓ ')+fmtHMS(o.sec)+' → '+r.title);
+    if(o&&o.sec>0)flashToast((o.rec?'🏆 '+t('sw-record')+' ':'✓ ')+fmtHMS(o.sec)+' → '+r.title,null,null,()=>goTaskTime(r.id));
   }
   // A parent is ticked on its own. It used to carry its subtasks with it,
   // which breaks the way this is actually used: the parent is a bonus task in
@@ -6965,7 +6967,7 @@ function swMs(){
   return s.running?base+Math.max(0,CLOCK.now()-s.startedAt):base;
 }
 function swSeconds(){return Math.floor(swMs()/1000);}
-function swStart(){const s=swState();if(s.running)return;if(s.ms==null)s.ms=(s.elapsed||0)*1000;s.running=true;s.startedAt=CLOCK.now();savePomo();}
+function swStart(){const s=swState();if(s.running)return;if(s.ms==null)s.ms=(s.elapsed||0)*1000;s.running=true;s.startedAt=CLOCK.now();savePomo();pomoWithWork();}
 function swPause(){const s=swState();if(!s.running)return;s.ms=swMs();s.elapsed=Math.floor(s.ms/1000);s.running=false;s.startedAt=0;savePomo();}
 function swReset(){const s=swState();s.running=false;s.startedAt=0;s.elapsed=0;s.ms=0;s.rid=null;savePomo();}
 // The Reset button: back to zero and running at once, from any state.
@@ -7065,7 +7067,7 @@ function tmPauseOthers(m){
   tmList().slice().forEach(o=>{
     if(o===m)return;
     const s=tmSave(o);
-    if(s&&s.sec>0)flashToast('✓ '+fmtHMS(s.sec)+' → '+s.r.title+(s.sec>TM_LONG?' ⚠':''),t('tl-editlink'),()=>goEditLog(s.eid));
+    if(s&&s.sec>0)flashToast('✓ '+fmtHMS(s.sec)+' → '+s.r.title+(s.sec>TM_LONG?' ⚠':''),t('tl-editlink'),()=>goEditLog(s.eid),()=>goTaskTime(s.r.id));
   });
 }
 /* To the entry in Score, already open for fixing its day or minutes (or its task). */
@@ -7078,14 +7080,33 @@ function goEditLog(eid){
   render();
   requestAnimationFrame(()=>{const c=document.getElementById('timelog-card');if(c)c.scrollIntoView({block:'center'});});
 }
+/* A time just logged, pressed: to Stats, with that task's times open. */
+function goTaskTime(rid,all){
+  if(!featureOn('tabStats'))return;
+  try{localStorage.setItem('st_tlflags','0');if(all)localStorage.setItem('st_tlrange','all');}catch(_){}
+  STATE.tab='stats';try{localStorage.setItem('st_tab','stats');}catch(_){}
+  if(rid)STATE.tlOpen='r:'+rid;
+  STATE.tlEdit=null;STATE.taskTree=null;STATE.editingRem=null;
+  render();
+  requestAnimationFrame(()=>{
+    const c=document.getElementById('timelog-card');if(!c)return;
+    const row=rid&&c.querySelector('[data-tlkey="r:'+rid+'"]');
+    (row||c).scrollIntoView({behavior:'smooth',block:row?'center':'start'});
+  });
+}
 function tmResume(m){
   if(m.running)return;
   tmPauseOthers(m);m.running=true;m.startedAt=CLOCK.now();savePomo();
-  /* Working on a task is what a focus stretch is for, so the timer goes with it —
-     unless one is already going, or it is sitting on a break, which is not the
-     moment to start counting one down. */
+  pomoWithWork();
+}
+/* Working is what a focus stretch is for, so starting a stopwatch starts the
+   pomodoro too, when it is not already going. One parked on a break is moved on
+   to focus first: pressing start on a task is saying the break is over. */
+function pomoWithWork(){
   const p=STATE.pomo;
-  if(p&&!p.running&&p.phase==='focus'){unlockAudio();pomoStart();}
+  if(!p||p.running)return;
+  if(p.phase!=='focus'){p.phase='focus';p.elapsed=0;}
+  unlockAudio();pomoStart();
 }
 function tmRestart(m){tmPauseOthers(m);m.ms=0;m.running=true;m.startedAt=CLOCK.now();savePomo();}
 function tmStart(r){
@@ -7140,7 +7161,7 @@ function tmStop(m){
   render();
   // Longer than anyone focuses: said, with the way to fix it, and nothing is ticked off on its strength.
   if(o&&o.sec>TM_LONG){
-    flashToast(t('tm-long').replace('{t}',fmtHMS(o.sec)).replace('{n}',o.r.title),t('tl-fix'),()=>goEditLog(o.eid));
+    flashToast(t('tm-long').replace('{t}',fmtHMS(o.sec)).replace('{n}',o.r.title),t('tl-fix'),()=>goEditLog(o.eid),()=>goTaskTime(o.r.id));
     return;
   }
   if(o&&o.sec>0)swLoggedToast((o.rec?'🏆 '+t('sw-record')+' ':'✓ ')+fmtHMS(o.sec)+' → '+o.r.title,o.r,o.eid);
@@ -7193,6 +7214,7 @@ function swTaskPress(r){
    task — which is still in Score for any of them, on the entry's ↪. */
 function swLoggedToast(msg,r,eid){
   const tk=todayKey();
+  const see=r?()=>goTaskTime(r.id):null;
   const open=r&&!(r.done||r.completedOn===tk);
   /* A task that comes back is done by being timed: this turn is spent, and the
      next one is already waiting. One that does not repeat may well be
@@ -7215,7 +7237,7 @@ function swLoggedToast(msg,r,eid){
         render();
         flashToast(t('tl-undone').replace('{t}',String(cur.title||'').slice(0,40)));
       }
-    });
+    },see);
   }else if(open){
     flashToast(msg,t('tl-complete'),()=>{
       const cur=reminders().find(x=>x.id===r.id);
@@ -7224,20 +7246,28 @@ function swLoggedToast(msg,r,eid){
         render();
         flashToast(t('tl-completed').replace('{t}',String(cur.title||'').slice(0,40)));
       }
-    });
+    },see);
   }else{
     // Right after is when a wrong pick shows; one press puts it on the right task.
     flashToast(msg,t('tl-change'),()=>{
       STATE.swMove=eid;STATE.swQ='';render();
-    });
+    },see);
   }
 }
 // A line at the bottom for a moment; with an action it stays a few seconds
 // longer, long enough to press it.
-function flashToast(msg,actionLabel,action){
+/* onMsg, when given, makes the words themselves a way somewhere (a time logged
+   leads to that task's times in Stats). */
+function flashToast(msg,actionLabel,action,onMsg){
   const toast=document.createElement('div');toast.className='flash-toast';
   toast.style.cssText='position:fixed;left:50%;bottom:90px;transform:translateX(-50%);z-index:95;background:var(--sur3);color:var(--t1);border:1px solid var(--acb);border-radius:16px;padding:10px 18px;font-weight:700;box-shadow:0 6px 22px rgba(0,0,0,.4);width:max-content;max-width:90vw;display:flex;align-items:center;gap:12px';
-  toast.appendChild(sp('',msg));
+  const m=sp('',msg);
+  if(onMsg){
+    m.style.cssText='cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px';
+    m.title=t('tl-see');
+    m.onclick=()=>{toast.remove();onMsg();};
+  }
+  toast.appendChild(m);
   if(actionLabel&&action){
     const b=bt('btn-ac btn-xs',actionLabel,()=>{toast.remove();action();});
     toast.appendChild(b);
@@ -7571,7 +7601,7 @@ function renderTimeLogCard(){
   const max=rows[0].sec||1;
   const list=dv('s6');
   rows.forEach(g=>{
-    const box=dv('');
+    const box=dv('');box.dataset.tlkey=g.key;
     const line=dv('row gap8');line.style.cursor='pointer';line.dataset.tut='tl-row';
     line.appendChild(sp('',g.flag?'🏁':'•'));
     const ti=sp('sm f1',g.title);ti.style.cssText='min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
@@ -8984,7 +9014,7 @@ function renderReminderRow(r,tk,opts){
     const avg=ts.reduce((x,y)=>x+y,0)/ts.length;
     const st=sp('','⏱ '+ts.length+'× · ⌀ '+fmtHMS(avg)+(ts.length>1?' · 🏆 '+fmtHMS(Math.min(...ts)):''));
     st.style.cursor='pointer';st.title=tsLine(ts);
-    st.onclick=e=>{e.stopPropagation();flashToast(tsLine(ts));};
+    st.onclick=e=>{e.stopPropagation();flashToast(tsLine(ts),null,null,()=>goTaskTime(r.id));};
     metaLine.appendChild(gate(st,'stopwatch'));
   }
   mid.appendChild(metaLine);
@@ -10393,6 +10423,7 @@ function renderApp(){
   }
   if(STATE.tab==='stats'){
     wrap.appendChild(gate(renderTimeLogCard(),'stopwatch'));
+    wrap.appendChild(renderMoreStats());
     wrap.appendChild(gate(renderStats(total,sc),'stats'));
     wrap.appendChild(dv('xs dimmer ctr mt16 mb16',t('made-by')));
     return wrap;
@@ -10434,12 +10465,6 @@ function renderApp(){
   wrap.appendChild(gate(ch,'monthCal'));
   if(STATE.dayDetail)wrap.appendChild(renderDayDetailModal(STATE.dayDetail));
   if(STATE.histDay)wrap.appendChild(renderHistModal(STATE.histDay));
-  /* The streak tiles here open the full breakdown, which is drawn by the stats:
-     only its window comes over to this page. */
-  if(STATE.showStatsDetail&&featureOn('stats')){
-    const ov=renderStats(total,sc).querySelector(':scope > .ovl');
-    if(ov)wrap.appendChild(ov);
-  }
   // Reset All — at the bottom where it's hard to hit accidentally
   const resetWrap=dv('card mt12');resetWrap.style.cssText='border-color:var(--ngb);background:var(--ngd)';
   const resetRow=dv('rowb');
@@ -10981,7 +11006,11 @@ function renderStreaks(sk_){
       // about.
       c.style.cursor='pointer';
       c.title=STATE.lang==='es'?'Ver el detalle':'See the breakdown';
-      c.onclick=()=>{_statsScrollKey=item.k;STATE.showStatsDetail=true;render();};
+      c.onclick=()=>{
+        if(!featureOn('tabStats'))return;
+        _statsScrollKey=item.k;STATE.tab='stats';try{localStorage.setItem('st_tab','stats');}catch(_){}
+        render();
+      };
     }
     return c;
   }
@@ -12145,6 +12174,234 @@ function renderCharts(sc,isEs){
   return box;
 }
 
+/* ═══ MORE STATS — what the stopwatch, the day calendar, the list and the
+   pomodoro say, added up. Each part shows once its own feature is unlocked. ═══ */
+function statTile(label,value,color,sub,when){
+  const s=dv('card2 ctr');
+  const n=dv('xl w7 mo');n.style.color=color||'var(--ac)';n.textContent=value;s.appendChild(n);
+  const l=dv('xs dimmer mt4');l.textContent=label;s.appendChild(l);
+  if(sub){const b=dv('xs dimmer');b.textContent=sub;b.style.cssText='overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow-wrap:anywhere';s.appendChild(b);}
+  if(when){s.title=when;s.style.cursor='help';}
+  return s;
+}
+function statGrid(...cards){const g=dv('g4 tiles mb10');g.style.gap='8px';cards.forEach(c=>c&&g.appendChild(c));return g;}
+/* Bars, one per day or hour, highest one full height; `hi` is the one coloured
+   (today, the peak hour). Pressing or hovering a bar says its number. */
+function statBars(vals,labels,fmt,o={}){
+  const max=Math.max(1,...vals),gap=vals.length>16?2:4;
+  const box=dv('card2 mb10');
+  if(o.title){
+    const h=dv('rowb mb8');h.style.cssText+=';gap:8px;flex-wrap:wrap';
+    h.appendChild(sp('xs dimmer up ls',o.title));
+    const nt=sp('xs dimmer',o.note||'');h.appendChild(nt);
+    box.appendChild(h);
+    box._note=nt;
+  }
+  const row=dv('');row.style.cssText=`display:flex;align-items:flex-end;gap:${gap}px;height:84px`;
+  vals.forEach((v,i)=>{
+    const col=dv('');col.style.cssText='flex:1;min-width:0;height:100%;display:flex;flex-direction:column;justify-content:flex-end;cursor:pointer';
+    const b=dv('');
+    b.style.cssText=v>0
+      ?`height:${Math.max(4,Math.round(v/max*100))}%;background:${o.hi===i?'var(--cg)':'var(--ac)'};border-radius:3px 3px 0 0`
+      :'height:2px;background:var(--b2);border-radius:1px';
+    const say=(o.tips?o.tips[i]:labels[i])+': '+fmt(v);
+    col.title=say;
+    col.onclick=()=>{if(box._note)box._note.textContent=say;};
+    col.appendChild(b);row.appendChild(col);
+  });
+  box.appendChild(row);
+  const lab=dv('');lab.style.cssText=`display:flex;gap:${gap}px;margin-top:4px`;
+  labels.forEach((l,i)=>{
+    const x=dv('dimmer ctr');x.style.cssText='flex:1;min-width:0;font-size:9px;overflow:hidden;white-space:nowrap';
+    x.textContent=(o.every&&i%o.every)?'':l;lab.appendChild(x);
+  });
+  box.appendChild(lab);
+  return box;
+}
+function renderMoreStats(){
+  const isEs=STATE.lang==='es',tk=todayKey();
+  const L=(es,en)=>isEs?es:en;
+  const dayAdd=(d,n)=>{const x=new Date(d+'T12:00:00');x.setDate(x.getDate()+n);return isoDate(x);};
+  const dow=d=>new Date(d+'T12:00:00').getDay();
+  const dowNames=isEs?['Dom','Lun','Mar','Mié','Jue','Vie','Sáb']:['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const fmtD=d=>d?capFirst(new Date(d+'T12:00:00').toLocaleDateString(isEs?'es-MX':'en-US',{weekday:'short',day:'numeric',month:'short'})):'';
+  const d14=[...Array(14)].map((_,i)=>dayAdd(tk,i-13));
+  const d14lbl=d14.map(d=>dowNames[dow(d)].slice(0,2));
+  const head=txt=>{const h=dv('xs dimmer up ls mb8 mt12');h.textContent=txt;return h;};
+  const card=dv('card mt12');card.id='more-stats';
+  card.appendChild(sp('ctit',L('📈 Tu tiempo y tu día','📈 Your time and your day')));
+
+  /* ── ⏱ The stopwatch ── */
+  const sw=dv('');
+  sw.appendChild(head('⏱ '+L('Cronómetro','Stopwatch')));
+  const log=timeLog().filter(e=>e.sec>0);
+  if(!log.length)sw.appendChild(dv('xs dimmer mb10',L('Todavía no hay tiempos. Dale ⏱ a una tarea y aquí aparece todo.','No times yet. Press ⏱ on a task and it all shows up here.')));
+  else{
+    const byDay=new Map();log.forEach(e=>byDay.set(e.date,(byDay.get(e.date)||0)+e.sec));
+    const total=log.reduce((a,e)=>a+e.sec,0);
+    const today=byDay.get(tk)||0;
+    const wk=[...Array(7)].reduce((a,_,i)=>a+(byDay.get(dayAdd(tk,-i))||0),0);
+    const longest=log.reduce((a,e)=>e.sec>a.sec?e:a,log[0]);
+    // A record is what the notice calls one: faster than every time before it on that task, half a minute and up.
+    let recs=0;const fastest=new Map();
+    [...log].sort((a,b)=>(a.at||0)-(b.at||0)).forEach(e=>{
+      if(!e.rid)return;
+      const m=fastest.get(e.rid);
+      if(m!=null&&e.sec>=30&&e.sec<m)recs++;
+      fastest.set(e.rid,m==null?e.sec:Math.min(m,e.sec));
+    });
+    let bestDay='',bestSec=0;byDay.forEach((v,d)=>{if(v>bestSec){bestSec=v;bestDay=d;}});
+    // Days in a row with time on the clock; the current run may start yesterday, today is not over.
+    const days=[...byDay.keys()].sort();
+    let best=0,cur=0,prev='';days.forEach(d=>{cur=(prev&&dayAdd(prev,1)===d)?cur+1:1;if(cur>best)best=cur;prev=d;});
+    let now=0;{let d=byDay.has(tk)?tk:dayAdd(tk,-1);while(byDay.has(d)){now++;d=dayAdd(d,-1);}}
+    const dSum=Array(7).fill(0),dN=Array(7).fill(0);
+    byDay.forEach((v,d)=>{dSum[dow(d)]+=v;dN[dow(d)]++;});
+    let bw=-1,bwAvg=0;dSum.forEach((v,w)=>{if(dN[w]&&v/dN[w]>bwAvg){bwAvg=v/dN[w];bw=w;}});
+    const tasks=new Map();
+    log.forEach(e=>{
+      const k=e.rid?'r:'+e.rid:'t:'+String(e.title||'').toLowerCase();
+      let g=tasks.get(k);if(!g){g={rid:e.rid,title:e.title,a:[]};tasks.set(k,g);}
+      g.a.push(e.sec);
+    });
+    sw.appendChild(statGrid(
+      statTile(L('Hoy','Today'),fmtSecs(today)),
+      statTile(L('Últimos 7 días','Last 7 days'),fmtSecs(wk),'var(--ac)','⌀ '+fmtSecs(wk/7)+L(' al día',' a day')),
+      statTile(L('Total','Total'),fmtSecs(total),'var(--ac)',byDay.size+L(' días',' days')),
+      statTile(L('Promedio por día','Per day'),fmtSecs(total/byDay.size),'var(--ac)',L('los días que lo usaste','on days you used it'))
+    ));
+    sw.appendChild(statGrid(
+      statTile(L('Sesiones','Sessions'),String(log.length),'var(--ac)','⌀ '+fmtHMS(total/log.length)),
+      statTile(L('La más larga','Longest'),fmtHMS(longest.sec),'var(--cp)',String(longest.title||''),fmtD(longest.date)),
+      statTile(L('Récords rotos','Records broken'),String(recs),'var(--cg)',L('te ganaste a ti mismo','you beat yourself')),
+      statTile(L('Mejor día','Best day'),fmtSecs(bestSec),'var(--cg)',fmtD(bestDay))
+    ));
+    sw.appendChild(statGrid(
+      statTile(L('Racha actual','Current run'),now+'d',now?'var(--cg)':'var(--ng)',L('días seguidos','days in a row')),
+      statTile(L('Mejor racha','Best run'),best+'d','var(--cp)',L('días seguidos','days in a row')),
+      statTile(L('Tu mejor día','Your best weekday'),bw>=0?dowNames[bw]:'—','var(--ac)',bw>=0?'⌀ '+fmtSecs(bwAvg):'',
+        bw>=0?L('El día de la semana con más tiempo, en promedio','The weekday with the most time, on average'):''),
+      statTile(L('Tareas cronometradas','Tasks timed'),String(tasks.size))
+    ));
+    sw.appendChild(statBars(d14.map(d=>Math.round((byDay.get(d)||0)/60)),d14lbl,v=>fmtDur(v),
+      {title:L('Últimos 14 días','Last 14 days'),hi:13}));
+    // Each session's time spread over the hours it actually covered.
+    const hrs=Array(24).fill(0);
+    log.forEach(e=>{
+      if(!e.at)return;
+      const end=e.at;let t0=end-e.sec*1000;
+      while(t0<end){
+        const nx=new Date(t0);nx.setMinutes(60,0,0);
+        const seg=Math.min(end,nx.getTime())-t0;
+        hrs[new Date(t0).getHours()]+=seg/1000;t0+=seg;
+      }
+    });
+    let ph=0;hrs.forEach((v,h)=>{if(v>hrs[ph])ph=h;});
+    if(hrs[ph]>0)sw.appendChild(statBars(hrs.map(v=>Math.round(v/60)),hrs.map((_,h)=>String(h)),v=>fmtDur(v),
+      {tips:hrs.map((_,h)=>h+':00'),title:L('¿A qué hora te enfocas?','When do you focus?'),note:L('más a las ','most at ')+ph+':00',hi:ph,every:3}));
+    // The tasks that take the most of it, each with its average and its record.
+    const top=[...tasks.values()].map(g=>({...g,tot:g.a.reduce((x,y)=>x+y,0)})).sort((a,b)=>b.tot-a.tot).slice(0,5);
+    const tb=dv('card2 mb10');
+    tb.appendChild(dv('xs dimmer up ls mb8',L('A dónde se va tu tiempo','Where your time goes')));
+    const tmax=top[0].tot;
+    top.forEach(g=>{
+      const r=dv('mb8');
+      const ln=dv('rowb');ln.style.cssText+=';gap:8px;flex-wrap:nowrap';
+      const nm=sp('sm f1',g.title||'');nm.style.cssText='min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
+      ln.appendChild(nm);ln.appendChild(sp('sm mo w7 ac',fmtSecs(g.tot)));
+      r.appendChild(ln);
+      const tr=dv('');tr.style.cssText='height:5px;border-radius:3px;background:var(--b1);margin-top:3px;overflow:hidden';
+      const fl=dv('');fl.style.cssText=`height:100%;width:${Math.max(2,Math.round(g.tot/tmax*100))}%;background:var(--ac)`;
+      tr.appendChild(fl);r.appendChild(tr);
+      r.appendChild(dv('xs dimmer mt2',g.a.length+'× · ⌀ '+fmtHMS(g.tot/g.a.length)+(g.a.length>1?' · 🏆 '+fmtHMS(Math.min(...g.a)):'')));
+      if(g.rid){r.style.cursor='pointer';r.title=t('tl-see');r.onclick=()=>goTaskTime(g.rid,true);}
+      tb.appendChild(r);
+    });
+    sw.appendChild(tb);
+  }
+  card.appendChild(gate(sw,'stopwatch'));
+
+  /* ── 📅 The day calendar: what is planned, and how plans hold up ── */
+  const cal=dv('');
+  cal.appendChild(head('📅 '+L('Calendario del día','Day calendar')));
+  const rs=reminders();
+  const onCal=d=>rs.filter(r=>!r.done&&r.completedOn!==tk&&r.due&&calMin(r.time)!==null&&(r.due===d||(d<=tk&&r.due<d)));
+  const planMin=d=>onCal(d).reduce((a,r)=>a+calDurOf(r),0);
+  const todayPlan=planMin(tk);
+  const timedToday=timeLoggedOn(tk);
+  const next7=[...Array(7)].map((_,i)=>dayAdd(tk,i+1));
+  const next7Min=next7.reduce((a,d)=>a+planMin(d),0);
+  /* How long tasks really take against the block they were given: only ones
+     whose block was stretched by hand, since the rest are drawn from their
+     average and would agree with themselves. */
+  const sized=rs.filter(r=>r.calDur>0).map(r=>({r,a:taskSecs(r.id)})).filter(x=>x.a.length);
+  const realMin=sized.reduce((a,x)=>a+x.a.reduce((p,q)=>p+q,0)/x.a.length/60,0);
+  const planned=sized.reduce((a,x)=>a+x.r.calDur,0);
+  const fit=planned?Math.round(realMin/planned*100):0;
+  cal.appendChild(statGrid(
+    statTile(L('Hoy en el calendario','On today'),String(onCal(tk).length),'var(--ac)',L('tareas con hora','tasks with a time')),
+    statTile(L('Planeado hoy','Planned today'),fmtDur(todayPlan),'var(--ac)',L('lo que suman sus bloques','their blocks added up')),
+    statTile(L('Cronometrado hoy','Timed today'),fmtSecs(timedToday),
+      todayPlan&&timedToday/60>=todayPlan?'var(--cg)':'var(--ac)',
+      todayPlan?Math.round(timedToday/60/todayPlan*100)+'% '+L('de lo planeado','of the plan'):''),
+    statTile(L('Tus bloques','Your blocks'),sized.length?fit+'%':'—',
+      !sized.length?'var(--t3)':(fit>115?'var(--ng)':(fit<85?'var(--ac)':'var(--cg)')),
+      sized.length?(fit>100?L('tardas más de lo planeado','you take longer than planned'):L('te sobra tiempo','you finish early')):L('estira un bloque para medirlo','stretch a block to measure it'),
+      L('Lo que de verdad tardan, contra el bloque que les diste (las que estiraste a mano)','What they really take, against the block you gave them (the ones you stretched by hand)'))
+  ));
+  cal.appendChild(statBars(next7.map(planMin),next7.map(d=>dowNames[dow(d)].slice(0,2)),v=>fmtDur(v),
+    {title:L('Próximos 7 días','Next 7 days'),note:next7Min?fmtDur(next7Min)+' '+L('planeado','planned'):''}));
+  card.appendChild(gate(cal,'dayCal'));
+
+  /* ── ✅ The list ── */
+  const tl=dv('');
+  tl.appendChild(head('✅ '+L('Tareas','Tasks')));
+  const cl=completionLog();
+  const doneBy=new Map();cl.forEach(x=>doneBy.set(x.date,(doneBy.get(x.date)||0)+1));
+  const pending=rs.filter(r=>!r.done&&r.completedOn!==tk);
+  const late=pending.filter(r=>r.due&&r.due<tk).length;
+  const d7=[...Array(7)].reduce((a,_,i)=>a+(doneBy.get(dayAdd(tk,-i))||0),0);
+  const bySrc=new Map();cl.forEach(x=>{const g=bySrc.get(x.srcId)||{title:x.title,n:0};g.n++;bySrc.set(x.srcId,g);});
+  const most=[...bySrc.values()].sort((a,b)=>b.n-a.n)[0];
+  const byTag=new Map();cl.forEach(x=>(x.tags||[]).forEach(g=>byTag.set(g,(byTag.get(g)||0)+1)));
+  const topTag=[...byTag.entries()].sort((a,b)=>b[1]-a[1])[0];
+  let bdD='',bdN=0;doneBy.forEach((n,d)=>{if(n>bdN){bdN=n;bdD=d;}});
+  tl.appendChild(statGrid(
+    statTile(L('Hechas hoy','Done today'),String(doneBy.get(tk)||0),'var(--cg)'),
+    statTile(L('Últimos 7 días','Last 7 days'),String(d7),'var(--ac)','⌀ '+(Math.round(d7/7*10)/10)+L(' al día',' a day')),
+    statTile(L('Pendientes','Open'),String(pending.length),'var(--ac)'),
+    statTile(L('Atrasadas','Overdue'),String(late),late?'var(--ng)':'var(--cg)')
+  ));
+  tl.appendChild(statGrid(
+    statTile(L('La que más haces','Done most'),most?most.n+'×':'—','var(--cp)',most?String(most.title||''):''),
+    statTile(L('Tag más hecho','Top tag'),topTag?topTag[0]:'—','var(--ac)',topTag?topTag[1]+'×':''),
+    statTile(L('Mejor día','Best day'),bdN?String(bdN):'—','var(--cg)',fmtD(bdD)),
+    statTile(L('Con cronómetro','Timed'),String(new Set(timeLog().map(e=>e.rid).filter(Boolean)).size),'var(--ac)',L('tareas con algún tiempo','tasks with any time'))
+  ));
+  tl.appendChild(statBars(d14.map(d=>doneBy.get(d)||0),d14lbl,v=>String(v),
+    {title:L('Hechas, últimos 14 días','Done, last 14 days'),hi:13}));
+  if(cl.length>=LOG_MAX)tl.appendChild(dv('xs dimmer mb10',L('Cuenta tus últimas '+LOG_MAX+' tareas hechas.','Counts your last '+LOG_MAX+' tasks done.')));
+  card.appendChild(tl);
+
+  /* ── 🍅 The pomodoro, day by day ── */
+  const pm=dv('');
+  pm.appendChild(head('🍅 '+L('Pomodoro','Pomodoro')));
+  const pomOn=d=>d===tk?(STATE.today.pomodoros||0):((STATE.history.find(h=>h.date===d)||{}).pomodoros||0);
+  const p14=d14.map(pomOn);
+  const p14tot=Math.round(p14.reduce((a,b)=>a+b,0)*10)/10;
+  const p=STATE.pomo||{};
+  pm.appendChild(statGrid(
+    statTile(L('Hoy','Today'),String(Math.round(pomOn(tk)*10)/10)+' 🍅'),
+    statTile(L('Enfoque hoy','Focus today'),fmtDur(p.minutesToday||0),'var(--ac)',L('con el timer','on the timer')),
+    statTile(L('Últimos 14 días','Last 14 days'),String(p14tot),'var(--ac)','⌀ '+(Math.round(p14tot/14*10)/10)+L(' al día',' a day')),
+    statTile(L('Días con pomodoro','Days with one'),p14.filter(v=>v>0).length+'/14',p14.filter(v=>v>0).length>=10?'var(--cg)':'var(--ac)')
+  ));
+  pm.appendChild(statBars(p14.map(v=>Math.round(v*10)/10),d14lbl,v=>v+' 🍅',
+    {title:L('Últimos 14 días','Last 14 days'),hi:13}));
+  card.appendChild(gate(pm,'pomodoro'));
+
+  return card;
+}
 function renderStats(total,sc){
   const wrap=dv('card mt12');let open=true;
   const tog=el('button','sec-t');tog.innerHTML=`<span>${t('stats-title')}</span><span id="st-a">▲</span>`;
@@ -12153,7 +12410,7 @@ function renderStats(total,sc){
      there was to read the further everything below it sat — the reset button
      ended up a screen and a half down. It scrolls inside itself now, and the
      page stays the length it was. */
-  body.style.cssText='max-height:62vh;overflow-y:auto;padding-right:6px';
+  /* It has a tab of its own now, so it is as long as it needs to be. */
   tog.onclick=()=>{open=!open;body.style.display=open?'':'none';document.getElementById('st-a').textContent=open?'▲':'▼';};
   wrap.appendChild(tog);
 
@@ -12369,17 +12626,10 @@ function renderStats(total,sc){
      the shape of your history and stay where they always were; the numbers
      behind that shape are one tap away, on the tile that is already the
      headline of the whole page. */
-  atBox.style.cursor='pointer';atBox.dataset.tut='stats-all';
-  atBox.title=isEs?'Ver el detalle':'See the breakdown';
-  // These two open at the top, always — a streak tile is the one that asks
-  // for a specific block, so it is the one that sets _statsScrollKey; these
-  // clear it, in case the last thing to open the popup was one of those.
-  atBox.onclick=()=>{if(!featureOn('charts'))return;_statsScrollKey=null;STATE.showStatsDetail=true;render();};
+  atBox.dataset.tut='stats-all';
   topRow.appendChild(atBox);
   const inBox=dv('card2 s-ac fi');
-  inBox.style.cssText='display:flex;align-items:center;cursor:pointer';
-  inBox.title=isEs?'Ver el detalle':'See the breakdown';
-  inBox.onclick=()=>{if(!featureOn('charts'))return;_statsScrollKey=null;STATE.showStatsDetail=true;render();};
+  inBox.style.cssText='display:flex;align-items:center';
   inBox.appendChild(sp('sm dim',insight));
   topRow.appendChild(inBox);
   body.appendChild(topRow);
@@ -12890,37 +13140,18 @@ function renderStats(total,sc){
   }
   detail.appendChild(tbox);
 
+  /* The detail used to wait behind a tap, in a window over the page. With a tab
+     of its own it is simply the rest of the page. */
+  detail.dataset.tut='stats-panel';
+  body.appendChild(gate(detail,'charts'));
   wrap.appendChild(body);
-
-  // The popup itself — everything in `detail`, over whatever you were
-  // reading, the same shape every other overlay in the app already uses.
-  if(STATE.showStatsDetail){
-    const close=()=>{STATE.showStatsDetail=false;render();};
-    const ov=dv('fi');ov.classList.add('ovl');
-    closeOnBackdrop(ov,close);
-    const panel=dv('card');panel.dataset.tut='stats-panel';
-    panel.style.cssText='max-width:900px;width:100%;margin:auto;max-height:88vh;overflow-y:auto';
-    const hd=dv('rowb mb12');
-    hd.appendChild(sp('ctit',t('all-time')));
-    hd.appendChild(bt('btn-icon','✕',close));
-    panel.appendChild(hd);
-    panel.appendChild(detail);
-    ov.appendChild(panel);
-    wrap.appendChild(ov);
-    /* Scrolls to the block the clicked streak tile asked for, once the popup
-       actually has layout to scroll within — a frame late, same as every
-       other scrollIntoView in this file. Smooth on purpose, even though an
-       instant jump would land in the same place: the point is to still pass
-       the medals shelf on the way down, if only for a moment, rather than
-       arriving as if it had never been there. All-time and Momentum cleared
-       this to null themselves, so they still open sitting at the top. */
-    if(_statsScrollKey){
-      const key=_statsScrollKey;_statsScrollKey=null;
-      requestAnimationFrame(()=>{
-        panel.querySelector(`[data-scroll-key~="${key}"]`)
-          ?.scrollIntoView({behavior:'smooth',block:'center'});
-      });
-    }
+  // A streak tile in Score asked for its own block: brought into view once drawn.
+  if(_statsScrollKey){
+    const key=_statsScrollKey;_statsScrollKey=null;
+    requestAnimationFrame(()=>{
+      wrap.querySelector(`[data-scroll-key~="${key}"]`)
+        ?.scrollIntoView({behavior:'smooth',block:'center'});
+    });
   }
 
   return wrap;
