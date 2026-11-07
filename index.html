@@ -7098,6 +7098,10 @@ function tmSave(m){
 }
 function tmStop(m){
   const o=tmSave(m);
+  if(o&&o.r){
+    if(STATE.taskTree===o.r.id)STATE.taskTree=null;
+    if(STATE.editingRem===o.r.id)STATE.editingRem=null;
+  }
   render();
   // Longer than anyone focuses: said, with the way to fix it, and nothing is ticked off on its strength.
   if(o&&o.sec>TM_LONG){
