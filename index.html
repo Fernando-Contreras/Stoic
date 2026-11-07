@@ -2227,7 +2227,7 @@ en:{
   'tut-start':'Start','tut-next':'Next','tut-finish':'Done!','tut-skip':'Skip','tut-pause':'⏸ Pause','tut-resume':'Resume tutorial','tut-part':'Part {n} of {of}','tut-skip-q':'What would you like?','tut-skip-part':'Skip this part','tut-skip-all':'I already know Stoic: show everything','tut-back':'Back to the tutorial','tut-skipped':'Everything is open. The 🎓 up top repeats the tutorial.','tut-replay':'Tutorial','tut-replay-note':'This is a replay: Next moves on without creating anything.','tut-done-replay':'Done. The 🎓 up top repeats it.','tut-done-real':'Done. The 🎓 up top repeats it.','tut-paused':'Paused. The 🎓 up top brings you back here.','tut-prev':'← Back','tut-got-it':'Got it',
   'tut-later':'Tomorrow','tut-go-on':'Go on','tut-later-toast':'Until tomorrow. Can\'t wait? Tap the 🎓 up top.','tut-wait':'There is more in Stoic: tomorrow, or now.','tut-wait-all':'Show everything',
   'tut-p1':'The essentials','tut-p2':'Points and focus','tut-p3':'Your day and your history',
-  'tut1-hi':'Welcome to Stoic 🏛️\nThe goal: get more done and watch your stats grow. It was made with ADHD in mind.\nYour day is measured by a list of tasks and a colour. I will show you in 3 parts.',
+  'tut1-hi':'Welcome to Stoic 🏛️\nThe goal: get more done and watch your stats grow.\nYour day is measured by a list of tasks and a colour. I will show you in 3 parts.',
   'tut1-howto':'In a hurry?\n⏸ Pause: use the app and continue later.\nSkip: jump this part, or all of it.\n← Back: read again.',
   'tut1-plus':'Let us make your list. Tap the ＋.',
   'tut1-type':'Example already written: 🛏️🛏️🛏️ = make the bed. With emojis your tasks read at a glance. Change it if you like and tap Next.',
@@ -2605,7 +2605,7 @@ es:{
   'tut-start':'Empezar','tut-next':'Siguiente','tut-finish':'¡Listo!','tut-skip':'Saltar','tut-pause':'⏸ Pausar','tut-resume':'Seguir tutorial','tut-part':'Parte {n} de {of}','tut-skip-q':'¿Qué prefieres?','tut-skip-part':'Saltar esta parte','tut-skip-all':'Ya sé usar Stoic: mostrar todo','tut-back':'Volver al tutorial','tut-skipped':'Ya está todo abierto. El 🎓 de arriba repite el tutorial.','tut-replay':'Tutorial','tut-replay-note':'Es un repaso: Siguiente avanza sin crear nada.','tut-done-replay':'Listo. El 🎓 de arriba lo repite.','tut-done-real':'Listo. El 🎓 de arriba lo repite.','tut-paused':'En pausa. El 🎓 de arriba te regresa aquí.','tut-prev':'← Atrás','tut-got-it':'Entendido',
   'tut-later':'Mañana','tut-go-on':'Seguir','tut-later-toast':'Hasta mañana. ¿No aguantas? Toca el 🎓 de arriba.','tut-wait':'Hay más en Stoic: mañana, o ahorita.','tut-wait-all':'Mostrar todo',
   'tut-p1':'Lo esencial','tut-p2':'Puntos y enfoque','tut-p3':'Tu día y tu historia',
-  'tut1-hi':'Te damos la bienvenida a Stoic 🏛️\nLa meta: que rindas más y ver tus estadísticas crecer. Está hecha pensando en el TDAH.\nTu día se mide con una lista de tareas y un color. Te lo enseño en 3 partes.',
+  'tut1-hi':'Te damos la bienvenida a Stoic 🏛️\nLa meta: que rindas más y ver tus estadísticas crecer.\nTu día se mide con una lista de tareas y un color. Te lo enseño en 3 partes.',
   'tut1-howto':'¿Con prisa?\n⏸ Pausar: usa la app y sigue después.\nSaltar: brinca esta parte, o todo.\n← Atrás: vuelve a leer.',
   'tut1-plus':'Vamos a hacer tu lista. Toca el ＋.',
   'tut1-type':'Ejemplo ya escrito: 🛏️🛏️🛏️ = tender la cama. Con emojis tus tareas se leen de un vistazo. Cámbialo si quieres y dale Siguiente.',
@@ -2952,6 +2952,17 @@ const FREE_MINS_POMS=8;
    re-scored from their pomodoro counts and must not move. The lengths a day was
    lived with travel with it (today._pomoCfg, entry.pomoCfg). */
 const FREE_RULE_FROM='2026-10-29';
+/* The pomodoro RUN only counts days the app's own timer paid at least part of a
+   pomodoro into (pomoBanked). Pomodoros typed by hand still count for the day —
+   points, free time — but nothing proves they happened, so they cannot keep a
+   run alive. Days before this date keep the old rule (any pomodoro) so nobody's
+   existing run is cut. */
+const POMO_RUN_FROM='2026-11-07';
+function pomRunDay(d){
+  if(!d)return false;
+  if((d.date||d._date||todayKey())<POMO_RUN_FROM)return (d.pomodoros||0)>0;
+  return (d.pomoBanked||0)>0;
+}
 const POMO_CFG_DEFAULT={brk:5,longBrk:15,cycle:4};
 function pomoCfgFrom(p){
   const n=(v,d,lo,hi)=>{v=Math.round(Number(v));return isFinite(v)&&v>=lo?Math.min(hi,v):d;};
@@ -3115,7 +3126,7 @@ const CALC={
        now, which is also what the historical recompute always asked.) */
     function sStrk(type){let c=0;for(let i=hist.length-1;i>=0;i--){if(!hasSt(hist[i],type))break;c++;}return c;}
     function wStrk(){let c=0;for(let i=hist.length-1;i>=0;i--){if(!((hist[i].workDuration||0)>0))break;c++;}return c;}
-    function pomStrk(){let c=0;for(let i=hist.length-1;i>=0;i--){if(!((hist[i].pomodoros||0)>0))break;c++;}return c;}
+    function pomStrk(){let c=0;for(let i=hist.length-1;i>=0;i--){if(!pomRunDay(hist[i]))break;c++;}return c;}
     function eStrk(){let c=0;for(let i=hist.length-1;i>=0;i--){if(!hist[i].sleptEarly)break;c++;}return c;}
     function cStrk(){let c=0;for(let i=hist.length-1;i>=0;i--){if(hist[i].status==='red'||hist[i]._gap)break;c++;}return c;}
     function lStrk(resetOn){let c=0;for(let i=hist.length-1;i>=0;i--){if(!hist[i].sleptLate||(resetOn||[]).includes(hist[i].status))break;c++;}return c;}
@@ -3142,7 +3153,7 @@ const CALC={
       morningStreak:sStrk('morning')+(today.morningCompleted?1:0),
       flagStreak:sStrk('flags')+(today.flagCompleted?1:0),
       workStreak:wStrk()+(today.work?.workDuration>0?1:0),
-      pomoStreak:pomStrk()+((today.pomodoros||0)>0?1:0),
+      pomoStreak:pomStrk()+(pomRunDay(today)?1:0),
       earlyBedStreak:eStrk()+(today.sleep?.sleptEarly?1:0),
       colorStreak:cStrk(),
       /* Anything you added to the list gets the same pair of runs the three
@@ -3302,7 +3313,7 @@ const CALC={
         morningStreak=this.streakAtDay(sorted,idx,d=>d.streaks?.some(s=>s.type==='morning'&&s.active))||1;
         flagStreak=this.streakAtDay(sorted,idx,d=>d.streaks?.some(s=>s.type==='flags'&&s.active))||1;
         workStreak=this.streakAtDay(sorted,idx,d=>(d.workDuration||0)>0)||1;
-        pomoStreak=this.streakAtDay(sorted,idx,d=>(d.pomodoros||0)>0)||1;
+        pomoStreak=this.streakAtDay(sorted,idx,d=>pomRunDay(d))||1;
         earlyBedStreak=this.streakAtDay(sorted,idx,d=>d.sleptEarly)||1;
         lateStreak=this.streakAtDay(sorted,idx,d=>d.sleptLate)||1;
         // Same question the live streaks ask, allowance and all.
@@ -3414,6 +3425,7 @@ const CALC={
     const sc=this.score(today,streaks);
     return{date,_ts:CLOCK.now(),todayPoints:sc.total,status:sc.status,
       completedTasks:today.completed,totalTasks:today.target,pomodoros:today.pomodoros,
+      ...(today.pomoBanked>0?{pomoBanked:today.pomoBanked}:{}),   // what the app's own timer paid in
       pomoCfg:today._pomoCfg||pomoCfgFrom(STATE.pomo),
       ...(bestOf(today)?{best:bestOf(today)}:{}),   // the ceiling this day was lived under
       penalties:today.penalties.map(p=>({type:p.type,count:p.count,points:this.penBase(p),streak:1})),
@@ -11516,7 +11528,7 @@ function renderHistForm(key){
       sleep:{sleepDuration:fst.sleepDuration,napDuration:fst.napDuration,sleptEarly:fst.sleptEarly,sleptLate:fst.sleptLate||false,earlyBedStreak:1},work:{workDuration:fst.workDuration}};
     const fsk={morningStreak:1,flagStreak:1,substancesPenaltyStreak:1,procrastinationPenaltyStreak:1,macanazoPenaltyStreak:1,lateStreak:1,substancesStreak:0,procrastinationStreak:0,macanazoStreak:0,workStreak:0,pomoStreak:0};
     const sc_=CALC.score(mockDay,fsk);
-    upsertHist({date:key,_ts:CLOCK.now(),todayPoints:sc_.total,status:sc_.status,completedTasks:fst.completed,totalTasks:fst.target,pomodoros:fst.pomodoros,sleepDuration:fst.sleepDuration,napDuration:fst.napDuration,sleptEarly:fst.sleptEarly,sleptLate:fst.sleptLate||false,workDuration:fst.workDuration,penalties:pens,_gap:false,
+    upsertHist({date:key,_ts:CLOCK.now(),todayPoints:sc_.total,status:sc_.status,completedTasks:fst.completed,totalTasks:fst.target,pomodoros:fst.pomodoros,...(e&&e.pomoBanked>0?{pomoBanked:e.pomoBanked}:{}),sleepDuration:fst.sleepDuration,napDuration:fst.napDuration,sleptEarly:fst.sleptEarly,sleptLate:fst.sleptLate||false,workDuration:fst.workDuration,penalties:pens,_gap:false,
       streaks:[{type:'morning',count:fst.morningCompleted?1:0,active:fst.morningCompleted},{type:'flags',count:fst.flagCompleted?1:0,active:fst.flagCompleted}]},key);
     // Save locally AND push to Supabase immediately
     S.set(K.HIST,STATE.history);
@@ -12954,7 +12966,7 @@ function renderStats(total,sc){
      total:ds=>ds.filter(d=>d.streaks?.some(s=>s.type==='flags'&&s.active)).length+'d'},
     {icon:'💼',name:t('sk-work'),    key:'workStreak', did:d=>(d.workDuration||0)>0,
      total:ds=>fmtDur(ds.reduce((s,d)=>s+(d.workDuration||0),0))},
-    {icon:'🍅',name:t('sk-pom'),     key:'pomoStreak', did:d=>(d.pomodoros||0)>0,
+    {icon:'🍅',name:t('sk-pom'),     key:'pomoStreak', did:d=>pomRunDay(d),
      total:ds=>String(Math.round(ds.reduce((s,d)=>s+(d.pomodoros||0),0)*10)/10)},
     {icon:'🎨',name:isEs?'Días sin rojo':'Non-red days', key:null, did:d=>d.status&&d.status!=='red',
      total:ds=>ds.filter(d=>d.status&&d.status!=='red').length+'d'},
@@ -13233,6 +13245,7 @@ function renderRules(onClose){
       <div>✅ Tarea <span class="ac w6">+1</span> · 🌅 Rutina <span class="ac w6">+25</span> · 🏅 Metas <span class="ac w6">+100</span> · 🍅 Pomodoro <span class="ac w6">+${POM_PTS}</span> · 💼 Trabajo y 😴 Sueño <span class="ac w6">+1</span>/min</div>
       <div>🎨 <span class="cy">🟡 +10</span> · <span class="cg">🟢 +30</span> · <span class="cp">🟣 +60</span>, se acumulan.</div>
       <div>Tu racha los multiplica: 9 días <span class="ac w6">×${multAt(9)}</span> · 100 días <span class="ac w6">×${multAt(100)}</span> · 400 días <span class="ac w6">×${multAt(400)}</span></div>
+      <div>🍅 La racha de pomodoros solo avanza si usaste el cronómetro de la app ese día. Los que pones a mano suman puntos, pero no la racha.</div>
     </div>
   </div>
   <hr class="dv">
@@ -13285,6 +13298,7 @@ function renderRules(onClose){
       <div>✅ Task <span class="ac w6">+1</span> · 🌅 Morning <span class="ac w6">+25</span> · 🏅 Goals <span class="ac w6">+100</span> · 🍅 Pomodoro <span class="ac w6">+${POM_PTS}</span> · 💼 Work and 😴 Sleep <span class="ac w6">+1</span>/min</div>
       <div>🎨 <span class="cy">🟡 +10</span> · <span class="cg">🟢 +30</span> · <span class="cp">🟣 +60</span>, they stack.</div>
       <div>Your run multiplies them: 9 days <span class="ac w6">×${multAt(9)}</span> · 100 days <span class="ac w6">×${multAt(100)}</span> · 400 days <span class="ac w6">×${multAt(400)}</span></div>
+      <div>🍅 The pomodoro run only moves on days you used the app's timer. Ones typed by hand add points, but not to the run.</div>
     </div>
   </div>
   <hr class="dv">
