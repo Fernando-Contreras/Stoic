@@ -514,6 +514,10 @@ button{cursor:pointer;font-family:var(--ff);font-size:15px;font-weight:600;borde
   font-size:12px;cursor:grab;touch-action:pan-y pinch-zoom;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;
   max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .cal-chip.late{border-color:var(--ng);color:var(--ng)}
+/* Opened from a box of the cross: its tasks are lit, the rest step back. */
+.cal-hi{box-shadow:0 0 0 2px var(--ac),0 0 12px var(--acb)}
+.cal-dim{opacity:.4}
+.quad-do.go{cursor:pointer;color:var(--ac);text-decoration:underline dotted;text-underline-offset:3px}
 .cal-scroll{height:340px;overflow-y:auto;position:relative;border:1px solid var(--b1);
   border-radius:10px;background:var(--sur2);touch-action:pan-y pinch-zoom}
 .cal-grid{position:relative;margin-left:44px;margin-right:6px;user-select:none;-webkit-user-select:none}
@@ -2223,7 +2227,7 @@ en:{
   'tut-start':'Start','tut-next':'Next','tut-finish':'Done!','tut-skip':'Skip','tut-pause':'⏸ Pause','tut-resume':'Resume tutorial','tut-part':'Part {n} of {of}','tut-skip-q':'What would you like?','tut-skip-part':'Skip this part','tut-skip-all':'I already know Stoic: show everything','tut-back':'Back to the tutorial','tut-skipped':'Everything is open. The 🎓 up top repeats the tutorial.','tut-replay':'Tutorial','tut-replay-note':'This is a replay: Next moves on without creating anything.','tut-done-replay':'Done. The 🎓 up top repeats it.','tut-done-real':'Done. The 🎓 up top repeats it.','tut-paused':'Paused. The 🎓 up top brings you back here.','tut-prev':'← Back','tut-got-it':'Got it',
   'tut-later':'Tomorrow','tut-go-on':'Go on','tut-later-toast':'Until tomorrow. Can\'t wait? Tap the 🎓 up top.','tut-wait':'There is more in Stoic: tomorrow, or now.','tut-wait-all':'Show everything',
   'tut-p1':'The essentials','tut-p2':'Points and focus','tut-p3':'Your day and your history',
-  'tut1-hi':'Welcome to Stoic 🏛️\nYour day is measured by a list of tasks and a colour. I will show you in 3 parts.',
+  'tut1-hi':'Welcome to Stoic 🏛️\nThe goal: get more done and watch your stats grow. It was made with ADHD in mind.\nYour day is measured by a list of tasks and a colour. I will show you in 3 parts.',
   'tut1-howto':'In a hurry?\n⏸ Pause: use the app and continue later.\nSkip: jump this part, or all of it.\n← Back: read again.',
   'tut1-plus':'Let us make your list. Tap the ＋.',
   'tut1-type':'Example already written: 🛏️🛏️🛏️ = make the bed. With emojis your tasks read at a glance. Change it if you like and tap Next.',
@@ -2394,7 +2398,7 @@ en:{
   'sw-record':'New record!','sw-replace':'The stopwatch has {t} with no task. Start over at zero for this one?',
   'sw-change':'Change task','sw-change-to':'Time this on…','tm-max':'{n} timers at most. Stop one first.','tl-fix':'Fix it','tl-editlink':'Edit','tl-see':'See its times','tm-long':'⚠ {t} → {n}. Nobody focuses that long: did you forget to stop it?','tm-long-live':'⚠ "{n}" has been counting for over 12 hours. Is it really still going?','tm-gone':'(task deleted)','tm-has':'That task already has its own timer.','sw-stop-save':'Stop and save','sw-task-start':'Time this task',
   'ts-line':'{n} times · total {tot} · average {avg} · fastest {min} · slowest {max}',
-  'cal-untimed':'No time','cal-tray-empty':'every task has a time',
+  'cal-hi-q':'{q} The important ones get done when they have an hour. Drag the lit ones onto a time.','cal-untimed':'No time','cal-tray-empty':'every task has a time',
   'cal-dur':'Minutes it takes on the calendar','cal-hint':'Drag a task onto the hours to give it a time, and off them to take it away; on a phone, hold it a moment first. Drag the bottom edge to change how long it is drawn — the list only ever shows when it starts. Drag across empty hours to make a new task for exactly that time.',
   'cal-arrange':'🪄 Lay out',
   'cal-arranged':'{n} task(s) placed','cal-arranged-left':'{n} did not fit','cal-arrange-none':'No free gap left to place them in.',
@@ -2601,7 +2605,7 @@ es:{
   'tut-start':'Empezar','tut-next':'Siguiente','tut-finish':'¡Listo!','tut-skip':'Saltar','tut-pause':'⏸ Pausar','tut-resume':'Seguir tutorial','tut-part':'Parte {n} de {of}','tut-skip-q':'¿Qué prefieres?','tut-skip-part':'Saltar esta parte','tut-skip-all':'Ya sé usar Stoic: mostrar todo','tut-back':'Volver al tutorial','tut-skipped':'Ya está todo abierto. El 🎓 de arriba repite el tutorial.','tut-replay':'Tutorial','tut-replay-note':'Es un repaso: Siguiente avanza sin crear nada.','tut-done-replay':'Listo. El 🎓 de arriba lo repite.','tut-done-real':'Listo. El 🎓 de arriba lo repite.','tut-paused':'En pausa. El 🎓 de arriba te regresa aquí.','tut-prev':'← Atrás','tut-got-it':'Entendido',
   'tut-later':'Mañana','tut-go-on':'Seguir','tut-later-toast':'Hasta mañana. ¿No aguantas? Toca el 🎓 de arriba.','tut-wait':'Hay más en Stoic: mañana, o ahorita.','tut-wait-all':'Mostrar todo',
   'tut-p1':'Lo esencial','tut-p2':'Puntos y enfoque','tut-p3':'Tu día y tu historia',
-  'tut1-hi':'Te damos la bienvenida a Stoic 🏛️\nTu día se mide con una lista de tareas y un color. Te lo enseño en 3 partes.',
+  'tut1-hi':'Te damos la bienvenida a Stoic 🏛️\nLa meta: que rindas más y ver tus estadísticas crecer. Está hecha pensando en el TDAH.\nTu día se mide con una lista de tareas y un color. Te lo enseño en 3 partes.',
   'tut1-howto':'¿Con prisa?\n⏸ Pausar: usa la app y sigue después.\nSaltar: brinca esta parte, o todo.\n← Atrás: vuelve a leer.',
   'tut1-plus':'Vamos a hacer tu lista. Toca el ＋.',
   'tut1-type':'Ejemplo ya escrito: 🛏️🛏️🛏️ = tender la cama. Con emojis tus tareas se leen de un vistazo. Cámbialo si quieres y dale Siguiente.',
@@ -2772,7 +2776,7 @@ es:{
   'sw-record':'¡Nuevo récord!','sw-replace':'El cronómetro trae {t} sin tarea. ¿Lo pongo en cero para esta?',
   'sw-change':'Cambiar tarea','sw-change-to':'Cronometrar esto en…','tm-max':'Máximo {n} cronómetros. Detén uno primero.','tl-fix':'Corregir','tl-editlink':'Editar','tl-see':'Ver sus tiempos','tm-long':'⚠ {t} → {n}. Nadie se enfoca tanto tiempo: ¿se te olvidó detenerlo?','tm-long-live':'⚠ Llevas más de 12 horas con "{n}". ¿De verdad sigue corriendo?','tm-gone':'(tarea borrada)','tm-has':'Esa tarea ya tiene su propio cronómetro.','sw-stop-save':'Detener y guardar','sw-task-start':'Cronometrar esta tarea',
   'ts-line':'{n} veces · total {tot} · promedio {avg} · más rápida {min} · más lenta {max}',
-  'cal-untimed':'Sin hora','cal-tray-empty':'todas tienen hora',
+  'cal-hi-q':'{q} Lo importante se hace cuando tiene hora. Arrastra las resaltadas a una hora.','cal-untimed':'Sin hora','cal-tray-empty':'todas tienen hora',
   'cal-dur':'Minutos que dura en el calendario','cal-hint':'Arrastra una tarea a las horas para darle hora, y fuera de ellas para quitársela; en celular, déjala apretada un momento primero. Arrastra el borde de abajo para cambiar cuánto dura en el dibujo — la lista solo muestra a qué hora empieza. Arrastra sobre horas vacías para crear una tarea nueva justo en ese horario.',
   'cal-arrange':'🪄 Acomodar',
   'cal-arranged':'{n} tarea(s) acomodadas','cal-arranged-left':'{n} no cupieron','cal-arrange-none':'No queda hueco libre para acomodarlas.',
@@ -4865,7 +4869,7 @@ function pomoPillEl(){
   b.onclick=()=>{
     // The controls are on the card, which the calendar is covering: pressing
     // the bubble is asking to go there, so the calendar steps aside.
-    if(STATE.showCal){STATE.showCal=false;render();}
+    if(STATE.showCal){STATE.showCal=false;STATE.calHiQ=null;render();}
     if(STATE.tab!=='plan'){STATE.tab='plan';localStorage.setItem('st_tab','plan');render();}
     const c=document.getElementById('pomo-clock');
     if(c)c.scrollIntoView({behavior:'smooth',block:'center'});
@@ -4909,7 +4913,7 @@ function syncSwPill(){
     b.id='sw-pill';b.type='button';
     b.innerHTML='<span class="sp-dot"></span><span class="sp-cl"></span><span class="sp-t"></span>';
     b.onclick=()=>{
-      if(STATE.showCal){STATE.showCal=false;render();}
+      if(STATE.showCal){STATE.showCal=false;STATE.calHiQ=null;render();}
       if(STATE.tab!=='plan'){STATE.tab='plan';localStorage.setItem('st_tab','plan');render();}
       const k=document.getElementById('sw-clock');
       if(k)k.scrollIntoView({behavior:'smooth',block:'center'});
@@ -6173,7 +6177,7 @@ function renderPlanner(){
      otherwise — and one wrong 🗑 away from the afternoon that prompted this. */
   // The day calendar lives with the tasks it lays out. (The week at a glance
   // moved up to the day's summary, where the numbers are.)
-  const dayCalBtn=bt('btn-ghost btn-sm','📅',()=>{STATE.showCal=true;render();});
+  const dayCalBtn=bt('btn-ghost btn-sm','📅',()=>{STATE.calHiQ=null;STATE.showCal=true;render();});
   dayCalBtn.title=t('cal-open');dayCalBtn.dataset.tut='cal-btn';
   hBtns.appendChild(gate(dayCalBtn,'dayCal'));
   // Alerts at the time of each task. Filled when this device has them on.
@@ -7523,7 +7527,7 @@ function calUndoLast(){
 }
 function renderCalModal(){
   if(!_calStaysOpen)_calUndo=[];
-  const close=()=>{STATE.showCal=false;render();};
+  const close=()=>{STATE.showCal=false;STATE.calHiQ=null;render();};
   // The fade is how it ARRIVES. Redrawn in place it has already arrived.
   const ov=dv(_calStaysOpen?'':'fi');ov.classList.add('ovl');
   ov.style.zIndex='59';   // under the task it opens, which is drawn before it
@@ -7800,7 +7804,8 @@ function renderPomoCalendar(){
      a quick, flat slide — a held finger is moving a task, an upright one is
      scrolling the hours, and a row that scrolls sideways keeps its own slide. */
   let sw0=null;
-  wrap.addEventListener('touchstart',e=>{
+  // A phone's thing: a computer, even one with a touch screen, keeps its arrows.
+  if(matchMedia('(hover:none) and (pointer:coarse)').matches)wrap.addEventListener('touchstart',e=>{
     if(e.touches.length!==1){sw0=null;return;}
     let n=e.target;
     while(n&&n!==wrap){if(n.scrollWidth>n.clientWidth+2&&/auto|scroll/.test(getComputedStyle(n).overflowX)){sw0=null;return;}n=n.parentElement;}
@@ -7849,6 +7854,17 @@ function renderPomoCalendar(){
     if(!passes(r)){hidden++;return;}
     (calMin(r.time)!==null?timed:untimed).push(r);
   });
+  const hiQ=STATE.calHiQ;
+  if(hiQ&&day>=tk)reminders().forEach(r=>{
+    if(!r.done&&r.completedOn!==tk&&!r.due&&quadOf(r)===hiQ&&passes(r))untimed.push(r);
+  });
+  if(hiQ){
+    const hb=dv('card2 mb8');hb.style.cssText+=';display:flex;align-items:center;gap:8px;border-color:var(--acb)';
+    hb.appendChild(dv('sm f1',t('cal-hi-q').replace('{q}',quadEmoji(hiQ))));
+    hb.appendChild(bt('btn-icon','✕',()=>{STATE.calHiQ=null;render();}));
+    wrap.appendChild(hb);
+  }
+  const lit=(el,r)=>{if(hiQ)el.classList.add(quadOf(r)===hiQ?'cal-hi':'cal-dim');};
 
   if(allT.length){
     const bar=dv('row gap6 mb8');bar.style.cssText='flex-wrap:wrap;align-items:center';
@@ -7870,8 +7886,8 @@ function renderPomoCalendar(){
   const tray=dv('cal-tray');
   tray.appendChild(sp('xs dimmer',t('cal-untimed')));
   untimed.forEach(r=>{
-    const c=sp('cal-chip'+(r.due<day?' late':''),r.title);
-    c.title=r.title;
+    const c=sp('cal-chip'+(r.due&&r.due<day?' late':''),r.title);
+    c.title=r.title;lit(c,r);
     attachCalDrag(c,r,'chip',day,()=>scroll,()=>grid,tray);
     tray.appendChild(c);
   });
@@ -7915,6 +7931,7 @@ function renderPomoCalendar(){
     if(q)b.style.borderLeftColor=quadColor(q);
     const late=it.r.due<day;
     if(late){b.classList.add('late');}
+    lit(b,it.r);
     b.title=`${calFmt(it.s)}–${calFmt(it.e%1440)} · ${it.r.title}`+(late?` · ${t('rem-was-due')} ${it.r.due}`:'');
     b.appendChild(sp('w6',calFmt(it.s)+' '));
     b.appendChild(document.createTextNode(it.r.title));
@@ -8042,7 +8059,8 @@ function attachCalDrag(el,r,kind,day,getScroll,getGrid,tray){
            where in its rhythm it belonged). It is still overdue; it just has
            an hour now. */
         calRemember([r]);
-        updateReminder(r.id,{time:calFmt(g.drop.min)});
+        // One with no date yet (offered from a box of the cross) takes the day it was dropped on.
+        updateReminder(r.id,r.due?{time:calFmt(g.drop.min)}:{time:calFmt(g.drop.min),due:day});
         render();
       }else if(kind==='block'){
         /* Let go anywhere off the hours and the time comes off — only the time.
@@ -8492,7 +8510,14 @@ function renderQuadrants(items,tk,redraw,peeking){
     const mine=items.filter(r=>quadOf(r)===q);
     h.appendChild(sp('xs dimmer mo',String(mine.length)));
     cell.appendChild(h);
-    cell.appendChild(dv('xs dimmer quad-do',t('quad-'+q+'-do')));
+    const qdo=dv('xs dimmer quad-do',t('quad-'+q+'-do'));
+    /* Important and not urgent is done when it is given an hour, so "schedule it"
+       is a way to the day calendar, with this box's tasks lit. */
+    if(q===2&&featureOn('dayCal')){
+      qdo.classList.add('go');qdo.title=t('cal-open');
+      qdo.onclick=e=>{e.stopPropagation();STATE.calHiQ=2;STATE.calDay=null;STATE.showCal=true;render();};
+    }
+    cell.appendChild(qdo);
     mine.forEach(r=>cell.appendChild(remChip(r,tk,rd,peeking)));
     /* The empty part of a box is the natural place to say "one more of
        these". Clicking it opens the add form with this quadrant already
