@@ -168,6 +168,10 @@ button{cursor:pointer;font-family:var(--ff);font-size:15px;font-weight:600;borde
 .btn-xs{padding:3px 8px;font-size:12px;border-radius:5px}
 
 /* ── TOGGLE ── */
+.rem-grip{position:absolute;left:1px;top:11px;font-size:9px;line-height:1;letter-spacing:-2px;color:var(--t3);opacity:0;cursor:grab;user-select:none;-webkit-user-select:none;padding:2px 1px;transition:opacity .12s}
+.rem-row:hover>.rem-grip{opacity:.7}
+.rem-row>.rem-grip:hover{opacity:1}
+@media (hover:none){.rem-grip{display:none}}
 .tog{display:flex;align-items:center;gap:12px;cursor:pointer;padding:13px 16px;border-radius:12px;border:1px solid var(--b1);background:var(--sur2);transition:all .15s;user-select:none}
 .tog:hover{border-color:var(--b2)}
 .tog.on{border-color:var(--ac);background:var(--acd)}
@@ -2340,7 +2344,7 @@ en:{
   'rep-pick-days':'Days of the month','rep-on-days':'on the',
   'rep-31-note':'Leave empty to repeat on the same day each month. Day 31 means the last day, whatever the month.',
   'view-today':'This day','view-all':'All',
-  'peek-tomorrow':'Tomorrow','peek-day-after':'Day after tomorrow','peek-back':'Back one day','peek-home':'Back to today','peek-fwd':'Peek ahead one more day',
+  'rem-drag-grip':'Drag to nest under another task','peek-tomorrow':'Tomorrow','peek-day-after':'Day after tomorrow','peek-back':'Back one day','peek-home':'Back to today','peek-fwd':'Peek ahead one more day',
   'sort-date-asc':'oldest first','sort-date-desc':'newest first','sort-prio':'by quadrant','sort-alpha':'alphabetical',
   'view-hidden':'later ones hidden','view-hidden-1':'later one hidden',
   'view-hidden-f':'hidden by the filter','view-hidden-f-1':'hidden by the filter',
@@ -2718,7 +2722,7 @@ es:{
   'rep-pick-days':'Días del mes','rep-on-days':'los días',
   'rep-31-note':'Déjalo vacío para repetir el mismo día cada mes. El día 31 significa el último, sea cual sea el mes.',
   'view-today':'Este día','view-all':'Todos',
-  'peek-tomorrow':'Mañana','peek-day-after':'Pasado mañana','peek-back':'Un día atrás','peek-home':'Volver a hoy','peek-fwd':'Ver un día más adelante',
+  'rem-drag-grip':'Arrastra para meterla dentro de otra tarea','peek-tomorrow':'Mañana','peek-day-after':'Pasado mañana','peek-back':'Un día atrás','peek-home':'Volver a hoy','peek-fwd':'Ver un día más adelante',
   'sort-date-asc':'más viejo primero','sort-date-desc':'más nuevo primero','sort-prio':'por cuadrante','sort-alpha':'alfabético',
   'view-hidden':'de más adelante, ocultos','view-hidden-1':'de más adelante, oculto',
   'view-hidden-f':'ocultas por el filtro','view-hidden-f-1':'oculta por el filtro',
@@ -4788,7 +4792,7 @@ function pomoStart(){
   // whenever 🔁 was switched on — which may be hours back, and used to make the
   // timer stop itself well short of the stretch it was set to allow.
   if(p.autoRun)p.autoRunSince=CLOCK.now();
-  p.unattended=0;p.legAuto=false;   // someone pressed Start: this leg, and the count of unwatched ones, start fresh
+  p.legAuto=false;   // someone pressed Start: this leg was watched
   p.running=true;p.startedAt=CLOCK.now();savePomo();
 }
 function pomoPause(){
@@ -4816,7 +4820,6 @@ function pomoFinishPhase(auto,atMs){
   // Skip is a person pressing something: whoever is there is watching, so the
   // unwatched-stretch cap starts over.
   if(!auto&&p.autoRun)p.autoRunSince=CLOCK.now();
-  if(!auto)p.unattended=0;
   if(p.phase==='focus'){
     if(auto){
       const mins=Math.max(1,p.focus);
@@ -4847,19 +4850,14 @@ function pomoFinishPhase(auto,atMs){
     p.autoRun=false;
   }
   p.running=!!p.autoRun;
-  /* After UNATTENDED_MAX pomodoros in a row that nobody touched, the next one
-     waits for a press (the toggle stays on). A leg that is carried on by
-     auto-run is flagged so its pomodoro does not feed the run. */
-  if(p.running&&p.phase==='focus'){
-    if((p.unattended||0)>=UNATTENDED_MAX)p.running=false;
-    else p.unattended=(p.unattended||0)+(auto?1:0);
-  }
+  // A leg that auto-run carried on alone is flagged, so its pomodoro still pays
+  // points but does not feed the pomodoro run. (The wall-clock cap above is what
+  // stops an unwatched timer.)
   p.legAuto=!!(p.running&&auto);
   p.startedAt=p.running?CLOCK.now():0;
   p.elapsed=0;
   savePomo();
 }
-const UNATTENDED_MAX=2;
 /* Tab 1 only ever ADDS to tab 2's pomodoro count — it can never subtract,
    so a number you typed by hand in tab 2 is never reduced by the timer. */
 function addPomodoroMinutes(mins,live){
@@ -6164,7 +6162,7 @@ function renderPlanner(){
     // A pinch is never a swipe, and neither is anything done while zoomed in (see swipeBlocked).
     const calm=()=>{card.style.transition='transform .18s ease,opacity .18s ease';card.style.transform='';card.style.opacity='';};
     card.addEventListener('pointerdown',e=>{
-      if(e.pointerType==='mouse')return;   // a mouse uses the arrows; dragging with one only selects text
+      if(e.pointerType==='mouse'&&e.button!==0)return;
       if(swipeBlocked(e)){sx=null;if(drag){drag=false;calm();}return;}
       sx=e.clientX;sy=e.clientY;drag=false;
     });
@@ -6173,8 +6171,13 @@ function renderPlanner(){
       if(swipeBlocked(e)){sx=null;drag=false;calm();return;}
       const dx=e.clientX-sx,dy=e.clientY-sy;
       if(!drag){
-        if(Math.abs(dx)<8)return;
+        // A mouse sweeping across text is selecting it, so it needs a clearly
+        // sideways, deliberate pull (a finger keeps the original 8px).
+        const need=e.pointerType==='mouse'?60:8;
+        if(e.pointerType==='mouse'&&Math.abs(dy)>=14&&Math.abs(dy)>=Math.abs(dx)*.5){sx=null;return;}   // going down the list: selecting
+        if(Math.abs(dx)<need)return;
         if(Math.abs(dy)>Math.abs(dx)){sx=null;return;}   // vertical → let it scroll
+        try{getSelection().removeAllRanges();}catch(_){}
         drag=true;
         try{card.setPointerCapture(e.pointerId);}catch(_){}
       }
@@ -6269,14 +6272,6 @@ function renderPlanner(){
       fwd.title=t('peek-fwd');
       lft2.appendChild(fwd);
       peekBar.appendChild(lft2);
-      card.appendChild(peekBar);
-    }else if(V.scope==='today'&&!STATE.selecting){
-      // On a computer the arrows are the only way ahead (no mouse-drag), so the
-      // first one is always in reach; a phone can use it or swipe.
-      const peekBar=dv('row mb10');
-      const go=bt('btn-ghost btn-xs','› '+t('peek-tomorrow'),()=>{V.peek=1;render();});
-      go.title=t('peek-fwd');go.dataset.tut='peek-fwd';
-      peekBar.appendChild(go);
       card.appendChild(peekBar);
     }
     if(tagBar)card.appendChild(gate(tagBar,'tags'));
@@ -8831,6 +8826,8 @@ function editableTitle(el,r,after,row){
   el.style.cursor='text';el.title=t('goal-edit');
   el.onclick=e=>{
     e.stopPropagation();
+    // The end of a sweep to select text is not a click to edit it.
+    if(String(getSelection()||'').length)return;
     const inp=ip('text','',r.title,t('rem-what'));
     inp.style.cssText='flex:1 1 100%;min-width:120px';
     const put=()=>{
@@ -8863,6 +8860,7 @@ function editableNotes(el,r,after){
   el.style.cursor='text';el.title=t('rem-edit-note');
   el.onclick=e=>{
     e.stopPropagation();
+    if(String(getSelection()||'').length)return;   // a sweep to select, not a click to edit
     const ta=taEl(r.notes||'',t('rem-notes-ph'));
     ta.style.cssText+=';width:100%;margin-top:2px;font-size:14px;min-height:44px;overflow:hidden;resize:vertical';
     /* Grows with what is already in it, and again with every keystroke, so a
@@ -8919,7 +8917,18 @@ function renderReminderRow(r,tk,opts){
 
   /* Drag to nest, on anything with a pointer. The buttons below do the same
      job for touch, so this is an accelerator and never the only way. */
-  row.draggable=true;
+  /* Only by its grip (⋮⋮, in the left padding, shown on hover with a mouse).
+     A row that is draggable all over cannot have its text selected with the
+     mouse: a sweep across it picks the whole row up instead, so a list could
+     not be copied. The grip turns dragging on for the moment it is held. */
+  row.draggable=false;
+  row.style.position='relative';
+  const grip=sp('rem-grip','⋮⋮');
+  grip.title=t('rem-drag-grip');
+  grip.onmousedown=()=>{row.draggable=true;};
+  const gripOff=()=>{row.draggable=false;};
+  grip.onmouseup=gripOff;
+  row.appendChild(grip);
   row.ondragstart=e=>{
     /* A sweep that begins inside a field is someone selecting text, not
        someone moving a task. Without this the row picks itself up and the
@@ -8929,7 +8938,7 @@ function renderReminderRow(r,tk,opts){
     if(e.target.closest&&e.target.closest('input,textarea,select'))return e.preventDefault();
     e.dataTransfer.setData('text/plain',r.id);e.dataTransfer.effectAllowed='move';row.style.opacity='.4';
   };
-  row.ondragend=()=>{row.style.opacity='';row.style.outline='';};
+  row.ondragend=()=>{row.style.opacity='';row.style.outline='';row.draggable=false;};
   row.ondragover=e=>{
     const id=STATE._dragId;
     if(id&&id!==r.id&&!r.parent){e.preventDefault();row.style.outline='2px solid var(--ac)';}
@@ -13293,7 +13302,7 @@ function renderRules(onClose){
       <div>✅ Tarea <span class="ac w6">+1</span> · 🌅 Rutina <span class="ac w6">+25</span> · 🏅 Metas <span class="ac w6">+100</span> · 🍅 Pomodoro <span class="ac w6">+${POM_PTS}</span> · 💼 Trabajo y 😴 Sueño <span class="ac w6">+1</span>/min</div>
       <div>🎨 <span class="cy">🟡 +10</span> · <span class="cg">🟢 +30</span> · <span class="cp">🟣 +60</span>, se acumulan.</div>
       <div>Tu racha los multiplica: 9 días <span class="ac w6">×${multAt(9)}</span> · 100 días <span class="ac w6">×${multAt(100)}</span> · 400 días <span class="ac w6">×${multAt(400)}</span></div>
-      <div>🍅 La racha de pomodoros solo avanza si usaste el cronómetro de la app ese día. Los que pones a mano suman puntos, pero no la racha. Con 🔁, los pomodoros que corren solos sin que toques nada tampoco cuentan para la racha, y tras 2 seguidos se pausa hasta que le des ▶.</div>
+      <div>🍅 La racha de pomodoros solo avanza si usaste el cronómetro de la app ese día. Los que pones a mano suman puntos, pero no la racha. Con 🔁, los pomodoros que corren solos sin que toques nada tampoco cuentan para la racha.</div>
     </div>
   </div>
   <hr class="dv">
@@ -13346,7 +13355,7 @@ function renderRules(onClose){
       <div>✅ Task <span class="ac w6">+1</span> · 🌅 Morning <span class="ac w6">+25</span> · 🏅 Goals <span class="ac w6">+100</span> · 🍅 Pomodoro <span class="ac w6">+${POM_PTS}</span> · 💼 Work and 😴 Sleep <span class="ac w6">+1</span>/min</div>
       <div>🎨 <span class="cy">🟡 +10</span> · <span class="cg">🟢 +30</span> · <span class="cp">🟣 +60</span>, they stack.</div>
       <div>Your run multiplies them: 9 days <span class="ac w6">×${multAt(9)}</span> · 100 days <span class="ac w6">×${multAt(100)}</span> · 400 days <span class="ac w6">×${multAt(400)}</span></div>
-      <div>🍅 The pomodoro run only moves on days you used the app's timer. Ones typed by hand add points, but not to the run. With 🔁, pomodoros that run on their own with no touch do not count for the run either, and after 2 in a row it pauses until you press ▶.</div>
+      <div>🍅 The pomodoro run only moves on days you used the app's timer. Ones typed by hand add points, but not to the run. With 🔁, pomodoros that run on their own with no touch do not count for the run either.</div>
     </div>
   </div>
   <hr class="dv">
