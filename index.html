@@ -12763,7 +12763,8 @@ function renderStats(total,sc){
   });
   mbox.appendChild(mg);
   if(!allMedals.length)mbox.appendChild(dv('xs dimmer ctr mt8',t('medals-none')));
-  detail.appendChild(mbox);
+  // First thing on the page, above the lifetime number.
+  body.insertBefore(mbox,body.firstChild);
 
   /* The charts come after the shelf now — the lifetime number, then what it
      was earned for, then the shape of it over time. */
@@ -13005,6 +13006,29 @@ function renderStats(total,sc){
       x.now?'var(--cg)':'var(--ng)',nm,'xl',x.now?spanOf(x.now,lastDay):''));
   });
   const rwBlock=rwGrid;
+
+  /* What each reward comes to in an ordinary day: total over every day logged.
+     Up with the medals, on the page itself, because "how much do I slip per
+     day" is a question to read at a glance. Minutes for the timed ones, a
+     count for the rest, and late nights as a share of nights. */
+  {
+    const days=Math.max(1,totalTracked);
+    const lateTotal=realDays.filter(d=>d.sleptLate).length;
+    const num=v=>String(Math.round(v*10)/10);
+    const avgBox=dv('card2 mb10');
+    avgBox.appendChild(dv('xs dimmer up ls mb8',isEs?'Promedio por día':'Average per day'));
+    const ag=dv('g4 tiles');ag.style.gap='8px';
+    rwStats.forEach(x=>{
+      const avg=x.total/days;
+      ag.appendChild(statCard(escapeHtml(rewardLabel(x.r)),x.r.byMinutes?fmtDur(Math.round(avg)):num(avg),
+        avg>0?'var(--ng)':'var(--cg)',isEs?'por día':'per day','xl'));
+    });
+    const lateAvg=lateTotal/days;
+    ag.appendChild(statCard(isEs?'🌙 Desvelos':'🌙 Late nights',num(lateAvg),lateAvg>0?'var(--ng)':'var(--cg)',
+      isEs?'por día':'per day','xl'));
+    avgBox.appendChild(ag);
+    body.insertBefore(avgBox,topRow.nextSibling);
+  }
 
   /* ── 6b. The same four questions, asked of the good habits ────────────────
      The rewards had this and the positive runs did not, which is backwards:
