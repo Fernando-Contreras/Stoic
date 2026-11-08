@@ -6917,7 +6917,7 @@ function buildGoals(redraw){
            you want to point at its goal. Older finished ones stay out. */
         let hits=reminders().filter(x=>!linked.has(x.id)&&(!x.done||x.completedOn===tk));
         hits=(q?hits.filter(x=>(x.title||'').toLowerCase().includes(q)):hits.slice())
-              .sort((a,b)=>(a.due||'').localeCompare(b.due||''));
+              .sort((a,b)=>(!!b.flagged-!!a.flagged)||(a.due||'').localeCompare(b.due||''));   // flags first, finished today or not
         if(!hits.length){pres.appendChild(sp('xs dimmer',t('rem-parent-none')));return;}
         hits.slice(0,8).forEach(x=>{
           pres.appendChild(bt('btn-ghost btn-xs',((x.done||x.completedOn===tk)?'✓ ':'')+x.title.slice(0,34),()=>{
