@@ -2418,7 +2418,7 @@ en:{
   'rem-bad-parent':'That cannot be its parent.',
   'rem-parent-is':'Subtask of','rem-parent-search':'Nest under… (type to search)','rem-parent-none':'Nothing matches',
   'goals-title':'Goals','goal-week':'📅 Weekly','goal-quarter':'📈 Quarterly','goal-year':'🏆 Yearly',
-  'goal-new':'A goal that excites you','goal-this-week':'This week','goal-next-week':'Next week','goal-this-quarter':'This quarter','goal-next-quarter':'Next quarter','goal-this-year':'This year','goal-next-year':'Next year','goal-add':'+ Add goal','goal-day':'day left','goal-days':'days left',
+  'goal-new':'A goal that excites you','goal-add':'+ Add goal','goal-day':'day left','goal-days':'days left',
   'goal-earned':'earned from goals','goal-daily':'Goals to annihilate','flags-today':'Goals of the day','goal-none-for':'No goal scheduled for:','goal-daily-none':'No goals flagged for today.',
   'cap-note':'Your positive runs pay by square root — 100 days is ×{n} — so they never stop growing. Reward runs reach ×{p}.',
   'src-title':'Where your points come from','src-tasks':'Tasks','src-morning':'Morning','src-flags':'Goals',
@@ -2430,7 +2430,7 @@ en:{
   'goal-worth':'worth','goal-tomorrow':'tomorrow','goal-past-due':'⚠ was due',
   'goal-full':'Limit reached.','goal-carried':'⚠ carried over from last period',
   'goal-done-toggle':'Finished ({n})',
-  'goal-note':'Finish early, earn more: base × days still left in the period. From the last 3 days of a period you can write it for the next one, so waiting never pays. These add to your total score, not to the day.',
+  'goal-note':'Every goal has its own clock from the day you write it (a week, three months, a year): it pays base × the days it still has. Finish early, earn more; writing it late costs nothing. These add to your total score, not to the day.',
   'rem-subtasks':'subtasks','rem-collapse':'Hide subtasks','rem-expand':'Show subtasks',
   'rem-indent':'Make it a subtask of the one above','rem-outdent':'Lift out of its parent',
   'pomo-title':'Pomodoro','pomo-focus':'Focus','pomo-short':'Short break','pomo-long':'Long break',
@@ -2796,7 +2796,7 @@ es:{
   'rem-bad-parent':'Esa no puede ser su tarea padre.',
   'rem-parent-is':'Subtarea de','rem-parent-search':'Meterla bajo… (escribe para buscar)','rem-parent-none':'Nada coincide',
   'goals-title':'Metas','goal-week':'📅 Semanales','goal-quarter':'📈 Trimestrales','goal-year':'🏆 Anuales',
-  'goal-new':'Una meta que te emocione','goal-this-week':'Esta semana','goal-next-week':'La próxima semana','goal-this-quarter':'Este trimestre','goal-next-quarter':'El próximo trimestre','goal-this-year':'Este año','goal-next-year':'El próximo año','goal-add':'+ Agregar meta','goal-day':'día restante','goal-days':'días restantes',
+  'goal-new':'Una meta que te emocione','goal-add':'+ Agregar meta','goal-day':'día restante','goal-days':'días restantes',
   'goal-earned':'ganados en metas','goal-daily':'Metas por exterminar','flags-today':'Metas del día','goal-none-for':'Sin meta programada para:','goal-daily-none':'No hay metas del día marcadas.',
   'cap-note':'Tus rachas positivas pagan por raíz cuadrada — 100 días valen ×{n} — así que nunca dejan de crecer. Las de recompensa llegan hasta ×{p}.',
   'src-title':'De dónde salen tus puntos','src-tasks':'Tareas','src-morning':'Mañanas','src-flags':'Metas',
@@ -2808,7 +2808,7 @@ es:{
   'goal-worth':'vale','goal-tomorrow':'mañana','goal-past-due':'⚠ era para',
   'goal-full':'Límite alcanzado.','goal-carried':'⚠ arrastrada del periodo anterior',
   'goal-done-toggle':'Terminadas ({n})',
-  'goal-note':'Termínalas temprano, valen más: base × días que quedan del periodo. Los últimos 3 días del periodo puedes escribirla para el siguiente, así esperar no conviene. Suman a tu puntaje total, no al día.',
+  'goal-note':'Cada meta lleva su propio reloj desde el día que la escribes (una semana, tres meses, un año): vale base × los días que le quedan. Termínala pronto y vale más; escribirla tarde no te cuesta nada. Suman a tu puntaje total, no al día.',
   'rem-subtasks':'subtareas','rem-collapse':'Ocultar subtareas','rem-expand':'Ver subtareas',
   'rem-indent':'Volverla subtarea de la de arriba','rem-outdent':'Sacarla de su tarea madre',
   'pomo-title':'Pomodoro','pomo-focus':'Enfoque','pomo-short':'Descanso corto','pomo-long':'Descanso largo',
@@ -5399,6 +5399,7 @@ function goalDeadline(g){
 function goalFloorDate(g){
   const start=(g.period||'').split(':')[1]||periodBounds(g.kind,goalDeadline(g)).start;
   const born=g.created?new Date(g.created).toLocaleDateString('en-CA',{timeZone:appTZ()}):'';
+  if(g.start)return g.start;       // its own clock began the day it was written
   if(g.ahead&&born)return born;   // set for a period that had not opened yet
   return born&&born>start?born:start;
 }
@@ -5406,6 +5407,7 @@ function goalFloorDate(g){
    ever pay. A week can only ever be worth seven days, however the completion
    date is arrived at. */
 function goalPeriodLength(g){
+  if(g.start)return Math.round((new Date(goalDeadline(g)+'T12:00:00')-new Date(g.start+'T12:00:00'))/86400000)+1;
   const b=periodBounds(g.kind,goalDeadline(g));
   return Math.round((new Date(b.end+'T12:00:00')-new Date(b.start+'T12:00:00'))/86400000)+1;
 }
@@ -5596,21 +5598,27 @@ function staleGoalClick(el,r){
   el.title=t('wkgoal-add-title');
   el.onclick=e=>{e.stopPropagation();addWeeklyGoalFor(r);};
 }
-/* Written in the last few days of a period, a goal can be for the NEXT one. Its clock
-   then starts when that period does, so it is worth the same today as tomorrow and
-   nobody gains by waiting to type it. */
-const GOAL_AHEAD_DAYS=3;
-function goalAheadOffered(kind){return daysLeftIn(kind,todayKey())<=GOAL_AHEAD_DAYS;}
-function nextPeriodOf(kind){
-  const e=new Date(periodBounds(kind,todayKey()).end+'T12:00:00');e.setDate(e.getDate()+1);
-  return periodBounds(kind,isoDate(e));
+/* Every goal carries its own clock, started the day it is written: a week for a
+   weekly goal, three months for a quarterly one, a year for a yearly one. It pays
+   base x the days it still has, so finishing sooner pays more and the calendar
+   does not matter - writing it on a Sunday or on a Monday is worth the same. */
+function goalSpanEnd(kind,fromKey){
+  const d=new Date(fromKey+'T12:00:00');
+  if(kind==='week'){d.setDate(d.getDate()+6);return isoDate(d);}
+  const day=d.getDate(),months=kind==='quarter'?3:12;
+  const e=new Date(d.getFullYear(),d.getMonth()+months,1,12);
+  e.setDate(Math.min(day,new Date(e.getFullYear(),e.getMonth()+1,0).getDate()));
+  e.setDate(e.getDate()-1);
+  return isoDate(e);
 }
-function addGoal(kind,title,ahead){
+function goalSpanDays(kind,fromKey){
+  return Math.round((new Date(goalSpanEnd(kind,fromKey)+'T12:00:00')-new Date(fromKey+'T12:00:00'))/86400000)+1;
+}
+function addGoal(kind,title){
   if(goalsOf(kind).length>=GOAL_MAX[kind])return false;
-  const b=(ahead&&goalAheadOffered(kind))?nextPeriodOf(kind):periodBounds(kind,todayKey());
-  goals().unshift({id:uid(),kind,title,period:b.id,deadline:b.end,...(b.start>todayKey()?{ahead:true}:{}),
-    doneOn:null,points:0,created:CLOCK.now(),_ts:CLOCK.now()});
-  savePlanner();return true;
+  const tk=todayKey(),b=periodBounds(kind,tk);
+  goals().unshift({id:uid(),kind,title,period:b.id,start:tk,deadline:goalSpanEnd(kind,tk),
+    doneOn:null,points:0,created:CLOCK.now(),_ts:CLOCK.now()});  savePlanner();return true;
 }
 function toggleGoal(id){
   const g=goals().find(x=>x.id===id);if(!g)return;
@@ -6750,7 +6758,6 @@ function renderGoals(){
    STATE — a glance at your history opened for a second has no business
    syncing to the other device or surviving a reload. */
 let _goalDoneOpen={};
-let _goalAhead={};
 function buildGoals(redraw){
   const wrap=dv('');
   const tk=todayKey();
@@ -6771,7 +6778,7 @@ function buildGoals(redraw){
     const list=goals().filter(g=>g.kind===kind)
       .sort((a,b)=>(!!a.doneOn-!!b.doneOn)||(a.doneOn&&b.doneOn?b.doneOn.localeCompare(a.doneOn):0));
     const max=GOAL_MAX[kind];
-    const left=daysLeftIn(kind,tk);
+    const left=goalSpanDays(kind,tk);
     const h=dv('rowb mb6');
     h.appendChild(sp('ctit',t('goal-'+kind)));
     h.appendChild(sp('xs dimmer',`${capCount}/${max}`));
@@ -6816,8 +6823,6 @@ function buildGoals(redraw){
         mid.replaceChild(inp,tt);inp.focus();inp.select();
       };
       mid.appendChild(tt);
-      const gper=(g.period||'').split(':')[1];
-      if(!g.doneOn&&g.ahead&&gper&&gper>tk){const tg=sp('xs dimmer',t('goal-next-'+g.kind));tg.style.display='block';mid.appendChild(tg);}
       if(g.doneOn){
         /* When it was finished, not when it was ticked. Remembering to tick a
            goal two days after doing it used to cost the two days: the payout
@@ -6961,18 +6966,10 @@ function buildGoals(redraw){
     }
 
     if(capCount<max){
-      if(goalAheadOffered(kind)&&_goalAhead[kind]===undefined)_goalAhead[kind]=true;
-      if(goalAheadOffered(kind)){
-        const sel=dv('row gap6 mt8');sel.style.flexWrap='wrap';
-        [[false,'goal-this-'+kind,left],[true,'goal-next-'+kind,daysLeftIn(kind,isoDate(new Date(new Date(nextPeriodOf(kind).start+'T12:00:00'))))]].forEach(([v,k,n])=>{
-          sel.appendChild(bt((!!_goalAhead[kind])===v?'btn-ac btn-xs':'btn-ghost btn-xs',t(k)+' ×'+n,()=>{_goalAhead[kind]=v;redraw();}));
-        });
-        card.appendChild(sel);
-      }
       const gi=ip('text','','',t('goal-new'));gi.style.marginTop='8px';gi.dataset.tut='goal-in';
       const add=()=>{
         const v=gi.value.trim();if(!v)return;
-        addGoal(kind,v,!!_goalAhead[kind]);redraw();
+        addGoal(kind,v);redraw();
       };
       gi.onkeydown=e=>{if(e.key==='Enter')add();};
       card.appendChild(gi);
