@@ -6913,12 +6913,14 @@ function buildGoals(redraw){
            — soonest first, which keeps today's and anything overdue at the top
            — rather than hiding everything past today. */
         const linked=new Set(served.map(x=>x.id));
-        let hits=reminders().filter(x=>!linked.has(x.id)&&!x.done&&x.completedOn!==tk);
+        /* Today's finished ones too: a step you just ticked off is exactly the one
+           you want to point at its goal. Older finished ones stay out. */
+        let hits=reminders().filter(x=>!linked.has(x.id)&&(!x.done||x.completedOn===tk));
         hits=(q?hits.filter(x=>(x.title||'').toLowerCase().includes(q)):hits.slice())
               .sort((a,b)=>(a.due||'').localeCompare(b.due||''));
         if(!hits.length){pres.appendChild(sp('xs dimmer',t('rem-parent-none')));return;}
         hits.slice(0,8).forEach(x=>{
-          pres.appendChild(bt('btn-ghost btn-xs',x.title.slice(0,34),()=>{
+          pres.appendChild(bt('btn-ghost btn-xs',((x.done||x.completedOn===tk)?'✓ ':'')+x.title.slice(0,34),()=>{
             // Same reason as the unlink chip above: the newly-linked task's
             // own row needs to pick this up too, not only the panel here.
             setGoalLink(x.id,g.id,true);render();
