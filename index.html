@@ -4783,9 +4783,25 @@ function pomoRemaining(p){return Math.max(0,pomoPhaseLen(p)-pomoElapsed(p));}
    now tracked independently of p, decremented by each phase's length as it
    is banked, so it survives however many of pomoFinishPhase's own resets it
    takes to walk through them all. */
+/* How many focus legs a catch-up would bank, worked out on a copy so nothing
+   is touched: the same walk the loop below does, cap and all. */
+function catchUpFocusLegs(p,backlog,legStart){
+  let phase=p.phase,done=p.doneInCycle,run=true,autoRun=!!p.autoRun,caught=0,focus=0;
+  const capH=p.autoRunCapHours??2,since=p.autoRunSince||legStart;
+  const len=ph=>(ph==='focus'?Math.max(1,p.focus):ph==='long'?Math.max(1,p.longBrk):Math.max(1,p.brk))*60;
+  while(caught<6*3600&&backlog>=len(phase)){
+    backlog-=len(phase);caught+=len(phase);
+    if(phase==='focus'){focus++;done=(done+1)%Math.max(1,p.cycle);phase=done===0?'long':'short';}
+    else phase='focus';
+    if(autoRun&&capH>0&&(legStart+caught*1000-since)>=capH*3600000)autoRun=false;
+    if(!autoRun)break;
+  }
+  return focus;
+}
+let _catchAsking=false;
 function catchUpPomodoro(){
   const p=STATE.pomo;
-  if(!p||!p.running)return;
+  if(!p||!p.running||_catchAsking)return;
   const MAX_CATCHUP=6*3600;
   let backlog=pomoElapsed(p),caught=0;
   // When this leg actually began; each leg banked below ends that much later.
@@ -4793,6 +4809,25 @@ function catchUpPomodoro(){
   // otherwise coming back after the cap's length found it already "over" at the
   // very first leg and stopped there, however many had really been done.
   const legStart=CLOCK.now()-backlog*1000;
+  /* Two or more pomodoros finished by themselves while nobody was looking (the
+     app closed, the phone asleep) are not taken on trust: it asks first. One is
+     an ordinary pomodoro finishing behind a locked screen. Saying no banks none
+     of it and parks the timer at a fresh focus leg. */
+  if(backlog>=pomoPhaseLen(p)){
+    const n=catchUpFocusLegs(p,backlog,legStart);
+    if(n>=2){
+      const mins=n*Math.max(1,p.focus);
+      _catchAsking=true;
+      const ok=confirm(STATE.lang==='es'
+        ?`Mientras no estabas, el pomodoro automático 🔁 terminó ${n} pomodoros (${fmtDur(mins)} de enfoque). ¿Los sumo a hoy?\n\nAceptar = sumarlos · Cancelar = descartarlos`
+        :`While you were away, auto-run 🔁 finished ${n} pomodoros (${fmtDur(mins)} of focus). Add them to today?\n\nOK = add · Cancel = discard`);
+      _catchAsking=false;
+      if(!ok){
+        p.running=false;p.startedAt=0;p.elapsed=0;p.phase='focus';p.legAuto=false;
+        savePomo();render();return;
+      }
+    }
+  }
   while(caught<MAX_CATCHUP&&backlog>=pomoPhaseLen(p)){
     backlog-=pomoPhaseLen(p);
     caught+=pomoPhaseLen(p);
@@ -13375,7 +13410,7 @@ function renderRules(onClose){
       <div>✅ Tarea <span class="ac w6">+1</span> · 🌅 Rutina <span class="ac w6">+25</span> · 🏅 Metas <span class="ac w6">+100</span> · 🍅 Pomodoro <span class="ac w6">+${POM_PTS}</span> · 💼 Trabajo y 😴 Sueño <span class="ac w6">+1</span>/min</div>
       <div>🎨 <span class="cy">🟡 +10</span> · <span class="cg">🟢 +30</span> · <span class="cp">🟣 +60</span>, se acumulan.</div>
       <div>Tu racha los multiplica: 9 días <span class="ac w6">×${multAt(9)}</span> · 100 días <span class="ac w6">×${multAt(100)}</span> · 400 días <span class="ac w6">×${multAt(400)}</span></div>
-      <div>🍅 La racha de pomodoros solo avanza si usaste el cronómetro de la app ese día. Los que pones a mano suman puntos, pero no la racha. Con 🔁, los pomodoros que corren solos sin que toques nada tampoco cuentan para la racha.</div>
+      <div>🍅 La racha de pomodoros solo avanza con el cronómetro de la app: no con los que pones a mano ni con los que corren solos (🔁).</div>
     </div>
   </div>
   <hr class="dv">
@@ -13428,7 +13463,7 @@ function renderRules(onClose){
       <div>✅ Task <span class="ac w6">+1</span> · 🌅 Morning <span class="ac w6">+25</span> · 🏅 Goals <span class="ac w6">+100</span> · 🍅 Pomodoro <span class="ac w6">+${POM_PTS}</span> · 💼 Work and 😴 Sleep <span class="ac w6">+1</span>/min</div>
       <div>🎨 <span class="cy">🟡 +10</span> · <span class="cg">🟢 +30</span> · <span class="cp">🟣 +60</span>, they stack.</div>
       <div>Your run multiplies them: 9 days <span class="ac w6">×${multAt(9)}</span> · 100 days <span class="ac w6">×${multAt(100)}</span> · 400 days <span class="ac w6">×${multAt(400)}</span></div>
-      <div>🍅 The pomodoro run only moves on days you used the app's timer. Ones typed by hand add points, but not to the run. With 🔁, pomodoros that run on their own with no touch do not count for the run either.</div>
+      <div>🍅 The pomodoro run only moves with the app's timer: not with hand-typed pomodoros, nor ones that ran by themselves (🔁).</div>
     </div>
   </div>
   <hr class="dv">
