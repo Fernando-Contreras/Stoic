@@ -13097,6 +13097,9 @@ function renderStats(total,sc){
 
   // ── 7b. More of the same day, from other angles ──────────────────────────
   // The current non-red run moved up to the Momentum row and is not recounted.
+  // Still read by the tips further down, even though its own tile is gone.
+  let curMornNow=0;
+  for(let k=sortedH.length-1;k>=0;k--){const d=sortedH[k];if(d._gap||!didMorning(d))break;curMornNow++;}
   let bestTasksN=0,bestTasksDay='';
   realDays.forEach(d=>{if((d.completedTasks||0)>bestTasksN){bestTasksN=d.completedTasks;bestTasksDay=d.date;}});
   // Counted the same way the total counts them: filled in, whether or not the
