@@ -2365,7 +2365,7 @@ en:{
   'rem-add-note':'Add note','rem-edit-note':'Click to edit',
   'rem-goal-for':'🎯 In service of','rem-goal-none':'— No goal —',
   'wkgoal-none':'No goal scheduled',
-  'nlp-use':'use as date and time',
+  'nlp-use':'use as date and time (Enter)',
   'push-title-on':'Task alerts are on for this device. Press to turn off.',
   'push-title-off':'Turn on alerts for tasks with a time (this device)',
   'push-on':'Alerts are on. A test notification should arrive in a few seconds — if it does, a task with a time will notify you at that minute, even with the app closed.',
@@ -2743,7 +2743,7 @@ es:{
   'rem-add-note':'Agregar nota','rem-edit-note':'Click para editar',
   'rem-goal-for':'🎯 Al servicio de','rem-goal-none':'— Sin meta —',
   'wkgoal-none':'Sin meta programada',
-  'nlp-use':'usar como fecha y hora',
+  'nlp-use':'usar como fecha y hora (Enter)',
   'push-title-on':'Los avisos de tareas están prendidos en este aparato. Presiona para apagarlos.',
   'push-title-off':'Prender avisos para las tareas con hora (este aparato)',
   'push-on':'Avisos prendidos. En unos segundos debe llegarte una notificación de prueba — si llega, una tarea con hora te avisará en ese minuto, aunque la app esté cerrada.',
@@ -9340,14 +9340,20 @@ function renderAddModal(){
     if(p.due)bits.push('📅 '+capFirst(new Date(p.due+'T12:00:00').toLocaleDateString(STATE.lang==='es'?'es-MX':'en-US',{weekday:'short',day:'numeric',month:'short'})));
     if(p.time)bits.push('🕐 '+p.time);
     nlp.textContent=bits.join(' · ')+' — '+t('nlp-use');
-    nlp.onclick=()=>{
-      if(p.due)di.value=p.due;
-      if(p.time)hi.value=p.time;
-      ti.value=p.clean;
-      nlp.style.display='none';
-      ti.focus();
-    };
+    nlp.onclick=applyNlp;
     nlp.style.display='';
+  };
+  // Takes the date and time out of the words and into their boxes, like a
+  // spell-check suggestion accepted. Also what Enter does first (see below).
+  const applyNlp=()=>{
+    const p=parseWhen(ti.value);
+    if(!p)return false;
+    if(p.due)di.value=p.due;
+    if(p.time)hi.value=p.time;
+    ti.value=p.clean;
+    nlp.style.display='none';
+    ti.focus();
+    return true;
   };
   ti.addEventListener('input',showNlp);
   // Opened from the empty space inside a quadrant, the form arrives with that
@@ -9418,7 +9424,9 @@ function renderAddModal(){
     // The task is in; the popup goes, and the list behind it shows what landed.
     _addFormDirty=null;STATE.showAddForm=false;STATE.addQuad=0;STATE.addPrefill=null;render();
   }
-  ti.onkeydown=e=>{if(e.key==='Enter')doAdd();};
+  // Enter with a date in the words accepts the suggestion first (the words go,
+  // the date box fills in); Enter again adds the task.
+  ti.onkeydown=e=>{if(e.key!=='Enter'||e.isComposing)return;if(!applyNlp())doAdd();};
   const ab=bt('btn-ac btn-sm w100 mt8',t('rem-add'),doAdd);ab.style.width='100%';ab.dataset.tut='add-go';
   panel.appendChild(ab);
   // What counts as "something to lose" — a title or a note. Everything else on
