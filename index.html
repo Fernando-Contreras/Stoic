@@ -2160,7 +2160,7 @@ en:{
   'tpl-cool':'Something cool I did today:','tpl-improve':'Something I can improve:',
   'tpl-summary':'Summary:',
   'ver-mas':'See more','ver-menos':'See less',
-  'edit-hist':'Edit History','save-btn':'Save','edit-done':'Done',
+  'edit-hist':'Edit History','hist-prev':'Previous day','hist-next':'Next day','save-btn':'Save','edit-done':'Done',
   'diary-ph':'Write your thoughts about this day…',
   'sync-login-hint':'Log in with your Supabase account to enable cross-device sync.',
   'day-panel':'The day','pick-day':'Pick a day on the calendar to read it and write its note.',
@@ -2379,7 +2379,7 @@ en:{
   'push-failed':'Could not turn alerts on. Try again in a moment.',
   'wk-title':'Week at a glance','wk-vs':'vs','wk-this':'This week','wk-last':'Last week','wk-before':'Week before','wk-view-now':'This vs last','wk-view-back':'Last vs the one before',
   'wk-points':'Points','wk-tasks':'Tasks completed','wk-goals':'Goals closed','wk-pom':'Pomodoros',
-  'wk-work':'Work','wk-sleep':'Sleep per day','wk-reds':'Red days','wk-best':'Best day',
+  'wk-work':'Work','wk-sleep':'Sleep per day','wk-reds':'Red days','wk-purples':'Purple days','wk-greens':'Green days','wk-yellows':'Yellow days','wk-best':'Best day',
   'wk-late':'Overdue now','wk-opengoals':'Open goals',
   'wk-note':'This week counts Monday to today, against the whole of last week, so a week in progress will usually trail. Tasks come from the completion log (the last 45 days).',
   'cal-to-cal':'Day calendar','cal-to-timer':'Back to the timer','cal-today':'Today',
@@ -2538,7 +2538,7 @@ es:{
   'tpl-cool':'Algo chido que hice hoy:','tpl-improve':'Algo que puedo mejorar:',
   'tpl-summary':'Resumen:',
   'ver-mas':'Ver más','ver-menos':'Ver menos',
-  'edit-hist':'Editar Historial','save-btn':'Guardar','edit-done':'Listo',
+  'edit-hist':'Editar Historial','hist-prev':'Día anterior','hist-next':'Día siguiente','save-btn':'Guardar','edit-done':'Listo',
   'diary-ph':'Escribe lo que pienses de este día…',
   'sync-login-hint':'Inicia sesión con tu cuenta de Supabase para sincronizar entre dispositivos.',
   'day-panel':'El día','pick-day':'Elige un día del calendario para verlo y escribir su nota.',
@@ -2757,7 +2757,7 @@ es:{
   'push-failed':'No se pudieron prender los avisos. Intenta de nuevo en un momento.',
   'wk-title':'La semana de un vistazo','wk-vs':'contra','wk-this':'Esta semana','wk-last':'Pasada','wk-before':'Antepasada','wk-view-now':'Esta vs. pasada','wk-view-back':'Pasada vs. antepasada',
   'wk-points':'Puntos','wk-tasks':'Tareas completadas','wk-goals':'Metas cerradas','wk-pom':'Pomodoros',
-  'wk-work':'Trabajo','wk-sleep':'Sueño por día','wk-reds':'Días rojos','wk-best':'Mejor día',
+  'wk-work':'Trabajo','wk-sleep':'Sueño por día','wk-reds':'Días rojos','wk-purples':'Días morados','wk-greens':'Días verdes','wk-yellows':'Días amarillos','wk-best':'Mejor día',
   'wk-late':'Atrasadas ahora','wk-opengoals':'Metas abiertas',
   'wk-note':'Esta semana cuenta de lunes a hoy, contra toda la pasada, así que una semana en curso casi siempre va por debajo. Las tareas salen del registro de completadas (los últimos 45 días).',
   'cal-to-cal':'Calendario del día','cal-to-timer':'Volver al temporizador','cal-today':'Hoy',
@@ -6554,9 +6554,12 @@ function weekStats(startKey,endKey){
   }
   const tasks=completionLog().filter(x=>x.date>=startKey&&x.date<=endKey).length;
   const goalsClosed=goals().filter(g=>g.doneOn&&g.doneOn>=startKey&&g.doneOn<=endKey).length;
-  const reds=days.filter(d=>d.status==='red').length+(live&&CALC.score(STATE.today,applyStreakOverrides(CALC.streaks(STATE.history,STATE.today))).status==='red'?1:0);
+  const cols={purple:0,green:0,yellow:0,red:0};
+  days.forEach(d=>{if(cols[d.status]!==undefined)cols[d.status]++;});
+  if(live){const ls=CALC.score(STATE.today,applyStreakOverrides(CALC.streaks(STATE.history,STATE.today))).status;if(cols[ls]!==undefined)cols[ls]++;}
+  const reds=cols.red;
   return{pom:Math.round(pom*10)/10,work,sleepAvg:nDays?Math.round(sleep/nDays):0,points:Math.round(points),
-    tasks,goalsClosed,reds,nDays,bestPts:bestPts===null?null:Math.round(bestPts),bestDate};
+    tasks,goalsClosed,reds,cols,nDays,bestPts:bestPts===null?null:Math.round(bestPts),bestDate};
 }
 /* The week ends on Sunday, so that is the day it can be looked at nearly whole.
    The 📊 glows until it is opened, once per device: a nudge, not a window that
@@ -6606,21 +6609,24 @@ function renderWeekReviewModal(){
     [t('wk-pom'),a.pom,b.pom,v=>String(v),1],
     [t('wk-work'),a.work,b.work,fmtDur,1],
     [t('wk-sleep'),a.sleepAvg,b.sleepAvg,fmtDur,1],
-    [t('wk-reds'),a.reds,b.reds,v=>String(v),-1]
+    [t('wk-purples'),a.cols.purple,b.cols.purple,v=>String(v),1,'var(--cp)'],
+    [t('wk-greens'),a.cols.green,b.cols.green,v=>String(v),1,'var(--cg)'],
+    [t('wk-yellows'),a.cols.yellow,b.cols.yellow,v=>String(v),0,'var(--cy)'],
+    [t('wk-reds'),a.reds,b.reds,v=>String(v),-1,'var(--cr)']
   ];
   const tbl=dv('s6');
   const head=dv('row gap8');head.style.cssText='font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.06em;padding:0 10px';
   [['',1.6],[t(back?'wk-last':'wk-this'),1],[t(back?'wk-before':'wk-last'),1],['',.4]].forEach(([x,f])=>{const c=sp('',x);c.style.flex=String(f);c.style.textAlign=f===1.6?'left':'right';head.appendChild(c);});
   tbl.appendChild(head);
-  rows.forEach(([label,x,y,f,good])=>{
+  rows.forEach(([label,x,y,f,good,dot])=>{
     const r=dv('row gap8');
     r.style.cssText='background:var(--sur2);border:1px solid var(--b1);border-radius:10px;padding:9px 10px;align-items:center';
-    const c1=sp('sm',label);c1.style.flex='1.6';
+    const c1=sp('sm',label);c1.style.flex='1.6';if(dot){const d=sp('','');d.style.cssText='display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:7px;background:'+dot;c1.insertBefore(d,c1.firstChild);}
     const c2=sp('sm mo w7',f(x));c2.style.cssText='flex:1;text-align:right';
     const c3=sp('sm mo dimmer',f(y));c3.style.cssText='flex:1;text-align:right';
     const diff=x-y;
     const c4=sp('sm w7',diff===0?'=':(diff>0?'▲':'▼'));
-    c4.style.cssText='flex:.4;text-align:right;color:'+(diff===0?'var(--t3)':((diff>0)===(good>0)?'var(--cg)':'var(--ng)'));
+    c4.style.cssText='flex:.4;text-align:right;color:'+(diff===0||good===0?'var(--t3)':((diff>0)===(good>0)?'var(--cg)':'var(--ng)'));
     [c1,c2,c3,c4].forEach(c=>r.appendChild(c));
     tbl.appendChild(r);
   });
@@ -11587,6 +11593,21 @@ function renderDayDetailModal(date){
 }
 
 /* ═══ HISTORY EDITOR — one day, opened over the calendar ═══ */
+/* Day before / day after, never past today. Typed-in changes that were not saved are left behind. */
+function histStep(n){
+  const k=STATE.histDay;if(!k)return;
+  const d=new Date(k+'T12:00:00');d.setDate(d.getDate()+n);
+  const nk=isoDate(d);
+  if(nk>todayKey())return;
+  STATE.histDay=nk;render();
+}
+if(!window._histKeys){window._histKeys=1;document.addEventListener('keydown',e=>{
+  if(!STATE.histDay||e.isComposing||e.altKey||e.ctrlKey||e.metaKey)return;
+  if(e.key!=='ArrowLeft'&&e.key!=='ArrowRight')return;
+  const el=e.target;
+  if(el&&el.matches&&el.matches('input:not([type=checkbox]),textarea,select,[contenteditable]'))return;
+  e.preventDefault();histStep(e.key==='ArrowLeft'?-1:1);
+});}
 function renderHistModal(key){
   const close=()=>{STATE.histDay=null;render();};
   const ov=dv('fi');
@@ -11598,9 +11619,19 @@ function renderHistModal(key){
   const lft=dv('row gap6');
   lft.appendChild(sp('ctit',t('edit-hist')));
   lft.appendChild(sp('sm mo dim',key));
-  hd.appendChild(lft);hd.appendChild(bt('btn-icon','✕',close));
+  hd.appendChild(lft);
+  const nav=dv('row gap6');
+  const prevB=bt('btn-icon','‹',()=>histStep(-1));prevB.title=t('hist-prev');
+  const nextB=bt('btn-icon','›',()=>histStep(1));nextB.title=t('hist-next');
+  if(key>=todayKey()){nextB.disabled=true;nextB.style.opacity='.35';}
+  nav.appendChild(prevB);nav.appendChild(nextB);nav.appendChild(bt('btn-icon','✕',close));
+  hd.appendChild(nav);
   panel.appendChild(hd);
   panel.appendChild(renderHistForm(key));
+  /* a finger can swipe the day over, like the list card */
+  let sx=null,sy=0;
+  panel.addEventListener('touchstart',e=>{const x=e.target;if(x.closest&&x.closest('input,textarea,select'))return;sx=e.touches[0].clientX;sy=e.touches[0].clientY;},{passive:true});
+  panel.addEventListener('touchend',e=>{if(sx===null)return;const dx=e.changedTouches[0].clientX-sx,dy=e.changedTouches[0].clientY-sy;sx=null;if(Math.abs(dx)>=60&&Math.abs(dx)>Math.abs(dy)*2)histStep(dx<0?1:-1);},{passive:true});
   ov.appendChild(panel);
   return ov;
 }
