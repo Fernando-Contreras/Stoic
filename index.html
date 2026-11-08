@@ -10513,9 +10513,15 @@ function renderApp(){
     return wrap;
   }
   if(STATE.tab==='stats'){
+    // The medals are built inside renderStats but belong above everything on
+    // this tab, the logged-time card included, so they are taken out and put first.
+    _medalShelf=null;
+    const statsEl=gate(renderStats(total,sc),'stats');
+    if(_medalShelf&&statsEl&&statsEl.nodeType&&!statsEl.hidden)wrap.appendChild(_medalShelf);
+    _medalShelf=null;
     wrap.appendChild(gate(renderTimeLogCard(),'stopwatch'));
     wrap.appendChild(renderMoreStats());
-    wrap.appendChild(gate(renderStats(total,sc),'stats'));
+    wrap.appendChild(statsEl);
     wrap.appendChild(dv('xs dimmer ctr mt16 mb16',t('made-by')));
     return wrap;
   }
@@ -12493,6 +12499,7 @@ function renderMoreStats(){
 
   return card;
 }
+let _medalShelf=null;
 function renderStats(total,sc){
   const wrap=dv('card mt12');let open=true;
   const tog=el('button','sec-t');tog.innerHTML=`<span>${t('stats-title')}</span><span id="st-a">▲</span>`;
@@ -12763,8 +12770,9 @@ function renderStats(total,sc){
   });
   mbox.appendChild(mg);
   if(!allMedals.length)mbox.appendChild(dv('xs dimmer ctr mt8',t('medals-none')));
-  // First thing on the page, above the lifetime number.
-  body.insertBefore(mbox,body.firstChild);
+  // First thing on the tab: handed to the caller, which puts it above even the
+  // logged-time card (see the stats tab in render).
+  _medalShelf=mbox;
 
   /* The charts come after the shelf now — the lifetime number, then what it
      was earned for, then the shape of it over time. */
