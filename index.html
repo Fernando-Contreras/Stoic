@@ -6552,7 +6552,13 @@ function weekStats(startKey,endKey){
     nDays+=1;points+=sc.total;
     if(bestPts===null||sc.total>bestPts){bestPts=sc.total;bestDate=tk;}
   }
-  const tasks=completionLog().filter(x=>x.date>=startKey&&x.date<=endKey).length;
+  /* Per day, the larger of the done-log and the day's own record. The log used to
+     keep only the last 200, so a busy week pushed the one before it out and its
+     count fell; the day record (completedTasks) is never trimmed. */
+  const logPer={};completionLog().forEach(x=>{if(x.date>=startKey&&x.date<=endKey)logPer[x.date]=(logPer[x.date]||0)+1;});
+  const hist={};days.forEach(d=>{hist[d.date]=d.completedTasks||0;});
+  if(live)hist[tk]=(STATE.today&&STATE.today.completed)||0;
+  const tasks=[...new Set([...Object.keys(logPer),...Object.keys(hist)])].reduce((n,k)=>n+Math.max(logPer[k]||0,hist[k]||0),0);
   const goalsClosed=goals().filter(g=>g.doneOn&&g.doneOn>=startKey&&g.doneOn<=endKey).length;
   const cols={purple:0,green:0,yellow:0,red:0};
   days.forEach(d=>{if(cols[d.status]!==undefined)cols[d.status]++;});
