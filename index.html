@@ -2402,7 +2402,7 @@ en:{
   'sw-record':'New record!','sw-replace':'The stopwatch has {t} with no task. Start over at zero for this one?',
   'sw-change':'Change task','sw-change-to':'Time this on…','tm-max':'{n} timers at most. Stop one first.','tl-fix':'Fix it','tl-editlink':'Edit','tl-see':'See its times','tm-long':'⚠ {t} → {n}. Nobody focuses that long: did you forget to stop it?','tm-long-live':'⚠ "{n}" has been counting for over 12 hours. Is it really still going?','tm-gone':'(task deleted)','tm-has':'That task already has its own timer.','sw-stop-save':'Stop and save','sw-task-start':'Time this task',
   'ts-line':'{n} times · total {tot} · average {avg} · fastest {min} · slowest {max}',
-  'cal-hi-q':'{q} The important ones get done when they have an hour. Drag the lit ones onto a time.','cal-untimed':'No time','cal-tray-empty':'every task has a time',
+  'cal-hi-q':'{q} The important ones get done when they have an hour. Drag the lit ones onto a time.','sync-veil':'Syncing…','cal-untimed':'No time','cal-tray-empty':'every task has a time',
   'cal-dur':'Minutes it takes on the calendar','cal-hint':'Drag a task onto the hours to give it a time, and off them to take it away; on a phone, hold it a moment first. Drag the bottom edge to change how long it is drawn — the list only ever shows when it starts. Drag across empty hours to make a new task for exactly that time.',
   'cal-arrange':'🪄 Lay out',
   'cal-arranged':'{n} task(s) placed','cal-arranged-left':'{n} did not fit','cal-arrange-none':'No free gap left to place them in.',
@@ -2780,7 +2780,7 @@ es:{
   'sw-record':'¡Nuevo récord!','sw-replace':'El cronómetro trae {t} sin tarea. ¿Lo pongo en cero para esta?',
   'sw-change':'Cambiar tarea','sw-change-to':'Cronometrar esto en…','tm-max':'Máximo {n} cronómetros. Detén uno primero.','tl-fix':'Corregir','tl-editlink':'Editar','tl-see':'Ver sus tiempos','tm-long':'⚠ {t} → {n}. Nadie se enfoca tanto tiempo: ¿se te olvidó detenerlo?','tm-long-live':'⚠ Llevas más de 12 horas con "{n}". ¿De verdad sigue corriendo?','tm-gone':'(tarea borrada)','tm-has':'Esa tarea ya tiene su propio cronómetro.','sw-stop-save':'Detener y guardar','sw-task-start':'Cronometrar esta tarea',
   'ts-line':'{n} veces · total {tot} · promedio {avg} · más rápida {min} · más lenta {max}',
-  'cal-hi-q':'{q} Lo importante se hace cuando tiene hora. Arrastra las resaltadas a una hora.','cal-untimed':'Sin hora','cal-tray-empty':'todas tienen hora',
+  'cal-hi-q':'{q} Lo importante se hace cuando tiene hora. Arrastra las resaltadas a una hora.','sync-veil':'Sincronizando…','cal-untimed':'Sin hora','cal-tray-empty':'todas tienen hora',
   'cal-dur':'Minutos que dura en el calendario','cal-hint':'Arrastra una tarea a las horas para darle hora, y fuera de ellas para quitársela; en celular, déjala apretada un momento primero. Arrastra el borde de abajo para cambiar cuánto dura en el dibujo — la lista solo muestra a qué hora empieza. Arrastra sobre horas vacías para crear una tarea nueva justo en ese horario.',
   'cal-arrange':'🪄 Acomodar',
   'cal-arranged':'{n} tarea(s) acomodadas','cal-arranged-left':'{n} no cupieron','cal-arrange-none':'No queda hueco libre para acomodarlas.',
@@ -3579,7 +3579,9 @@ function loadToday(){
     const sk=CALC.streaks(STATE.history,STATE.today);
     const prevEntry=CALC.buildEntry(STATE.today,sk,saved);
     prevEntry._ts=STATE.today._ts||0; // preserve original ts — prevents overwriting real cloud data
-    upsertHist(prevEntry,saved);
+    // …and a newer copy of that day already here (from the other device) is kept as it is.
+    const hadPrev=STATE.history.find(h=>h.date===saved);
+    if(!(hadPrev&&(hadPrev._ts||0)>prevEntry._ts))upsertHist(prevEntry,saved);
     // fill any days between saved and today as gap days
     for(let i=1;i<daysDiff;i++){
       const gapDate=new Date(savedDate);gapDate.setDate(gapDate.getDate()+i);
@@ -3745,7 +3747,7 @@ function applyRemote(remote){
         STATE.view={...STATE.view,...R._view};S.set('st_view',STATE.view);changed=true;
       }
       const Rdate=R._date||'';
-      if(Rdate&&Rdate<tk){
+      if(Rdate&&Rdate<tk&&Rdate!==STATE.today._date){
         // Remote today is from a past date — put it in history
         const existingHist=STATE.history.find(h=>h.date===Rdate);
         if(!existingHist||(R._ts||0)>(existingHist._ts||0)){
@@ -3910,11 +3912,47 @@ async function flushUnsent(){
   if(SB.status==='ok'){markUnsent(false);return true;}
   return false;
 }
-async function bgSync(){
+/* ── Up to date before writing ──
+   A device that has been away (a phone in a pocket, a laptop asleep) holds an
+   old copy. Anything it wrote on its own the moment it woke — a pomodoro
+   catching up, the day rolling over, a repeat being healed — was stamped
+   "now", and "now" beat the real, newer work the other device had done: a
+   stopwatch stopped on the computer came back running from the phone, and a
+   day closed on the computer was replaced by the phone's empty copy of it.
+   So the automatic writes wait until this device has asked the cloud what is
+   new (or found it cannot reach it, and works on its own as before). While it
+   is asking after being away, a veil says so and holds the screen for that
+   moment, so nothing is done on the old copy by hand either. */
+const SYNC_FRESH_MS=3*60*1000;   // a check this recent counts as up to date
+let _syncCheckedAt=0,_syncStaleSince=0,_booted=false,_bgBusy=null;
+function syncFresh(){
+  if(!STATE.authed||!SB.init())return true;      // no cloud: this device is the only copy
+  return Date.now()-_syncCheckedAt<SYNC_FRESH_MS;
+}
+function syncVeil(){
+  const want=!syncFresh()&&!document.hidden;
+  let v=document.getElementById('sync-veil');
+  if(!want){if(v)v.remove();return;}
+  if(v)return;
+  v=document.createElement('div');v.id='sync-veil';
+  v.style.cssText='position:fixed;inset:0;z-index:300;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center';
+  const b=document.createElement('div');
+  b.style.cssText='background:var(--sur3);color:var(--t1);border:1px solid var(--acb);border-radius:16px;padding:12px 20px;font-weight:700;box-shadow:0 6px 22px rgba(0,0,0,.4)';
+  b.textContent='🔄 '+t('sync-veil');
+  v.appendChild(b);document.body.appendChild(v);
+}
+// One check at a time; every caller waits on the same one. Done, this device is up to date (or offline).
+function bgSync(){
+  if(_bgBusy)return _bgBusy;
+  _bgBusy=_bgSync().finally(()=>{_bgBusy=null;_syncCheckedAt=Date.now();syncVeil();});
+  return _bgBusy;
+}
+async function _bgSync(){
   if(!STATE.authed||!SB.init()) return;
-  // Nobody is looking at a hidden tab, and coming back to it syncs at once
-  // (see the visibilitychange listener), so polling it is pure download.
-  if(document.hidden) return;
+  /* A hidden tab keeps asking too (a few bytes; the browser slows it to about
+     once a minute), so a computer working in another tab stays up to date and
+     its pomodoro still lands and rings. A phone in a pocket simply stops, and
+     catches up the moment it is opened. */
   try{
     // Ours first, theirs second — never the other way round while we owe a push.
     if(STATE._unsent&&!await flushUnsent())return;
@@ -3929,8 +3967,8 @@ async function bgSync(){
     if(_redrawOwed&&!isEditing()){_redrawOwed=false;render();}
   }catch(e){/* silent — will retry next cycle */}
 }
-setInterval(bgSync,10000); // the check is a few bytes now, so this can stay quick
-window.addEventListener('online',()=>{bgSync();});
+setInterval(()=>{if(_booted)bgSync();},10000); // the check is a few bytes now, so this can stay quick
+window.addEventListener('online',()=>{if(_booted)bgSync();});
 /* ═══ DOM HELPERS ═══ */
 function el(t,c,h){const e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e}
 function dv(c,h){return el('div',c,h)}
@@ -14098,7 +14136,14 @@ if('serviceWorker' in navigator){
   window.addEventListener('load',()=>{navigator.serviceWorker.register('./sw.js').catch(()=>{});});
 }
 handleAuthRedirect();   // opened from Google or from the password email? take the session first
-loadToday();healRepeatsStuckOnDoneDay();applyTheme();
+loadToday();applyTheme();
+/* The boot pull is done (or could not be): this device is up to date, and the
+   things that write on their own may run. */
+function bootSynced(){
+  _booted=true;_syncCheckedAt=Date.now();
+  healRepeatsStuckOnDoneDay();
+  syncVeil();
+}
 
 // On boot: PULL from Supabase first (before pushing ANYTHING).
 // Supabase is the single source of truth.
@@ -14117,6 +14162,7 @@ loadToday();healRepeatsStuckOnDoneDay();applyTheme();
       // The restored file is the truth here, even if it holds fewer days.
       try{await SB.push(STATE.history,STATE.today,STATE.diary,STATE.streakOverrides,{force:true});}catch(e){}
     }
+    bootSynced();
     render();
     return;
   }
@@ -14137,6 +14183,7 @@ loadToday();healRepeatsStuckOnDoneDay();applyTheme();
       }
     }catch(e){/* Supabase unreachable — use localStorage fallback, will retry on bgSync */}
   }
+  bootSynced();
   render();
 })();
 /* The daily backup used to happen only at boot, so a device left open for
@@ -14305,7 +14352,14 @@ function checkDayRollover(){
   }
   // New day — save yesterday, reset today, then render
   const sk=CALC.streaks(STATE.history,STATE.today);
-  upsertHist(CALC.buildEntry(STATE.today,sk,STATE.today._date||nd),STATE.today._date||nd);
+  /* Stamped with when the day was last touched, not with this moment: a device
+     that slept through the day and wakes after midnight is not the newest word
+     on it, and the device that actually lived it must still win. */
+  const closing=STATE.today._date||nd;
+  const closed=CALC.buildEntry(STATE.today,sk,closing);
+  const had=STATE.history.find(h=>h.date===closing);
+  closed._ts=STATE.today._ts||(had&&had._ts)||0;
+  if(!(had&&(had._ts||0)>closed._ts))upsertHist(closed,closing);
   // Reset today to zero
   STATE.today={
     completed:0,target:0,morningCompleted:false,flagCompleted:false,
@@ -14332,7 +14386,17 @@ setInterval(()=>{
   syncPomoPill();
   syncPomoTitle();
   syncCalNow();
-  catchUpPomodoro();
+  /* Not up to date (just woke, or still booting): ask, and leave every write
+     below for when the answer is in. A check that hangs is given 8 seconds,
+     then this device carries on with what it has, as it would offline. */
+  const fresh=syncFresh();
+  if(!fresh){
+    if(!_syncStaleSince)_syncStaleSince=Date.now();
+    else if(Date.now()-_syncStaleSince>8000){_syncCheckedAt=Date.now();_syncStaleSince=0;}
+    if(_booted&&!document.hidden)bgSync();
+  }else _syncStaleSince=0;
+  syncVeil();
+  if(fresh)catchUpPomodoro();
   // The stopwatch's own clock, patched in place like the timer's.
   // (the per-frame loop does this while the tab is in front; this beat keeps
   // it right when frames are not being handed out)
@@ -14342,7 +14406,7 @@ setInterval(()=>{
     if(!m.running)return;
     const txt=fmtHMS(tmSecs(m));
     // Past twelve hours it is almost surely a forgotten one: said once, with the button that saves it.
-    if(tmSecs(m)>TM_LONG&&!_tmWarned.has(m.rid)){
+    if(fresh&&tmSecs(m)>TM_LONG&&!_tmWarned.has(m.rid)){
       _tmWarned.add(m.rid);
       const r=tmTask(m);
       flashToast(t('tm-long-live').replace('{n}',r?r.title:''),t('sw-stop-save'),()=>{const cur=tmOf(m.rid);if(cur)tmStop(cur);});
@@ -14360,7 +14424,7 @@ setInterval(()=>{
     if(cl2)cl2.textContent=fmtClock(left);
     const pb=document.getElementById('pomo-progress-fill');
     if(pb){const pct=100-Math.round(left/pomoPhaseLen(p)*100);pb.style.width=pct+'%';}
-    if(left<=0){
+    if(left<=0&&fresh){
       const wasFocus=p.phase==='focus';
       pomoFinishPhase(true);
       pomoBeep();
@@ -14379,7 +14443,7 @@ setInterval(()=>{
       if(!STATE.showAddForm&&!document.querySelector('.ovl'))render();
     }
   }
-  checkDayRollover();
+  if(fresh)checkDayRollover();
 },1000);
 /* ── Capture from outside the app ────────────────────────────────────────────
    Opening  …/Stoic/?add=comprar leche mañana 5pm  (from a Siri shortcut, a
@@ -14438,10 +14502,14 @@ setInterval(()=>{
 // well past either moment actually happening.
 document.addEventListener('visibilitychange',()=>{
   if(document.hidden)return;
-  bgSync();
-  catchUpPomodoro();
-  checkDayRollover();
-  importExtTime();
+  syncVeil();
+  if(!_booted)return;   // the boot is already asking
+  bgSync().then(()=>{
+    if(!syncFresh())return;
+    catchUpPomodoro();
+    checkDayRollover();
+    importExtTime();
+  });
 });
 
 /* ═══ TIME MEASURED BY THE BROWSER EXTENSION ═════════════════════════════════
@@ -14462,7 +14530,9 @@ document.addEventListener('visibilitychange',()=>{
    quietly does nothing. */
 let _extTimeMissing=false,_extTimeBusy=false;
 async function importExtTime(){
-  if(_extTimeBusy||_extTimeMissing||!STATE.authed||document.hidden)return;
+  /* Not held back in a hidden tab: being in another tab is exactly when this
+     time is being spent, and waiting to be looked at let a day close without it. */
+  if(_extTimeBusy||_extTimeMissing||!STATE.authed||!syncFresh())return;
   if(!SB.init()||!SB.pulledOk)return;
   const day=todayKey();
   if(STATE.today._date&&STATE.today._date!==day)return;     // the day is rolling over: not yet
