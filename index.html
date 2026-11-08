@@ -2377,7 +2377,7 @@ en:{
   'wk-points':'Points','wk-tasks':'Tasks completed','wk-goals':'Goals closed','wk-pom':'Pomodoros',
   'wk-work':'Work','wk-sleep':'Sleep per day','wk-reds':'Red days','wk-best':'Best day',
   'wk-late':'Overdue now','wk-opengoals':'Open goals',
-  'wk-note':'This week counts Monday to today, against the whole of last week, so a week in progress will usually trail. Tasks come from the completion log (the last 200).',
+  'wk-note':'This week counts Monday to today, against the whole of last week, so a week in progress will usually trail. Tasks come from the completion log (the last 45 days).',
   'cal-to-cal':'Day calendar','cal-to-timer':'Back to the timer','cal-today':'Today',
   'cal-open':'Open the day calendar','cal-title':'Day calendar',
   'sw-title':'Stopwatch','sw-today':'today','sw-jump-title':'See the logged time, in Score',
@@ -2755,7 +2755,7 @@ es:{
   'wk-points':'Puntos','wk-tasks':'Tareas completadas','wk-goals':'Metas cerradas','wk-pom':'Pomodoros',
   'wk-work':'Trabajo','wk-sleep':'Sueño por día','wk-reds':'Días rojos','wk-best':'Mejor día',
   'wk-late':'Atrasadas ahora','wk-opengoals':'Metas abiertas',
-  'wk-note':'Esta semana cuenta de lunes a hoy, contra toda la pasada, así que una semana en curso casi siempre va por debajo. Las tareas salen del registro de completadas (las últimas 200).',
+  'wk-note':'Esta semana cuenta de lunes a hoy, contra toda la pasada, así que una semana en curso casi siempre va por debajo. Las tareas salen del registro de completadas (los últimos 45 días).',
   'cal-to-cal':'Calendario del día','cal-to-timer':'Volver al temporizador','cal-today':'Hoy',
   'cal-open':'Abrir el calendario del día','cal-title':'Calendario del día',
   'sw-title':'Cronómetro','sw-today':'hoy','sw-jump-title':'Ver el tiempo registrado, en Puntos',
@@ -2961,7 +2961,11 @@ const POMO_RUN_FROM='2026-11-07';
 function pomRunDay(d){
   if(!d)return false;
   if((d.date||d._date||todayKey())<POMO_RUN_FROM)return (d.pomodoros||0)>0;
-  return (d.pomoBanked||0)>0;
+  /* pomoLive is the part of the timer's pay that came from legs someone started
+     or skipped into by hand; auto-run legs that carried on alone are in
+     pomoBanked but not here. A day from before pomoLive existed falls back on
+     pomoBanked. */
+  return ((d.pomoLive!==undefined?d.pomoLive:d.pomoBanked)||0)>0;
 }
 const POMO_CFG_DEFAULT={brk:5,longBrk:15,cycle:4};
 function pomoCfgFrom(p){
@@ -3426,6 +3430,7 @@ const CALC={
     return{date,_ts:CLOCK.now(),todayPoints:sc.total,status:sc.status,
       completedTasks:today.completed,totalTasks:today.target,pomodoros:today.pomodoros,
       ...(today.pomoBanked>0?{pomoBanked:today.pomoBanked}:{}),   // what the app's own timer paid in
+      ...(today.pomoLive!==undefined?{pomoLive:today.pomoLive}:{}),   // …and the part someone was there for
       pomoCfg:today._pomoCfg||pomoCfgFrom(STATE.pomo),
       ...(bestOf(today)?{best:bestOf(today)}:{}),   // the ceiling this day was lived under
       penalties:today.penalties.map(p=>({type:p.type,count:p.count,points:this.penBase(p),streak:1})),
@@ -4443,7 +4448,7 @@ function bumpDone(r,tk,delta){
    without this its rounds left no trace at all, and anything that vanished by
    accident was gone silently. Each entry is a full snapshot, so a reminder can
    be rebuilt from it even if the original is no longer there. */
-const LOG_MAX=200;
+const LOG_MAX=200,LOG_DAYS=45,LOG_HARD=3000;
 function completionLog(){return STATE.planner.log||(STATE.planner.log=[]);}
 function logCompletion(r,tk){
   completionLog().unshift({
@@ -4453,7 +4458,15 @@ function logCompletion(r,tk){
     repeat:r.repeat?JSON.parse(JSON.stringify(r.repeat)):null,
     due:r.due,time:r.time||'',parent:r.parent||null
   });
-  STATE.planner.log=completionLog().slice(0,LOG_MAX);
+  /* Newest first. Keeps at least the last LOG_MAX, and everything from the last
+     LOG_DAYS days besides — a flat 200 ran out in under two weeks for someone
+     who finishes 20 a day, so the 14-day chart came up short. LOG_HARD stops it
+     growing without end. */
+  const lim=new Date(tk+'T12:00:00');lim.setDate(lim.getDate()-LOG_DAYS);
+  const cut=isoDate(lim),all=completionLog();
+  let n=Math.min(all.length,LOG_MAX);
+  while(n<all.length&&n<LOG_HARD&&all[n].date>=cut)n++;
+  STATE.planner.log=all.slice(0,n);
 }
 function unlogCompletion(r,tk){
   const i=completionLog().findIndex(x=>x.srcId===r.id&&x.date===tk);
@@ -4775,6 +4788,7 @@ function pomoStart(){
   // whenever 🔁 was switched on — which may be hours back, and used to make the
   // timer stop itself well short of the stretch it was set to allow.
   if(p.autoRun)p.autoRunSince=CLOCK.now();
+  p.unattended=0;p.legAuto=false;   // someone pressed Start: this leg, and the count of unwatched ones, start fresh
   p.running=true;p.startedAt=CLOCK.now();savePomo();
 }
 function pomoPause(){
@@ -4802,11 +4816,14 @@ function pomoFinishPhase(auto,atMs){
   // Skip is a person pressing something: whoever is there is watching, so the
   // unwatched-stretch cap starts over.
   if(!auto&&p.autoRun)p.autoRunSince=CLOCK.now();
+  if(!auto)p.unattended=0;
   if(p.phase==='focus'){
     if(auto){
       const mins=Math.max(1,p.focus);
       p.minutesToday+=mins;
-      addPomodoroMinutes(mins);
+      // Only a leg someone started (or skipped into) feeds the pomodoro run; one
+      // that auto-run carried on alone still pays points, but proves nobody was there.
+      addPomodoroMinutes(mins,!p.legAuto);
     }
     p.doneInCycle=(p.doneInCycle+1)%Math.max(1,p.cycle);
     p.phase=p.doneInCycle===0?'long':'short';
@@ -4830,14 +4847,25 @@ function pomoFinishPhase(auto,atMs){
     p.autoRun=false;
   }
   p.running=!!p.autoRun;
+  /* After UNATTENDED_MAX pomodoros in a row that nobody touched, the next one
+     waits for a press (the toggle stays on). A leg that is carried on by
+     auto-run is flagged so its pomodoro does not feed the run. */
+  if(p.running&&p.phase==='focus'){
+    if((p.unattended||0)>=UNATTENDED_MAX)p.running=false;
+    else p.unattended=(p.unattended||0)+(auto?1:0);
+  }
+  p.legAuto=!!(p.running&&auto);
   p.startedAt=p.running?CLOCK.now():0;
   p.elapsed=0;
   savePomo();
 }
+const UNATTENDED_MAX=2;
 /* Tab 1 only ever ADDS to tab 2's pomodoro count — it can never subtract,
    so a number you typed by hand in tab 2 is never reduced by the timer. */
-function addPomodoroMinutes(mins){
+function addPomodoroMinutes(mins,live){
   const add=mins/POMO_UNIT;
+  if(live)STATE.today.pomoLive=Math.round(((STATE.today.pomoLive||0)+add)*1000)/1000;
+  else if(STATE.today.pomoLive===undefined)STATE.today.pomoLive=0;
   // The ledger (see reconcileTimerPomodoros). The caller has already put these
   // minutes into the tally, so a day with no ledger yet starts from just before.
   if(STATE.today.pomoBanked===undefined)STATE.today.pomoBanked=Math.max(0,((STATE.pomo.minutesToday||0)-mins)/POMO_UNIT);
@@ -6136,7 +6164,7 @@ function renderPlanner(){
     // A pinch is never a swipe, and neither is anything done while zoomed in (see swipeBlocked).
     const calm=()=>{card.style.transition='transform .18s ease,opacity .18s ease';card.style.transform='';card.style.opacity='';};
     card.addEventListener('pointerdown',e=>{
-      if(e.pointerType==='mouse'&&e.button!==0)return;
+      if(e.pointerType==='mouse')return;   // a mouse uses the arrows; dragging with one only selects text
       if(swipeBlocked(e)){sx=null;if(drag){drag=false;calm();}return;}
       sx=e.clientX;sy=e.clientY;drag=false;
     });
@@ -6241,6 +6269,14 @@ function renderPlanner(){
       fwd.title=t('peek-fwd');
       lft2.appendChild(fwd);
       peekBar.appendChild(lft2);
+      card.appendChild(peekBar);
+    }else if(V.scope==='today'&&!STATE.selecting){
+      // On a computer the arrows are the only way ahead (no mouse-drag), so the
+      // first one is always in reach; a phone can use it or swipe.
+      const peekBar=dv('row mb10');
+      const go=bt('btn-ghost btn-xs','› '+t('peek-tomorrow'),()=>{V.peek=1;render();});
+      go.title=t('peek-fwd');go.dataset.tut='peek-fwd';
+      peekBar.appendChild(go);
       card.appendChild(peekBar);
     }
     if(tagBar)card.appendChild(gate(tagBar,'tags'));
@@ -9473,6 +9509,7 @@ function mergePomoCounts(L,R){
   const man=aL===aR?Math.max(mL,mR):(aR>aL?mR:mL);
   const out={pomodoros:Math.round((man+timer)*10)/10,_pomoEditAt:Math.max(aL,aR)};
   if(timer>0||L.pomoBanked!==undefined||R.pomoBanked!==undefined)out.pomoBanked=timer;
+  if(L.pomoLive!==undefined||R.pomoLive!==undefined)out.pomoLive=Math.max(L.pomoLive||0,R.pomoLive||0);
   return out;
 }
 function reconcileTimerPomodoros(){
@@ -11536,7 +11573,7 @@ function renderHistForm(key){
       sleep:{sleepDuration:fst.sleepDuration,napDuration:fst.napDuration,sleptEarly:fst.sleptEarly,sleptLate:fst.sleptLate||false,earlyBedStreak:1},work:{workDuration:fst.workDuration}};
     const fsk={morningStreak:1,flagStreak:1,substancesPenaltyStreak:1,procrastinationPenaltyStreak:1,macanazoPenaltyStreak:1,lateStreak:1,substancesStreak:0,procrastinationStreak:0,macanazoStreak:0,workStreak:0,pomoStreak:0};
     const sc_=CALC.score(mockDay,fsk);
-    upsertHist({date:key,_ts:CLOCK.now(),todayPoints:sc_.total,status:sc_.status,completedTasks:fst.completed,totalTasks:fst.target,pomodoros:fst.pomodoros,...(e&&e.pomoBanked>0?{pomoBanked:e.pomoBanked}:{}),sleepDuration:fst.sleepDuration,napDuration:fst.napDuration,sleptEarly:fst.sleptEarly,sleptLate:fst.sleptLate||false,workDuration:fst.workDuration,penalties:pens,_gap:false,
+    upsertHist({date:key,_ts:CLOCK.now(),todayPoints:sc_.total,status:sc_.status,completedTasks:fst.completed,totalTasks:fst.target,pomodoros:fst.pomodoros,...(e&&e.pomoBanked>0?{pomoBanked:e.pomoBanked}:{}),...(e&&e.pomoLive!==undefined?{pomoLive:e.pomoLive}:{}),sleepDuration:fst.sleepDuration,napDuration:fst.napDuration,sleptEarly:fst.sleptEarly,sleptLate:fst.sleptLate||false,workDuration:fst.workDuration,penalties:pens,_gap:false,
       streaks:[{type:'morning',count:fst.morningCompleted?1:0,active:fst.morningCompleted},{type:'flags',count:fst.flagCompleted?1:0,active:fst.flagCompleted}]},key);
     // Save locally AND push to Supabase immediately
     S.set(K.HIST,STATE.history);
@@ -12425,7 +12462,7 @@ function renderMoreStats(){
   ));
   tl.appendChild(statBars(d14.map(d=>doneBy.get(d)||0),d14lbl,v=>String(v),
     {title:L('Hechas, últimos 14 días','Done, last 14 days'),hi:13}));
-  if(cl.length>=LOG_MAX)tl.appendChild(dv('xs dimmer mb10',L('Cuenta tus últimas '+LOG_MAX+' tareas hechas.','Counts your last '+LOG_MAX+' tasks done.')));
+  if(cl.length>=LOG_HARD)tl.appendChild(dv('xs dimmer mb10',L('Cuenta tus últimas '+LOG_HARD+' tareas hechas.','Counts your last '+LOG_HARD+' tasks done.')));
   card.appendChild(tl);
 
   /* ── 🍅 The pomodoro, day by day ── */
@@ -12870,9 +12907,9 @@ function renderStats(total,sc){
 
   // ── 3. Work: Best days ───────────────────────────────────────────────────
   detail.appendChild(grid4(
-    statCard(isEs?'Día más productivo (ever)':'Most productive day',prodEverStr,'var(--cg)',prodEverSub,'xl',
+    statCard(isEs?'Día más productivo (histórico)':'Most productive day',prodEverStr,'var(--cg)',prodEverSub,'xl',
       bestWorkDay?(isEs?fmtD(bestWorkDay)+' — '+fmtDur(bestWorkMin)+' de trabajo registrado, más que cualquier otro día':fmtD(bestWorkDay)+' — '+fmtDur(bestWorkMin)+' of work logged, more than any other day'):''),
-    statCard(isEs?'Más trabajo (semana)':'Most worked weekday',prodDayStr,'var(--ac)',prodDaySub,'xl',prodDay>=0?(isEs?'Minutos de trabajo, promediados sobre todos tus '+dowFull[prodDay]:'Minutes worked, averaged across every '+dowFull[prodDay]):''),
+    statCard(isEs?'Día de la semana con más trabajo':'Most worked weekday',prodDayStr,'var(--ac)',prodDaySub,'xl',prodDay>=0?(isEs?'Minutos de trabajo, promediados sobre todos tus '+dowFull[prodDay]:'Minutes worked, averaged across every '+dowFull[prodDay]):''),
     statCard(t('work-total'),fmtDur(totalWorkMin),'var(--ac)',null),
     statCard(t('work-days-lbl'),workPct+'%',workPct>=50?'var(--cg)':'var(--ng)',workDays+'d')
   ));
@@ -13038,7 +13075,7 @@ function renderStats(total,sc){
   // Row 1: the night. Row 2: naps, and everything together.
   detail.appendChild(grid4(
     statCard(isEs?'Sueño de noche':'Night sleep',fmtDur(totalNightMin),'var(--ac)',null),
-    statCard(isEs?'Promedio de noche':'Avg night',fmtDur(avgNightMin),avgNightMin>=420?'var(--cg)':'var(--ng)',isEs?'por noche':'per night'),
+    statCard(isEs?'Promedio de sueño':'Avg sleep',fmtDur(avgNightMin),avgNightMin>=420?'var(--cg)':'var(--ng)',isEs?'por noche':'per night'),
     statCard(t('early-nights'),earlyNights+'d','var(--cg)',null),
     statCard(t('late-nights-lbl'),lateNights+'d','var(--ng)',null)
   ));
@@ -13046,13 +13083,13 @@ function renderStats(total,sc){
     statCard(isEs?'Siestas':'Naps',fmtDur(totalNapMin),'var(--ac)',napDays+(isEs?(napDays===1?' día con siesta':' días con siesta'):(napDays===1?' day with a nap':' days with a nap'))),
     statCard(isEs?'Promedio de siesta':'Avg nap',fmtDur(avgNapMin),'var(--ac)',isEs?'por día con siesta':'per nap day'),
     statCard(t('sleep-total'),fmtDur(totalSleepMin),'var(--ac)',isEs?'noche + siestas':'night + naps'),
-    statCard(t('avg-sleep'),fmtDur(avgSleepMin),avgSleepMin>=420?'var(--cg)':'var(--ng)',isEs?'por día, con siestas':'per day, naps included')
+    statCard(isEs?'Promedio con siestas':'Avg with naps',fmtDur(avgSleepMin),avgSleepMin>=420?'var(--cg)':'var(--ng)',isEs?'por día, noche + siestas':'per day, night + naps')
   ));
 
   // ── 7b. More of the same day, from other angles ──────────────────────────
   // The current non-red run moved up to the Momentum row and is not recounted.
-  let curMornNow=0;
-  for(let k=sortedH.length-1;k>=0;k--){const d=sortedH[k];if(d._gap||!didMorning(d))break;curMornNow++;}
+  let bestTasksN=0,bestTasksDay='';
+  realDays.forEach(d=>{if((d.completedTasks||0)>bestTasksN){bestTasksN=d.completedTasks;bestTasksDay=d.date;}});
   // Counted the same way the total counts them: filled in, whether or not the
   // app happened to be open on the day they were missed.
   const gapDays=[...histMap().values()].filter(d=>d._gap&&d.date!==todayKey()).length;
@@ -13063,9 +13100,12 @@ function renderStats(total,sc){
   const hitPct=withTarget.length
     ? Math.round(withTarget.reduce((s,d)=>s+Math.min(1,(d.completedTasks||0)/d.totalTasks),0)/withTarget.length*100):0;
   detail.appendChild(grid4(
-    statCard(isEs?'Racha matutina actual':'Current morning streak',curMornNow+'d',
-      curMornNow?'var(--cg)':'var(--ng)',null,'xl',
-      curMornNow?spanOf(curMornNow,sortedH[sortedH.length-1].date):''),
+    // The day you closed the most tasks. (This slot held the current morning
+    // run, which the Morning routine row already shows.)
+    statCard(isEs?'Día con más tareas':'Most tasks in a day',bestTasksN?String(bestTasksN):'—','var(--cp)',
+      bestTasksN?fmtD(bestTasksDay):(isEs?'Sin datos':'No data'),'xl',
+      bestTasksN?(isEs?fmtD(bestTasksDay)+' — '+bestTasksN+' tareas completadas, más que cualquier otro día'
+                      :fmtD(bestTasksDay)+' — '+bestTasksN+' tasks completed, more than any other day'):''),
     statCard(isEs?'Días sin registrar':'Days not logged',String(gapDays),gapDays?'var(--ng)':'var(--cg)',
       gapDays?(isEs?'−1,000 c/u':'−1,000 each'):null),
     statCard(isEs?'Tareas completadas':'Tasks completed',String(tasksDone),'var(--ac)',null),
@@ -13075,9 +13115,9 @@ function renderStats(total,sc){
        level on their own, so a run of green days can sit on a task figure
        well under half without anything being wrong. Days with flags, up in
        the row above, is the number that question was actually asking for. */
-    statCard(isEs?'Cumplimiento de tareas':'Task completion',hitPct+'%',
+    statCard(isEs?'Tareas que cumples':'Tasks you finish',hitPct+'%',
       hitPct>=85?'var(--cg)':(hitPct>=50?'var(--ac)':'var(--ng)'),
-      isEs?'de tu meta de tareas':'of your task target','xl',
+      isEs?'de lo que te toca hacer':'of what you set out to do','xl',
       isEs?'Cuánto de tu meta de TAREAS cierras, en promedio. No mira tus banderas — esas suben el color del día por su cuenta.'
           :'How much of your TASK target you close, on average. It does not look at your flags — those lift the day’s colour on their own.')
   ));
@@ -13253,7 +13293,7 @@ function renderRules(onClose){
       <div>✅ Tarea <span class="ac w6">+1</span> · 🌅 Rutina <span class="ac w6">+25</span> · 🏅 Metas <span class="ac w6">+100</span> · 🍅 Pomodoro <span class="ac w6">+${POM_PTS}</span> · 💼 Trabajo y 😴 Sueño <span class="ac w6">+1</span>/min</div>
       <div>🎨 <span class="cy">🟡 +10</span> · <span class="cg">🟢 +30</span> · <span class="cp">🟣 +60</span>, se acumulan.</div>
       <div>Tu racha los multiplica: 9 días <span class="ac w6">×${multAt(9)}</span> · 100 días <span class="ac w6">×${multAt(100)}</span> · 400 días <span class="ac w6">×${multAt(400)}</span></div>
-      <div>🍅 La racha de pomodoros solo avanza si usaste el cronómetro de la app ese día. Los que pones a mano suman puntos, pero no la racha.</div>
+      <div>🍅 La racha de pomodoros solo avanza si usaste el cronómetro de la app ese día. Los que pones a mano suman puntos, pero no la racha. Con 🔁, los pomodoros que corren solos sin que toques nada tampoco cuentan para la racha, y tras 2 seguidos se pausa hasta que le des ▶.</div>
     </div>
   </div>
   <hr class="dv">
@@ -13306,7 +13346,7 @@ function renderRules(onClose){
       <div>✅ Task <span class="ac w6">+1</span> · 🌅 Morning <span class="ac w6">+25</span> · 🏅 Goals <span class="ac w6">+100</span> · 🍅 Pomodoro <span class="ac w6">+${POM_PTS}</span> · 💼 Work and 😴 Sleep <span class="ac w6">+1</span>/min</div>
       <div>🎨 <span class="cy">🟡 +10</span> · <span class="cg">🟢 +30</span> · <span class="cp">🟣 +60</span>, they stack.</div>
       <div>Your run multiplies them: 9 days <span class="ac w6">×${multAt(9)}</span> · 100 days <span class="ac w6">×${multAt(100)}</span> · 400 days <span class="ac w6">×${multAt(400)}</span></div>
-      <div>🍅 The pomodoro run only moves on days you used the app's timer. Ones typed by hand add points, but not to the run.</div>
+      <div>🍅 The pomodoro run only moves on days you used the app's timer. Ones typed by hand add points, but not to the run. With 🔁, pomodoros that run on their own with no touch do not count for the run either, and after 2 in a row it pauses until you press ▶.</div>
     </div>
   </div>
   <hr class="dv">
