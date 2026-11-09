@@ -11501,6 +11501,15 @@ function daySummaryText(key){
     L(`Pantallas: ${fmtDur(screens)}.`,`Screens: ${fmtDur(screens)}.`)
   ];
   if(sl)lines.push(L(`Sueño: ${fmtDur(sl)}, categoría ${cat}.`,`Sleep: ${fmtDur(sl)}, category ${cat}.`));
+  /* The rewards, by emoji alone and with no words, so it reads quietly: the screens
+     already have their own line, every other reward with something in it follows. */
+  const src=isToday?td:e;
+  const rw=rewards().filter(r=>r.id!=='internet').map(r=>{
+    const n=r.byMinutes?penMinutesOn(src,r.id)
+      :(src.penalties||[]).filter(p=>p.type===r.id).reduce((a,p)=>a+(p.count||1),0);
+    return n>0?(r.icon||'•')+(r.byMinutes?fmtDur(n):(n>1?n:'')):'';
+  }).filter(Boolean);
+  if(rw.length)lines.push(rw.join(' '));
   lines.push(L(`Pomodoros: ${pom}. Puntos del día: ${money(pts)}.`,`Pomodoros: ${pom}. Day points: ${money(pts)}.`));
   if(wkGoals.length)lines.push(L(`Metas semanales: ${wkDone}/${wkGoals.length}.`,`Weekly goals: ${wkDone}/${wkGoals.length}.`));
   return lines.join('\n');
