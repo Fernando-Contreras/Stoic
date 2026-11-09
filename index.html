@@ -11480,38 +11480,34 @@ function daySummaryText(key){
   });
   const fl=[...per.values()].sort((a,b)=>b.sec-a.sec)
     .map(c=>`${c.title} ${fmtDur(Math.max(1,Math.round(c.sec/60)))}`);
-  let flagsLine=L('Banderas: ','Flags: ')+(fl.length?fl.join(', ')+'.':L('sin tiempo registrado.','no time logged.'));
-  if(flagOn)flagsLine+=flagAt?L(` Terminadas ${flagAt}.`,` Done at ${flagAt}.`):L(' Terminadas.',' Done.');
+  /* Emoji-led, so it is short, reads the same in either language and drops into a
+     post as it is. A line with nothing to say is left out instead of saying "none". */
+  let flagsLine='🏁 '+fl.join(', ');
+  if(flagOn)flagsLine+=(fl.length?' · ':'✓ ')+(flagAt||'✓');
   const pct=tgt>0?Math.round(done/tgt*100):0;
-  const colour=t(status.charAt(0).toUpperCase()+status.slice(1)).toLowerCase();
-  const screens=isToday?penMinutesOn(td,'internet'):penMinutesOn(e,'internet');
+  const dot={purple:'🟣',green:'🟢',yellow:'🟡',red:'🔴'}[status]||'';
   const sl=isToday?(td.sleep&&td.sleep.sleepDuration)||0:e.sleepDuration||0;
   const early=isToday?!!(td.sleep&&td.sleep.sleptEarly):!!e.sleptEarly;
   const late=isToday?!!(td.sleep&&td.sleep.sleptLate):!!e.sleptLate;
-  const cat=early&&!late?L('temprano','early'):late&&!early?L('tarde','late'):L('ni temprano ni tarde','neither early nor late');
   const pom=(isToday?td.pomodoros:e.pomodoros)||0;
   // Weekly goals alive in that day's week: set by then, and either still open or closed inside the week.
   const wk=periodBounds('week',key);
   const wkGoals=goals().filter(g=>g.kind==='week'&&goalFloorDate(g)<=key&&(g.doneOn?g.doneOn>=wk.start:goalDeadline(g)>=wk.start));
   const wkDone=wkGoals.filter(g=>g.doneOn&&g.doneOn<=key).length;
-  const lines=[
-    L('Resumen ','Summary ')+key,
-    flagsLine,
-    L(`Tareas: ${done}/${tgt} (${pct}%). Día: ${colour}.`,`Tasks: ${done}/${tgt} (${pct}%). Day: ${colour}.`),
-    L(`Pantallas: ${fmtDur(screens)}.`,`Screens: ${fmtDur(screens)}.`)
-  ];
-  if(sl)lines.push(L(`Sueño: ${fmtDur(sl)}, categoría ${cat}.`,`Sleep: ${fmtDur(sl)}, category ${cat}.`));
-  /* The rewards, by emoji alone and with no words, so it reads quietly: the screens
-     already have their own line, every other reward with something in it follows. */
+  // Every reward that had something in it, by its own emoji, with the count (or the time).
   const src=isToday?td:e;
-  const rw=rewards().filter(r=>r.id!=='internet').map(r=>{
+  const rw=rewards().map(r=>{
     const n=r.byMinutes?penMinutesOn(src,r.id)
       :(src.penalties||[]).filter(p=>p.type===r.id).reduce((a,p)=>a+(p.count||1),0);
     return n>0?(r.icon||'•')+(r.byMinutes?fmtDur(n):(n>1?n:'')):'';
   }).filter(Boolean);
+  const lines=[L('Resumen ','Summary ')+key];
+  if(fl.length||flagOn)lines.push(flagsLine);
+  lines.push(`✅ ${done}/${tgt} (${pct}%) ${dot}`);
   if(rw.length)lines.push(rw.join(' '));
-  lines.push(L(`Pomodoros: ${pom}. Puntos del día: ${money(pts)}.`,`Pomodoros: ${pom}. Day points: ${money(pts)}.`));
-  if(wkGoals.length)lines.push(L(`Metas semanales: ${wkDone}/${wkGoals.length}.`,`Weekly goals: ${wkDone}/${wkGoals.length}.`));
+  if(sl)lines.push('😴 '+fmtDur(sl)+(early&&!late?' 🌅':late&&!early?' 🦉':''));
+  lines.push(`🍅 ${pom} · ⭐ ${money(pts)}`);
+  if(wkGoals.length)lines.push(`📅 ${wkDone}/${wkGoals.length}`);
   return lines.join('\n');
 }
 function copyText(text){
