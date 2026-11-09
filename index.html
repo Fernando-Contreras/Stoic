@@ -5528,7 +5528,9 @@ function weeklyGoalNoteBase(r){
      carries the warning instead. */
   const live=new Set(goalsOf('week').map(g=>g.id));
   const links=allLinks.filter(g=>live.has(g.id));
-  if(!links.length)return{text:t('wkgoal-none'),done:false,stale:true};
+  /* Its goals have all left the board. Only a flag is asked to have one: a plain
+     task that once served a goal and lost it is just a task again. */
+  if(!links.length)return r&&r.flagged?{text:t('wkgoal-none'),done:false,stale:true}:null;
   const open=links.filter(g=>!g.doneOn);
   if(open.length)return{text:open.map(g=>g.title).join(', '),done:false};
   // Every linked weekly goal is closed — show only the one closed most
