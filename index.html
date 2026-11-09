@@ -2155,10 +2155,10 @@ en:{
   'tpl-weekly-left':'{n} weekly goals left to complete.','tpl-weekly-left-1':'1 weekly goal left to complete.',
   'tpl-weekly-done':"You've completed all your weekly goals.",
   'tpl-weekly-plan':'Plan for doing so:',
-  'tpl-why':'Why did today go like this?:','tpl-dream':'Today I remember dreaming:',
-  'tpl-feel':'I feel:','tpl-feel-why':'Why?:',
-  'tpl-cool':'Something cool I did today:','tpl-improve':'Something I can improve:',
-  'tpl-summary':'Summary:',
+  'tpl-worked':'What worked today (looking at the summary):','tpl-failed':'What did not work, and why:','tpl-dream':'I dreamed (optional):','sum-btn':'Copy the summary of this day','sum-title':'Day summary','sum-copy':'Copy','sum-copied':'Copied ✓','sum-copy-fail':'Could not copy: select it by hand',
+  'tpl-feel':'I feel / why:','tpl-feel-why':'Why?:',
+  'tpl-cool':'Something cool I did:','tpl-improve':'Something I change tomorrow:',
+  'tpl-summary':'Day summary (free):',
   'ver-mas':'See more','ver-menos':'See less',
   'edit-hist':'Edit History','hist-prev':'Previous day','hist-next':'Next day','save-btn':'Save','edit-done':'Done',
   'diary-ph':'Write your thoughts about this day…',
@@ -2533,10 +2533,10 @@ es:{
   'tpl-weekly-left':'Quedan {n} metas semanales por completar.','tpl-weekly-left-1':'Queda 1 meta semanal por completar.',
   'tpl-weekly-done':'Ya completaste todas tus metas semanales.',
   'tpl-weekly-plan':'Plan para lograrlo:',
-  'tpl-why':'¿Por qué me fue así hoy?:','tpl-dream':'Hoy recuerdo haber soñado:',
-  'tpl-feel':'Me siento:','tpl-feel-why':'¿Por qué?:',
-  'tpl-cool':'Algo chido que hice hoy:','tpl-improve':'Algo que puedo mejorar:',
-  'tpl-summary':'Resumen:',
+  'tpl-worked':'Qué funcionó hoy (viendo el resumen):','tpl-failed':'Qué no funcionó y por qué:','tpl-dream':'Soñé (opcional):','sum-btn':'Copiar el resumen del día','sum-title':'Resumen del día','sum-copy':'Copiar','sum-copied':'Copiado ✓','sum-copy-fail':'No se pudo copiar: selecciónalo a mano',
+  'tpl-feel':'Me siento / por qué:','tpl-feel-why':'¿Por qué?:',
+  'tpl-cool':'Algo chido que hice:','tpl-improve':'Algo que cambio mañana:',
+  'tpl-summary':'Resumen del día (libre):',
   'ver-mas':'Ver más','ver-menos':'Ver menos',
   'edit-hist':'Editar Historial','hist-prev':'Día anterior','hist-next':'Día siguiente','save-btn':'Guardar','edit-done':'Listo',
   'diary-ph':'Escribe lo que pienses de este día…',
@@ -10702,6 +10702,7 @@ function renderApp(){
   wrap.appendChild(gate(ch,'monthCal'));
   if(STATE.dayDetail)wrap.appendChild(renderDayDetailModal(STATE.dayDetail));
   if(STATE.histDay)wrap.appendChild(renderHistModal(STATE.histDay));
+  if(_sumDay&&!STATE.histDay)wrap.appendChild(renderSummaryModal(_sumDay));
   // Reset All — at the bottom where it's hard to hit accidentally
   const resetWrap=dv('card mt12');resetWrap.style.cssText='border-color:var(--ngb);background:var(--ngd)';
   const resetRow=dv('rowb');
@@ -11454,6 +11455,93 @@ function discTooltip(status){
   return'';
 }
 
+/* ═══ THE DAY IN SEVEN LINES ═══
+   What the day was, written the way you would post it: the flags and the time they
+   took, the tasks, the colour, the screens, the sleep, the pomodoros, the points,
+   the weekly goals. Everything is read from what is already recorded, for today
+   (still being lived) or for any logged day. Nothing is stored; it is built on
+   demand, so it can never disagree with the rest of the page. */
+function daySummaryText(key){
+  const isEs=STATE.lang==='es',L=(es,en)=>isEs?es:en;
+  const tk=todayKey(),isToday=key===tk,td=STATE.today;
+  const e=isToday?null:histMap().get(key);
+  if(!isToday&&(!e||e._gap))return null;
+  const sc=isToday?CALC.score(td,applyStreakOverrides(CALC.streaks(STATE.history,td))):null;
+  const status=isToday?sc.status:e.status;
+  const pts=Math.round(isToday?sc.total:CALC.liveScore(e,STATE.history));
+  const done=(isToday?td.completed:e.completedTasks)||0,tgt=(isToday?td.target:e.totalTasks)||0;
+  const flagOn=isToday?!!td.flagCompleted:!!e.streaks?.some(s=>s.type==='flags'&&s.active);
+  const flagAt=isToday?td.flagAt:e.flagAt;
+  const money=n=>(n>0?'+':'')+n.toLocaleString();
+  // Flags: the time each one took that day, longest first.
+  const per=new Map();
+  timeLog().filter(x=>x.date===key&&x.flag&&x.sec>0).forEach(x=>{
+    const k=x.rid||x.title,c=per.get(k)||{title:x.title,sec:0};c.sec+=x.sec;per.set(k,c);
+  });
+  const fl=[...per.values()].sort((a,b)=>b.sec-a.sec)
+    .map(c=>`${c.title} ${fmtDur(Math.max(1,Math.round(c.sec/60)))}`);
+  let flagsLine=L('Banderas: ','Flags: ')+(fl.length?fl.join(', ')+'.':L('sin tiempo registrado.','no time logged.'));
+  if(flagOn)flagsLine+=flagAt?L(` Terminadas ${flagAt}.`,` Done at ${flagAt}.`):L(' Terminadas.',' Done.');
+  const pct=tgt>0?Math.round(done/tgt*100):0;
+  const colour=t(status.charAt(0).toUpperCase()+status.slice(1)).toLowerCase();
+  const screens=isToday?penMinutesOn(td,'internet'):penMinutesOn(e,'internet');
+  const sl=isToday?(td.sleep&&td.sleep.sleepDuration)||0:e.sleepDuration||0;
+  const early=isToday?!!(td.sleep&&td.sleep.sleptEarly):!!e.sleptEarly;
+  const late=isToday?!!(td.sleep&&td.sleep.sleptLate):!!e.sleptLate;
+  const cat=early&&!late?L('temprano','early'):late&&!early?L('tarde','late'):L('ni temprano ni tarde','neither early nor late');
+  const pom=(isToday?td.pomodoros:e.pomodoros)||0;
+  // Weekly goals alive in that day's week: set by then, and either still open or closed inside the week.
+  const wk=periodBounds('week',key);
+  const wkGoals=goals().filter(g=>g.kind==='week'&&goalFloorDate(g)<=key&&(g.doneOn?g.doneOn>=wk.start:goalDeadline(g)>=wk.start));
+  const wkDone=wkGoals.filter(g=>g.doneOn&&g.doneOn<=key).length;
+  const lines=[
+    L('Resumen ','Summary ')+key,
+    flagsLine,
+    L(`Tareas: ${done}/${tgt} (${pct}%). Día: ${colour}.`,`Tasks: ${done}/${tgt} (${pct}%). Day: ${colour}.`),
+    L(`Pantallas: ${fmtDur(screens)}.`,`Screens: ${fmtDur(screens)}.`)
+  ];
+  if(sl)lines.push(L(`Sueño: ${fmtDur(sl)}, categoría ${cat}.`,`Sleep: ${fmtDur(sl)}, category ${cat}.`));
+  lines.push(L(`Pomodoros: ${pom}. Puntos del día: ${money(pts)}.`,`Pomodoros: ${pom}. Day points: ${money(pts)}.`));
+  if(wkGoals.length)lines.push(L(`Metas semanales: ${wkDone}/${wkGoals.length}.`,`Weekly goals: ${wkDone}/${wkGoals.length}.`));
+  return lines.join('\n');
+}
+function copyText(text){
+  const fallback=()=>{
+    const ta=document.createElement('textarea');ta.value=text;ta.style.cssText='position:fixed;opacity:0';
+    document.body.appendChild(ta);ta.select();let ok=false;
+    try{ok=document.execCommand('copy');}catch(e){}
+    ta.remove();return ok;
+  };
+  if(navigator.clipboard&&navigator.clipboard.writeText)return navigator.clipboard.writeText(text).then(()=>true,()=>fallback());
+  return Promise.resolve(fallback());
+}
+let _sumDay=null;
+function openDaySummary(key){
+  const txt=daySummaryText(key);
+  if(!txt){flashToast(t('no-data'));return;}
+  copyText(txt);   // the press is the copy; the window only shows what was copied
+  _sumDay=key;render();
+}
+function renderSummaryModal(key){
+  const close=()=>{_sumDay=null;render();};
+  const ov=dv('fi');ov.classList.add('ovl');
+  closeOnBackdrop(ov,close);
+  const panel=dv('card');panel.style.cssText='max-width:480px;width:100%;margin:auto';
+  const hd=dv('rowb mb10');
+  hd.appendChild(sp('ctit','📝 '+t('sum-title')));
+  hd.appendChild(bt('btn-icon','✕',close));
+  panel.appendChild(hd);
+  const txt=daySummaryText(key)||'';
+  const box=dv('sm');box.style.cssText='white-space:pre-wrap;line-height:1.6;background:var(--sur2);border:1px solid var(--b1);border-radius:10px;padding:12px';
+  box.textContent=txt;panel.appendChild(box);
+  const row=dv('row gap8 mt10');
+  const note=sp('xs cg',t('sum-copied'));
+  const again=bt('btn-ac btn-sm',t('sum-copy'),()=>{copyText(txt).then(ok=>{note.textContent=ok?t('sum-copied'):t('sum-copy-fail');});});
+  row.appendChild(again);row.appendChild(note);panel.appendChild(row);
+  ov.appendChild(panel);
+  return ov;
+}
+
 /* ═══ DAY PANEL — the day you picked on the calendar ═══
    It holds what used to hang underneath the grid — colour, points, the day's
    line — and gives the note the whole of the room the history list used to
@@ -11471,7 +11559,13 @@ function renderDayPanel(){
        a bad thing to hide a day's numbers behind: fixing a day you forgot to
        log is not a flourish, it is the repair you reach for most. */
     const eb=bt('btn-ghost btn-sm',t('edit-hist'),()=>{STATE.histDay=key;render();});
-    eb.style.whiteSpace='nowrap';eb.dataset.tut='hist-edit';hd.appendChild(eb);
+    eb.style.whiteSpace='nowrap';eb.dataset.tut='hist-edit';
+    const acts=dv('row gap6');
+    if(key===todayKey()||histMap().get(key)){
+      const sb_=bt('btn-ghost btn-sm','📝',()=>openDaySummary(key));
+      sb_.title=t('sum-btn');sb_.dataset.tut='day-summary';acts.appendChild(sb_);
+    }
+    acts.appendChild(eb);hd.appendChild(acts);
   }
   wrap.appendChild(hd);
   if(!key){wrap.appendChild(dv('sm dimmer ctr mt16 mb16',t('pick-day')));return wrap;}
@@ -11567,7 +11661,7 @@ function renderDayPanel(){
    down. Both languages are checked: a note written in Spanish still folds when
    the app is read in English. */
 function summaryCut(body){
-  const sums=[T.es['tpl-summary'],T.en['tpl-summary']];
+  const sums=[T.es['tpl-summary'],T.en['tpl-summary'],'Resumen:','Summary:'];
   return body.split('\n').findIndex(l=>sums.includes(l.trim()));
 }
 
@@ -14160,23 +14254,17 @@ function toggleDiaryEditor(container,dateKey,button){
    or replaced by this. The weekly-goal line reflects what is actually still
    open, and the plan line is dropped once there is nothing left to plan. */
 function diaryTemplate(){
-  const left=goalsOf('week').filter(g=>!g.doneOn).length;
-  // → marks the line as a heading of its own. It carries a number that
-  // changes, so it can never match the fixed list diaryHeadings holds.
-  const weekly='→ '+(left
-    ? t(left===1?'tpl-weekly-left-1':'tpl-weekly-left').replace('{n}',left)+'\n'+t('tpl-weekly-plan')+'\n'
-    : t('tpl-weekly-done')+'\n');
+  // The weekly-goals line left the template: the day's summary already says how the week's goals stand.
   return [
     t('tpl-grateful'),'    1. ','    2. ','    3. ','',
     t('tpl-bad'),'','',
     t('tpl-bad-act'),'','',
-    weekly,'',
-    t('tpl-why'),'','',
-    t('tpl-dream'),'','',
+    t('tpl-worked'),'','',
+    t('tpl-failed'),'','',
     t('tpl-feel'),'','',
-    t('tpl-feel-why'),'','',
     t('tpl-cool'),'','',
     t('tpl-improve'),'','',
+    t('tpl-dream'),'','',
     t('tpl-summary'),''
   ].join('\n');
 }
@@ -14184,14 +14272,18 @@ function diaryTemplate(){
    stays plain text, so nothing already saved changes shape or risks being
    mangled by a format it was not written in. */
 function diaryHeadings(){
-  return ['tpl-grateful','tpl-bad','tpl-bad-act','tpl-weekly-plan','tpl-why','tpl-dream',
+  return ['tpl-grateful','tpl-bad','tpl-bad-act','tpl-weekly-plan','tpl-worked','tpl-failed','tpl-dream',
           'tpl-feel','tpl-feel-why','tpl-cool','tpl-improve','tpl-summary']
     .map(k=>t(k))
     // Wording these two headings once had. Notes already written keep their
     // gold instead of quietly going plain the day the template changes.
     .concat(['1 cosa chida que hice:','1 cosa que puedo mejorar:',
              '1 cool thing I did:','1 thing I can improve:',
-             '¿Por qué estos resultados?:','Why these results?:']);
+             '¿Por qué estos resultados?:','Why these results?:',
+             '¿Por qué me fue así hoy?:','Why did today go like this?:',
+             'Hoy recuerdo haber soñado:','Today I remember dreaming:','Me siento:','I feel:',
+             'Algo chido que hice hoy:','Something cool I did today:',
+             'Algo que puedo mejorar:','Something I can improve:','Resumen:','Summary:']);
 }
 function diaryToHtml(text){
   const heads=diaryHeadings();
