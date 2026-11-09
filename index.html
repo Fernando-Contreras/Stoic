@@ -5368,6 +5368,12 @@ function daysLeftIn(kind,dateStr){
   const a=new Date(dateStr+'T12:00:00'),b=new Date(end+'T12:00:00');
   return Math.max(1,Math.round((b-a)/86400000)+1);
 }
+/* What every task search asks: the name, or anything written in its notes. The notes are
+   only searched, never shown - the result is still the task's name. */
+function taskMatches(r,q){
+  q=String(q||'').trim().toLowerCase();if(!q)return true;
+  return String(r.title||'').toLowerCase().includes(q)||String(r.notes||'').toLowerCase().includes(q);
+}
 function goals(){return STATE.planner.goals||(STATE.planner.goals=[]);}
 function goalsOf(kind){
   const now=periodBounds(kind,todayKey());
@@ -6930,7 +6936,7 @@ function buildGoals(redraw){
         /* Today's finished ones too: a step you just ticked off is exactly the one
            you want to point at its goal. Older finished ones stay out. */
         let hits=reminders().filter(x=>!linked.has(x.id)&&(!x.done||x.completedOn===tk));
-        hits=(q?hits.filter(x=>(x.title||'').toLowerCase().includes(q)):hits.slice())
+        hits=(q?hits.filter(x=>taskMatches(x,q)):hits.slice())
               .sort((a,b)=>(!!b.flagged-!!a.flagged)||(a.due||'').localeCompare(b.due||''));   // flags first, finished today or not
         if(!hits.length){pres.appendChild(sp('xs dimmer',t('rem-parent-none')));return;}
         hits.slice(0,8).forEach(x=>{
@@ -7629,7 +7635,7 @@ function renderSwPick(){
   const draw=()=>{
     list.innerHTML='';
     const q=(STATE.swQ||'').trim().toLowerCase();
-    const pool=reminders().filter(r=>(!r.done||r.completedOn===tk)&&(!q||String(r.title||'').toLowerCase().includes(q)));
+    const pool=reminders().filter(r=>(!r.done||r.completedOn===tk)&&(!q||taskMatches(r,q)));
     const flags=pool.filter(r=>r.flagged);
     const shut=r=>r.done||r.completedOn===tk?1:0;
     const others=pool.filter(r=>!r.flagged&&(q||!r.due||r.due<=tk))
@@ -8446,7 +8452,7 @@ function renderReminderEditor(r){
       res.innerHTML='';
       if(!q)return;
       const hits=reminders().filter(x=>!x.parent&&x.id!==r.id&&
-        ((x.title||'').toLowerCase().includes(q)||(x.notes||'').toLowerCase().includes(q)));
+        taskMatches(x,q));
       if(!hits.length){res.appendChild(sp('xs dimmer',t('rem-parent-none')));return;}
       hits.slice(0,10).forEach(x=>{
         res.appendChild(bt('btn-ghost btn-xs','↳ '+x.title.slice(0,34),()=>{
@@ -8906,7 +8912,7 @@ function renderBulkBar(visibleIds,redraw){
       if(!name)return;
       const q=name.trim().toLowerCase();
       const hit=reminders().find(x=>!x.parent&&!STATE.selected.includes(x.id)&&
-        (x.title||'').toLowerCase().includes(q));
+        taskMatches(x,q));
       if(!hit){alert(t('sel-nest-none').replace('{q}',name));return;}
       snapshot();
       let bad=0;
