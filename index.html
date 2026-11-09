@@ -2404,7 +2404,7 @@ en:{
   'ts-line':'{n} times · total {tot} · average {avg} · fastest {min} · slowest {max}',
   'cal-hi-q':'{q} The important ones get done when they have an hour. Drag the lit ones onto a time.','sync-veil':'Syncing…','cal-untimed':'No time','cal-tray-empty':'every task has a time',
   'cal-dur':'Minutes it takes on the calendar','cal-hint':'Drag a task onto the hours to give it a time, and off them to take it away; on a phone, hold it a moment first. Drag the bottom edge to change how long it is drawn — the list only ever shows when it starts. Drag across empty hours to make a new task for exactly that time.',
-  'cal-arrange':'🪄 Lay out',
+  'cal-arrange':'🪄 Lay out','cal-clear':'🧹 Clear times','cal-clear-hint':'Take the time off every task here, except the ones that repeat every few hours','cal-cleared':'{n} task(s) without a time',
   'cal-arranged':'{n} task(s) placed','cal-arranged-left':'{n} did not fit','cal-arrange-none':'No free gap left to place them in.',
   'cal-unset':'Time taken off "{t}"','cal-undo':'Undo',
   'wkgoal-ask':'New weekly goal for "{t}":','wkgoal-full':'You already have {n} weekly goals this week.',
@@ -2782,7 +2782,7 @@ es:{
   'ts-line':'{n} veces · total {tot} · promedio {avg} · más rápida {min} · más lenta {max}',
   'cal-hi-q':'{q} Lo importante se hace cuando tiene hora. Arrastra las resaltadas a una hora.','sync-veil':'Sincronizando…','cal-untimed':'Sin hora','cal-tray-empty':'todas tienen hora',
   'cal-dur':'Minutos que dura en el calendario','cal-hint':'Arrastra una tarea a las horas para darle hora, y fuera de ellas para quitársela; en celular, déjala apretada un momento primero. Arrastra el borde de abajo para cambiar cuánto dura en el dibujo — la lista solo muestra a qué hora empieza. Arrastra sobre horas vacías para crear una tarea nueva justo en ese horario.',
-  'cal-arrange':'🪄 Acomodar',
+  'cal-arrange':'🪄 Acomodar','cal-clear':'🧹 Quitar horas','cal-clear-hint':'Le quita la hora a todas las tareas de aquí, menos a las que se repiten cada cierto número de horas','cal-cleared':'{n} tarea(s) sin hora',
   'cal-arranged':'{n} tarea(s) acomodadas','cal-arranged-left':'{n} no cupieron','cal-arrange-none':'No queda hueco libre para acomodarlas.',
   'cal-unset':'Se le quitó la hora a "{t}"','cal-undo':'Deshacer',
   'wkgoal-ask':'Nueva meta semanal para "{t}":','wkgoal-full':'Ya tienes {n} metas semanales esta semana.',
@@ -7934,6 +7934,19 @@ function calAutoPlace(day,tray,timedAll){
   if(left.length)msg+=' · '+t('cal-arranged-left').replace('{n}',left.length);
   flashToast(msg,t('cal-undo'),calUndoLast);
 }
+/* The opposite of laying out: every task on this day that has a time goes back to
+   the tray, except the ones that repeat every so many hours - those have their
+   hours for a reason. Only the time is taken off; the day, the length and
+   everything else stay, and one press brings them all back. */
+const calClearable=r=>calMin(r.time)!==null&&!(r.repeat&&r.repeat.unit==='hour');
+function calClearTimes(list){
+  if(!list.length)return;
+  calRemember(list);
+  list.forEach(r=>{r.time='';r._ts=CLOCK.now();});
+  savePlanner();
+  render();
+  flashToast(t('cal-cleared').replace('{n}',list.length),t('cal-undo'),calUndoLast);
+}
 function renderPomoCalendar(){
   const tk=todayKey();
   const day=STATE.calDay||tk;
@@ -8041,10 +8054,18 @@ function renderPomoCalendar(){
   });
   // "Every task has a time" would be untrue while a filter is hiding some.
   if(!untimed.length)tray.appendChild(sp('xs dimmer',F.length?'—':t('cal-tray-empty')));
+  const clearable=timed.filter(calClearable);
+  let pushed=false;
+  const rightmost=b=>{if(!pushed){b.style.marginLeft='auto';pushed=true;}tray.appendChild(b);};
   if(untimed.length){
     const pick=bt('btn-ghost btn-xs',t('cal-arrange'),()=>calAutoPlace(day,untimed,timedAll));
-    pick.style.marginLeft='auto';pick.dataset.tut='cal-arrange';
-    tray.appendChild(pick);
+    pick.dataset.tut='cal-arrange';
+    rightmost(pick);
+  }
+  if(clearable.length){
+    const clr=bt('btn-ghost btn-xs',t('cal-clear'),()=>calClearTimes(clearable));
+    clr.title=t('cal-clear-hint');clr.dataset.tut='cal-clear';
+    rightmost(clr);
   }
   wrap.appendChild(tray);
 
