@@ -2404,7 +2404,7 @@ en:{
   'ts-line':'{n} times · total {tot} · average {avg} · fastest {min} · slowest {max}',
   'cal-hi-q':'{q} The important ones get done when they have an hour. Drag the lit ones onto a time.','sync-veil':'Syncing…','cal-untimed':'No time','cal-tray-empty':'every task has a time',
   'cal-dur':'Minutes it takes on the calendar','cal-hint':'Drag a task onto the hours to give it a time, and off them to take it away; on a phone, hold it a moment first. Drag the bottom edge to change how long it is drawn — the list only ever shows when it starts. Drag across empty hours to make a new task for exactly that time.',
-  'cal-arrange':'🪄 Lay out','flag-at':'at','cal-clear':'🧹 Clear times','cal-clear-hint':'Take the time off every task here, except the ones that repeat every few hours','cal-cleared':'{n} task(s) without a time',
+  'cal-arrange':'🪄 Lay out','flag-at':'at','flag-extra':'extra +{n}','cal-clear':'🧹 Clear times','cal-clear-hint':'Take the time off every task here, except the ones that repeat every few hours','cal-cleared':'{n} task(s) without a time',
   'cal-arranged':'{n} task(s) placed','cal-arranged-left':'{n} did not fit','cal-arrange-none':'No free gap left to place them in.',
   'cal-unset':'Time taken off "{t}"','cal-undo':'Undo',
   'wkgoal-ask':'New weekly goal for "{t}":','wkgoal-full':'You already have {n} weekly goals this week.',
@@ -2782,7 +2782,7 @@ es:{
   'ts-line':'{n} veces · total {tot} · promedio {avg} · más rápida {min} · más lenta {max}',
   'cal-hi-q':'{q} Lo importante se hace cuando tiene hora. Arrastra las resaltadas a una hora.','sync-veil':'Sincronizando…','cal-untimed':'Sin hora','cal-tray-empty':'todas tienen hora',
   'cal-dur':'Minutos que dura en el calendario','cal-hint':'Arrastra una tarea a las horas para darle hora, y fuera de ellas para quitársela; en celular, déjala apretada un momento primero. Arrastra el borde de abajo para cambiar cuánto dura en el dibujo — la lista solo muestra a qué hora empieza. Arrastra sobre horas vacías para crear una tarea nueva justo en ese horario.',
-  'cal-arrange':'🪄 Acomodar','flag-at':'a las','cal-clear':'🧹 Quitar horas','cal-clear-hint':'Le quita la hora a todas las tareas de aquí, menos a las que se repiten cada cierto número de horas','cal-cleared':'{n} tarea(s) sin hora',
+  'cal-arrange':'🪄 Acomodar','flag-at':'a las','flag-extra':'extra +{n}','cal-clear':'🧹 Quitar horas','cal-clear-hint':'Le quita la hora a todas las tareas de aquí, menos a las que se repiten cada cierto número de horas','cal-cleared':'{n} tarea(s) sin hora',
   'cal-arranged':'{n} tarea(s) acomodadas','cal-arranged-left':'{n} no cupieron','cal-arrange-none':'No queda hueco libre para acomodarlas.',
   'cal-unset':'Se le quitó la hora a "{t}"','cal-undo':'Deshacer',
   'wkgoal-ask':'Nueva meta semanal para "{t}":','wkgoal-full':'Ya tienes {n} metas semanales esta semana.',
@@ -3068,6 +3068,18 @@ const BUILTIN_TIER={drugs:'light',internet:'serious',macanazo:'grave',late:'grav
 function builtinForgives(kind){return tierForgives(BUILTIN_TIER[kind]||'light');}
 
 /* ═══ CALC — SINGLE SOURCE OF TRUTH ═══ */
+/* Finishing the day's flags early pays extra, on top of the 100 they always paid.
+   Up to 10:30 it is the most (FLAG_EXTRA_MAX); after that it drops a point a minute
+   and is gone four hours later. It needs the minute they were finished — a day
+   with none recorded (every day before this, or one typed in by hand) gets no extra,
+   which is also what makes logging a day afterwards worth less than living it. */
+const FLAG_EXTRA_MAX=240,FLAG_EXTRA_FROM=10*60+30;
+function flagExtra(hhmm){
+  const m=/^(\d{1,2}):(\d{2})$/.exec(hhmm||'');
+  if(!m)return 0;
+  const mins=(+m[1])*60+(+m[2]);
+  return Math.max(0,Math.min(FLAG_EXTRA_MAX,FLAG_EXTRA_MAX-(mins-FLAG_EXTRA_FROM)));
+}
 const CALC={
   status(pct,flag){
     let s=pct>=100?'purple':pct>=85?'green':pct>=50?'yellow':'red';
@@ -3194,7 +3206,7 @@ const CALC={
        everything else you finish count for more. */
     const base=Math.round(completed*pm(s.flagStreak));
     const mB=morningCompleted?Math.round(25*pm(s.morningStreak)):0;
-    const fB=flagCompleted?Math.round(100*pm(s.flagStreak)):0;
+    const fB=flagCompleted?Math.round((100+flagExtra(day.flagAt))*pm(s.flagStreak)):0;
     // Same curve as everything else — a day with pomodoros logged on top of
     // yesterday's and the day before's pays more than one on its own.
     const pom=Math.round(pomodoros*POM_PTS*pm(s.pomoStreak));
@@ -3362,7 +3374,7 @@ const CALC={
     const parts={
       base:Math.round((e.completedTasks||0)*pm(flagStreak)),
       mB:((e.streaks?.some(s=>s.type==='morning'&&s.active))?Math.round(25*pm(morningStreak)):0),
-      fB:((e.streaks?.some(s=>s.type==='flags'&&s.active))?Math.round(100*pm(flagStreak)):0),
+      fB:((e.streaks?.some(s=>s.type==='flags'&&s.active))?Math.round((100+flagExtra(e.flagAt))*pm(flagStreak)):0),
       pom:Math.round((e.pomodoros||0)*POM_PTS*pm(pomoStreak)),
       wrk:Math.round((e.workDuration||0)*pm(workStreak)),
       slp:Math.round((e.sleepDuration||0)+(e.napDuration||0)+(e.sleptEarly?(e.sleepDuration||0)*pm(earlyBedStreak):0)),
@@ -4710,11 +4722,13 @@ function markManual(field){
    hour that usually is. Set the first time the day reads as annihilated and
    dropped if it is taken back; a day already annihilated before this existed
    simply has no time, and is left out of the average. */
-function stampFlagTime(){
+function stampFlagTime(byHand){
   const td=STATE.today;
   if(td.flagCompleted){
+    // The FIRST time the day read as done: a flag added later, which un-annihilates it
+    // and is finished in the afternoon, does not move it.
     if(!td.flagAt){const n=appNow();td.flagAt=pad2(n.getHours())+':'+pad2(n.getMinutes());}
-  }else if(td.flagAt)delete td.flagAt;
+  }else if(byHand&&td.flagAt)delete td.flagAt;   // taken off by hand: that claim is gone
 }
 function syncPlannerToToday(){
   const s=plannerTodayStats();
@@ -10909,8 +10923,12 @@ function renderTasksCard(sc,sk_){
   // — harmless while the multiplier was the streak itself, misleading once it
   // became a square root: reading it as 100×N days overstated what an old
   // streak actually pays several times over.
-  const fi_=dv('f1');fi_.innerHTML=`<div class="tt">${t('goals-ann')}</div><div class="ts">${escapeHtml(ptsLine(100,sk_.flagStreak,sc.status))}${STATE.today.flagCompleted&&STATE.today.flagAt?escapeHtml(' · '+t('flag-at')+' '+STATE.today.flagAt):''}</div>`;
-  ft.appendChild(fc);ft.appendChild(fi_);ft.onclick=()=>{STATE.today.flagCompleted=!STATE.today.flagCompleted;stampFlagTime();markManual('flagCompleted');commitAndRefresh();};card.appendChild(gate(ft,'flags'));
+  /* The extra is shown as it stands: what the day earned if the flags are done, what
+     finishing right now would earn if they are not. */
+  const fnow=appNow(),fHHMM=pad2(fnow.getHours())+':'+pad2(fnow.getMinutes());
+  const fEx=flagExtra(STATE.today.flagCompleted?STATE.today.flagAt:fHHMM);
+  const fi_=dv('f1');fi_.innerHTML=`<div class="tt">${t('goals-ann')}</div><div class="ts">${escapeHtml(ptsLine(100+fEx,sk_.flagStreak,sc.status))}${STATE.today.flagCompleted&&STATE.today.flagAt?escapeHtml(' · '+t('flag-at')+' '+STATE.today.flagAt):''}${fEx>0?escapeHtml(' · '+t('flag-extra').replace('{n}',fEx)):''}</div>`;
+  ft.appendChild(fc);ft.appendChild(fi_);ft.onclick=()=>{STATE.today.flagCompleted=!STATE.today.flagCompleted;stampFlagTime(true);markManual('flagCompleted');commitAndRefresh();};card.appendChild(gate(ft,'flags'));
   return card;
 }
 
@@ -13644,7 +13662,7 @@ function renderRules(onClose){
   <div>
     <div class="md up ls ac w7 mb10">💰 Puntos</div>
     <div class="s6">
-      <div>✅ Tarea <span class="ac w6">+1</span> · 🌅 Rutina <span class="ac w6">+25</span> · 🏅 Metas <span class="ac w6">+100</span> · 🍅 Pomodoro <span class="ac w6">+${POM_PTS}</span> · 💼 Trabajo y 😴 Sueño <span class="ac w6">+1</span>/min</div>
+      <div>✅ Tarea <span class="ac w6">+1</span> · 🌅 Rutina <span class="ac w6">+25</span> · 🏅 Metas <span class="ac w6">+100</span> (hasta <span class="ac w6">+${FLAG_EXTRA_MAX}</span> extra si las terminas antes de las 10:30; luego baja 1 por minuto) · 🍅 Pomodoro <span class="ac w6">+${POM_PTS}</span> · 💼 Trabajo y 😴 Sueño <span class="ac w6">+1</span>/min</div>
       <div>🎨 <span class="cy">🟡 +10</span> · <span class="cg">🟢 +30</span> · <span class="cp">🟣 +60</span>, se acumulan.</div>
       <div>Tu racha los multiplica: 9 días <span class="ac w6">×${multAt(9)}</span> · 100 días <span class="ac w6">×${multAt(100)}</span> · 400 días <span class="ac w6">×${multAt(400)}</span></div>
       <div>🍅 La racha de pomodoros solo avanza con el cronómetro de la app: no con los que pones a mano ni con los que corren solos (🔁).</div>
@@ -13697,7 +13715,7 @@ function renderRules(onClose){
   <div>
     <div class="md up ls ac w7 mb10">💰 Points</div>
     <div class="s6">
-      <div>✅ Task <span class="ac w6">+1</span> · 🌅 Morning <span class="ac w6">+25</span> · 🏅 Goals <span class="ac w6">+100</span> · 🍅 Pomodoro <span class="ac w6">+${POM_PTS}</span> · 💼 Work and 😴 Sleep <span class="ac w6">+1</span>/min</div>
+      <div>✅ Task <span class="ac w6">+1</span> · 🌅 Morning <span class="ac w6">+25</span> · 🏅 Goals <span class="ac w6">+100</span> (up to <span class="ac w6">+${FLAG_EXTRA_MAX}</span> extra if you finish before 10:30; then 1 less per minute) · 🍅 Pomodoro <span class="ac w6">+${POM_PTS}</span> · 💼 Work and 😴 Sleep <span class="ac w6">+1</span>/min</div>
       <div>🎨 <span class="cy">🟡 +10</span> · <span class="cg">🟢 +30</span> · <span class="cp">🟣 +60</span>, they stack.</div>
       <div>Your run multiplies them: 9 days <span class="ac w6">×${multAt(9)}</span> · 100 days <span class="ac w6">×${multAt(100)}</span> · 400 days <span class="ac w6">×${multAt(400)}</span></div>
       <div>🍅 The pomodoro run only moves with the app's timer: not with hand-typed pomodoros, nor ones that ran by themselves (🔁).</div>
