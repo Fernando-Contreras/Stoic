@@ -2155,7 +2155,7 @@ en:{
   'tpl-weekly-left':'{n} weekly goals left to complete.','tpl-weekly-left-1':'1 weekly goal left to complete.',
   'tpl-weekly-done':"You've completed all your weekly goals.",
   'tpl-weekly-plan':'Plan for doing so:',
-  'tpl-why':'Why these results?:','tpl-dream':'Today I remember dreaming:',
+  'tpl-why':'Why did today go like this?:','tpl-dream':'Today I remember dreaming:',
   'tpl-feel':'I feel:','tpl-feel-why':'Why?:',
   'tpl-cool':'Something cool I did today:','tpl-improve':'Something I can improve:',
   'tpl-summary':'Summary:',
@@ -2533,7 +2533,7 @@ es:{
   'tpl-weekly-left':'Quedan {n} metas semanales por completar.','tpl-weekly-left-1':'Queda 1 meta semanal por completar.',
   'tpl-weekly-done':'Ya completaste todas tus metas semanales.',
   'tpl-weekly-plan':'Plan para lograrlo:',
-  'tpl-why':'¿Por qué estos resultados?:','tpl-dream':'Hoy recuerdo haber soñado:',
+  'tpl-why':'¿Por qué me fue así hoy?:','tpl-dream':'Hoy recuerdo haber soñado:',
   'tpl-feel':'Me siento:','tpl-feel-why':'¿Por qué?:',
   'tpl-cool':'Algo chido que hice hoy:','tpl-improve':'Algo que puedo mejorar:',
   'tpl-summary':'Resumen:',
@@ -14156,7 +14156,8 @@ function diaryHeadings(){
     // Wording these two headings once had. Notes already written keep their
     // gold instead of quietly going plain the day the template changes.
     .concat(['1 cosa chida que hice:','1 cosa que puedo mejorar:',
-             '1 cool thing I did:','1 thing I can improve:']);
+             '1 cool thing I did:','1 thing I can improve:',
+             '¿Por qué estos resultados?:','Why these results?:']);
 }
 function diaryToHtml(text){
   const heads=diaryHeadings();
