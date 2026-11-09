@@ -10702,7 +10702,6 @@ function renderApp(){
   wrap.appendChild(gate(ch,'monthCal'));
   if(STATE.dayDetail)wrap.appendChild(renderDayDetailModal(STATE.dayDetail));
   if(STATE.histDay)wrap.appendChild(renderHistModal(STATE.histDay));
-  if(_sumDay&&!STATE.histDay)wrap.appendChild(renderSummaryModal(_sumDay));
   // Reset All — at the bottom where it's hard to hit accidentally
   const resetWrap=dv('card mt12');resetWrap.style.cssText='border-color:var(--ngb);background:var(--ngd)';
   const resetRow=dv('rowb');
@@ -11520,33 +11519,39 @@ function copyText(text){
   if(navigator.clipboard&&navigator.clipboard.writeText)return navigator.clipboard.writeText(text).then(()=>true,()=>fallback());
   return Promise.resolve(fallback());
 }
-let _sumDay=null;
+/* The 📝: pressing it copies the day's summary, and while the pointer is over it
+   (or a finger is held on it) a little card shows what is being copied. Let go and
+   it is gone — there is no window to close. */
+let _sumTip=null;
+function sumTipHide(){if(_sumTip){_sumTip.remove();_sumTip=null;}}
+function sumTipShow(btn,key){
+  sumTipHide();
+  const txt=daySummaryText(key);if(!txt)return;
+  const tp=dv('');
+  tp.style.cssText='position:fixed;z-index:200;max-width:min(340px,calc(100vw - 16px));white-space:pre-wrap;line-height:1.55;font-size:13px;'
+    +'background:var(--sur);color:var(--t1);border:1px solid var(--b2);border-radius:12px;padding:10px 12px;box-shadow:0 8px 28px rgba(0,0,0,.45);pointer-events:none';
+  tp.textContent=txt;document.body.appendChild(tp);_sumTip=tp;
+  const r=btn.getBoundingClientRect(),w=tp.offsetWidth,h=tp.offsetHeight;
+  tp.style.left=Math.max(8,Math.min(r.right-w,window.innerWidth-w-8))+'px';
+  tp.style.top=(r.bottom+8+h>window.innerHeight?Math.max(8,r.top-h-8):r.bottom+8)+'px';
+}
 function openDaySummary(key){
   const txt=daySummaryText(key);
   if(!txt){flashToast(t('no-data'));return;}
-  copyText(txt);   // the press is the copy; the window only shows what was copied
-  _sumDay=key;render();
+  copyText(txt).then(ok=>flashToast(ok?t('sum-copied'):t('sum-copy-fail')));
 }
-function renderSummaryModal(key){
-  const close=()=>{_sumDay=null;render();};
-  const ov=dv('fi');ov.classList.add('ovl');
-  closeOnBackdrop(ov,close);
-  const panel=dv('card');panel.style.cssText='max-width:480px;width:100%;margin:auto';
-  const hd=dv('rowb mb10');
-  hd.appendChild(sp('ctit','📝 '+t('sum-title')));
-  hd.appendChild(bt('btn-icon','✕',close));
-  panel.appendChild(hd);
-  const txt=daySummaryText(key)||'';
-  const box=dv('sm');box.style.cssText='white-space:pre-wrap;line-height:1.6;background:var(--sur2);border:1px solid var(--b1);border-radius:10px;padding:12px';
-  box.textContent=txt;panel.appendChild(box);
-  const row=dv('row gap8 mt10');
-  const note=sp('xs cg',t('sum-copied'));
-  const again=bt('btn-ac btn-sm',t('sum-copy'),()=>{copyText(txt).then(ok=>{note.textContent=ok?t('sum-copied'):t('sum-copy-fail');});});
-  row.appendChild(again);row.appendChild(note);panel.appendChild(row);
-  ov.appendChild(panel);
-  return ov;
+function bindSummaryButton(btn,key){
+  btn.onclick=()=>openDaySummary(key);
+  btn.addEventListener('mouseenter',()=>sumTipShow(btn,key));
+  btn.addEventListener('mouseleave',sumTipHide);
+  // A finger: shown for as long as it is held, gone when it lifts.
+  btn.addEventListener('touchstart',()=>sumTipShow(btn,key),{passive:true});
+  ['touchend','touchcancel'].forEach(ev=>btn.addEventListener(ev,sumTipHide,{passive:true}));
+  btn.addEventListener('contextmenu',e=>e.preventDefault());   // a long press is not a menu
+  btn.style.webkitTouchCallout='none';btn.style.userSelect='none';
 }
-
+// A redraw can replace the button from under a pointer that never "left" it.
+document.addEventListener('mousemove',e=>{if(_sumTip&&!(e.target&&e.target.closest&&e.target.closest('[data-tut="day-summary"]')))sumTipHide();},{passive:true});
 /* ═══ DAY PANEL — the day you picked on the calendar ═══
    It holds what used to hang underneath the grid — colour, points, the day's
    line — and gives the note the whole of the room the history list used to
@@ -11567,8 +11572,8 @@ function renderDayPanel(){
     eb.style.whiteSpace='nowrap';eb.dataset.tut='hist-edit';
     const acts=dv('row gap6');
     if(key===todayKey()||histMap().get(key)){
-      const sb_=bt('btn-ghost btn-sm','📝',()=>openDaySummary(key));
-      sb_.title=t('sum-btn');sb_.dataset.tut='day-summary';acts.appendChild(sb_);
+      const sb_=bt('btn-ghost btn-sm','📝',()=>{});
+      sb_.dataset.tut='day-summary';bindSummaryButton(sb_,key);acts.appendChild(sb_);
     }
     acts.appendChild(eb);hd.appendChild(acts);
   }
