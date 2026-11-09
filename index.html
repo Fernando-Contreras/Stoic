@@ -4840,9 +4840,11 @@ function catchUpPomodoro(){
       }
     }
   }
+  let lastWasFocus=false;
   while(caught<MAX_CATCHUP&&backlog>=pomoPhaseLen(p)){
     backlog-=pomoPhaseLen(p);
     caught+=pomoPhaseLen(p);
+    lastWasFocus=p.phase==='focus';
     pomoFinishPhase(true,legStart+caught*1000);
     // Auto-run off: pomoFinishPhase already left it paused at the leg that
     // was actually in progress — stop there rather than racing on through
@@ -4855,7 +4857,18 @@ function catchUpPomodoro(){
     // remaining time keeps meaning what it says.
     if(p.running)p.startedAt=CLOCK.now()-backlog*1000;
     savePomo();
-    render();
+    /* This runs on every beat, so it is almost always the one that sees a leg run
+       out — a second before the branch that used to ring for it ever looks. It
+       took the end, moved the timer on and said nothing: no chime, no notification,
+       for the end of a pomodoro and of a break alike. A leg that ended just now is
+       told, the way it always was; one that ended while nobody was there (the
+       phone asleep, the lid shut) stays silent, because a bell for something that
+       happened an hour ago is only noise. */
+    if(CLOCK.now()-(legStart+caught*1000)<90000){
+      pomoBeep();
+      notify(lastWasFocus?t('pomo-done'):t('pomo-break-over'));
+    }
+    if(!STATE.showAddForm&&!document.querySelector('.ovl'))render();
   }
 }
 /* Midnight bookkeeping, and nothing more. This used to go through savePomo,
