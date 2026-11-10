@@ -1036,9 +1036,9 @@ const TUT_STAGES={
     {id:'vGrid',   tab:'plan', target:'[data-tut="list-card"]',manual:true, latch:true, text:'tut1-vlayout2', after:tutListBack, done:()=>tutLayout()==='list'},
     {id:'vSort',   tab:'plan', target:'[data-tut="v-sort"] button:nth-child(2)', press:true, text:'tut1-vsort'},
     {id:'vSorted', tab:'plan', target:'[data-tut="list-card"]',manual:true, free:true, text:'tut1-vsort2'},
-    {id:'vHide',   tab:'plan', target:'[data-tut="v-hide"]',   manual:true, free:true, text:'tut1-vhide'},
+    {id:'vHide',   tab:'plan', target:'[data-tut="v-hide"]',   manual:true, free:true, play:true, text:'tut1-vhide'},
     // The list is theirs to try, now that every control has been named.
-    {id:'vPlay',   tab:'plan', target:'[data-tut="view-ctrl"]',manual:true, free:true, text:'tut1-vplay', after:tutListBack},
+    {id:'vPlay',   tab:'plan', target:'[data-tut="view-ctrl"]',manual:true, free:true, play:true, text:'tut1-vplay', after:tutListBack},
     {id:'flagged', tab:'plan', target:'[data-tut="flag-box"]', text:'tut1-flagged', manual:true, look:true, done:c=>c.doneN()>0},
     {id:'colour',  tab:'plan', target:'[data-tut="day-card"]', text:'tut1-colour', manual:true, look:true, done:c=>c.doneN()>0},
     // Latched: the part ends by unticking one, and that must not bring these back.
@@ -1049,7 +1049,8 @@ const TUT_STAGES={
     // That 🏁 is the step the second part links to a goal, and a step has to be open.
     {id:'untick',  tab:'plan', target:c=>c.flagEl(),        text:'tut1-untick', latch:true, done:c=>c.flagOpen()},
     {id:'prefs',   tab:'plan', target:'[data-tut="hdr-acts"]', text:'tut1-prefs', manual:true, free:true, enter:()=>tutHintSeen()},
-    {id:'next1',   manual:true, choice:true,                text:'tut1-next'}
+    // The end of the first part: no question. The app is theirs; the next part waits behind the 🎓.
+    {id:'next1',   manual:true, btn:'tut-finish', endsLater:true, text:'tut1-next'}
   ],
   2:[
     {id:'hi2',     manual:true,                             text:'tut2-hi'},
@@ -1367,13 +1368,13 @@ function tutSkipPart(){
   if(!TUT.run)tutSay(t('tut-skipped'));
 }
 // Tomorrow, then: the part counts as done, and the next waits for the date to change.
-function tutLater(){
+function tutLater(msgKey){
   const run=TUT.run;if(!run)return;
   const o=STATE.planner.onboard;
   tutMarkDone(run.stages);
   if(o){o.later=true;tutSaveOnboard();}
   tutStop();tutCloseAll();render();
-  tutSay(t('tut-later-toast'));
+  tutSay(t(typeof msgKey==='string'?msgKey:'tut-later-toast'));
 }
 function tutShowAll(){
   const o=STATE.planner.onboard;
@@ -1432,6 +1433,7 @@ function tutPaint(step){
     // In a replay nothing has to be made for real: Next is always there.
     if(step.manual||run.replay)btn('btn-ac btn-sm',t(step.btn||(step.choice?'tut-go-on':'tut-next')),()=>{
       tutAck(run,step);
+      if(step.endsLater&&!run.replay){tutLater('tut-p1-end-toast');return;}
       if(step.after)step.after();
       else if(!step.manual){tutCloseAll();render();}
       if(TUT.run!==run)return;      // that redraw already moved on to the next part
@@ -1553,10 +1555,16 @@ function tutTick(){
     if(r.top<safe){window.scrollBy(0,r.top-safe);r=rectOf(el);}
   }
   const h={l:Math.max(4,r.left-8),t:Math.max(4,r.top-8),r:Math.min(vw-4,r.right+8),b:Math.min(vh-4,r.bottom+8)};
-  box(dT,0,0,vw,h.t);
-  box(dB,0,h.b,vw,vh-h.b);
-  box(dL,0,h.t,h.l,h.b-h.t);
-  box(dR,h.r,h.t,vw-h.r,h.b-h.t);
+  /* A step that says "play with these": only a ring goes round the controls. The rest of
+     the page is left lit and untouched, or the very thing they change could not be seen. */
+  const play=!!step.play&&!peek;
+  if(play){[dT,dL,dR,dB].forEach(d=>{d.style.display='none';});}
+  else{
+    box(dT,0,0,vw,h.t);
+    box(dB,0,h.b,vw,vh-h.b);
+    box(dL,0,h.t,h.l,h.b-h.t);
+    box(dR,h.r,h.t,vw-h.r,h.b-h.t);
+  }
   // Only what is there to be read. Gone back to, the rest still works: a day to pick, a number to fix.
   if(step.look||(step.manual&&!step.done&&!step.auto&&!step.soft&&!step.free))box(L.cover,h.l,h.t,h.r-h.l,h.b-h.t);
   const ring=L.ring;ring.style.display='';
@@ -1564,7 +1572,10 @@ function tutTick(){
   const cx=(h.l+h.r)/2;
   const need=bh+54;
   const hand=L.hand;
-  if(vh-h.b>=need){                       // below: the hand points up at it
+  if(play){                               // away from what is being played with: the far end of the screen
+    hand.style.display='none';
+    place((vw-bw)/2,(h.t+h.b)/2>vh/2?12:vh-bh-12);
+  }else if(vh-h.b>=need){                 // below: the hand points up at it
     hand.style.display='';hand.textContent='👆';hand.className='tut-hand up';
     hand.style.left=Math.round(Math.max(8,Math.min(cx-15,vw-40)))+'px';hand.style.top=(h.b+4)+'px';
     place(cx-bw/2,h.b+46);
@@ -2267,7 +2278,7 @@ en:{
   'tut1-vsort2':'Your list changed order. It stays how you leave it, and your points do not change.',
   'tut1-vhide':'Tasks with a time stay hidden until this many hours before, so they do not get in your way.',
   'tut1-prefs':'Up here: light or dark mode, language, and 🎓 to repeat this tutorial.',
-  'tut1-flagged':'Goals to annihilate: here you see the long goals your 🏁 tasks point to.\nYou have none yet, so you get a ⚠️. You will make them in part 2.',
+  'tut1-flagged':'Goals to annihilate: here you see the long goals (of the week, quarter or year) that each 🏁 goal of the day, your most important task, points to.\nYou have none yet, so you get a ⚠️. You will make them in part 2.',
   'tut1-colour':'This is your day. It is red because nothing is done yet. Your aim: get it out of the red.',
   'tut1-tick':'Mark this task as done.',
   'tut1-half':'Half done: yellow 🟡, and the candle lights up 🕯️. Every day without red adds to your streak.',
@@ -2275,7 +2286,8 @@ en:{
   'tut1-untick':'Marked one by mistake? It unticks the same way. Untick your 🏁: you will use it in part 2.',
   'tut1-vplay':'Play with these buttons for a while: they only change how you see your list. Press Next when you are done.',
   'tut1-end':'Your colour depends on how much you finish:\n🔴 less than 50%\n🟡 50%\n🟢 85%\n🟣 100%\n\nMore colour, more points. Finish all your 🏁 and you go up one colour.',
-  'tut1-next':'That is the essentials ✅\nNext: points, sleep and work, rewards, timers and long goals. Now or tomorrow?',
+  'tut1-next':'That is the essentials ✅\nPlay with the app as much as you like. When you want more (points, sleep and work, rewards, timers and long goals), tap the 🎓 up top.',
+  'tut-p1-end-toast':'All yours. When you want the next part, tap the 🎓 up top.',
   'tut2-hi':'Let us go on 🕯️\nThe app grew: points, sleep and work, rewards, timers and long goals.',
   'tut2-tab':'Open Score.',
   'tut2-points':'Your points. Everything you do adds up here.',
@@ -2647,7 +2659,7 @@ es:{
   'tut1-vsort2':'Tu lista cambió de orden. Se queda como la dejes y tus puntos no cambian.',
   'tut1-vhide':'Las tareas con hora se esconden hasta estas horas antes, para que no te estorben.',
   'tut1-prefs':'Aquí arriba: modo claro u oscuro, idioma y 🎓 para repetir este tutorial.',
-  'tut1-flagged':'Metas por exterminar: aquí salen las metas largas a las que apuntan tus 🏁.\nAún no tienes, por eso sale ⚠️. Las harás en la parte 2.',
+  'tut1-flagged':'Metas por exterminar: aquí salen las metas largas (de la semana, el trimestre o el año) a las que apunta cada 🏁 meta del día, tu tarea más importante.\nAún no tienes, por eso sale ⚠️. Las harás en la parte 2.',
   'tut1-colour':'Este es tu día. Está en rojo porque aún no haces nada. Tu objetivo: sacarlo del rojo.',
   'tut1-tick':'Marca esta tarea como hecha.',
   'tut1-half':'Mitad hecha: amarillo 🟡, y se prende la vela 🕯️. Cada día sin rojo suma a tu racha.',
@@ -2655,7 +2667,8 @@ es:{
   'tut1-untick':'¿Marcaste una por error? Se desmarca igual. Desmarca tu 🏁: la usarás en la parte 2.',
   'tut1-vplay':'Juega un rato con estos botones: solo cambian cómo ves tu lista. Cuando acabes, dale Siguiente.',
   'tut1-end':'Tu color depende de cuánto termines:\n🔴 menos de 50%\n🟡 50%\n🟢 85%\n🟣 100%\n\nMejor color, más puntos. Si terminas todas tus 🏁, subes un color.',
-  'tut1-next':'Eso es lo esencial ✅\nSigue: puntos, sueño y trabajo, recompensas, cronómetros y metas largas. ¿Ahora o mañana?',
+  'tut1-next':'Eso es lo esencial ✅\nJuega con la app todo lo que quieras. Cuando quieras más (puntos, sueño y trabajo, recompensas, cronómetros y metas largas), toca el 🎓 de arriba.',
+  'tut-p1-end-toast':'Es tuya. Cuando quieras la siguiente parte, toca el 🎓 de arriba.',
   'tut2-hi':'Sigamos 🕯️\nLa app creció: puntos, sueño y trabajo, recompensas, cronómetros y metas largas.',
   'tut2-tab':'Abre Puntaje.',
   'tut2-points':'Tus puntos. Todo lo que haces suma aquí.',
