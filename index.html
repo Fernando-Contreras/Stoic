@@ -420,6 +420,12 @@ button{cursor:pointer;font-family:var(--ff);font-size:15px;font-weight:600;borde
 .ch-grid i{position:absolute;left:0;right:0;height:1px;background:var(--b1);display:block}
 .ch-grid i.zero{background:var(--b3)}
 /* One flex row of columns; the gap is the separator, never a stroke. */
+.diary-done{display:none;margin-top:6px}
+.diary-wrap.diary-full{position:fixed;left:0;right:0;z-index:90;margin:0;padding:8px 14px;background:var(--bg);display:flex;flex-direction:column;overflow:hidden}
+.diary-wrap.diary-full .diary-title{font-size:16px!important;margin-bottom:4px!important}
+.diary-wrap.diary-full .diary-area{flex:1 1 auto;min-height:0!important;height:auto}
+.diary-wrap.diary-full .diary-hint{display:none}
+.diary-wrap.diary-full .diary-done{display:block;align-self:flex-end}
 .ch-cols{position:relative;display:flex;align-items:stretch;gap:2px;width:100%}
 .ch-col{flex:1 1 0;min-width:0;position:relative;cursor:default}
 .ch-bar{position:absolute;left:0;right:0;border-radius:2px 2px 0 0}
@@ -2377,11 +2383,11 @@ en:{
   'push-needlogin':'Sign in first — alerts need your account.',
   'push-denied':'Notifications are blocked for this site. Allow them in the browser settings and try again.',
   'push-failed':'Could not turn alerts on. Try again in a moment.',
-  'wk-title':'Week at a glance','wk-vs':'vs','wk-this':'This week','wk-last':'Last week','wk-before':'Week before','wk-view-now':'This vs last','wk-view-back':'Last vs the one before',
+  'wk-title':'Week at a glance','wk-vs':'vs','wk-this':'Last 7 days','wk-last':'The 7 before','wk-before':'Week before','wk-view-now':'This vs last','wk-view-back':'Last vs the one before',
   'wk-points':'Points','wk-tasks':'Tasks completed','wk-goals':'Goals closed','wk-pom':'Pomodoros',
   'wk-work':'Work','wk-sleep':'Sleep per day','wk-reds':'Red days','wk-purples':'Purple days','wk-greens':'Green days','wk-yellows':'Yellow days','wk-best':'Best day',
   'wk-late':'Overdue now','wk-opengoals':'Open goals',
-  'wk-note':'This week counts Monday to today, against the whole of last week, so a week in progress will usually trail. Tasks come from the completion log (the last 45 days).',
+  'wk-note':'The last 7 days, counting back from today, against the 7 before them.',
   'cal-to-cal':'Day calendar','cal-to-timer':'Back to the timer','cal-today':'Today',
   'cal-open':'Open the day calendar','cal-title':'Day calendar',
   'sw-title':'Stopwatch','sw-today':'today','sw-jump-title':'See the logged time, in Score',
@@ -2755,11 +2761,11 @@ es:{
   'push-needlogin':'Inicia sesión primero — los avisos necesitan tu cuenta.',
   'push-denied':'Las notificaciones están bloqueadas para este sitio. Permítelas en los ajustes del navegador y vuelve a intentar.',
   'push-failed':'No se pudieron prender los avisos. Intenta de nuevo en un momento.',
-  'wk-title':'La semana de un vistazo','wk-vs':'contra','wk-this':'Esta semana','wk-last':'Pasada','wk-before':'Antepasada','wk-view-now':'Esta vs. pasada','wk-view-back':'Pasada vs. antepasada',
+  'wk-title':'La semana de un vistazo','wk-vs':'contra','wk-this':'Últimos 7 días','wk-last':'Los 7 anteriores','wk-before':'Antepasada','wk-view-now':'Esta vs. pasada','wk-view-back':'Pasada vs. antepasada',
   'wk-points':'Puntos','wk-tasks':'Tareas completadas','wk-goals':'Metas cerradas','wk-pom':'Pomodoros',
   'wk-work':'Trabajo','wk-sleep':'Sueño por día','wk-reds':'Días rojos','wk-purples':'Días morados','wk-greens':'Días verdes','wk-yellows':'Días amarillos','wk-best':'Mejor día',
   'wk-late':'Atrasadas ahora','wk-opengoals':'Metas abiertas',
-  'wk-note':'Esta semana cuenta de lunes a hoy, contra toda la pasada, así que una semana en curso casi siempre va por debajo. Las tareas salen del registro de completadas (los últimos 45 días).',
+  'wk-note':'Los últimos 7 días, contando hacia atrás desde hoy, contra los 7 anteriores.',
   'cal-to-cal':'Calendario del día','cal-to-timer':'Volver al temporizador','cal-today':'Hoy',
   'cal-open':'Abrir el calendario del día','cal-title':'Calendario del día',
   'sw-title':'Cronómetro','sw-today':'hoy','sw-jump-title':'Ver el tiempo registrado, en Puntos',
@@ -6650,29 +6656,20 @@ function renderWeekReviewModal(){
   ov.appendChild(panel);
   const isEs=STATE.lang==='es';
   const tk=todayKey();
-  // Two views and no more. A Monday opens on the one that just ended: this week is a day old.
-  const back=STATE.weekBack==null?new Date(tk+'T12:00:00').getDay()===1:STATE.weekBack;
-  const thisW=(()=>{
-    if(!back)return periodBounds('week',tk);
-    const d=new Date(tk+'T12:00:00');d.setDate(d.getDate()-7);
-    return periodBounds('week',isoDate(d));
-  })();
-  const lastStart=(()=>{const d=new Date(thisW.start+'T12:00:00');d.setDate(d.getDate()-7);return isoDate(d);})();
-  const lastW=periodBounds('week',lastStart);
-  const a=weekStats(thisW.start,thisW.end<tk?thisW.end:tk);
+  /* The last seven days against the seven before them, counted back from today:
+     not Monday to Sunday, so it is never a week that has barely begun set against
+     a whole one. */
+  const dAgo=n=>{const d=new Date(tk+'T12:00:00');d.setDate(d.getDate()-n);return isoDate(d);};
+  const thisW={start:dAgo(6),end:tk};
+  const lastW={start:dAgo(13),end:dAgo(7)};
+  const a=weekStats(thisW.start,thisW.end);
   const b=weekStats(lastW.start,lastW.end);
   const hd=dv('rowb mb10');
   hd.appendChild(sp('ctit','🗓️ '+t('wk-title')));
   hd.appendChild(bt('btn-icon','✕',close));
   panel.appendChild(hd);
-  const pickW=dv('row gap6 mb10');
-  [[false,'wk-view-now'],[true,'wk-view-back']].forEach(([v,k])=>{
-    pickW.appendChild(bt(v===back?'btn-ac btn-xs':'btn-ghost btn-xs',t(k),()=>{STATE.weekBack=v;render();}));
-  });
-  panel.appendChild(pickW);
   const fmt=d=>capFirst(new Date(d+'T12:00:00').toLocaleDateString(isEs?'es-MX':'en-US',{day:'numeric',month:'short'}));
-  panel.appendChild(dv('xs dimmer mb10',`${fmt(thisW.start)} – ${fmt(thisW.end<tk?thisW.end:tk)}   ·   ${t('wk-vs')} ${fmt(lastW.start)} – ${fmt(lastW.end)}`));
-
+  panel.appendChild(dv('xs dimmer mb10',`${fmt(thisW.start)} – ${fmt(thisW.end)}   ·   ${t('wk-vs')} ${fmt(lastW.start)} – ${fmt(lastW.end)}`));
   const rows=[
     [t('wk-points'),a.points,b.points,v=>v.toLocaleString(),1],
     [t('wk-tasks'),a.tasks,b.tasks,v=>String(v),1],
@@ -6687,7 +6684,7 @@ function renderWeekReviewModal(){
   ];
   const tbl=dv('s6');
   const head=dv('row gap8');head.style.cssText='font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.06em;padding:0 10px';
-  [['',1.6],[t(back?'wk-last':'wk-this'),1],[t(back?'wk-before':'wk-last'),1],['',.4]].forEach(([x,f])=>{const c=sp('',x);c.style.flex=String(f);c.style.textAlign=f===1.6?'left':'right';head.appendChild(c);});
+  [['',1.6],[t('wk-this'),1],[t('wk-last'),1],['',.4]].forEach(([x,f])=>{const c=sp('',x);c.style.flex=String(f);c.style.textAlign=f===1.6?'left':'right';head.appendChild(c);});
   tbl.appendChild(head);
   rows.forEach(([label,x,y,f,good,dot])=>{
     const r=dv('row gap8');
@@ -6709,7 +6706,7 @@ function renderWeekReviewModal(){
   const late=reminders().filter(r=>!r.done&&r.completedOn!==tk&&r.due&&r.due<tk).length;
   const openG=GOAL_KINDS.reduce((n,k)=>n+goalsOf(k).filter(g=>!g.doneOn).length,0);
   panel.appendChild(dv('sm mt6',`⏳ ${t('wk-late')}: ${late}   ·   🎯 ${t('wk-opengoals')}: ${openG}`));
-  if(!back)panel.appendChild(dv('xs dimmer mt10',t('wk-note')));
+  panel.appendChild(dv('xs dimmer mt10',t('wk-note')));
   return ov;
 }
 
@@ -10695,6 +10692,7 @@ function renderApp(){
     wrap.appendChild(gate(renderTimeLogCard(),'stopwatch'));
     wrap.appendChild(renderMoreStats());
     wrap.appendChild(statsEl);
+    wrap.appendChild(renderDangerZone());
     wrap.appendChild(dv('xs dimmer ctr mt16 mb16',t('made-by')));
     return wrap;
   }
@@ -10735,6 +10733,14 @@ function renderApp(){
   wrap.appendChild(gate(ch,'monthCal'));
   if(STATE.dayDetail)wrap.appendChild(renderDayDetailModal(STATE.dayDetail));
   if(STATE.histDay)wrap.appendChild(renderHistModal(STATE.histDay));
+  return wrap;
+}
+
+/* The reset, the backups, and the ways out. They used to hang off the end of the Score tab;
+   they live at the very bottom of Statistics now, the least visited place there is, which is
+   exactly where something that empties the app belongs. */
+function renderDangerZone(){
+  const wrap=dv('');
   // Reset All — at the bottom where it's hard to hit accidentally
   const resetWrap=dv('card mt12');resetWrap.style.cssText='border-color:var(--ngb);background:var(--ngd)';
   const resetRow=dv('rowb');
@@ -11914,6 +11920,14 @@ function renderHistForm(key){
    up from, so a chart can never tell a different story than the score.
    ═══════════════════════════════════════════════════════════════════════ */
 const CH_ORDER=['purple','green','yellow','red'];
+/* The room between bars, worked out from the room there is. A fixed 2px gap is fine on a
+   wide screen and ruinous on a phone held upright: 160 days times 2px is more than the
+   whole width of the chart, so every bar came out a fraction of a pixel wide and the
+   chart showed nothing but its line. The gap gives way until each bar keeps ~2px. */
+function chGap(n){
+  const avail=Math.min(window.innerWidth-70,760);
+  return Math.max(0,Math.min(2,Math.floor(avail/Math.max(1,n)-2)))+'px';
+}
 // The app's own four, and the one neutral ink the trend line is drawn in.
 function chColor(s){return{red:'var(--cr)',yellow:'var(--cy)',green:'var(--cg)',purple:'var(--cp)'}[s]||'var(--b2)';}
 // The badges already name the four colours; this asks them rather than
@@ -12155,7 +12169,7 @@ function renderCharts(sc,isEs){
     const hi=Math.max(1,...vals);
     const plot=dv('ch-plot');plot.style.height=H+'px';
     const cols=dv('ch-cols');cols.style.height=H+'px';
-    cols.style.gap=win.length>170?'1px':'2px';
+    cols.style.gap=chGap(win.length);
     win.forEach((d,i)=>{
       const c=dv('ch-col');
       const bar=dv('ch-bar');
@@ -12208,7 +12222,7 @@ function renderCharts(sc,isEs){
        that the separator has to give way to the data: a year of days is a
        dense field by nature, and a 0.5px bar beside a 2px gap is a chart of
        its own gaps. */
-    cols.style.gap=win.length>170?'1px':'2px';
+    cols.style.gap=chGap(win.length);
     win.forEach(d=>{
       const c=dv('ch-col');
       const bar=dv('ch-bar'+(d.pts<0?' neg':''));
@@ -12456,7 +12470,7 @@ function renderCharts(sc,isEs){
     plot.appendChild(svg);
     // A transparent column per day, purely so hovering and clicking work the
     // same way they do on every bar chart on this page.
-    const cols=dv('ch-cols');cols.style.height=H+'px';
+    const cols=dv('ch-cols');cols.style.height=H+'px';cols.style.gap='0px';   // hover targets only: no gap to run out of room
     win.forEach((d,i)=>{
       const c=dv('ch-col');
       chHover(c,`<b>${fmtFull(d.date)}</b><br>${cum[i]>=0?'+':'−'}${Math.abs(cum[i]).toLocaleString()} ${t('pts-s')}`);
@@ -13285,7 +13299,11 @@ function renderStats(total,sc){
           mins.length+(isEs?(mins.length===1?' día medido':' días medidos'):(mins.length===1?' day measured':' days measured')),'xl',
           isEs?'A qué hora exterminas tus banderas, en promedio. Cuenta solo los días con la hora anotada.':'What time you usually annihilate your flags. Only days with the time recorded count.'),
         statCard(isEs?'La más temprano':'Earliest',hm(Math.min(...mins)),'var(--ac)',null),
-        statCard(isEs?'La más tarde':'Latest',hm(Math.max(...mins)),'var(--ac)',null)
+        statCard(isEs?'La más tarde':'Latest',hm(Math.max(...mins)),'var(--ac)',null),
+        // How often the day got the full extra: finished by 10:30.
+        statCard(isEs?'Antes de las 10:30':'Before 10:30',Math.round(mins.filter(m=>m<=FLAG_EXTRA_FROM).length/mins.length*100)+'%','var(--cg)',
+          mins.filter(m=>m<=FLAG_EXTRA_FROM).length+'d','xl',
+          isEs?'Días en que terminaste las banderas a tiempo para el extra máximo.':'Days you finished the flags in time for the full extra.')
       ));
     }
   }
@@ -13359,9 +13377,10 @@ function renderStats(total,sc){
       ag.appendChild(statCard(escapeHtml(rewardLabel(x.r)),x.r.byMinutes?fmtDur(Math.round(avg)):num(avg),
         avg>0?'var(--ng)':'var(--cg)',isEs?'por día':'per day','xl'));
     });
-    const lateAvg=lateTotal/days;
-    ag.appendChild(statCard(isEs?'🌙 Desvelos':'🌙 Late nights',num(lateAvg),lateAvg>0?'var(--ng)':'var(--cg)',
-      isEs?'por día':'per day','xl'));
+    // A late night either happened or did not, so it is a share of the days, not a count per day.
+    const latePct=Math.round(lateTotal/days*100);
+    ag.appendChild(statCard(isEs?'🌙 Desvelos':'🌙 Late nights',latePct+'%',latePct>0?'var(--ng)':'var(--cg)',
+      isEs?'de los días':'of the days','xl'));
     avgBox.appendChild(ag);
     body.insertBefore(avgBox,topRow.nextSibling);
   }
@@ -13526,7 +13545,7 @@ function renderStats(total,sc){
 
   // ── 8. Day color counts ───────────────────────────────────────────────────
   const dr=dv('row gap8 mb10');
-  [['purple','🟣'],['green','🟢'],['yellow','🟡'],['red','🔴']].forEach(([s,e])=>dr.appendChild(sp(`badge s-${s}`,`${e} ${counts[s]}d`)));
+  [['red','🔴'],['yellow','🟡'],['green','🟢'],['purple','🟣']].forEach(([s,e])=>dr.appendChild(sp(`badge s-${s}`,`${e} ${counts[s]}d`)));
   detail.appendChild(dr);
 
   // The insight moved to the top, beside the lifetime total — see topRow.
@@ -14412,8 +14431,31 @@ function renderDiaryFor(dateKey,onSave){
     },0);
   });
 
+  const done=bt('btn-ac btn-sm diary-done','💾 '+t('save-note'),()=>{if(onSave)onSave();});
   wrap.appendChild(ti);wrap.appendChild(ta);
-  wrap.appendChild(dv('xs dimmer mt4',t('ctrl-save')));
+  wrap.appendChild(dv('xs dimmer mt4 diary-hint',t('ctrl-save')));
+  wrap.appendChild(done);
+  /* A phone held sideways has a few dozen pixels left above the keyboard, so a note
+     typed into the page there is typed into nothing you can see. In that shape the
+     editor takes the visible part of the screen for itself — exactly the room the
+     keyboard leaves — and gives it back the moment the phone is turned upright. */
+  const fit=()=>{
+    if(!wrap.isConnected){
+      window.removeEventListener('resize',fit);
+      if(window.visualViewport){window.visualViewport.removeEventListener('resize',fit);window.visualViewport.removeEventListener('scroll',fit);}
+      return;
+    }
+    const small=window.matchMedia('(orientation:landscape) and (max-height:520px)').matches;
+    wrap.classList.toggle('diary-full',small);
+    if(small){
+      const vv=window.visualViewport;
+      wrap.style.top=(vv?vv.offsetTop:0)+'px';
+      wrap.style.height=(vv?vv.height:window.innerHeight)+'px';
+    }else{wrap.style.top='';wrap.style.height='';}
+  };
+  window.addEventListener('resize',fit);
+  if(window.visualViewport){window.visualViewport.addEventListener('resize',fit);window.visualViewport.addEventListener('scroll',fit);}
+  setTimeout(fit,0);
   return wrap;
 }
 
