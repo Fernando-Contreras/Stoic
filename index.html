@@ -883,7 +883,7 @@ const DEBUG_FOR_GUESTS=true;
    Nobody is held here: the next stage is one tap away (the 🎓 button or the card
    at the top of the plan), and "show everything" is always offered. */
 const FEATURE_STAGE={
-  tabScore:2, tabStats:2, streaks:2, sleep:2, work:2, rewards:2, pomodoro:2, stopwatch:2, goals:2,
+  taskTimer:1,   // a task's own ⏱: part 1 teaches it on the first task\n  tabScore:2, tabStats:2, streaks:2, sleep:2, work:2, rewards:2, pomodoro:2, stopwatch:2, goals:2,
   quadrants:3, morning:3, tags:3, weekReview:3,
   monthCal:3, dayCal:3, diary:3, stats:3, charts:3, alerts:3, bulk:3
 };
@@ -1017,9 +1017,13 @@ const TUT_STAGES={
     {id:'hi',      manual:true, btn:'tut-start', lang:true, text:'tut1-hi',    done:c=>c.count()>0},
     {id:'howto',   manual:true, lang:true,                  text:'tut1-howto', done:c=>c.count()>0},
     {id:'plus',    tab:'plan', target:'[data-tut="add"]',   text:'tut1-plus',  done:c=>STATE.showAddForm||c.count()>=1},
-    {id:'type',    ...tutForm(1), target:'[data-tut="add-title"]', soft:true, manual:true, enter:tutPrefill('🛏️🛏️🛏️'), text:'tut1-type', done:c=>c.count()>=1},
+    // A real task, one they have not done today and that takes a minute or two: the next steps do it.
+    {id:'type',    ...tutForm(1), target:'[data-tut="add-title"]', soft:true, enter:tutFocusTitle, text:'tut1-type', done:c=>c.count()>=1||tutTitled()},
     {id:'time',    ...tutForm(1), target:'[data-tut="add-time"]',  soft:true, manual:true, enter:tutSuggest(1), text:'tut1-time', done:c=>c.count()>=1},
     {id:'addIt',   ...tutForm(1), target:'[data-tut="add-go"]',    soft:true, text:'tut1-add',  done:c=>c.count()>=1},
+    // Then it is done for real, against the clock: start the task's ⏱, go and do it, come back and stop it.
+    {id:'doIt',    tab:'plan', target:c=>c.timerBtn(), latch:true, text:'tut1-doit',   done:c=>c.timerStarted()},
+    {id:'stopIt',  tab:'plan', target:c=>c.stopBtn(),  latch:true, text:'tut1-stopit', done:c=>c.timerEnded()},
     {id:'plus2',   tab:'plan', target:'[data-tut="add"]',   text:'tut1-plus2', done:c=>STATE.showAddForm||c.count()>=2},
     {id:'flag',    ...tutForm(2), target:'[data-tut="add-flag"]',  soft:true, text:'tut1-flag',
                    done:c=>c.count()>=2||!!(document.querySelector('[data-tut="add-flag"] input')||{}).checked},
@@ -1176,6 +1180,11 @@ function tutCtx(run){
     linked:()=>reminders().filter(r=>goalIdsOf(r).some(id=>!run.known.has(id))).length,
     doneN:()=>mineAll().filter(isDone).length,
     flagOpen:()=>{const m=mineAll().find(r=>r.flagged);return !m||!isDone(m);},
+    // The first task made: its ⏱ to start, its ⏹ to end, and whether each has happened.
+    timerBtn:()=>{const m=mineAll()[0];return m&&(document.querySelector('[data-tut-tm="'+m.id+'"]')||document.querySelector('[data-tut-tmstop="'+m.id+'"]'));},
+    stopBtn:()=>{const m=mineAll()[0];return m&&(document.querySelector('[data-tut-tmstop="'+m.id+'"]')||document.querySelector('[data-tut-tm="'+m.id+'"]'));},
+    timerStarted:()=>{const m=mineAll()[0];return !!m&&(!!tmOf(m.id)||timeLog().some(e=>e.rid===m.id));},
+    timerEnded:()=>{const m=mineAll()[0];return !!m&&!tmOf(m.id);},
     flagEl:()=>{const m=mineAll().find(r=>r.flagged);return m&&document.querySelector('[data-tut-rem="'+m.id+'"]');},
     // The plain task before the day's goal, so the colour climbs in the order the bubbles say.
     nextOpen:()=>{
@@ -1580,12 +1589,15 @@ function tutTick(){
 /* A brand-new account, signed in or not, starts at stage 1 — decided once, and
    written without stamping the planner for the reason given at seedStarterTags.
    The author's own account is never put there. */
+/* No days behind it: the entry the app opens for today does not count as a past, or a
+   brand-new account (a guest included) would never look new and nothing would start. */
+function noPastDays(){const tk=todayKey();return !STATE.history.some(d=>!d._gap&&d.date!==tk);}
 function seedOnboarding(){
   const P=STATE.planner;
   if(!ONBOARDING_PUBLIC||!P||P.onboardSeeded||!STATE.authed)return;
   const cloud=SB.init();
   if(cloud&&!SB.pulledOk)return;
-  const brandNew=!reminders().length&&!STATE.history.some(d=>!d._gap)&&(!cloud||SB.lastSavedAt===null);
+  const brandNew=!reminders().length&&noPastDays()&&(!cloud||SB.lastSavedAt===null);
   P.onboardSeeded=true;
   if(brandNew&&!P.onboard&&!DEBUG_EMAILS.includes(jwtEmail()))P.onboard={stage:1,on:true,done:{}};
   S.set(K.PLANNER,P);
@@ -2240,7 +2252,9 @@ en:{
   'tut1-hi':'Welcome to Stoic 🏛️\nThe goal: get more done and watch your stats grow.\nYour day is measured by a list of tasks and a colour. I will show you in 3 parts.',
   'tut1-howto':'In a hurry?\n⏸ Pause: use the app and continue later.\nSkip: jump this part, or all of it.\n← Back: read again.',
   'tut1-plus':'Let us make your list. Tap the ＋.',
-  'tut1-type':'Example already written: 🛏️🛏️🛏️ = make the bed. With emojis your tasks read at a glance. Change it if you like and tap Next.',
+  'tut1-type':'Write a task you have not done yet today and that takes 1 or 2 minutes. A real one: you are about to do it. (With emojis your tasks read at a glance.)',
+  'tut1-doit':'Now do it for real. Tap its ⏱ to time yourself, go and do the task, and come back here when you are done.',
+  'tut1-stopit':'Done already? Tap ⏹ to stop the clock: the time is saved on the task.',
   'tut1-time':'I suggested this time. Change it if you like, or press Next.',
   'tut1-add':'Tap "Add".',
   'tut1-plus2':'Now the most important thing today. Tap the ＋.',
@@ -2618,7 +2632,9 @@ es:{
   'tut1-hi':'Te damos la bienvenida a Stoic 🏛️\nLa meta: que rindas más y ver tus estadísticas crecer.\nTu día se mide con una lista de tareas y un color. Te lo enseño en 3 partes.',
   'tut1-howto':'¿Con prisa?\n⏸ Pausar: usa la app y sigue después.\nSaltar: brinca esta parte, o todo.\n← Atrás: vuelve a leer.',
   'tut1-plus':'Vamos a hacer tu lista. Toca el ＋.',
-  'tut1-type':'Ejemplo ya escrito: 🛏️🛏️🛏️ = tender la cama. Con emojis tus tareas se leen de un vistazo. Cámbialo si quieres y dale Siguiente.',
+  'tut1-type':'Escribe una tarea que no hayas hecho hoy y que te tome 1 o 2 minutos. Una real: la vas a hacer ahorita. (Con emojis tus tareas se leen de un vistazo.)',
+  'tut1-doit':'Ahora hazla de verdad. Toca su ⏱ para medir cuánto tardas, ve a hacerla y regresa aquí cuando termines.',
+  'tut1-stopit':'¿Ya la hiciste? Toca ⏹ para detener el reloj: el tiempo se guarda en la tarea.',
   'tut1-time':'Te sugerí esta hora. Cámbiala si quieres, o dale Siguiente.',
   'tut1-add':'Toca «Agregar».',
   'tut1-plus2':'Ahora lo más importante de hoy. Toca el ＋.',
@@ -4391,7 +4407,7 @@ function seedStarterTags(){
   if(!P||P.tagsSeeded||!STATE.authed)return;
   const cloud=SB.init();
   if(cloud&&!SB.pulledOk)return;                       // not yet known whether this account has a past
-  const brandNew=!reminders().length&&!STATE.history.some(d=>!d._gap)&&(!cloud||SB.lastSavedAt===null);
+  const brandNew=!reminders().length&&noPastDays()&&(!cloud||SB.lastSavedAt===null);
   P.tagsSeeded=true;
   if(brandNew&&!tagLib().length)P.tagLib=TAG_STARTERS.map(starterTagName);
   S.set(K.PLANNER,P);
@@ -7301,6 +7317,7 @@ function tmResume(m){
 function pomoWithWork(){
   const p=STATE.pomo;
   if(!p||p.running)return;
+  if(!featureOn('pomodoro'))return;   // not unlocked yet: a task's clock is only a clock, no pomodoro chiming later out of nowhere
   if(p.phase!=='focus'){p.phase='focus';p.elapsed=0;}
   unlockAudio();pomoStart();
 }
@@ -7377,14 +7394,14 @@ function swTaskBtn(r,openAfter,compact){
          pausing or saving is not a reason to open it. */
       if(openAfter&&tmOf(r.id))open();
     });
-    tb.title=t('sw-task-start');
-    return gate(tb,'stopwatch');
+    tb.title=t('sw-task-start');tb.dataset.tutTm=r.id;
+    return gate(tb,'taskTimer');
   }
   const wrap=dv('row gap4');wrap.style.cssText+=';display:inline-flex;flex-wrap:nowrap';
   const main=bt('btn-icon sw-on',(m.running?'⏸ ':'▶ ')+fmtHMS(tmSecs(m)),e=>{e.stopPropagation();swTaskPress(r);});
   main.dataset.tm=r.id;main.title=m.running?t('pomo-pause'):t('sw-resume');
   const stop=bt('btn-icon','⏹',e=>{e.stopPropagation();tmStop(m);});
-  stop.title=t('sw-stop-save');
+  stop.title=t('sw-stop-save');stop.dataset.tutTmstop=r.id;
   wrap.appendChild(main);wrap.appendChild(stop);
   // Start over from zero, running: left off the narrow chips, which have no room for a third.
   if(!compact){
@@ -7392,7 +7409,7 @@ function swTaskBtn(r,openAfter,compact){
     rs.title=t('pomo-reset');
     wrap.appendChild(rs);
   }
-  return gate(wrap,'stopwatch');
+  return gate(wrap,'taskTimer');
 }
 function swTaskPress(r){
   const m=tmOf(r.id);
