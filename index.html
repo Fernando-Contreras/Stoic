@@ -1161,6 +1161,22 @@ const TUT_STAGES={
   ]
 };
 const TUT={run:null,timer:null,L:null,pill:null,typed:{}};
+/* After the first part everything is open, and what is new is explained when it is
+   touched for the first time, not before: a short tour per place, started by the first
+   time you open it. Each is made of steps already written for the long parts (which the
+   🎓 still replays whole), is done once, and can be skipped. A step whose thing has
+   already been done is passed over by itself, as always. `when` is what "first touch"
+   means for that place. */
+const TOURS={
+  score:{ids:['points','streak','sleep','work','rewards','rewards2','rewGear','rewIn'],when:()=>STATE.tab==='score'},
+  pomo:{custom:[{id:'pomoNote',tab:'plan',target:'[data-tut="pomo-card"]',manual:true,free:true,text:'tour-pomo-note'}],
+        when:()=>!!(STATE.pomo&&STATE.pomo.running)},
+  sw:{ids:['swGo','swStop','swAdd','swPick'],when:()=>swState().running},
+  stats:{ids:['stats','statsIn','tlCard','tlRow','tlEntry'],when:()=>STATE.tab==='stats'},
+  goals:{ids:['goalAdd','goalGo','stepPlus','stepType','stepGo','goalBack','goalLink','goalPick','goalDone','goalHow'],when:()=>!!STATE.showGoals},
+  diary:{ids:['diary','dTitle','dTpl','dSaved','dHist','dHistIn'],when:()=>STATE.tab==='score'&&!!STATE.calSel},
+  week:{ids:['weekIn'],when:()=>!!STATE.showWeek}
+};
 // When something it watches was last typed in, so the light waits for the typing to stop.
 document.addEventListener('input',e=>{if(e.target&&e.target.dataset&&e.target.dataset.tut)TUT.typed[e.target.dataset.tut]=Date.now();},true);
 // A 'press' step: the lit thing was pressed.
@@ -1331,6 +1347,7 @@ function tutForward(){
 }
 function tutFinish(){
   const run=TUT.run;if(!run)return;
+  if(run.tour){tutTourDone(run.tour);tutStop();tutCloseAll();render();return;}
   const replay=run.replay;
   if(!replay)tutMarkDone(run.stages);
   tutStop();
@@ -1347,13 +1364,14 @@ function tutPause(on){
   run.paused=on;run.skipping=false;run.shown='';
   if(on)STATE.addPrefill=null;       // the app is the person's again
   const o=STATE.planner.onboard;
-  if(o&&!run.replay){if(on)o.paused=true;else delete o.paused;tutSaveOnboard();}
+  if(o&&!run.replay&&!run.tour){if(on)o.paused=true;else delete o.paused;tutSaveOnboard();}
   tutTick();
   if(on)tutSay(t('tut-paused'));
 }
 // "Skip" asks what was meant: this part, or the whole thing.
 function tutSkipPart(){
   const run=TUT.run;if(!run)return;
+  if(run.tour){tutTourDone(run.tour);tutStop();tutCloseAll();render();return;}
   const upto=(tutActive(run)||{}).stage||run.stages[run.stages.length-1];
   tutCloseAll();
   if(run.replay){
@@ -1366,6 +1384,31 @@ function tutSkipPart(){
   tutStop();render();
   tutMaybeStart();
   if(!TUT.run)tutSay(t('tut-skipped'));
+}
+function tutTourDone(id){
+  const o=STATE.planner.onboard;if(!o)return;
+  o.tours=o.tours||{};o.tours[id]=todayKey();tutSaveOnboard();
+}
+function tutStartTour(id){
+  const T=TOURS[id];if(!T||TUT.run)return false;
+  const all=[...TUT_STAGES[2],...TUT_STAGES[3]];
+  const steps=(T.custom||T.ids.map(i=>all.find(s=>s.id===i))).filter(Boolean).map(s=>({...s,stage:2,tour:id}));
+  if(!steps.length)return false;
+  // Whatever is already there was not made in the tour.
+  const known=[...reminders().map(r=>r.id),...goals().map(g=>g.id)];
+  const run=TUT.run={stages:[],steps,replay:false,tour:id,ack:{},skipping:false,shown:'',known:new Set(known),paused:false};
+  run.ctx=tutCtx(run);
+  tutLayer();
+  return true;
+}
+// The end of the first part: everything opens, and the rest is explained as it is touched.
+function tutPart1End(){
+  const run=TUT.run;if(!run)return;
+  const o=STATE.planner.onboard;
+  tutMarkDone(run.stages);
+  if(o){o.stage='all';o.toursOn=true;delete o.later;delete o.paused;tutSaveOnboard();}
+  tutStop();tutCloseAll();render();
+  tutSay(t('tut-p1-end-toast'));
 }
 // Tomorrow, then: the part counts as done, and the next waits for the date to change.
 function tutLater(msgKey){
@@ -1384,6 +1427,7 @@ function tutShowAll(){
 // Everything opens; where it was left is remembered so the 🎓 button can go on from there.
 function tutSkipAll(){
   const run=TUT.run;if(!run)return;
+  if(run.tour){const o0=STATE.planner.onboard;if(o0){o0.toursOff=true;tutSaveOnboard();}tutStop();tutCloseAll();render();tutSay(t('tut-tours-off'));return;}
   const o=STATE.planner.onboard,at=(tutActive(run)||{}).stage||run.stages[0];
   if(o&&!run.replay)o.skippedAt=at;
   if(run.replay){tutStop();tutCloseAll();render();}else tutShowAll();
@@ -1405,7 +1449,8 @@ function tutPaint(step){
     return;
   }
   const hd=document.createElement('div');hd.className='tut-hd';
-  hd.textContent=t('tut-part').replace('{n}',step.stage).replace('{of}',Object.keys(TUT_STAGES).length)+' · '+t('tut-p'+step.stage);
+  hd.textContent=run.tour?t('tut-tour')+' · '+t('tour-'+run.tour)
+    :t('tut-part').replace('{n}',step.stage).replace('{of}',Object.keys(TUT_STAGES).length)+' · '+t('tut-p'+step.stage);
   b.appendChild(hd);
   const prev=tutPrev(run);
   const backBtn=()=>{if(prev>=0)btn('btn-ghost btn-sm',t('tut-prev'),()=>tutGo(run,prev));};
@@ -1417,7 +1462,7 @@ function tutPaint(step){
   }else if(run.skipping){
     tx.textContent=t('tut-skip-q');
     btn('btn-ac btn-sm',t('tut-skip-part'),tutSkipPart);
-    btn('btn-ghost btn-sm',t('tut-skip-all'),tutSkipAll);
+    btn('btn-ghost btn-sm',t(run.tour?'tut-tours-skip':'tut-skip-all'),tutSkipAll);
     btn('btn-ghost btn-sm',t('tut-back'),()=>{run.skipping=false;run.shown='';tutTick();});
   }else{
     tx.textContent=t(step.text)+(run.replay&&step.id==='hi'?'\n\n'+t('tut-replay-note'):'');
@@ -1433,7 +1478,7 @@ function tutPaint(step){
     // In a replay nothing has to be made for real: Next is always there.
     if(step.manual||run.replay)btn('btn-ac btn-sm',t(step.btn||(step.choice?'tut-go-on':'tut-next')),()=>{
       tutAck(run,step);
-      if(step.endsLater&&!run.replay){tutLater('tut-p1-end-toast');return;}
+      if(step.endsLater&&!run.replay){tutPart1End();return;}
       if(step.after)step.after();
       else if(!step.manual){tutCloseAll();render();}
       if(TUT.run!==run)return;      // that redraw already moved on to the next part
@@ -1620,7 +1665,16 @@ function tutMaybeStart(){
   seedOnboarding();
   const o=STATE.planner.onboard;
   if(o&&!had)render();      // what was drawn before this has everything unlocked
-  if(!ONBOARDING_PUBLIC||!o||o.on===false||o.stage==='all')return;
+  // First part done: everything is open and the rest comes as a tour the first time each place is touched.
+  if(ONBOARDING_PUBLIC&&o&&o.done&&o.done[1]){
+    if(!o.toursOn&&!o.toursOff){o.toursOn=true;o.stage='all';delete o.later;delete o.paused;delete o.run;tutSaveOnboard();render();}
+    if(o.toursOn&&!o.toursOff&&!document.querySelector('.ovl.ms-ov')){
+      const tr=o.tours||{};
+      const id=Object.keys(TOURS).find(k=>!tr[k]&&TOURS[k].when());
+      if(id)tutStartTour(id);
+    }
+    return;
+  }  if(!ONBOARDING_PUBLIC||!o||o.on===false||o.stage==='all')return;
   let st=parseInt(o.stage)||1;
   o.done=o.done||{};
   if(o.done[st]){
@@ -2286,8 +2340,10 @@ en:{
   'tut1-untick':'Marked one by mistake? It unticks the same way. Untick your 🏁: you will use it in part 2.',
   'tut1-vplay':'Play with these buttons for a while: they only change how you see your list. Press Next when you are done.',
   'tut1-end':'Your colour depends on how much you finish:\n🔴 less than 50%\n🟡 50%\n🟢 85%\n🟣 100%\n\nMore colour, more points. Finish all your 🏁 and you go up one colour.',
-  'tut1-next':'That is the essentials ✅\nPlay with the app as much as you like. When you want more (points, sleep and work, rewards, timers and long goals), tap the 🎓 up top.',
-  'tut-p1-end-toast':'All yours. When you want the next part, tap the 🎓 up top.',
+  'tut1-next':'That is the essentials ✅\nNow all of Stoic is open: play with it. When you touch something new, I will explain it. The 🎓 up top replays everything.',
+  'tut-p1-end-toast':'Everything is open now. Touch something new and I will explain it. The 🎓 up top replays it all.',
+  'tut-tours-skip':'No more tours','tut-tour':'Tour','tour-score':'Score','tour-pomo':'Pomodoro','tour-sw':'Stopwatch','tour-stats':'Statistics','tour-goals':'Goals','tour-diary':'Diary','tour-week':'Your week',
+  'tour-pomo-note':'Pomodoro: 25 minutes of focus, then a break. Each one adds points.','tut-tours-off':'No more tours. The 🎓 up top replays them.',
   'tut2-hi':'Let us go on 🕯️\nThe app grew: points, sleep and work, rewards, timers and long goals.',
   'tut2-tab':'Open Score.',
   'tut2-points':'Your points. Everything you do adds up here.',
@@ -2667,8 +2723,10 @@ es:{
   'tut1-untick':'¿Marcaste una por error? Se desmarca igual. Desmarca tu 🏁: la usarás en la parte 2.',
   'tut1-vplay':'Juega un rato con estos botones: solo cambian cómo ves tu lista. Cuando acabes, dale Siguiente.',
   'tut1-end':'Tu color depende de cuánto termines:\n🔴 menos de 50%\n🟡 50%\n🟢 85%\n🟣 100%\n\nMejor color, más puntos. Si terminas todas tus 🏁, subes un color.',
-  'tut1-next':'Eso es lo esencial ✅\nJuega con la app todo lo que quieras. Cuando quieras más (puntos, sueño y trabajo, recompensas, cronómetros y metas largas), toca el 🎓 de arriba.',
-  'tut-p1-end-toast':'Es tuya. Cuando quieras la siguiente parte, toca el 🎓 de arriba.',
+  'tut1-next':'Eso es lo esencial ✅\nAhora tienes todo Stoic abierto: juega con él. Cuando toques algo nuevo, te lo explico. El 🎓 de arriba lo repite todo.',
+  'tut-p1-end-toast':'Ya está todo abierto. Toca algo nuevo y te lo explico. El 🎓 de arriba lo repite todo.',
+  'tut-tours-skip':'Sin más tours','tut-tour':'Tour','tour-score':'Puntaje','tour-pomo':'Pomodoro','tour-sw':'Cronómetro','tour-stats':'Estadísticas','tour-goals':'Metas','tour-diary':'Diario','tour-week':'Tu semana',
+  'tour-pomo-note':'Pomodoro: 25 minutos de enfoque y un descanso. Cada uno suma puntos.','tut-tours-off':'Sin más tours. El 🎓 de arriba los repite.',
   'tut2-hi':'Sigamos 🕯️\nLa app creció: puntos, sueño y trabajo, recompensas, cronómetros y metas largas.',
   'tut2-tab':'Abre Puntaje.',
   'tut2-points':'Tus puntos. Todo lo que haces suma aquí.',
