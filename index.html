@@ -1361,7 +1361,7 @@ function tutFinish(){
 }
 function tutPause(on){
   const run=TUT.run;if(!run)return;
-  run.paused=on;run.skipping=false;run.shown='';
+  run.paused=on;run.skipping=false;run.shown='';if(on)run.peek=null;
   if(on)STATE.addPrefill=null;       // the app is the person's again
   const o=STATE.planner.onboard;
   if(o&&!run.replay&&!run.tour){if(on)o.paused=true;else delete o.paused;tutSaveOnboard();}
@@ -1376,7 +1376,7 @@ function tutSkipPart(){
   tutCloseAll();
   if(run.replay){
     run.steps.filter(s=>s.stage===upto).forEach(s=>{run.ack[s.id]=true;});
-    run.skipping=false;run.shown='';render();
+    run.skipping=false;run.peek=null;run.shown='';render();
     if(tutActive(run))tutTick();else tutFinish();
     return;
   }
@@ -1454,16 +1454,19 @@ function tutPaint(step){
   b.appendChild(hd);
   const prev=tutPrev(run);
   const backBtn=()=>{if(prev>=0)btn('btn-ghost btn-sm',t('tut-prev'),()=>tutGo(run,prev));};
-  if(run.peek!=null){
-    tx.textContent=t(step.text);
-    if(step.lang)btn('btn-ghost btn-sm',t('lang-btn'),toggleLang);
-    backBtn();
-    btn('btn-ac btn-sm',t('tut-next'),tutForward);
-  }else if(run.skipping){
+  if(run.skipping){
     tx.textContent=t('tut-skip-q');
     btn('btn-ac btn-sm',t('tut-skip-part'),tutSkipPart);
     btn('btn-ghost btn-sm',t(run.tour?'tut-tours-skip':'tut-skip-all'),tutSkipAll);
     btn('btn-ghost btn-sm',t('tut-back'),()=>{run.skipping=false;run.shown='';tutTick();});
+  }else if(run.peek!=null){
+    // Rereading an earlier step: pausing and skipping must still be there.
+    tx.textContent=t(step.text);
+    btn('btn-ghost btn-sm',t('tut-pause'),()=>tutPause(true));
+    btn('btn-ghost btn-sm',t('tut-skip'),()=>{run.skipping=true;run.shown='';tutTick();});
+    if(step.lang)btn('btn-ghost btn-sm',t('lang-btn'),toggleLang);
+    backBtn();
+    btn('btn-ac btn-sm',t('tut-next'),tutForward);
   }else{
     tx.textContent=t(step.text)+(run.replay&&step.id==='hi'?'\n\n'+t('tut-replay-note'):'');
     if(step.choice)btn('btn-ghost btn-sm',t('tut-later'),tutLater);
