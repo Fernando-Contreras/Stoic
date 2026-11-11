@@ -1383,7 +1383,7 @@ function tutHintClose(){
 /* Back rereads what was explained; a step that only says "press this" has nothing to
    reread. Inside an open form it walks that form's own steps, typed text and all; from
    its first step it leaves the form (see the tick). */
-const tutReadable=(s,from)=>s.form?s.form===from.form:(s.manual&&!s.choice);
+const tutReadable=(s,from)=>s.form?s.form===from.form:!s.choice;
 function tutPrev(run){
   const cur=run.peek!=null?run.peek:run.steps.indexOf(tutActive(run));
   for(let i=cur-1;i>=0;i--)if(tutReadable(run.steps[i],run.steps[cur]))return i;
@@ -1774,9 +1774,53 @@ function tutReplay(){
   if(TUT.run){if(TUT.run.paused)tutPause(false);return;}
   const o=STATE.planner&&STATE.planner.onboard;
   if(o&&o.later){delete o.later;tutSaveOnboard();tutMaybeStart();return;}
-  const from=(o&&o.skippedAt)||1;
-  if(o)delete o.skippedAt;
-  tutStart(Object.keys(TUT_STAGES).map(Number).filter(n=>n>=from).sort((a,b)=>a-b),{replay:true});
+  STATE.showTutMenu=true;render();
+}
+/* The list of parts: what has been seen and what has not, each one a press away. The first
+   part is the written-out walk; the rest are the tours that open the first time a place is
+   touched, and this is where they can be seen again (or switched off, or back on). */
+const TUT_WHEN={score:'tutm-score',pomo:'tutm-pomo',sw:'tutm-sw',stats:'tutm-stats',goals:'tutm-goals',diary:'tutm-diary',week:'tutm-week',
+  quad:'tutm-quad',form:'tutm-form',cal:'tutm-cal',tags:'tutm-tags',select:'tutm-select'};
+function renderTutMenu(){
+  const close=()=>{STATE.showTutMenu=false;render();};
+  const o=STATE.planner&&STATE.planner.onboard;
+  const ov=dv('fi');ov.classList.add('ovl');
+  closeOnBackdrop(ov,close);
+  const panel=dv('card');panel.dataset.tut='tutm-panel';
+  panel.style.cssText='max-width:480px;width:100%;margin:auto';
+  ov.appendChild(panel);
+  const hd=dv('rowb mb10');
+  hd.appendChild(sp('ctit','🎓 '+t('tutm-title')));
+  hd.appendChild(bt('btn-icon','✕',close));
+  panel.appendChild(hd);
+  panel.appendChild(dv('xs dimmer mb10',t('tutm-sub')));
+  const row=(label,when,doneOn,go)=>{
+    const r=dv('rowb gap8');r.style.cssText+=';padding:8px 0;border-top:1px solid var(--b2)';
+    const l=dv('f1');
+    l.appendChild(dv('w7',(doneOn?'✅ ':'⚪ ')+label));
+    l.appendChild(dv('xs dimmer',when));
+    r.appendChild(l);
+    r.appendChild(bt(doneOn?'btn-ghost btn-sm':'btn-ac btn-sm',t(doneOn?'tutm-again':'tutm-see'),()=>{STATE.showTutMenu=false;render();go();}));
+    panel.appendChild(r);
+  };
+  const p1done=!!(o&&o.done&&o.done[1]);
+  row(t('tut-p1'),t('tutm-p1'),p1done,()=>{
+    if(o&&!p1done&&o.stage!=='all'){tutMaybeStart();return;}
+    tutStart([1],{replay:true});
+  });
+  Object.keys(TOURS).forEach(id=>{
+    row(t('tour-'+id),t(TUT_WHEN[id]),!!(o&&o.tours&&o.tours[id]),()=>{if(!tutStartTour(id))tutToast(t('tutm-busy'));});
+  });
+  const off=!!(o&&o.toursOff);
+  const foot=dv('rowb gap8 mt10');
+  foot.appendChild(dv('xs dimmer f1',t(off?'tutm-is-off':'tutm-is-on')));
+  foot.appendChild(bt('btn-ghost btn-sm',t(off?'tutm-turn-on':'tutm-turn-off'),()=>{
+    if(!o)return;
+    if(off){delete o.toursOff;o.toursOn=true;}else{o.toursOff=true;}
+    tutSaveOnboard();render();
+  }));
+  panel.appendChild(foot);
+  return ov;
 }
 setInterval(tutMaybeStart,1000);
 
@@ -2396,7 +2440,7 @@ en:{
   'rem-title':'Reminders','rem-new':'New reminder','rem-what':'What needs doing?',
   'tut-start':'Start','tut-next':'Next','tut-finish':'Done!','tut-skip':'Skip','tut-pause':'⏸ Pause','tut-resume':'Resume tutorial','tut-part':'Part {n} of {of}','tut-skip-q':'What would you like?','tut-skip-part':'Skip this part','tut-skip-all':'I already know Stoic: show everything','tut-back':'Back to the tutorial','tut-skipped':'Everything is open. The 🎓 up top repeats the tutorial.','tut-replay':'Tutorial','tut-replay-note':'This is a replay: Next moves on without creating anything.','tut-done-replay':'Done. The 🎓 up top repeats it.','tut-done-real':'Done. The 🎓 up top repeats it.','tut-paused':'Paused. The 🎓 up top brings you back here.','tut-prev':'← Back','tut-got-it':'Got it',
   'tut-later':'Tomorrow','tut-go-on':'Go on','tut-later-toast':'Until tomorrow. Can\'t wait? Tap the 🎓 up top.','tut-wait':'There is more in Stoic: tomorrow, or now.','tut-wait-all':'Show everything',
-  'tut-p1':'The essentials','tut1-ex1n':'Drink water','tut1-ex2':'🏃🏃🏃','tut1-ex2n':'Go for a run','tut1-rep':'This task repeats every 8 hours: it comes back by itself. Press Next.','tour-quad-1':'Four boxes: do it now, schedule it, delegate it, postpone it. Tasks land by their quadrant. Press Next.','tour-quad-2':'Make a task with a quadrant. Tap ＋.','tour-quad-3':'Your task is in its box. ✏️ changes its quadrant any time. Try the other buttons.','tut-p2':'Points and focus','tut-p3':'Your day and your history',
+  'tut-p1':'The essentials','tutm-title':'Tutorial','tutm-sub':'The parts of the tutorial and which ones you have seen. Tap one to see it again.','tutm-see':'See','tutm-again':'Again','tutm-p1':'Your first list, step by step','tutm-score':'When you open Score','tutm-pomo':'When you touch the Pomodoro','tutm-sw':'When you touch the Stopwatch','tutm-stats':'When you open Stats','tutm-goals':'When you open your Goals','tutm-diary':'When you open a day note','tutm-week':'When you open 📊 Your week','tutm-quad':'When you pick quadrants ✜','tutm-form':'When you open the ＋ form (after the first part)','tutm-cal':'When you open the 📅 day calendar','tutm-tags':'When you touch a tag','tutm-select':'When you turn on ☑ select','tutm-busy':'Finish or pause the tutorial that is open first.','tutm-is-on':'Tours open by themselves the first time you touch each place.','tutm-is-off':'Tours are off: they only play from here.','tutm-turn-on':'Turn on tours','tutm-turn-off':'Turn off tours','tut1-ex1n':'Drink water','tut1-ex2':'🏃🏃🏃','tut1-ex2n':'Go for a run','tut1-rep':'This task repeats every 8 hours: it comes back by itself. Press Next.','tour-quad-1':'Four boxes: do it now, schedule it, delegate it, postpone it. Tasks land by their quadrant. Press Next.','tour-quad-2':'Make a task with a quadrant. Tap ＋.','tour-quad-3':'Your task is in its box. ✏️ changes its quadrant any time. Try the other buttons.','tut-p2':'Points and focus','tut-p3':'Your day and your history',
   'tut1-hi':'Welcome to Stoic 🏛️\nGet more done and watch your stats grow.\nYour day is a list of tasks and a colour.\nI will explain it step by step.',
   'tut1-howto':'In a hurry?\n⏸ Pause: use the app, continue later.\nSkip: jump this.\n← Back: read again.',
   'tut1-plus':'Let us make your list. Tap ＋.',
@@ -2414,7 +2458,7 @@ en:{
   'tut1-vsort':'Here you change the order. Tap 📅↓: newest first.',
   'tut1-vsort2':'Your list changed order. It stays that way; your points do not change.',
   'tut1-vhide':'Your 🏁 has a time far off, so it is hidden. Timed tasks show up a few hours before (you choose how many here).',
-  'tut1-prefs':'Up here: light or dark mode, language, and 🎓 to repeat this tutorial.',
+  'tut1-prefs':'Up here: light or dark mode, language, and 🎓 for the tutorial parts.',
   'tut1-flagged':'Goals to annihilate: the long goals (week, quarter or year) your 🏁 points to. You have none yet, hence the ⚠️. You will add them later.',
   'tut1-colour':'This is your day. Red means nothing done. Aim: get out of the red.',
   'tut1-tick':'Mark this task as done.',
@@ -2423,10 +2467,10 @@ en:{
   'tut1-untick':'Ticked one by mistake? Untick it the same way. Untick your 🏁 to link it to a goal later.',
   'tut1-vplay':'Play with these buttons for a while: they only change how you see your list. Press Next when you are done.',
   'tut1-end':'Your colour depends on how much you finish:\n🔴 under 50%\n🟡 50%\n🟢 85%\n🟣 100%\nBetter colour, more points. Finishing all your 🏁 goes up a colour. Aim: get out of the red.',
-  'tut1-next':'That is the essentials ✅\nAll of Stoic is open: play. When you touch something new, I will explain it. 🎓 replays everything.',
-  'tut-p1-end-toast':'Everything is open. Touch something new and I will explain it. 🎓 replays it all.',
+  'tut1-next':'That is the essentials ✅\nAll of Stoic is open: play. When you touch something new, I will explain it. 🎓 lists the tutorial parts.',
+  'tut-p1-end-toast':'Everything is open. Touch something new and I will explain it. 🎓 lists the parts.',
   'tut-tours-skip':'No more tours','tut-tour':'Tour','tour-score':'Score','tour-pomo':'Pomodoro','tour-sw':'Stopwatch','tour-stats':'Statistics','tour-goals':'Goals','tour-diary':'Diary','tour-week':'Your week','tour-quad':'Quadrants','tour-form':'The full form','tour-cal':'Day calendar','tour-tags':'Tags','tour-select':'Select several',
-  'tour-pomo-note':'Pomodoro: 25 minutes of focus, then a break. Each one adds points. Down here you change how long each lasts.','tut-tours-off':'No more tours. The 🎓 up top replays them.',
+  'tour-pomo-note':'Pomodoro: 25 minutes of focus, then a break. Each one adds points. Down here you change how long each lasts.','tut-tours-off':'No more tours. The 🎓 up top still lists them.',
   'tut2-hi':'Part 2 🕯️\nHere: points, sleep and work, rewards, timers and long goals.',
   'tut2-tab':'Open Score.',
   'tut2-points':'Your points. Everything you do adds up here.',
@@ -2779,7 +2823,7 @@ es:{
   'rem-title':'Recordatorios','rem-new':'Nuevo recordatorio','rem-what':'¿Qué hay que hacer?',
   'tut-start':'Empezar','tut-next':'Siguiente','tut-finish':'¡Listo!','tut-skip':'Saltar','tut-pause':'⏸ Pausar','tut-resume':'Seguir tutorial','tut-part':'Parte {n} de {of}','tut-skip-q':'¿Qué prefieres?','tut-skip-part':'Saltar esta parte','tut-skip-all':'Ya sé usar Stoic: mostrar todo','tut-back':'Volver al tutorial','tut-skipped':'Ya está todo abierto. El 🎓 de arriba repite el tutorial.','tut-replay':'Tutorial','tut-replay-note':'Es un repaso: Siguiente avanza sin crear nada.','tut-done-replay':'Listo. El 🎓 de arriba lo repite.','tut-done-real':'Listo. El 🎓 de arriba lo repite.','tut-paused':'En pausa. El 🎓 de arriba te regresa aquí.','tut-prev':'← Atrás','tut-got-it':'Entendido',
   'tut-later':'Mañana','tut-go-on':'Seguir','tut-later-toast':'Hasta mañana. ¿No aguantas? Toca el 🎓 de arriba.','tut-wait':'Hay más en Stoic: mañana, o ahorita.','tut-wait-all':'Mostrar todo',
-  'tut-p1':'Lo esencial','tut1-ex1n':'Tomar agua','tut1-ex2':'🏃🏃🏃','tut1-ex2n':'Salir a correr','tut1-rep':'Esta tarea se repite cada 8 horas: vuelve sola. Dale Siguiente.','tour-quad-1':'Cuatro cajas: hazla ya, agéndala, delégala o postérgala. Tus tareas caen según su cuadrante. Dale Siguiente.','tour-quad-2':'Crea una tarea con cuadrante. Toca ＋.','tour-quad-3':'Tu tarea ya está en su caja. ✏️ le cambia el cuadrante cuando quieras. Prueba los demás botones.','tut-p2':'Puntos y enfoque','tut-p3':'Tu día y tu historia',
+  'tut-p1':'Lo esencial','tutm-title':'Tutorial','tutm-sub':'Las partes del tutorial y cuáles ya viste. Toca una para verla otra vez.','tutm-see':'Ver','tutm-again':'Repetir','tutm-p1':'Tu primera lista, paso a paso','tutm-score':'Al abrir Puntaje','tutm-pomo':'Al tocar el Pomodoro','tutm-sw':'Al tocar el Cronómetro','tutm-stats':'Al abrir Estadísticas','tutm-goals':'Al abrir tus Metas','tutm-diary':'Al abrir la nota de un día','tutm-week':'Al abrir 📊 Tu semana','tutm-quad':'Al elegir cuadrantes ✜','tutm-form':'Al abrir el formulario ＋ (después de la primera parte)','tutm-cal':'Al abrir el 📅 calendario del día','tutm-tags':'Al tocar una etiqueta','tutm-select':'Al activar ☑ elegir varias','tutm-busy':'Primero termina o pausa el tutorial que está abierto.','tutm-is-on':'Los tours salen solos la primera vez que tocas cada lugar.','tutm-is-off':'Los tours están apagados: solo salen desde aquí.','tutm-turn-on':'Prender tours','tutm-turn-off':'Apagar tours','tut1-ex1n':'Tomar agua','tut1-ex2':'🏃🏃🏃','tut1-ex2n':'Salir a correr','tut1-rep':'Esta tarea se repite cada 8 horas: vuelve sola. Dale Siguiente.','tour-quad-1':'Cuatro cajas: hazla ya, agéndala, delégala o postérgala. Tus tareas caen según su cuadrante. Dale Siguiente.','tour-quad-2':'Crea una tarea con cuadrante. Toca ＋.','tour-quad-3':'Tu tarea ya está en su caja. ✏️ le cambia el cuadrante cuando quieras. Prueba los demás botones.','tut-p2':'Puntos y enfoque','tut-p3':'Tu día y tu historia',
   'tut1-hi':'Te damos la bienvenida a Stoic 🏛️\nAquí rindes más y ves tus estadísticas crecer.\nTu día es una lista de tareas y un color.\nTe lo explico paso a paso.',
   'tut1-howto':'¿Con prisa?\n⏸ Pausar: usa la app y sigue después.\nSaltar: brinca esto.\n← Atrás: vuelve a leer.',
   'tut1-plus':'Hagamos tu lista. Toca ＋.',
@@ -2797,7 +2841,7 @@ es:{
   'tut1-vsort':'Aquí cambias el orden. Toca 📅↓: lo más nuevo primero.',
   'tut1-vsort2':'Tu lista cambió de orden. Se queda así y tus puntos no cambian.',
   'tut1-vhide':'Tu 🏁 tiene hora y falta mucho, así que no se ve. Las tareas con hora aparecen unas horas antes (aquí eliges cuántas).',
-  'tut1-prefs':'Aquí arriba: modo claro u oscuro, idioma y 🎓 para repetir este tutorial.',
+  'tut1-prefs':'Aquí arriba: modo claro u oscuro, idioma y 🎓 con las partes del tutorial.',
   'tut1-flagged':'Metas por exterminar: las metas largas (semana, trimestre o año) a las que apunta tu 🏁. Aún no tienes, por eso sale ⚠️. Las crearás después.',
   'tut1-colour':'Este es tu día. En rojo no has hecho nada. Meta: salir del rojo.',
   'tut1-tick':'Marca esta tarea como hecha.',
@@ -2806,10 +2850,10 @@ es:{
   'tut1-untick':'¿Marcaste una por error? Se desmarca igual. Desmarca tu 🏁 para ligarla después a una meta.',
   'tut1-vplay':'Juega un rato con estos botones: solo cambian cómo ves tu lista. Cuando acabes, dale Siguiente.',
   'tut1-end':'Tu color depende de cuánto termines:\n🔴 menos de 50%\n🟡 50%\n🟢 85%\n🟣 100%\nMejor color, más puntos. Terminar todas tus 🏁 sube un color. Meta: salir del rojo.',
-  'tut1-next':'Eso es lo esencial ✅\nTodo Stoic está abierto: juega. Cuando toques algo nuevo, te lo explico. El 🎓 repite todo.',
-  'tut-p1-end-toast':'Todo abierto. Toca algo nuevo y te lo explico. El 🎓 lo repite todo.',
+  'tut1-next':'Eso es lo esencial ✅\nTodo Stoic está abierto: juega. Cuando toques algo nuevo, te lo explico. El 🎓 lista las partes del tutorial.',
+  'tut-p1-end-toast':'Todo abierto. Toca algo nuevo y te lo explico. El 🎓 lista las partes.',
   'tut-tours-skip':'Sin más tours','tut-tour':'Tour','tour-score':'Puntaje','tour-pomo':'Pomodoro','tour-sw':'Cronómetro','tour-stats':'Estadísticas','tour-goals':'Metas','tour-diary':'Diario','tour-week':'Tu semana','tour-quad':'Cuadrantes','tour-form':'El formulario completo','tour-cal':'Calendario del día','tour-tags':'Etiquetas','tour-select':'Elegir varias',
-  'tour-pomo-note':'Pomodoro: 25 minutos de enfoque y un descanso. Cada uno suma puntos. Aquí abajo cambias cuánto dura cada uno.','tut-tours-off':'Sin más tours. El 🎓 de arriba los repite.',
+  'tour-pomo-note':'Pomodoro: 25 minutos de enfoque y un descanso. Cada uno suma puntos. Aquí abajo cambias cuánto dura cada uno.','tut-tours-off':'Sin más tours. El 🎓 de arriba aún los lista.',
   'tut2-hi':'Parte 2 🕯️\nAquí: puntos, sueño y trabajo, recompensas, cronómetros y metas largas.',
   'tut2-tab':'Abre Puntaje.',
   'tut2-points':'Tus puntos. Todo lo que haces suma aquí.',
@@ -6777,6 +6821,7 @@ function renderPlanner(){
   if(STATE.showFlags)wrap.appendChild(renderFlagsModal());
   if(STATE.showTagMgr)wrap.appendChild(renderTagManagerModal());
   if(STATE.showWeek)wrap.appendChild(renderWeekReviewModal());
+  if(STATE.showTutMenu)wrap.appendChild(renderTutMenu());
   if(STATE.showCal)wrap.appendChild(renderCalModal());
   if(STATE.swPick||STATE.swMove)wrap.appendChild(renderSwPick());
   return wrap;
