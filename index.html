@@ -5514,7 +5514,11 @@ function goalsOf(kind){
     if(g.kind!==kind)return false;
     if(!g.doneOn)return true;
     if(g.doneOn===today)return true;
-    return g.doneOn>=now.start&&goalDeadline(g)>=now.start;
+    /* A goal that is done stays on the board, counted and ticked, until its OWN window
+       ends — day 7 of a weekly one — not until the calendar week does. Finishing early
+       is then a reward and not a hole: nothing asks for a new goal until the days it was
+       set for are over, and the tasks pointing at it are not told they have none. */
+    return goalDeadline(g)>=today;
   });
 }
 /* The deadline is fixed the day a goal is created and never moves again.
