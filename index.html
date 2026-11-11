@@ -12101,8 +12101,12 @@ function renderHistForm(key){
     morningCompleted:e?.streaks?.some(s=>s.type==='morning'&&s.active)||false,
     flagCompleted:e?.streaks?.some(s=>s.type==='flags'&&s.active)||false,
     sleptLate:e?.sleptLate||false,
-    substances:e?.penalties?.find(p=>p.type==='drugs')?.count||0,
-    procMins:e?.penalties?.find(p=>p.type==='internet')?.count||0,
+    /* A day can hold several entries of the same reward (the browser extension adds one per
+       site, you may log twice). The form must show the sum, like the summary does, not the
+       first entry only — otherwise 1h30m of procrastination shows up as 30m here, and saving
+       would silently cut the day down to that one entry. */
+    substances:(e?.penalties||[]).filter(p=>p.type==='drugs').reduce((a,p)=>a+(p.count||0),0),
+    procMins:e?penMinutesOn(e,'internet'):0,
     macanazoCount:e?.penalties?.filter(p=>p.type==='macanazo')?.length||0};
   const form=dv('fi');const g=dv('g2 mb10');g.style.gap='6px';
   function nf(label,val,onChange){const w=dv('s4');w.innerHTML=`<div class="xs dimmer up ls">${label}</div>`;const i=ip('number','',val,'');i.min=0;i.style.width='100%';i.oninput=()=>onChange(parseInt(i.value)||0);i.onkeydown=ev=>{if(ev.key==='Enter')i.blur();};w.appendChild(i);return w;}
@@ -12123,8 +12127,8 @@ function renderHistForm(key){
     else if(r.id==='internet')g.appendChild(df(label,fst.procMins,v=>fst.procMins=v));
     else if(r.id==='macanazo')g.appendChild(nf(label,fst.macanazoCount,v=>fst.macanazoCount=v));
     else{
-      fst.custom[r.id]=e?.penalties?.filter(p=>p.type===r.id)
-        .reduce((a,p)=>a+(p.count||1),0)||0;
+      fst.custom[r.id]=r.byMinutes?(e?penMinutesOn(e,r.id):0):(e?.penalties?.filter(p=>p.type===r.id)
+        .reduce((a,p)=>a+(p.count||1),0)||0);
       if(r.byMinutes)g.appendChild(df(label,fst.custom[r.id],v=>fst.custom[r.id]=v));
       else g.appendChild(nf(label,fst.custom[r.id],v=>fst.custom[r.id]=v));
     }
