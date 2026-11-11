@@ -4812,16 +4812,16 @@ function markManual(field){
   STATE.today._manual[field]=CLOCK.now();
 }
 /* When the day's flags went down, to the minute, so the Statistics can say what
-   hour that usually is. Set the first time the day reads as annihilated and
-   dropped if it is taken back; a day already annihilated before this existed
+   hour that usually is. Set each time the day comes to read as annihilated and
+   dropped when it stops reading so; a day already annihilated before this existed
    simply has no time, and is left out of the average. */
-function stampFlagTime(byHand){
+function stampFlagTime(){
   const td=STATE.today;
   if(td.flagCompleted){
-    // The FIRST time the day read as done: a flag added later, which un-annihilates it
-    // and is finished in the afternoon, does not move it.
+    // The LAST time the day came to read as done. Someone who ticks it out of curiosity,
+    // unticks it, and finishes for real in the afternoon is paid for the afternoon.
     if(!td.flagAt){const n=appNow();td.flagAt=pad2(n.getHours())+':'+pad2(n.getMinutes());}
-  }else if(byHand&&td.flagAt)delete td.flagAt;   // taken off by hand: that claim is gone
+  }else if(td.flagAt)delete td.flagAt;   // no longer done, by hand or because a new flag was added: the next finish sets a new time
 }
 function syncPlannerToToday(){
   const s=plannerTodayStats();
@@ -11022,7 +11022,7 @@ function renderTasksCard(sc,sk_){
   const fnow=appNow(),fHHMM=pad2(fnow.getHours())+':'+pad2(fnow.getMinutes());
   const fEx=flagExtra(STATE.today.flagCompleted?STATE.today.flagAt:fHHMM);
   const fi_=dv('f1');fi_.innerHTML=`<div class="tt">${t('goals-ann')}</div><div class="ts">${escapeHtml(ptsLine(100+fEx,sk_.flagStreak,sc.status))}${STATE.today.flagCompleted&&STATE.today.flagAt?escapeHtml(' · '+t('flag-at')+' '+STATE.today.flagAt):''}${fEx>0?escapeHtml(' · '+t('flag-extra').replace('{n}',fEx)):''}</div>`;
-  ft.appendChild(fc);ft.appendChild(fi_);ft.onclick=()=>{STATE.today.flagCompleted=!STATE.today.flagCompleted;stampFlagTime(true);markManual('flagCompleted');commitAndRefresh();};card.appendChild(gate(ft,'flags'));
+  ft.appendChild(fc);ft.appendChild(fi_);ft.onclick=()=>{STATE.today.flagCompleted=!STATE.today.flagCompleted;stampFlagTime();markManual('flagCompleted');commitAndRefresh();};card.appendChild(gate(ft,'flags'));
   return card;
 }
 
