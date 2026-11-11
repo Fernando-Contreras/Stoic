@@ -6819,7 +6819,7 @@ function renderTagManagerModal(){
   panel.style.cssText='max-width:440px;width:100%;margin:auto';
   ov.appendChild(panel);
   const draw=()=>{
-    panel.innerHTML='';
+    holdScroll(panel);panel.innerHTML='';
     const hd=dv('rowb mb10');
     hd.appendChild(sp('ctit',t('tagmgr-title')));
     hd.appendChild(bt('btn-icon','✕',close));
@@ -6890,7 +6890,7 @@ function renderTagManagerModal(){
    again for every press — the goals blinked out and back, once per click. */
 function renderGoals(){
   const shell=dv('');
-  const draw=()=>{shell.innerHTML='';shell.appendChild(buildGoals(draw));};
+  const draw=()=>{holdScroll(shell);shell.innerHTML='';shell.appendChild(buildGoals(draw));};
   draw();
   return shell;
 }
@@ -7754,7 +7754,7 @@ function renderSwPick(){
     return b;
   };
   const draw=()=>{
-    list.innerHTML='';
+    holdScroll(list);list.innerHTML='';
     const q=(STATE.swQ||'').trim().toLowerCase();
     const pool=reminders().filter(r=>(!r.done||r.completedOn===tk)&&(!q||taskMatches(r,q)));
     const flags=pool.filter(r=>r.flagged);
@@ -9808,6 +9808,21 @@ function enforcePomodoroFloor(){
   const minPoms=Math.floor(((td.work&&td.work.workDuration)||0)/POMO_UNIT);
   if((td.pomodoros||0)<minPoms){td.pomodoros=minPoms;S.set(K.TODAY,td);}
 }
+/* A pop-up that redraws itself (a goal added, a tag renamed) used to be sent back to its
+   top: emptied for a moment, its scroll fell to nothing. The place it was at is taken
+   before it is emptied and put back once the new content has its height again — before
+   anything is painted, so there is no flicker. */
+// What scrolls inside a pop-up: the layer itself and, as often, the card in it.
+function ovlScrollers(ov){
+  return [ov,...ov.querySelectorAll('*')].filter(e=>{const o=getComputedStyle(e).overflowY;return o==='auto'||o==='scroll';});
+}
+function holdScroll(el){
+  const ov=el&&el.closest&&el.closest('.ovl');
+  if(!ov)return;
+  const tops=ovlScrollers(ov).map(e=>e.scrollTop);
+  if(!tops.some(Boolean))return;
+  requestAnimationFrame(()=>{ovlScrollers(ov).forEach((e,i)=>{if(tops[i])e.scrollTop=tops[i];});});
+}
 function render(){
   // Held off while a task is moving in the calendar; a drag left still for
   // seconds lets it through, so nothing can ever stop the page from drawing.
@@ -9847,6 +9862,9 @@ function render(){
      started or a box was ticked behind it is the same pop-up, not a new one. */
   const ovlSig=o=>{const p=o.firstElementChild;return (p?p.className+'|'+(p.dataset.tut||''):'')+'|'+((o.querySelector('.ctit')||{}).textContent||'');};
   const seenOvl=new Set([...root.querySelectorAll('.ovl')].map(ovlSig));
+  // Every open pop-up keeps its place when the page is drawn again.
+  const ovlTop=new Map();
+  root.querySelectorAll('.ovl').forEach(o=>{const t_=ovlScrollers(o).map(e=>e.scrollTop);if(t_.some(Boolean))ovlTop.set(ovlSig(o),t_);});
   root.innerHTML='';
   if(STATE.recovery){root.appendChild(renderRecovery());return;}
   if(!STATE.authed){root.appendChild(renderLogin());return;}
@@ -9854,6 +9872,7 @@ function render(){
   if(STATE.tab==='score'&&!featureOn('tabScore'))STATE.tab='plan';
   if(STATE.tab==='stats'&&!featureOn('tabStats'))STATE.tab=featureOn('tabScore')?'score':'plan';
   root.appendChild(renderApp());
+  if(ovlTop.size)root.querySelectorAll('.ovl').forEach(o=>{const t_=ovlTop.get(ovlSig(o));if(t_)ovlScrollers(o).forEach((e,i)=>{if(t_[i])e.scrollTop=t_[i];});});
   if(seenOvl.size)root.querySelectorAll('.ovl.fi').forEach(o=>{if(seenOvl.has(ovlSig(o)))o.classList.remove('fi');});
   applyFeatureGates(root);
   tutTick();
@@ -13888,7 +13907,7 @@ function renderRewardsModal(){
   ov.appendChild(panel);
 
   const draw=()=>{
-    panel.innerHTML='';
+    holdScroll(panel);panel.innerHTML='';
     const hd=dv('rowb mb4');
     const lft=dv('row gap6');
     lft.appendChild(sp('ctit',t('rw-title')));
@@ -14142,7 +14161,7 @@ function renderTaskTreeModal(id){
   panel.style.cssText='max-width:640px;width:100%;margin:auto';
   ov.appendChild(panel);
   const draw=()=>{
-    panel.innerHTML='';
+    holdScroll(panel);panel.innerHTML='';
     const r=reminders().find(x=>x.id===id);
     if(!r){close();return;}
     const tk=todayKey();
@@ -14202,7 +14221,7 @@ function renderFlagsModal(){
   panel.style.cssText='max-width:640px;width:100%;margin:auto';
   ov.appendChild(panel);
   const draw=()=>{
-    panel.innerHTML='';
+    holdScroll(panel);panel.innerHTML='';
     const tk=todayKey();
     /* The same set the heading counts: flagged, and either ticked today or
        still open and due by today. Outstanding first, then the ones already
@@ -14263,7 +14282,7 @@ function renderTZModal(){
   const box=dv('s6 mt8');
   box.style.cssText='max-height:280px;overflow:auto';
   const draw=()=>{
-    box.innerHTML='';
+    holdScroll(box);box.innerHTML='';
     const needle=(STATE.tzQuery||'').trim().toLowerCase();
     // What you are on and where you are stay at the top, always reachable.
     const pinned=[...new Set([cur,dev])];
