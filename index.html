@@ -5495,6 +5495,9 @@ function taskMatches(r,q){
   return String(r.title||'').toLowerCase().includes(q)||String(r.notes||'').toLowerCase().includes(q);
 }
 function goals(){return STATE.planner.goals||(STATE.planner.goals=[]);}
+/* The limit is on goals IN PROGRESS: a finished one has done its job and leaves its place
+at once, however long it stays on the board to be enjoyed. Room is made by finishing. */
+function goalsInProgress(kind){return goalsOf(kind).filter(g=>!g.doneOn).length;}
 function goalsOf(kind){
   const now=periodBounds(kind,todayKey());
   // A goal left unfinished follows you into the next period and is paid by
@@ -5727,7 +5730,7 @@ function addWeeklyGoalFor(r){
      only then discovering the week was full. Asked for a longer goal, the
      task shows it as its marker once the week has no slot for it (see
      goalFallbackNote). */
-  const kind=['week','quarter','year'].find(k=>goalsOf(k).length<GOAL_MAX[k]);
+  const kind=['week','quarter','year'].find(k=>goalsInProgress(k)<GOAL_MAX[k]);
   if(!kind){alert(t('wkgoal-all-full'));return;}
   const key={week:'wkgoal-ask',quarter:'wkgoal-ask-quarter',year:'wkgoal-ask-year'}[kind];
   const title=(prompt(t(key).replace('{t}',(r.title||'').slice(0,40)))||'').trim();
@@ -5758,7 +5761,7 @@ function goalSpanDays(kind,fromKey){
   return Math.round((new Date(goalSpanEnd(kind,fromKey)+'T12:00:00')-new Date(fromKey+'T12:00:00'))/86400000)+1;
 }
 function addGoal(kind,title){
-  if(goalsOf(kind).length>=GOAL_MAX[kind])return false;
+  if(goalsInProgress(kind)>=GOAL_MAX[kind])return false;
   const tk=todayKey(),b=periodBounds(kind,tk);
   goals().unshift({id:uid(),kind,title,period:b.id,start:tk,deadline:goalSpanEnd(kind,tk),
     doneOn:null,points:0,created:CLOCK.now(),_ts:CLOCK.now()});  savePlanner();return true;
@@ -6914,7 +6917,7 @@ function buildGoals(redraw){
        as goalsOf still counts it — which is to say, until the period it was
        closed in actually rolls over. Only then does it drop into the "done"
        toggle below, newest first, never hidden for good. */
-    const capCount=goalsOf(kind).length;
+    const capCount=goalsInProgress(kind);   // only the ones still in progress take a place
     const list=goals().filter(g=>g.kind===kind)
       .sort((a,b)=>(!!a.doneOn-!!b.doneOn)||(a.doneOn&&b.doneOn?b.doneOn.localeCompare(a.doneOn):0));
     const max=GOAL_MAX[kind];
