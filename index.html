@@ -5641,24 +5641,23 @@ function flagGoals(r){
   const open=board.filter(g=>!g.doneOn).sort((a,b)=>goalDeadline(a).localeCompare(goalDeadline(b)));
   return{goal:open[0]||null,closed:board.filter(g=>g.doneOn)};
 }
+/* What a flag says about the goal it serves, in this order of preference:
+     1. an open weekly goal it is a step toward;
+     2. failing that, an open quarterly one it serves, then a yearly one;
+     3. with none open, the weekly one it served that is finished but still inside its
+        own window — shown struck through, so finishing early is enjoyed and not a hole;
+     4. only then, "no goal scheduled": nothing open, and the weekly one has run out.
+   Only goals the task actually serves are ever shown. A task that is not a flag never
+   gets the warning, whatever it used to serve. */
 function weeklyGoalNote(r){
   const base=weeklyGoalNoteBase(r);
   if(!r||!r.flagged)return base;
-  // Already pointing at a live weekly goal, open or closed this week: leave it.
-  if(base&&!base.stale)return base;
-  const warn=base||{text:t('wkgoal-none'),done:false,stale:true};
-  /* A flag that has no weekly goal but is linked, by you, to an open
-     quarterly or yearly one is not "without a goal": it says which. The
-     warning is for a flag that points at nothing open at all — that is the
-     nudge to give it one, and pressing it does exactly that.
-     (It used to show the longer goal only when all five weekly slots were
-     taken, and the warning otherwise, even for a flag linked to a quarterly
-     goal on purpose — which contradicted the link sitting right there in the
-     goals window.) Only goals the task actually serves; never an unrelated
-     one. */
-  return goalFallbackNote(r)||warn;
-}
-function weeklyGoalNoteBase(r){
+  if(base&&!base.stale&&!base.done)return base;      // 1. an open weekly goal
+  const longer=goalFallbackNote(r);
+  if(longer)return longer;                           // 2. an open quarterly, then yearly
+  if(base&&!base.stale)return base;                  // 3. the weekly one, done and not yet expired
+  return base||{text:t('wkgoal-none'),done:false,stale:true};   // 4. nothing: say so
+}function weeklyGoalNoteBase(r){
   const allLinks=goalsServedBy(r).filter(g=>g.kind==='week');
   if(!allLinks.length)return null;
   /* Exactly what is on the weekly board, by asking the board. This used to
@@ -6064,7 +6063,13 @@ function renderPlanner(){
       if(r.completedOn===tk)return;
       if(reached.length)reached.forEach(g=>aim(g,r));
       else if(goal)aim(goal,r);
-      else orphans.push(r);
+      else{
+        /* Nothing open at any level. Its weekly goal may still be finished and inside its own
+           window: then that goal is shown, struck through, and only when the window has run
+           out does it become the "no goal scheduled" line. */
+        const rest=closed.filter(g=>g.kind==='week'&&goalDeadline(g)>=tk).sort((x,y)=>(y.doneOn||'').localeCompare(x.doneOn||''))[0];
+        if(rest)aim(rest,r);else orphans.push(r);
+      }
     });
     const rows=[...aims.values()]
       .sort((a,b)=>(!!a.goal.doneOn-!!b.goal.doneOn)||goalDeadline(a.goal).localeCompare(goalDeadline(b.goal)));
