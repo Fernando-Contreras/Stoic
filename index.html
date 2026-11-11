@@ -243,6 +243,10 @@ button{cursor:pointer;font-family:var(--ff);font-size:15px;font-weight:600;borde
    itself ignores the pointer; only the panels and the bubble take it, so the lit part stays live. */
 .tut{position:fixed;left:0;top:0;width:100%;height:100%;transform-origin:0 0;z-index:85;pointer-events:none}
 .tut-d{position:fixed;background:rgba(0,0,0,.66);pointer-events:auto}
+/* Two levels: the thing being pointed at is lit; the window or card it lives in is only dimmed,
+   so it can still be read; everything else is dark. */
+.tut-x{position:fixed;display:none;border-radius:16px;pointer-events:none;box-shadow:0 0 0 100vmax rgba(0,0,0,.5)}
+.tut.has-x .tut-d{background:rgba(0,0,0,.3)}
 .tut-ring{position:fixed;border:2px solid var(--ac);border-radius:14px;pointer-events:none;box-shadow:0 0 0 4px var(--acd),0 0 22px var(--ac);animation:tutPulse 1.4s ease-in-out infinite}
 .tut-hand{position:fixed;font-size:30px;line-height:1;pointer-events:none;filter:drop-shadow(0 2px 4px rgba(0,0,0,.5))}
 .tut-hand.up{animation:tutUp 1s ease-in-out infinite}
@@ -971,6 +975,20 @@ const tutPrefill=v=>()=>{
   if(i&&!i.value.trim()){i.value=typeof v==='function'?v():v;i.dispatchEvent(new Event('input',{bubbles:true}));}
 };
 const tutClose=k=>()=>{STATE[k]=false;render();};
+// A whole example at once: emojis as the title, the words as the note, and optionally a repeat.
+const tutExample=(titleKey,noteKey,rep)=>()=>{
+  const i=document.querySelector('[data-tut="add-title"]');
+  if(!i||i.value.trim())return;
+  i.value=t(titleKey);i.dispatchEvent(new Event('input',{bubbles:true}));
+  const n=document.querySelector('.ovl textarea');
+  if(n&&!n.value.trim())n.value=t(noteKey);
+  if(rep){
+    const r=document.querySelector('[data-tut="add-rep"]');
+    if(r){r.value=rep.unit;r.dispatchEvent(new Event('change',{bubbles:true}));}
+    const e=r&&r.parentElement&&r.parentElement.querySelector('input[type=number]');
+    if(e)e.value=String(rep.every);
+  }
+};
 // The steps of one add form, which Back can walk among while it stays open.
 const tutForm=n=>({win:'showAddForm',form:n});
 // A time some hours from now, so it can be left alone and still show something later.
@@ -999,7 +1017,7 @@ const tutHolds=r=>{
   const run=TUT.run;
   if(!(run&&run.ctx&&!run.replay&&run.stages[0]===1&&!run.known.has(r.id)))return false;
   const a=run.peek!=null?run.steps[run.peek]:tutActive(run);
-  return !(a&&(a.id==='vHide'||a.id==='vPlay'));
+  return !(a&&(a.id==='vHide'||a.id==='quadPlay'));
 };
 // Nothing of theirs is far enough off to be hidden (late in the day, or the hiding turned off).
 const tutNoGate=()=>{
@@ -1031,8 +1049,9 @@ const TUT_STAGES={
     {id:'howto',   manual:true, lang:true,                  text:'tut1-howto', done:c=>c.count()>0},
     {id:'plus',    tab:'plan', target:'[data-tut="add"]',   text:'tut1-plus',  done:c=>STATE.showAddForm||c.count()>=1},
     // A real task, one they have not done today and that takes a minute or two: the next steps do it.
-    {id:'type',    ...tutForm(1), target:'[data-tut="add-title"]', soft:true, manual:true, enter:tutPrefill(()=>t('tut1-ex1')), text:'tut1-type', done:c=>c.count()>=1},
+    {id:'type',    ...tutForm(1), target:'[data-tut="add-title"]', soft:true, manual:true, enter:tutExample('tut1-ex1','tut1-ex1n',{unit:'hour',every:8}), text:'tut1-type', done:c=>c.count()>=1},
     {id:'time',    ...tutForm(1), target:'[data-tut="add-time"]',  soft:true, manual:true, enter:tutSuggest(1), text:'tut1-time', done:c=>c.count()>=1},
+    {id:'rep',     ...tutForm(1), target:'[data-tut="add-rep"]',   soft:true, manual:true, text:'tut1-rep', done:c=>c.count()>=1},
     {id:'addIt',   ...tutForm(1), target:'[data-tut="add-go"]',    soft:true, text:'tut1-add',  done:c=>c.count()>=1},
     // Then it is done for real, against the clock: start the task's ⏱, go and do it, come back and stop it.
     {id:'doIt',    tab:'plan', target:c=>c.timerBtn(), latch:true, text:'tut1-doit',   done:c=>c.timerStarted()},
@@ -1040,7 +1059,7 @@ const TUT_STAGES={
     {id:'plus2',   tab:'plan', target:'[data-tut="add"]',   text:'tut1-plus2', done:c=>STATE.showAddForm||c.count()>=2},
     {id:'flag',    ...tutForm(2), target:'[data-tut="add-flag"]',  soft:true, text:'tut1-flag',
                    done:c=>c.count()>=2||!!(document.querySelector('[data-tut="add-flag"] input')||{}).checked},
-    {id:'type2',   ...tutForm(2), target:'[data-tut="add-title"]', soft:true, manual:true, enter:tutPrefill('🏃🏃🏃'), text:'tut1-type2', done:c=>c.count()>=2},
+    {id:'type2',   ...tutForm(2), target:'[data-tut="add-title"]', soft:true, manual:true, enter:tutExample('tut1-ex2','tut1-ex2n'), text:'tut1-type2', done:c=>c.count()>=2},
     {id:'time2',   ...tutForm(2), target:'[data-tut="add-time"]',  soft:true, manual:true, enter:tutSuggest(5), text:'tut1-time2', done:c=>c.count()>=2},
     {id:'addIt2',  ...tutForm(2), target:'[data-tut="add-go"]',    soft:true, text:'tut1-add',  done:c=>c.count()>=2},
     // How the list can be shown, one control at a time, while it has something on it.
@@ -1049,14 +1068,15 @@ const TUT_STAGES={
     {id:'vGrid',   tab:'plan', target:'[data-tut="list-card"]',manual:true, latch:true, text:'tut1-vlayout2', after:tutListBack, done:()=>tutLayout()==='list'},
     {id:'vSort',   tab:'plan', target:'[data-tut="v-sort"] button:nth-child(2)', press:true, text:'tut1-vsort'},
     {id:'vSorted', tab:'plan', target:'[data-tut="list-card"]',manual:true, free:true, text:'tut1-vsort2'},
-    {id:'vHide',   tab:'plan', target:'[data-tut="v-hide"]',   manual:true, free:true, play:true, enter:()=>render(), altIf:tutNoGate, altText:'tut1-vhide-no', text:'tut1-vhide'},
-    // The list is theirs to try, now that every control has been named.
-    {id:'vPlay',   tab:'plan', target:'[data-tut="view-ctrl"]',manual:true, free:true, play:true, text:'tut1-vplay', after:tutListBack},
-    {id:'flagged', tab:'plan', target:'[data-tut="flag-box"]', text:'tut1-flagged', manual:true, look:true, done:c=>c.doneN()>0},
-    {id:'colour',  tab:'plan', target:'[data-tut="day-card"]', text:'tut1-colour', manual:true, look:true, done:c=>c.doneN()>0},
+    {id:'vHide',   tab:'plan', target:'[data-tut="v-hide"]',   manual:true, free:true, play:true, enter:()=>render(), after:()=>render(), altIf:tutNoGate, altText:'tut1-vhide-no', text:'tut1-vhide'},
+    {id:'flagged', tab:'plan', target:'[data-tut="flag-box"]', text:'tut1-flagged', manual:true, look:true, done:c=>c.doneN()>=2},
+    {id:'colour',  tab:'plan', target:'[data-tut="day-card"]', text:'tut1-colour', manual:true, look:true, done:c=>c.doneN()>=2,
+                   // The first task may already be done (its ⏱ ticks a repeating one): then the day is yellow, not red.
+                   altIf:()=>!!(TUT.run&&TUT.run.ctx&&TUT.run.ctx.doneN()>=1), altText:'tut1-half',
+                   after:()=>{if(TUT.run)TUT.run.seenHalf=TUT.run.ctx.doneN()>=1;}},
     // Latched: the part ends by unticking one, and that must not bring these back.
     {id:'tick',    target:c=>c.nextOpen(),                  text:'tut1-tick',  latch:true, done:c=>c.doneN()>=1},
-    {id:'half',    tab:'plan', target:'[data-tut="day-card"]', text:'tut1-half', manual:true, look:true, latch:true, done:c=>c.doneN()>=2},
+    {id:'half',    tab:'plan', target:'[data-tut="day-card"]', text:'tut1-half', manual:true, look:true, latch:true, done:c=>c.doneN()>=2||!!(TUT.run&&TUT.run.seenHalf)},
     {id:'tick2',   target:c=>c.nextOpen(),                  text:'tut1-tick2', latch:true, done:c=>c.doneN()>=2},
     {id:'end',     tab:'plan', target:'[data-tut="day-card"]', text:'tut1-end', manual:true},
     // That 🏁 is the step the second part links to a goal, and a step has to be open.
@@ -1179,6 +1199,7 @@ document.addEventListener('click',e=>{
   const el=e.target;if(!el||!el.closest)return;
   if(el.closest('[data-tut="pomo-card"]'))TUT.poked.pomo=true;
   if(el.closest('[data-tut="sw-card"]'))TUT.poked.sw=true;
+  if(el.closest('[data-tut="tag-bar"]'))TUT.poked.tags=true;
 },true);
 /* After the first part everything is open, and what is new is explained when it is
    touched for the first time, not before: a short tour per place, started by the first
@@ -1194,7 +1215,20 @@ const TOURS={
   stats:{ids:['stats','statsIn','tlCard','tlRow','tlEntry'],when:()=>STATE.tab==='stats'},
   goals:{ids:['goalAdd','goalGo','stepPlus','stepType','stepGo','goalBack','goalLink','goalPick','goalDone','goalHow'],when:()=>!!STATE.showGoals},
   diary:{ids:['diary','dTitle','dTpl','dSaved','dHist','dHistIn'],when:()=>STATE.tab==='score'&&!!STATE.calSel},
-  week:{ids:['weekIn'],when:()=>!!STATE.showWeek}
+  week:{ids:['weekIn'],when:()=>!!STATE.showWeek},
+  quad:{custom:[
+      {id:'quadIn',tab:'plan',target:'[data-tut="list-card"]',manual:true,free:true,text:'tour-quad-1'},
+      {id:'quadPlus',tab:'plan',target:'[data-tut="add"]',text:'tour-quad-2',done:c=>STATE.showAddForm||c.count()>=1},
+      {id:'fQuad',target:'[data-tut="add-quad"]',...tutForm(5),soft:true,manual:true,text:'tut3-fquad'},
+      {id:'quadAdd',target:'[data-tut="add-go"]',...tutForm(5),soft:true,text:'tut1-add',done:c=>c.count()>=1},
+      {id:'quadEnd',tab:'plan',target:'[data-tut="list-card"]',manual:true,free:true,text:'tour-quad-3'}
+    ],when:()=>STATE.view.layout==='quad'},
+  form:{ids:['fNlp','fNlpGo','fQuad','fTags','fRep','fMorn','fAdd'],
+        when:()=>!!STATE.showAddForm&&!!(STATE.planner.onboard&&STATE.planner.onboard.done&&STATE.planner.onboard.done[1])},
+  cal:{ids:['dayIn','dayMove','dayOff','dayOrder','dayDone'],when:()=>!!STATE.showCal},
+  tags:{custom:[{id:'tagsNote',tab:'plan',target:'[data-tut="tag-bar"]',manual:true,free:true,text:'tut3-vtags'}],
+        when:()=>!!TUT.poked.tags},
+  select:{ids:['selIn'],when:()=>!!STATE.selecting}
 };
 // When something it watches was last typed in, so the light waits for the typing to stop.
 document.addEventListener('input',e=>{if(e.target&&e.target.dataset&&e.target.dataset.tut)TUT.typed[e.target.dataset.tut]=Date.now();},true);
@@ -1260,6 +1294,7 @@ function tutToast(msg){
 function tutBuild(){
   const L=document.createElement('div');L.className='tut';
   const mk=(cls,txt)=>{const e=document.createElement('div');e.className=cls;if(txt)e.textContent=txt;L.appendChild(e);return e;};
+  L.ctx=mk('tut-x');
   L.dim=[mk('tut-d'),mk('tut-d'),mk('tut-d'),mk('tut-d')];
   L.cover=mk('tut-c');
   L.ring=mk('tut-ring');
@@ -1596,6 +1631,18 @@ function tutTick(){
   };
 
   L.cover.style.display='none';
+  // The card or window the thing lives in: dimmed less than the rest of the page.
+  let ctxEl=null,cxOv=false;
+  if(el){
+    const ovs=document.querySelectorAll('.ovl');
+    if(ovs.length){const c=ovs[ovs.length-1].querySelector('.card');if(c&&c.contains(el)){ctxEl=c;cxOv=true;}}
+    else{const c=el.closest('.card');if(c&&c!==el)ctxEl=c;}
+  }
+  const cr=ctxEl&&getComputedStyle(ctxEl).display!=='none'?rectOf(ctxEl):null;
+  if(cr&&cr.height>0){
+    L.classList.add('has-x');L.ctx.style.display='block';
+    L.ctx.style.left=cr.left+'px';L.ctx.style.top=cr.top+'px';L.ctx.style.width=(cr.right-cr.left)+'px';L.ctx.style.height=cr.height+'px';
+  }else{L.classList.remove('has-x');L.ctx.style.display='none';}
   if(!el){
     L.ring.style.display='none';L.hand.style.display='none';
     if(step.target&&!peek){
@@ -1614,7 +1661,10 @@ function tutTick(){
   const barB=bar&&!document.querySelector('.ovl')&&getComputedStyle(bar).position==='sticky'?bar.getBoundingClientRect():null;
   const safe=barB&&barB.top<=1?barB.bottom-oy+8:0;
   // A few tries: a tab change puts its own scroll back right after this one.
-  if((r.top<safe||r.bottom>vh)&&run.scrollTries<4&&Date.now()>=run.scrollNext){
+  // A target taller than the screen is fine once its top is in view: chasing its bottom made the page
+  // pull up and down whenever the colour (and with it the card's height) changed.
+  const tallT=r.height>vh*.6;
+  if((tallT?(r.top<safe||r.top>vh*.4):(r.top<safe||r.bottom>vh))&&run.scrollTries<4&&Date.now()>=run.scrollNext){
     run.scrollTries++;run.scrollNext=Date.now()+400;
     // At once, not smooth: a redraw halfway would stop it short, with the light off screen.
     el.scrollIntoView({block:(r.height>vh*.6?'start':'center')});
@@ -1639,7 +1689,16 @@ function tutTick(){
   const cx=(h.l+h.r)/2;
   const need=bh+54;
   const hand=L.hand;
-  if(play){                               // away from what is being played with: the far end of the screen
+  const sideX=cxOv&&cr?(vw-cr.right>=bw+24?cr.right+12:(cr.left>=bw+24?cr.left-bw-12:null)):null;
+  const crMid=cr?(cr.left+cr.right)/2-bw/2:0;
+  if(sideX!==null){                       // beside the window, so what it holds stays in view
+    hand.style.display='none';
+    place(sideX,(h.t+h.b)/2-bh/2);
+  }else if(cxOv&&cr&&vh-cr.bottom>=bh+16){  // else under it
+    hand.style.display='none';place(crMid,cr.bottom+10);
+  }else if(cxOv&&cr&&cr.top>=bh+16){        // or over it
+    hand.style.display='none';place(crMid,cr.top-bh-10);
+  }else if(play){                         // away from what is being played with: the far end of the screen
     hand.style.display='none';
     place((vw-bw)/2,(h.t+h.b)/2>vh/2?12:vh-bh-12);
   }else if(vh-h.b>=need){                 // below: the hand points up at it
@@ -2337,36 +2396,36 @@ en:{
   'rem-title':'Reminders','rem-new':'New reminder','rem-what':'What needs doing?',
   'tut-start':'Start','tut-next':'Next','tut-finish':'Done!','tut-skip':'Skip','tut-pause':'⏸ Pause','tut-resume':'Resume tutorial','tut-part':'Part {n} of {of}','tut-skip-q':'What would you like?','tut-skip-part':'Skip this part','tut-skip-all':'I already know Stoic: show everything','tut-back':'Back to the tutorial','tut-skipped':'Everything is open. The 🎓 up top repeats the tutorial.','tut-replay':'Tutorial','tut-replay-note':'This is a replay: Next moves on without creating anything.','tut-done-replay':'Done. The 🎓 up top repeats it.','tut-done-real':'Done. The 🎓 up top repeats it.','tut-paused':'Paused. The 🎓 up top brings you back here.','tut-prev':'← Back','tut-got-it':'Got it',
   'tut-later':'Tomorrow','tut-go-on':'Go on','tut-later-toast':'Until tomorrow. Can\'t wait? Tap the 🎓 up top.','tut-wait':'There is more in Stoic: tomorrow, or now.','tut-wait-all':'Show everything',
-  'tut-p1':'The essentials','tut-p2':'Points and focus','tut-p3':'Your day and your history',
-  'tut1-hi':'Welcome to Stoic 🏛️\nThe goal: get more done and watch your stats grow.\nYour day is measured by a list of tasks and a colour. First the essentials; the rest I will explain when you touch it.',
-  'tut1-howto':'In a hurry?\n⏸ Pause: use the app and continue later.\nSkip: jump this part, or all of it.\n← Back: read again.',
-  'tut1-plus':'Let us make your list. Tap the ＋.',
-  'tut1-type':'Example already written: 💧💧💧 = drink water. You can do it right now. (With emojis your tasks read at a glance.) Press Next, or change it to one of yours.','tut1-ex1':'💧💧💧 Drink water','tut1-time2':'I set a time about 5 hours from now, so this task stays out of your way for now. Change it if you like, or press Next.','tut1-vhide-no':'Tasks with a time stay hidden until a few hours before (you choose how many here), so they do not get in your way. None of yours is far enough off to hide right now.',
-  'tut1-doit':'Now do it for real. Tap its ⏱ to time yourself, go and do the task, and come back here when you are done.',
-  'tut1-stopit':'Done already? Tap ⏹ to stop the clock: the time is saved on the task.',
-  'tut1-time':'I suggested this time. Change it if you like, or press Next.',
+  'tut-p1':'The essentials','tut1-ex1n':'Drink water','tut1-ex2':'🏃🏃🏃','tut1-ex2n':'Go for a run','tut1-rep':'This task repeats every 8 hours: it comes back by itself. Press Next.','tour-quad-1':'Four boxes: do it now, schedule it, delegate it, postpone it. Tasks land by their quadrant. Press Next.','tour-quad-2':'Make a task with a quadrant. Tap ＋.','tour-quad-3':'Your task is in its box. ✏️ changes its quadrant any time. Try the other buttons.','tut-p2':'Points and focus','tut-p3':'Your day and your history',
+  'tut1-hi':'Welcome to Stoic 🏛️\nGet more done and watch your stats grow.\nYour day is a list of tasks and a colour.\nI will explain it step by step.',
+  'tut1-howto':'In a hurry?\n⏸ Pause: use the app, continue later.\nSkip: jump this.\n← Back: read again.',
+  'tut1-plus':'Let us make your list. Tap ＋.',
+  'tut1-type':'Example ready: 💧💧💧 is the title, "Drink water" the note. Emojis let you read a task at a glance. Press Next.','tut1-ex1':'💧💧💧','tut1-time2':'I set a time 5 hours from now, so it stays out of the way. Change it or press Next.','tut1-vhide-no':'Timed tasks show up a few hours before (you choose how many here). None of yours is far enough off right now.',
+  'tut1-doit':'Now do it for real. Tap its ⏱, do it and come back.',
+  'tut1-stopit':'Tap ⏹ to stop the clock. The time is saved and, since it repeats, the task is ticked.',
+  'tut1-time':'I suggested a time. Change it or press Next.',
   'tut1-add':'Tap "Add".',
-  'tut1-plus2':'Now the most important thing today. Tap the ＋.',
-  'tut1-flag':'Turn on 🏁 Goal of the day: it is what matters most today.',
-  'tut1-type2':'Example already written: 🏃🏃🏃 = go for a run, later. Press Next.',
-  'tut1-vscope':'"All" shows everything pending. "This day", only that day (today, or the one you slide to) and what is overdue. Tap one.',
-  'tut1-vlayout':'Tap ▦ to see your list in squares.',
-  'tut1-vlayout2':'More fits at a glance. Press Next and I put your list back to ☰.',
+  'tut1-plus2':'Now the most important thing today. Tap ＋.',
+  'tut1-flag':'Turn on 🏁 Goal of the day: what matters most today.',
+  'tut1-type2':'Another example: 🏃🏃🏃 with the note "Go for a run". Press Next.',
+  'tut1-vscope':'"All" shows everything pending. "This day", only that day and what is late. Tap one.',
+  'tut1-vlayout':'Tap ▦ for squares.',
+  'tut1-vlayout2':'More fits. Press Next and I put your list back to ☰.',
   'tut1-vsort':'Here you change the order. Tap 📅↓: newest first.',
-  'tut1-vsort2':'Your list changed order. It stays how you leave it, and your points do not change.',
-  'tut1-vhide':'Look: your 🏁 has a time that is still far off, so it is not in the list. Tasks with a time stay hidden until this many hours before (you choose how many here), so they do not get in your way.',
+  'tut1-vsort2':'Your list changed order. It stays that way; your points do not change.',
+  'tut1-vhide':'Your 🏁 has a time far off, so it is hidden. Timed tasks show up a few hours before (you choose how many here).',
   'tut1-prefs':'Up here: light or dark mode, language, and 🎓 to repeat this tutorial.',
-  'tut1-flagged':'Goals to annihilate: here you see the long goals (of the week, quarter or year) that each 🏁 goal of the day, your most important task, points to.\nYou have none yet, so you get a ⚠️. You will make them later, when you open your goals.',
-  'tut1-colour':'This is your day. It is red because nothing is done yet. Your aim: get it out of the red.',
+  'tut1-flagged':'Goals to annihilate: the long goals (week, quarter or year) your 🏁 points to. You have none yet, hence the ⚠️. You will add them later.',
+  'tut1-colour':'This is your day. Red means nothing done. Aim: get out of the red.',
   'tut1-tick':'Mark this task as done.',
-  'tut1-half':'Half done: yellow 🟡, and the candle lights up 🕯️. Every day without red adds to your streak.',
-  'tut1-tick2':'Now mark your 🏁 goal of the day, here in your list.',
-  'tut1-untick':'Marked one by mistake? It unticks the same way. Untick your 🏁 so you can link it to a long goal later.',
+  'tut1-half':'Half done: yellow 🟡, and the candle 🕯️ lights up. Each day without red adds to your streak.',
+  'tut1-tick2':'Now tick your 🏁 goal of the day.',
+  'tut1-untick':'Ticked one by mistake? Untick it the same way. Untick your 🏁 to link it to a goal later.',
   'tut1-vplay':'Play with these buttons for a while: they only change how you see your list. Press Next when you are done.',
-  'tut1-end':'Your colour depends on how much you finish:\n🔴 less than 50%\n🟡 50%\n🟢 85%\n🟣 100%\n\nMore colour, more points. Finish all your 🏁 and you go up one colour.',
-  'tut1-next':'That is the essentials ✅\nNow all of Stoic is open: play with it. When you touch something new, I will explain it. The 🎓 up top replays everything.',
-  'tut-p1-end-toast':'Everything is open now. Touch something new and I will explain it. The 🎓 up top replays it all.',
-  'tut-tours-skip':'No more tours','tut-tour':'Tour','tour-score':'Score','tour-pomo':'Pomodoro','tour-sw':'Stopwatch','tour-stats':'Statistics','tour-goals':'Goals','tour-diary':'Diary','tour-week':'Your week',
+  'tut1-end':'Your colour depends on how much you finish:\n🔴 under 50%\n🟡 50%\n🟢 85%\n🟣 100%\nBetter colour, more points. Finishing all your 🏁 goes up a colour. Aim: get out of the red.',
+  'tut1-next':'That is the essentials ✅\nAll of Stoic is open: play. When you touch something new, I will explain it. 🎓 replays everything.',
+  'tut-p1-end-toast':'Everything is open. Touch something new and I will explain it. 🎓 replays it all.',
+  'tut-tours-skip':'No more tours','tut-tour':'Tour','tour-score':'Score','tour-pomo':'Pomodoro','tour-sw':'Stopwatch','tour-stats':'Statistics','tour-goals':'Goals','tour-diary':'Diary','tour-week':'Your week','tour-quad':'Quadrants','tour-form':'The full form','tour-cal':'Day calendar','tour-tags':'Tags','tour-select':'Select several',
   'tour-pomo-note':'Pomodoro: 25 minutes of focus, then a break. Each one adds points. Down here you change how long each lasts.','tut-tours-off':'No more tours. The 🎓 up top replays them.',
   'tut2-hi':'Part 2 🕯️\nHere: points, sleep and work, rewards, timers and long goals.',
   'tut2-tab':'Open Score.',
@@ -2377,21 +2436,21 @@ en:{
   'tut2-sw':'Stopwatch: to compete with yourself. Beat your record on a task, or pile up hours on a project. Tap ▶.',
   'tut2-swstop':'Now stop it.',
   'tut2-swadd':'Add that time to a task.',
-  'tut2-swpick':'Pick one. Tip: each task has its own ⏱, and starting one saves the one running; stop one and the time goes on that task by itself. If it repeats, it also ticks itself off.',
+  'tut2-swpick':'Pick a task. Each task has its own ⏱: stopping it adds the time by itself. If it repeats, it is also ticked.',
   'tut2-tlgo':'That time is saved. Let\'s see where it went: tap 📊 Stats.',
-  'tut2-tlcard':'Here is where your time went: the total, how much went to 🏁 flags, and how many tasks. Up top you choose the period, or only flags. Try them.',
+  'tut2-tlcard':'Here is where your time went: total, 🏁 flags and tasks. Pick the period up top. Try them.',
   'tut2-tlrow':'Tap a task to see each time you timed it.',
   'tut2-tlentry':'Each time lives here. ✎ fixes its day or minutes, ↪ moves it to another task, ✕ deletes it.',
   'tut2-goals':'Your 🏁 today is surely a step toward something bigger: a goal for the week, the quarter or the year. Let\'s set it. Tap here.',
-  'tut2-goaladd':'Write a goal for this week. Tip: make it specific and measurable, like "Run 5 km on Saturday". The sooner you reach it, the more it is worth.',
+  'tut2-goaladd':'Write a goal for this week, specific and measurable: "Run 5 km on Saturday".',
   'tut2-goalgo':'Tap "+ Add goal".',
   'tut2-stepplus':'Goals are reached in steps. Make the first one, for today: tap the ＋.',
   'tut2-steptype':'Write a small step you will really do today. I already gave it a 🏁.',
   'tut2-goalback':'Go back to your goals.',
-  'tut2-goalhow':'See: your goal is now in Goals to annihilate, with its step beside it.\nThe step gets checked in your list, and the goal leaves for today. This box is for the day you reach the goal.',
+  'tut2-goalhow':'Your goal is now in Goals to annihilate, with its step beside it.\nTick the step in the list. This box is for the day you reach the goal.',
   'tut2-link':'This ＋ links tasks to your goal. Tap it.',
   'tut2-pick':'Pick your 🏁.',
-  'tut2-linked':'Done: your 🏁 is now a step toward your goal.\nThe idea: move one step a day toward your weekly, quarterly and yearly goals.\nYou can also link from ✏️ on any task.',
+  'tut2-linked':'Done: your 🏁 is now a step toward your goal.\nIdea: move one step toward your goals every day.\nYou can also link from ✏️ on any task.',
   'tut2-next':'Done ✅\nStill to come: calendars, diary, stats and more. Now or tomorrow?',
   'tut3-hi':'Last part 🏛️\nYour day and your history: calendar, diary, stats and the full form.',
   'tut2-sleep':'Write how long you slept last night, like 7h30m. Sleep adds points; a late night takes them away.',
@@ -2417,11 +2476,11 @@ en:{
   'tut3-dayorder':'Tasks with no time wait here. Tap 🪄 Lay out: it shares them out over your day, what matters most first.',
   'tut3-dayplaced':'Done. Play with it for a while, moving tasks around: ↩️ Undo takes back anything you do here.',
   'tut3-more':'The ＋ now does more. Tap it.',
-  'tut3-fquad':'Quadrant, by its emoji: 🚨1️⃣ urgent and important · 👑2️⃣ important, not urgent · 🤖3️⃣ urgent, not important · 🤏🏼4️⃣ neither. Pick one.',
-  'tut3-ftags':'Tags group tasks so you can filter them. They are pure emoji: 🌞🌻 morning · 5️⃣⏱️ five minutes · ☝🏼⏳ once a week. Pick one if you like.',
+  'tut3-fquad':'Pick a quadrant: 🚨1️⃣ urgent and important · 👑2️⃣ important · 🤖3️⃣ urgent · 🤏🏼4️⃣ neither.',
+  'tut3-ftags':'Tags group tasks so you can filter them. Pure emoji: 🌞🌻 morning · 5️⃣⏱️ five minutes. Pick one if you like.',
   'tut3-frep':'Repeat: when you finish it, the task returns on its next date. Timing it with its ⏱ finishes it for you.',
   'tut3-fmorn':'🏁 Goal of the day and 🌅 Morning routine: each one has its own streak.',
-  'tut3-fnlp':'Now a complete task. Example already written: 📞👩 tomorrow 5pm = call mom. It understands dates. Tap Next.','tut3-fnlp-ex':'📞👩 tomorrow 5pm',
+  'tut3-fnlp':'Now a full task. Example: 📞👩 tomorrow 5pm = call mom. It understands dates. Press Next.','tut3-fnlp-ex':'📞👩 tomorrow 5pm',
   'tut3-fnlpgo':'Tap here and it fills in the date and time.',
   'tut3-swipe':'Slide this list to the left to see the next day. With a mouse, drag it.',
   'tut3-swipe2':'Slide it to the right to come back.',
@@ -2720,36 +2779,36 @@ es:{
   'rem-title':'Recordatorios','rem-new':'Nuevo recordatorio','rem-what':'¿Qué hay que hacer?',
   'tut-start':'Empezar','tut-next':'Siguiente','tut-finish':'¡Listo!','tut-skip':'Saltar','tut-pause':'⏸ Pausar','tut-resume':'Seguir tutorial','tut-part':'Parte {n} de {of}','tut-skip-q':'¿Qué prefieres?','tut-skip-part':'Saltar esta parte','tut-skip-all':'Ya sé usar Stoic: mostrar todo','tut-back':'Volver al tutorial','tut-skipped':'Ya está todo abierto. El 🎓 de arriba repite el tutorial.','tut-replay':'Tutorial','tut-replay-note':'Es un repaso: Siguiente avanza sin crear nada.','tut-done-replay':'Listo. El 🎓 de arriba lo repite.','tut-done-real':'Listo. El 🎓 de arriba lo repite.','tut-paused':'En pausa. El 🎓 de arriba te regresa aquí.','tut-prev':'← Atrás','tut-got-it':'Entendido',
   'tut-later':'Mañana','tut-go-on':'Seguir','tut-later-toast':'Hasta mañana. ¿No aguantas? Toca el 🎓 de arriba.','tut-wait':'Hay más en Stoic: mañana, o ahorita.','tut-wait-all':'Mostrar todo',
-  'tut-p1':'Lo esencial','tut-p2':'Puntos y enfoque','tut-p3':'Tu día y tu historia',
-  'tut1-hi':'Te damos la bienvenida a Stoic 🏛️\nLa meta: que rindas más y ver tus estadísticas crecer.\nTu día se mide con una lista de tareas y un color. Primero lo esencial; lo demás te lo explico cuando lo toques.',
-  'tut1-howto':'¿Con prisa?\n⏸ Pausar: usa la app y sigue después.\nSaltar: brinca esta parte, o todo.\n← Atrás: vuelve a leer.',
-  'tut1-plus':'Vamos a hacer tu lista. Toca el ＋.',
-  'tut1-type':'Ejemplo ya escrito: 💧💧💧 = tomar agua. Es algo que puedes hacer ahorita. (Con emojis tus tareas se leen de un vistazo.) Dale Siguiente, o cámbiala por una tuya.','tut1-ex1':'💧💧💧 Tomar agua','tut1-time2':'Te puse una hora dentro de unas 5 horas: así esta tarea todavía no te estorba. Cámbiala si quieres, o dale Siguiente.','tut1-vhide-no':'Las tareas con hora se esconden hasta unas horas antes (aquí eliges cuántas), para que no te estorben. Ahora ninguna tuya está lo bastante lejos para esconderse.',
-  'tut1-doit':'Ahora hazla de verdad. Toca su ⏱ para medir cuánto tardas, ve a hacerla y regresa aquí cuando termines.',
-  'tut1-stopit':'¿Ya la hiciste? Toca ⏹ para detener el reloj: el tiempo se guarda en la tarea.',
-  'tut1-time':'Te sugerí esta hora. Cámbiala si quieres, o dale Siguiente.',
+  'tut-p1':'Lo esencial','tut1-ex1n':'Tomar agua','tut1-ex2':'🏃🏃🏃','tut1-ex2n':'Salir a correr','tut1-rep':'Esta tarea se repite cada 8 horas: vuelve sola. Dale Siguiente.','tour-quad-1':'Cuatro cajas: hazla ya, agéndala, delégala o postérgala. Tus tareas caen según su cuadrante. Dale Siguiente.','tour-quad-2':'Crea una tarea con cuadrante. Toca ＋.','tour-quad-3':'Tu tarea ya está en su caja. ✏️ le cambia el cuadrante cuando quieras. Prueba los demás botones.','tut-p2':'Puntos y enfoque','tut-p3':'Tu día y tu historia',
+  'tut1-hi':'Te damos la bienvenida a Stoic 🏛️\nAquí rindes más y ves tus estadísticas crecer.\nTu día es una lista de tareas y un color.\nTe lo explico paso a paso.',
+  'tut1-howto':'¿Con prisa?\n⏸ Pausar: usa la app y sigue después.\nSaltar: brinca esto.\n← Atrás: vuelve a leer.',
+  'tut1-plus':'Hagamos tu lista. Toca ＋.',
+  'tut1-type':'Ejemplo listo: 💧💧💧 es el título y «Tomar agua» la nota. Los emojis dejan leer la tarea de un vistazo. Dale Siguiente.','tut1-ex1':'💧💧💧','tut1-time2':'Te puse una hora dentro de 5 horas, para que aún no estorbe. Cámbiala o dale Siguiente.','tut1-vhide-no':'Las tareas con hora aparecen unas horas antes (aquí eliges cuántas). Ahora ninguna tuya está lo bastante lejos.',
+  'tut1-doit':'Ahora hazla de verdad. Toca su ⏱, hazla y vuelve.',
+  'tut1-stopit':'Toca ⏹ para detener el reloj. El tiempo se guarda y, como se repite, la tarea se marca hecha.',
+  'tut1-time':'Te sugerí una hora. Cámbiala o dale Siguiente.',
   'tut1-add':'Toca «Agregar».',
-  'tut1-plus2':'Ahora lo más importante de hoy. Toca el ＋.',
-  'tut1-flag':'Prende 🏁 Meta del día: es lo que más importa hoy.',
-  'tut1-type2':'Ejemplo ya escrito: 🏃🏃🏃 = salir a correr, más tarde. Dale Siguiente.',
-  'tut1-vscope':'«Todos» enseña todo lo pendiente. «Este día», solo ese día (hoy, o el que deslices) y lo atrasado. Toca uno.',
-  'tut1-vlayout':'Toca ▦ para ver tu lista en cuadritos.',
-  'tut1-vlayout2':'Así cabe más de un vistazo. Dale Siguiente y regreso tu lista a ☰.',
+  'tut1-plus2':'Ahora lo más importante de hoy. Toca ＋.',
+  'tut1-flag':'Prende 🏁 Meta del día: lo que más importa hoy.',
+  'tut1-type2':'Otro ejemplo: 🏃🏃🏃 con la nota «Salir a correr». Dale Siguiente.',
+  'tut1-vscope':'«Todos» muestra todo lo pendiente. «Este día», solo ese día y lo atrasado. Toca uno.',
+  'tut1-vlayout':'Toca ▦ para ver cuadritos.',
+  'tut1-vlayout2':'Así cabe más. Dale Siguiente y regreso tu lista a ☰.',
   'tut1-vsort':'Aquí cambias el orden. Toca 📅↓: lo más nuevo primero.',
-  'tut1-vsort2':'Tu lista cambió de orden. Se queda como la dejes y tus puntos no cambian.',
-  'tut1-vhide':'Mira: tu 🏁 tiene hora y todavía falta, así que no aparece en la lista. Las tareas con hora se esconden hasta estas horas antes (aquí eliges cuántas), para que no te estorben.',
+  'tut1-vsort2':'Tu lista cambió de orden. Se queda así y tus puntos no cambian.',
+  'tut1-vhide':'Tu 🏁 tiene hora y falta mucho, así que no se ve. Las tareas con hora aparecen unas horas antes (aquí eliges cuántas).',
   'tut1-prefs':'Aquí arriba: modo claro u oscuro, idioma y 🎓 para repetir este tutorial.',
-  'tut1-flagged':'Metas por exterminar: aquí salen las metas largas (de la semana, el trimestre o el año) a las que apunta cada 🏁 meta del día, tu tarea más importante.\nAún no tienes, por eso sale ⚠️. Las crearás más adelante, al abrir tus metas.',
-  'tut1-colour':'Este es tu día. Está en rojo porque aún no haces nada. Tu objetivo: sacarlo del rojo.',
+  'tut1-flagged':'Metas por exterminar: las metas largas (semana, trimestre o año) a las que apunta tu 🏁. Aún no tienes, por eso sale ⚠️. Las crearás después.',
+  'tut1-colour':'Este es tu día. En rojo no has hecho nada. Meta: salir del rojo.',
   'tut1-tick':'Marca esta tarea como hecha.',
-  'tut1-half':'Mitad hecha: amarillo 🟡, y se prende la vela 🕯️. Cada día sin rojo suma a tu racha.',
-  'tut1-tick2':'Ahora marca tu 🏁 meta del día, aquí en Pendientes.',
-  'tut1-untick':'¿Marcaste una por error? Se desmarca igual. Desmarca tu 🏁 para poder ligarla después a una meta larga.',
+  'tut1-half':'Mitad hecha: amarillo 🟡 y se prende la vela 🕯️. Cada día sin rojo suma a tu racha.',
+  'tut1-tick2':'Ahora marca tu 🏁 meta del día.',
+  'tut1-untick':'¿Marcaste una por error? Se desmarca igual. Desmarca tu 🏁 para ligarla después a una meta.',
   'tut1-vplay':'Juega un rato con estos botones: solo cambian cómo ves tu lista. Cuando acabes, dale Siguiente.',
-  'tut1-end':'Tu color depende de cuánto termines:\n🔴 menos de 50%\n🟡 50%\n🟢 85%\n🟣 100%\n\nMejor color, más puntos. Si terminas todas tus 🏁, subes un color.',
-  'tut1-next':'Eso es lo esencial ✅\nAhora tienes todo Stoic abierto: juega con él. Cuando toques algo nuevo, te lo explico. El 🎓 de arriba lo repite todo.',
-  'tut-p1-end-toast':'Ya está todo abierto. Toca algo nuevo y te lo explico. El 🎓 de arriba lo repite todo.',
-  'tut-tours-skip':'Sin más tours','tut-tour':'Tour','tour-score':'Puntaje','tour-pomo':'Pomodoro','tour-sw':'Cronómetro','tour-stats':'Estadísticas','tour-goals':'Metas','tour-diary':'Diario','tour-week':'Tu semana',
+  'tut1-end':'Tu color depende de cuánto termines:\n🔴 menos de 50%\n🟡 50%\n🟢 85%\n🟣 100%\nMejor color, más puntos. Terminar todas tus 🏁 sube un color. Meta: salir del rojo.',
+  'tut1-next':'Eso es lo esencial ✅\nTodo Stoic está abierto: juega. Cuando toques algo nuevo, te lo explico. El 🎓 repite todo.',
+  'tut-p1-end-toast':'Todo abierto. Toca algo nuevo y te lo explico. El 🎓 lo repite todo.',
+  'tut-tours-skip':'Sin más tours','tut-tour':'Tour','tour-score':'Puntaje','tour-pomo':'Pomodoro','tour-sw':'Cronómetro','tour-stats':'Estadísticas','tour-goals':'Metas','tour-diary':'Diario','tour-week':'Tu semana','tour-quad':'Cuadrantes','tour-form':'El formulario completo','tour-cal':'Calendario del día','tour-tags':'Etiquetas','tour-select':'Elegir varias',
   'tour-pomo-note':'Pomodoro: 25 minutos de enfoque y un descanso. Cada uno suma puntos. Aquí abajo cambias cuánto dura cada uno.','tut-tours-off':'Sin más tours. El 🎓 de arriba los repite.',
   'tut2-hi':'Parte 2 🕯️\nAquí: puntos, sueño y trabajo, recompensas, cronómetros y metas largas.',
   'tut2-tab':'Abre Puntaje.',
@@ -2760,21 +2819,21 @@ es:{
   'tut2-sw':'Cronómetro: para competir contra ti. Rompe tu récord en una tarea o junta horas en un proyecto. Dale ▶.',
   'tut2-swstop':'Ahora detenlo.',
   'tut2-swadd':'Súmale ese tiempo a una tarea.',
-  'tut2-swpick':'Elige una. Tip: cada tarea trae su ⏱, y al iniciar uno se guarda el que corría; al detener uno, el tiempo se le suma solo. Si se repite, también se marca hecha.',
+  'tut2-swpick':'Elige una tarea. Cada tarea trae su ⏱: al detenerlo, el tiempo se suma solo. Si se repite, también se marca hecha.',
   'tut2-tlgo':'Ese tiempo ya quedó guardado. Veamos a dónde se fue: toca 📊 Estadísticas.',
-  'tut2-tlcard':'Aquí ves en qué se te fue el tiempo: el total, cuánto fue a 🏁 banderas y cuántas tareas. Arriba eliges el periodo, o solo banderas. Pruébalos.',
+  'tut2-tlcard':'Aquí ves en qué se fue tu tiempo: total, 🏁 banderas y tareas. Arriba eliges el periodo. Pruébalos.',
   'tut2-tlrow':'Toca una tarea para ver cada vez que la cronometraste.',
   'tut2-tlentry':'Cada vez queda aquí. ✎ corrige el día o los minutos, ↪ lo pasa a otra tarea y ✕ lo borra.',
   'tut2-goals':'Tu 🏁 de hoy seguro es un paso hacia algo más grande: una meta de la semana, del trimestre o del año. Vamos a ponerla. Toca aquí.',
-  'tut2-goaladd':'Escribe una meta de esta semana. Tip: que sea específica y medible, como «Correr 5 km el sábado». Mientras antes la cumplas, más vale.',
+  'tut2-goaladd':'Escribe una meta de esta semana, específica y medible: «Correr 5 km el sábado».',
   'tut2-goalgo':'Toca «+ Agregar meta».',
   'tut2-stepplus':'Las metas se cumplen con pasos. Crea el primero, para hoy: toca el ＋.',
   'tut2-steptype':'Escribe un paso chiquito que sí vayas a hacer hoy. Ya le puse 🏁.',
   'tut2-goalback':'Regresa a tus metas.',
-  'tut2-goalhow':'Mira: tu meta ya salió en Metas por exterminar, con su paso al lado.\nEl paso se marca en Pendientes, y la meta se va por hoy. Esta casilla es para el día que cumplas la meta.',
+  'tut2-goalhow':'Tu meta ya salió en Metas por exterminar, con su paso al lado.\nEl paso se marca en Pendientes. Esta casilla es para el día que cumplas la meta.',
   'tut2-link':'Este ＋ liga tareas a tu meta. Tócalo.',
   'tut2-pick':'Elige tu 🏁.',
-  'tut2-linked':'Listo: tu 🏁 ya es un paso hacia tu meta.\nEl chiste: que cada día avances un paso hacia tus metas de la semana, el trimestre y el año.\nTambién se liga desde ✏️ en cualquier tarea.',
+  'tut2-linked':'Listo: tu 🏁 ya es un paso hacia tu meta.\nIdea: cada día avanza un paso hacia tus metas.\nTambién se liga con ✏️ en cualquier tarea.',
   'tut2-next':'Listo ✅\nFalta: calendarios, diario, estadísticas y más. ¿Ahora o mañana?',
   'tut3-hi':'Última parte 🏛️\nTu día y tu historia: calendario, diario, estadísticas y el formulario completo.',
   'tut2-sleep':'Apunta cuánto dormiste anoche, como 7h30m. Dormir suma puntos; desvelarte los quita.',
@@ -2800,11 +2859,11 @@ es:{
   'tut3-dayorder':'Las tareas sin hora esperan aquí. Toca 🪄 Acomodar: las reparte en tu día, lo más importante primero.',
   'tut3-dayplaced':'Listo. Juega un rato moviendo tareas: ↩️ Deshacer regresa lo que hagas aquí.',
   'tut3-more':'El ＋ ahora trae más. Tócalo.',
-  'tut3-fquad':'Cuadrante, por su emoji: 🚨1️⃣ urgente e importante · 👑2️⃣ importante, no urgente · 🤖3️⃣ urgente, no importante · 🤏🏼4️⃣ ni uno ni otro. Elige uno.',
-  'tut3-ftags':'Las etiquetas agrupan tareas para filtrarlas. Son puro emoji: 🌞🌻 mañana · 5️⃣⏱️ cinco minutos · ☝🏼⏳ una vez a la semana. Elige una si quieres.',
+  'tut3-fquad':'Elige un cuadrante: 🚨1️⃣ urgente e importante · 👑2️⃣ importante · 🤖3️⃣ urgente · 🤏🏼4️⃣ ninguno.',
+  'tut3-ftags':'Las etiquetas agrupan tareas para filtrarlas. Son puro emoji: 🌞🌻 mañana · 5️⃣⏱️ cinco minutos. Elige una si quieres.',
   'tut3-frep':'Repetir: al terminarla, la tarea regresa en su siguiente fecha. Si la cronometras con su ⏱, se termina sola.',
   'tut3-fmorn':'🏁 Meta del día y 🌅 Rutina matutina: cada una tiene su propia racha.',
-  'tut3-fnlp':'Ahora una tarea completa. Ejemplo ya escrito: 📞👩 mañana 5pm = llamar a mamá. Entiende fechas. Dale Siguiente.','tut3-fnlp-ex':'📞👩 mañana 5pm',
+  'tut3-fnlp':'Ahora una tarea completa. Ejemplo: 📞👩 mañana 5pm = llamar a mamá. Entiende fechas. Dale Siguiente.','tut3-fnlp-ex':'📞👩 mañana 5pm',
   'tut3-fnlpgo':'Toca aquí y llena la fecha y la hora sola.',
   'tut3-swipe':'Desliza esta lista a la izquierda para ver el día siguiente. Con mouse, arrástrala.',
   'tut3-swipe2':'Deslízala a la derecha para regresar.',
@@ -10285,6 +10344,13 @@ function renderLogin(){
   const wrap=dv('login-wrap');
   const card=dv('card fi s12');card.style.cssText='max-width:400px;width:100%';
   card.innerHTML=`<div class="xxxl w8 ac ctr" style="letter-spacing:-.02em">🏛️ Stoic</div><div class="sm dim ctr mt4">${t('daily-tracker')}</div>`;
+  // The language, first thing: the first screen a new person sees has to be readable.
+  const lg=bt('btn-ghost btn-sm',t('lang-btn'),()=>{
+    STATE.lang=STATE.lang==='en'?'es':'en';
+    localStorage.setItem('st_lang',STATE.lang);
+    render();           // a redraw only: nothing is saved before there is an account or a choice
+  });
+  lg.style.cssText='display:block;margin:0 0 8px auto';card.insertBefore(lg,card.firstChild);
 
   const sbConfigured=!!(window._SUPABASE_URL&&window._SUPABASE_KEY);
   if(STATE.authNotice){
@@ -10439,12 +10505,6 @@ function renderLogin(){
   card.appendChild(dv('xs dimmer ctr mt8',t('guest-note')));
 
   // The language, because the first screen a new person sees has to be readable.
-  const lg=bt('btn-ghost btn-sm',t('lang-btn'),()=>{
-    STATE.lang=STATE.lang==='en'?'es':'en';
-    localStorage.setItem('st_lang',STATE.lang);
-    render();           // a redraw only: nothing is saved before there is an account or a choice
-  });
-  lg.style.cssText='width:100%;margin-top:6px;border:0;background:none';card.appendChild(lg);
   wrap.appendChild(card);return wrap;
 }
 
