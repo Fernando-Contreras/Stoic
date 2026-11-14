@@ -11254,8 +11254,9 @@ function renderPenCard(sk_,todayStatus){
     return capPenStreak(sk_[penKey(p.type)]);
   };
   const procMinsTotal=()=>penMinutesOn(STATE.today,'internet');
-  const penPts=STATE.today.penalties.reduce((sum,p)=>
-    sum+CALC.penBase(p)*penMultFor(p,procMinsTotal()),0);
+  /* Rounded: a multiplier like 1.4 times a few entries leaves float dust (-4424.99999999999). */
+  const penPts=Math.round(STATE.today.penalties.reduce((sum,p)=>
+    sum+CALC.penBase(p)*penMultFor(p,procMinsTotal()),0));
   const tr=dv('rowb mb10');
   tr.appendChild(sp('ctit',t('rewards-lbl')));
   const trr=dv('row gap6');
