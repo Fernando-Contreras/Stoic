@@ -10949,6 +10949,10 @@ function renderApp(){
     wrap.appendChild(statsEl);
     wrap.appendChild(renderDangerZone());
     wrap.appendChild(dv('xs dimmer ctr mt16 mb16',t('made-by')));
+    /* The charts here open a day on click (openDay sets dayDetail), but that popup used to be
+       drawn only by the Score tab, so on Stats the click changed state and showed nothing. */
+    if(STATE.dayDetail)wrap.appendChild(renderDayDetailModal(STATE.dayDetail));
+    if(STATE.histDay)wrap.appendChild(renderHistModal(STATE.histDay));
     return wrap;
   }
 
