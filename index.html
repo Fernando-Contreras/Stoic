@@ -3134,6 +3134,8 @@ function posMult(n,status){return status==='red'?1:streakMult(n);}
    is the thing Work cannot see — that the time was spent focused, in one
    unbroken block — and that is worth something, but not a second full wage. */
 const POM_PTS=10;
+/* A finished task pays the same as a pomodoro: finishing something, or focusing 25 minutes to try, is worth 10 either way. Scores are recomputed from the day counts, so past days follow. */
+const TASK_PTS=10;
 // What that run pays at n days — the number the rules quote.
 function multAt(n){return Math.round(streakMult(n)*10)/10;}
 function capPenStreak(n){return Math.min(PEN_CAP,Math.max(1,n||1));}
@@ -3424,7 +3426,7 @@ const CALC={
        earned. They ride the flag run now — the days you got your three most
        important things down — so being consistent about what matters makes
        everything else you finish count for more. */
-    const base=Math.round(completed*pm(s.flagStreak));
+    const base=Math.round(completed*TASK_PTS*pm(s.flagStreak));
     const mB=morningCompleted?Math.round(25*pm(s.morningStreak)):0;
     const fB=flagCompleted?Math.round((100+flagExtra(day.flagAt))*pm(s.flagStreak)):0;
     // Same curve as everything else — a day with pomodoros logged on top of
@@ -3592,7 +3594,7 @@ const CALC={
     // Read through the curve AND through the day, exactly as CALC.score does.
     const pm=n=>posMult(n,st);
     const parts={
-      base:Math.round((e.completedTasks||0)*pm(flagStreak)),
+      base:Math.round((e.completedTasks||0)*TASK_PTS*pm(flagStreak)),
       mB:((e.streaks?.some(s=>s.type==='morning'&&s.active))?Math.round(25*pm(morningStreak)):0),
       fB:((e.streaks?.some(s=>s.type==='flags'&&s.active))?Math.round((100+flagExtra(e.flagAt))*pm(flagStreak)):0),
       pom:Math.round((e.pomodoros||0)*POM_PTS*pm(pomoStreak)),
@@ -6840,8 +6842,10 @@ function weekStats(startKey,endKey){
   let sleep=days.reduce((s,d)=>s+(d.sleepDuration||0)+(d.napDuration||0),0);
   let nDays=days.length;
   let points=CALC.rangeTotal(STATE.history,startKey,endKey);
-  let best=days.reduce((b,d)=>(!b||(d.todayPoints||0)>(b.todayPoints||0))?d:b,null);
-  let bestPts=best?CALC.liveScore(best,STATE.history):null,bestDate=best?best.date:null;
+  // Picked by the live score, not the stored one: stored totals go stale when the scoring changes.
+  let best=null,bestPts=null;
+  days.forEach(d=>{const v=CALC.liveScore(d,STATE.history);if(bestPts===null||v>bestPts){best=d;bestPts=v;}});
+  let bestDate=best?best.date:null;
   if(live){
     const td=STATE.today;
     const sc=CALC.score(td,applyStreakOverrides(CALC.streaks(STATE.history,td)));
@@ -13934,7 +13938,7 @@ function renderRules(onClose){
   <div>
     <div class="md up ls ac w7 mb10">💰 Puntos</div>
     <div class="s6">
-      <div>✅ Tarea <span class="ac w6">+1</span> · 🌅 Rutina <span class="ac w6">+25</span> · 🏅 Metas <span class="ac w6">+100</span> (hasta <span class="ac w6">+${FLAG_EXTRA_MAX}</span> extra si las terminas antes de las 10:30; luego baja 1 por minuto) · 🍅 Pomodoro <span class="ac w6">+${POM_PTS}</span> · 💼 Trabajo y 😴 Sueño <span class="ac w6">+1</span>/min</div>
+      <div>✅ Tarea <span class="ac w6">+${TASK_PTS}</span> · 🌅 Rutina <span class="ac w6">+25</span> · 🏅 Metas <span class="ac w6">+100</span> (hasta <span class="ac w6">+${FLAG_EXTRA_MAX}</span> extra si las terminas antes de las 10:30; luego baja 1 por minuto) · 🍅 Pomodoro <span class="ac w6">+${POM_PTS}</span> · 💼 Trabajo y 😴 Sueño <span class="ac w6">+1</span>/min</div>
       <div>🎨 <span class="cy">🟡 +10</span> · <span class="cg">🟢 +30</span> · <span class="cp">🟣 +60</span>, se acumulan.</div>
       <div>Tu racha los multiplica: 9 días <span class="ac w6">×${multAt(9)}</span> · 100 días <span class="ac w6">×${multAt(100)}</span> · 400 días <span class="ac w6">×${multAt(400)}</span></div>
       <div>🍅 La racha de pomodoros solo avanza con el cronómetro de la app: no con los que pones a mano ni con los que corren solos (🔁).</div>
@@ -13987,7 +13991,7 @@ function renderRules(onClose){
   <div>
     <div class="md up ls ac w7 mb10">💰 Points</div>
     <div class="s6">
-      <div>✅ Task <span class="ac w6">+1</span> · 🌅 Morning <span class="ac w6">+25</span> · 🏅 Goals <span class="ac w6">+100</span> (up to <span class="ac w6">+${FLAG_EXTRA_MAX}</span> extra if you finish before 10:30; then 1 less per minute) · 🍅 Pomodoro <span class="ac w6">+${POM_PTS}</span> · 💼 Work and 😴 Sleep <span class="ac w6">+1</span>/min</div>
+      <div>✅ Task <span class="ac w6">+${TASK_PTS}</span> · 🌅 Morning <span class="ac w6">+25</span> · 🏅 Goals <span class="ac w6">+100</span> (up to <span class="ac w6">+${FLAG_EXTRA_MAX}</span> extra if you finish before 10:30; then 1 less per minute) · 🍅 Pomodoro <span class="ac w6">+${POM_PTS}</span> · 💼 Work and 😴 Sleep <span class="ac w6">+1</span>/min</div>
       <div>🎨 <span class="cy">🟡 +10</span> · <span class="cg">🟢 +30</span> · <span class="cp">🟣 +60</span>, they stack.</div>
       <div>Your run multiplies them: 9 days <span class="ac w6">×${multAt(9)}</span> · 100 days <span class="ac w6">×${multAt(100)}</span> · 400 days <span class="ac w6">×${multAt(400)}</span></div>
       <div>🍅 The pomodoro run only moves with the app's timer: not with hand-typed pomodoros, nor ones that ran by themselves (🔁).</div>
