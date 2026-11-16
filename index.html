@@ -3134,8 +3134,11 @@ function posMult(n,status){return status==='red'?1:streakMult(n);}
    is the thing Work cannot see — that the time was spent focused, in one
    unbroken block — and that is worth something, but not a second full wage. */
 const POM_PTS=10;
-/* A finished task pays the same as a pomodoro: finishing something, or focusing 25 minutes to try, is worth 10 either way. Scores are recomputed from the day counts, so past days follow. */
-const TASK_PTS=10;
+/* A finished task pays half a pomodoro. At 1 it was ~1% of everything earned; at 10 (the same as a
+   pomodoro) it swamped the day, since there are two or three tasks for every pomodoro and many are tiny
+   (a glass of water). 5 keeps both honest: 31 tasks and 14 pomodoros come out about the same size.
+   Scores are recomputed from the day counts, so past days follow whatever this is. */
+const TASK_PTS=5;
 // What that run pays at n days — the number the rules quote.
 function multAt(n){return Math.round(streakMult(n)*10)/10;}
 function capPenStreak(n){return Math.min(PEN_CAP,Math.max(1,n||1));}
