@@ -39,8 +39,8 @@ el navegador. Si cambias esta carpeta de lugar, hay que volver a cargarla.
 - **Ícono con número verde:** minutos que te quedan. **Amarillo:** pocos (5 o menos).
   **Rojo con X:** bloqueado. **!** falta iniciar sesión. **?** no pude leer Stoic.
 - **Sitios bloqueados** (editable en Opciones): WhatsApp Web, Netflix, Instagram,
-  Facebook, X/Twitter, TikTok, Reddit y Twitch. YouTube no viene en la lista a
-  propósito, pero lo puedes agregar.
+  Facebook, X/Twitter, TikTok, Reddit, Twitch y YouTube. Si en YouTube ves
+  tutoriales, lo quitas desde Opciones.
 - Una pestaña que ya estaba abierta en un sitio bloqueado se manda sola a la página de
   "bloqueado", y regresa a la misma página cuando se desbloquea.
 

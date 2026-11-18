@@ -180,6 +180,7 @@ t('rules: nothing to block, nothing to add',()=>assert.deepEqual(buildRules([]),
 t('default list: valid, no duplicates, has the two asked for',()=>{
   assert.deepEqual(normaliseSites(DEFAULT_SITES),DEFAULT_SITES);
   assert.ok(DEFAULT_SITES.includes('web.whatsapp.com')&&DEFAULT_SITES.includes('netflix.com'));
+  assert.deepEqual(DEFAULT_SITES,['web.whatsapp.com','netflix.com','instagram.com','facebook.com','x.com','twitter.com','tiktok.com','reddit.com','twitch.tv','youtube.com']);
 });
 t('fmtMin',()=>{
   assert.equal(fmtMin(0),'0 min');assert.equal(fmtMin(12),'12 min');assert.equal(fmtMin(60),'1 h');assert.equal(fmtMin(65),'1 h 5 min');

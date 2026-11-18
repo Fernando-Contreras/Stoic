@@ -221,12 +221,12 @@ export function sumMeasured(rows,ownDevice,ownSites){
   return out;
 }
 
-/* A starting list. Editable in the options. WhatsApp Web and Netflix are the
-   two that were asked for by name; the rest are the usual suspects. YouTube is
-   left out on purpose: for this person it is also where tutorials live. */
+/* A starting list. Editable in the options. It was chosen by its owner, in this
+   order. YouTube is in: it is a very common time sink, and anyone who watches
+   tutorials there can take it off from the options. */
 export const DEFAULT_SITES=[
   'web.whatsapp.com','netflix.com','instagram.com','facebook.com',
-  'x.com','twitter.com','tiktok.com','reddit.com','twitch.tv'
+  'x.com','twitter.com','tiktok.com','reddit.com','twitch.tv','youtube.com'
 ];
 
 // "12 min" / "1h 5m", for the screens.
