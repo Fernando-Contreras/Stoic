@@ -8931,7 +8931,9 @@ function remChip(r,tk,redraw,peeking){
     if(r.parent){
       const par=reminders().find(x=>x.id===r.parent);
       if(par){const pl=dv('xs cp');pl.style.cssText='margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
-        pl.textContent='↳ '+par.title;pl.title=par.title;cell.appendChild(pl);}
+        pl.textContent='↳ '+par.title;pl.title=par.title;pl.style.cursor='pointer';
+        pl.onclick=e=>{e.stopPropagation();STATE.editingRem=null;STATE.taskTree=par.id;render();};
+        cell.appendChild(pl);}
     }
     return cell;
   }
@@ -9472,9 +9474,15 @@ function renderReminderRow(r,tk,opts){
      where it came from — and the arrow that lifts it out named no one. */
   if(r.parent){
     const par=reminders().find(x=>x.id===r.parent);
-    if(par)meta.push(`<span class="cp">↳ ${escapeHtml(par.title.slice(0,40))}</span>`);
+    if(par)meta.push(`<span class="cp" data-par="1" style="cursor:pointer">↳ ${escapeHtml(par.title.slice(0,40))}</span>`);
   }
   const metaLine=dv('xs dimmer mt2',meta.join(' · '));
+  // Pressing the parent's name goes to the parent's own window, the same one its title opens.
+  const parEl=metaLine.querySelector('[data-par]');
+  if(parEl&&r.parent){
+    parEl.title=t('rem-detail');
+    parEl.onclick=e=>{e.stopPropagation();STATE.editingRem=null;STATE.taskTree=r.parent;render();};
+  }
   /* Opening the whole family in a window of its own — the title used to do
      this, and the title now belongs to renaming. It reads better on the count
      anyway: what you press is the thing telling you there is something inside.
